@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-figma
+  name: Figma Skill
+  description: Figma design platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: productivity
+  tags:
+    - figma
+    - design
+    - ui
+    - prototype
+  icon: pen-tool
+  color: "#F24E1E"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - figma-file-list
+    - figma-file-get
+    - figma-file-export
+    - figma-comment-create
+    - figma-comment-list
+    - figma-team-projects
+    - figma-project-files
+    - figma-style-list
+  grpc:
+    port: 50121
+    binary:
+      linux-amd64: skill-figma-linux-amd64
+      linux-arm64: skill-figma-linux-arm64
+      darwin-amd64: skill-figma-darwin-amd64
+      darwin-arm64: skill-figma-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - figma:read
+    - figma:write

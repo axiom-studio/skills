@@ -1,0 +1,42 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-discord
+  name: Discord Skill
+  description: Discord messaging operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: communication
+  tags:
+    - discord
+    - chat
+    - messaging
+    - bot
+  icon: message-square
+  color: "#5865F2"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - discord-send
+    - discord-embed
+    - discord-react
+    - discord-channel
+    - discord-user
+    - discord-webhook
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-discord-linux-amd64
+      linux-arm64: skill-discord-linux-arm64
+      darwin-amd64: skill-discord-darwin-amd64
+      darwin-arm64: skill-discord-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - discord:send
+    - discord:read
+    - discord:manage

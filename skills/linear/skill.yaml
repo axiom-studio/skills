@@ -1,0 +1,41 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-linear
+  name: Linear Skill
+  description: Linear issue tracking operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: project-management
+  tags:
+    - linear
+    - issues
+    - tracking
+    - agile
+  icon: check-square
+  color: "#5E6AD2"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - linear-issue-create
+    - linear-issue-update
+    - linear-issue-search
+    - linear-comment
+    - linear-cycle
+    - linear-project
+  grpc:
+    port: 50054
+    binary:
+      linux-amd64: skill-linear-linux-amd64
+      linux-arm64: skill-linear-linux-arm64
+      darwin-amd64: skill-linear-darwin-amd64
+      darwin-arm64: skill-linear-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - linear:read
+    - linear:write

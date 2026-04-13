@@ -1,0 +1,47 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-docker
+  name: Docker Skill
+  description: Docker container, image, volume, and network operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: containers
+  tags:
+    - docker
+    - containers
+    - images
+    - volumes
+    - networks
+  icon: box
+  color: "#2496ED"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - docker-container-list
+    - docker-container-create
+    - docker-container-start
+    - docker-container-stop
+    - docker-container-delete
+    - docker-container-logs
+    - docker-image-list
+    - docker-image-pull
+    - docker-image-build
+    - docker-volume-list
+    - docker-network-list
+  grpc:
+    port: 50074
+    binary:
+      linux-amd64: skill-docker-linux-amd64
+      linux-arm64: skill-docker-linux-arm64
+      darwin-amd64: skill-docker-darwin-amd64
+      darwin-arm64: skill-docker-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - docker:read
+    - docker:write

@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-langsmith
+  name: LangSmith Skill
+  description: LangSmith LLM observability operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ai
+  tags:
+    - langsmith
+    - langchain
+    - observability
+    - tracing
+  icon: search
+  color: "#1C3C3C"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - langsmith-trace-list
+    - langsmith-trace-get
+    - langsmith-project-create
+    - langsmith-project-list
+    - langsmith-dataset-create
+    - langsmith-dataset-list
+    - langsmith-run-eval
+    - langsmith-feedback-create
+    - langsmith-feedback-list
+  grpc:
+    port: 50100
+    binary:
+      linux-amd64: skill-langsmith-linux-amd64
+      linux-arm64: skill-langsmith-linux-arm64
+      darwin-amd64: skill-langsmith-darwin-amd64
+      darwin-arm64: skill-langsmith-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - langsmith:read
+    - langsmith:write

@@ -1,0 +1,48 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-confluence
+  name: Confluence Skill
+  description: Confluence wiki operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: productivity
+  tags:
+    - confluence
+    - wiki
+    - docs
+    - atlassian
+  icon: book
+  color: "#0052CC"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - confluence-page-list
+    - confluence-page-get
+    - confluence-page-create
+    - confluence-page-update
+    - confluence-page-delete
+    - confluence-space-list
+    - confluence-space-get
+    - confluence-attachment-upload
+    - confluence-attachment-list
+    - confluence-attachment-delete
+    - confluence-comment-create
+    - confluence-comment-list
+    - confluence-search
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-confluence-linux-amd64
+      linux-arm64: skill-confluence-linux-arm64
+      darwin-amd64: skill-confluence-darwin-amd64
+      darwin-arm64: skill-confluence-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - confluence:read
+    - confluence:write

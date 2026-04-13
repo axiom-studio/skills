@@ -1,0 +1,41 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-database
+  name: Database Skill
+  description: Database operations for Atlas agents - query, insert, update, delete
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: data
+  tags:
+    - database
+    - sql
+    - postgres
+    - mysql
+    - data
+  icon: database
+  color: "#336791"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - db-query
+    - db-insert
+    - db-update
+    - db-delete
+    - db-transaction
+  grpc:
+    port: 50052
+    binary:
+      linux-amd64: skill-database-linux-amd64
+      linux-arm64: skill-database-linux-arm64
+      darwin-amd64: skill-database-darwin-amd64
+      darwin-arm64: skill-database-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - database:read
+    - database:write

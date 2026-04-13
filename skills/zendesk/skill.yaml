@@ -1,0 +1,41 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-zendesk
+  name: Zendesk Skill
+  description: Zendesk support ticket operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: support
+  tags:
+    - zendesk
+    - support
+    - tickets
+    - helpdesk
+  icon: life-buoy
+  color: "#03363D"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - zendesk-ticket-create
+    - zendesk-ticket-update
+    - zendesk-ticket-search
+    - zendesk-user
+    - zendesk-macro
+    - zendesk-view
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-zendesk-linux-amd64
+      linux-arm64: skill-zendesk-linux-arm64
+      darwin-amd64: skill-zendesk-darwin-amd64
+      darwin-arm64: skill-zendesk-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - zendesk:read
+    - zendesk:write

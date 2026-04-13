@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-huggingface
+  name: Hugging Face Skill
+  description: Hugging Face model hub operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ai
+  tags:
+    - huggingface
+    - ml
+    - models
+    - inference
+  icon: cpu
+  color: "#FFD21E"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - hf-inference
+    - hf-model-list
+    - hf-model-info
+    - hf-model-download
+    - hf-dataset-list
+    - hf-dataset-download
+    - hf-space-create
+    - hf-space-list
+  grpc:
+    port: 50097
+    binary:
+      linux-amd64: skill-huggingface-linux-amd64
+      linux-arm64: skill-huggingface-linux-arm64
+      darwin-amd64: skill-huggingface-darwin-amd64
+      darwin-arm64: skill-huggingface-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - huggingface:read
+    - huggingface:write

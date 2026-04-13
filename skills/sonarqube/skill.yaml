@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-sonarqube
+  name: SonarQube Skill
+  description: SonarQube code quality analysis for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: security
+  tags:
+    - sonarqube
+    - code-quality
+    - analysis
+    - security
+  icon: search
+  color: "#4E9BCD"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - sonar-project-list
+    - sonar-scan
+    - sonar-issues-list
+    - sonar-issue-assign
+    - sonar-quality-gate
+    - sonar-measures
+    - sonar-rules-list
+    - sonar-branches-list
+  grpc:
+    port: 50096
+    binary:
+      linux-amd64: skill-sonarqube-linux-amd64
+      linux-arm64: skill-sonarqube-linux-arm64
+      darwin-amd64: skill-sonarqube-darwin-amd64
+      darwin-arm64: skill-sonarqube-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - sonarqube:read
+    - sonarqube:write

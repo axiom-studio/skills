@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-intercom
+  name: Intercom Skill
+  description: Intercom customer messaging operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: communication
+  tags:
+    - intercom
+    - messaging
+    - support
+    - customer
+  icon: message-square
+  color: "#1F8DED"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - intercom-conversation-list
+    - intercom-conversation-get
+    - intercom-conversation-reply
+    - intercom-user-list
+    - intercom-user-create
+    - intercom-message-send
+    - intercom-tag-create
+    - intercom-tag-apply
+  grpc:
+    port: 50111
+    binary:
+      linux-amd64: skill-intercom-linux-amd64
+      linux-arm64: skill-intercom-linux-arm64
+      darwin-amd64: skill-intercom-darwin-amd64
+      darwin-arm64: skill-intercom-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - intercom:read
+    - intercom:write

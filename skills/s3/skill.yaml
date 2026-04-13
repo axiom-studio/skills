@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-s3
+  name: AWS S3 Skill
+  description: AWS S3 object storage operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: storage
+  tags:
+    - s3
+    - aws
+    - storage
+    - objects
+  icon: hard-drive
+  color: "#569A31"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - s3-list-buckets
+    - s3-list-objects
+    - s3-upload
+    - s3-download
+    - s3-delete
+    - s3-presign
+    - s3-bucket-create
+    - s3-bucket-delete
+    - s3-copy-object
+  grpc:
+    port: 50114
+    binary:
+      linux-amd64: skill-s3-linux-amd64
+      linux-arm64: skill-s3-linux-arm64
+      darwin-amd64: skill-s3-darwin-amd64
+      darwin-arm64: skill-s3-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - s3:read
+    - s3:write

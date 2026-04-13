@@ -1,0 +1,40 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-sendgrid
+  name: SendGrid Skill
+  description: SendGrid email marketing operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: marketing
+  tags:
+    - sendgrid
+    - email
+    - marketing
+    - transactional
+  icon: mail
+  color: "#0086FF"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - sg-send
+    - sg-template
+    - sg-contact
+    - sg-list
+    - sg-campaign
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-sendgrid-linux-amd64
+      linux-arm64: skill-sendgrid-linux-arm64
+      darwin-amd64: skill-sendgrid-darwin-amd64
+      darwin-arm64: skill-sendgrid-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - sendgrid:read
+    - sendgrid:write

@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-postman
+  name: Postman Skill
+  description: Postman API testing operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - postman
+    - api
+    - testing
+    - collection
+  icon: send
+  color: "#FF6C37"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - postman-collection-run
+    - postman-collection-list
+    - postman-collection-get
+    - postman-environment-list
+    - postman-environment-get
+    - postman-monitor-run
+    - postman-monitor-list
+    - postman-api-list
+  grpc:
+    port: 50128
+    binary:
+      linux-amd64: skill-postman-linux-amd64
+      linux-arm64: skill-postman-linux-arm64
+      darwin-amd64: skill-postman-darwin-amd64
+      darwin-arm64: skill-postman-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - postman:read
+    - postman:write

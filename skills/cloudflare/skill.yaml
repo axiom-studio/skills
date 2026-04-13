@@ -1,0 +1,50 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-cloudflare
+  name: Cloudflare Skill
+  description: Cloudflare DNS, Workers, and edge operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: cloud
+  tags:
+    - cloudflare
+    - dns
+    - cdn
+    - workers
+    - edge
+  icon: cloud
+  color: "#F38020"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - cf-dns-list
+    - cf-dns-create
+    - cf-dns-update
+    - cf-dns-delete
+    - cf-worker-deploy
+    - cf-worker-list
+    - cf-r2-list
+    - cf-r2-upload
+    - cf-r2-download
+    - cf-d1-list
+    - cf-d1-query
+    - cf-waf-list
+    - cf-waf-create-rule
+    - cf-zone-list
+  grpc:
+    port: 50082
+    binary:
+      linux-amd64: skill-cloudflare-linux-amd64
+      linux-arm64: skill-cloudflare-linux-arm64
+      darwin-amd64: skill-cloudflare-darwin-amd64
+      darwin-arm64: skill-cloudflare-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - cloudflare:read
+    - cloudflare:write

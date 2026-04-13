@@ -1,0 +1,42 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-whatsapp
+  name: WhatsApp Skill
+  description: WhatsApp Business API operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: communication
+  tags:
+    - whatsapp
+    - messaging
+    - business
+    - chat
+  icon: message-circle
+  color: "#25D366"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - whatsapp-send-message
+    - whatsapp-send-template
+    - whatsapp-send-media
+    - whatsapp-mark-read
+    - whatsapp-contact-list
+    - whatsapp-phone-number-list
+    - whatsapp-business-profile
+  grpc:
+    port: 50110
+    binary:
+      linux-amd64: skill-whatsapp-linux-amd64
+      linux-arm64: skill-whatsapp-linux-arm64
+      darwin-amd64: skill-whatsapp-darwin-amd64
+      darwin-arm64: skill-whatsapp-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - whatsapp:read
+    - whatsapp:write

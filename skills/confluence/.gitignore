@@ -1,0 +1,13 @@
+# Binaries
+skill-confluence
+skill-confluence-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

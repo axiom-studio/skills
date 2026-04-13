@@ -1,0 +1,46 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-jenkins
+  name: Jenkins Skill
+  description: Jenkins CI/CD server operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - jenkins
+    - ci-cd
+    - build
+    - pipeline
+  icon: settings
+  color: "#D24939"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - jenkins-job-list
+    - jenkins-job-trigger
+    - jenkins-job-status
+    - jenkins-build-list
+    - jenkins-build-logs
+    - jenkins-build-abort
+    - jenkins-node-list
+    - jenkins-queue-list
+    - jenkins-view-list
+    - jenkins-credential-list
+    - jenkins-plugin-list
+  grpc:
+    port: 50085
+    binary:
+      linux-amd64: skill-jenkins-linux-amd64
+      linux-arm64: skill-jenkins-linux-arm64
+      darwin-amd64: skill-jenkins-darwin-amd64
+      darwin-arm64: skill-jenkins-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - jenkins:read
+    - jenkins:write

@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-vercel
+  name: Vercel Skill
+  description: Vercel deployment platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - vercel
+    - deployment
+    - serverless
+    - frontend
+  icon: cloud
+  color: "#000000"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - vercel-deploy
+    - vercel-deployment-list
+    - vercel-deployment-get
+    - vercel-project-list
+    - vercel-project-create
+    - vercel-domain-add
+    - vercel-domain-list
+    - vercel-env-set
+    - vercel-env-list
+  grpc:
+    port: 50126
+    binary:
+      linux-amd64: skill-vercel-linux-amd64
+      linux-arm64: skill-vercel-linux-arm64
+      darwin-amd64: skill-vercel-darwin-amd64
+      darwin-arm64: skill-vercel-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - vercel:read
+    - vercel:write

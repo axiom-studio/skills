@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-cohere
+  name: Cohere Skill
+  description: Cohere AI language model operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ai
+  tags:
+    - cohere
+    - ai
+    - llm
+    - nlp
+  icon: cpu
+  color: "#39594D"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - cohere-generate
+    - cohere-chat
+    - cohere-embed
+    - cohere-classify
+    - cohere-summarize
+    - cohere-rerank
+    - cohere-detect-language
+    - cohere-tokenize
+  grpc:
+    port: 50098
+    binary:
+      linux-amd64: skill-cohere-linux-amd64
+      linux-arm64: skill-cohere-linux-arm64
+      darwin-amd64: skill-cohere-darwin-amd64
+      darwin-arm64: skill-cohere-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - cohere:read
+    - cohere:write

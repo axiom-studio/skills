@@ -1,0 +1,41 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-dropbox
+  name: Dropbox Skill
+  description: Dropbox file storage operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: storage
+  tags:
+    - dropbox
+    - files
+    - storage
+    - cloud
+  icon: cloud
+  color: "#0061FE"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - dropbox-upload
+    - dropbox-download
+    - dropbox-list
+    - dropbox-delete
+    - dropbox-share
+    - dropbox-search
+  grpc:
+    port: 50052
+    binary:
+      linux-amd64: skill-dropbox-linux-amd64
+      linux-arm64: skill-dropbox-linux-arm64
+      darwin-amd64: skill-dropbox-darwin-amd64
+      darwin-arm64: skill-dropbox-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - dropbox:read
+    - dropbox:write

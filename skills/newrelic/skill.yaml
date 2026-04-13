@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-newrelic
+  name: New Relic Skill
+  description: New Relic observability operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: monitoring
+  tags:
+    - newrelic
+    - observability
+    - apm
+    - monitoring
+  icon: activity
+  color: "#008C99"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - newrelic-query-nrql
+    - newrelic-deploy-marker
+    - newrelic-alert-policy-list
+    - newrelic-alert-policy-create
+    - newrelic-dashboard-list
+    - newrelic-dashboard-create
+    - newrelic-apdex
+    - newrelic-application-list
+  grpc:
+    port: 50123
+    binary:
+      linux-amd64: skill-newrelic-linux-amd64
+      linux-arm64: skill-newrelic-linux-arm64
+      darwin-amd64: skill-newrelic-darwin-amd64
+      darwin-arm64: skill-newrelic-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - newrelic:read
+    - newrelic:write

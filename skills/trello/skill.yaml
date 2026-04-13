@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-trello
+  name: Trello Skill
+  description: Trello board management operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: project-management
+  tags:
+    - trello
+    - kanban
+    - board
+    - cards
+  icon: columns
+  color: "#0052CC"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - trello-board-list
+    - trello-board-get
+    - trello-card-list
+    - trello-card-create
+    - trello-card-update
+    - trello-card-move
+    - trello-list-list
+    - trello-label-add
+    - trello-member-add
+  grpc:
+    port: 50106
+    binary:
+      linux-amd64: skill-trello-linux-amd64
+      linux-arm64: skill-trello-linux-arm64
+      darwin-amd64: skill-trello-darwin-amd64
+      darwin-arm64: skill-trello-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - trello:read
+    - trello:write

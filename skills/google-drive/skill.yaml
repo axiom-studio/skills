@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-google-drive
+  name: Google Drive Skill
+  description: Google Drive file storage operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: storage
+  tags:
+    - google
+    - drive
+    - files
+    - storage
+  icon: hard-drive
+  color: "#4285F4"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - gdrive-list
+    - gdrive-upload
+    - gdrive-download
+    - gdrive-delete
+    - gdrive-share
+    - gdrive-search
+    - gdrive-folder-create
+    - gdrive-permission-list
+  grpc:
+    port: 50113
+    binary:
+      linux-amd64: skill-google-drive-linux-amd64
+      linux-arm64: skill-google-drive-linux-arm64
+      darwin-amd64: skill-google-drive-darwin-amd64
+      darwin-arm64: skill-google-drive-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - googledrive:read
+    - googledrive:write

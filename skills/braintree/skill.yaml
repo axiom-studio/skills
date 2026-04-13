@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-braintree
+  name: Braintree Skill
+  description: Braintree payment processing for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: finance
+  tags:
+    - braintree
+    - payments
+    - paypal
+    - transactions
+  icon: credit-card
+  color: "#000000"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - braintree-transaction-sale
+    - braintree-transaction-void
+    - braintree-transaction-refund
+    - braintree-transaction-get
+    - braintree-customer-create
+    - braintree-customer-list
+    - braintree-subscription-create
+    - braintree-subscription-cancel
+  grpc:
+    port: 50117
+    binary:
+      linux-amd64: skill-braintree-linux-amd64
+      linux-arm64: skill-braintree-linux-arm64
+      darwin-amd64: skill-braintree-darwin-amd64
+      darwin-arm64: skill-braintree-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - braintree:read
+    - braintree:write

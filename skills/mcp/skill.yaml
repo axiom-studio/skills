@@ -1,0 +1,280 @@
+apiVersion: axiom.studio/v1
+kind: Skill
+
+metadata:
+  id: mcp-tools
+  name: "MCP Tools"
+  description: "Essential MCP tools for agents: web browsing, screenshots, search, fetching, and memory"
+  author: "Axiom Studio"
+  authorEmail: "engineering@axiomstudio.ai"
+  version: 1.0.0
+  license: Apache-2.0
+  category: tools
+  tags:
+    - mcp
+    - web
+    - browser
+    - screenshot
+    - search
+    - fetch
+    - memory
+    - knowledge
+  icon: "puzzle"
+  color: "#8B5CF6"
+
+spec:
+  executorType: mcp
+
+  tools:
+    # ====================
+    # WEB BROWSING (Puppeteer)
+    # ====================
+    - name: web_navigate
+      description: "Navigate to a URL in a headless browser"
+      parameters:
+        type: object
+        properties:
+          url:
+            type: string
+            description: "The URL to navigate to"
+        required:
+          - url
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+
+    - name: web_screenshot
+      description: "Take a screenshot of the current page or a specific element"
+      parameters:
+        type: object
+        properties:
+          name:
+            type: string
+            description: "Name for the screenshot"
+          selector:
+            type: string
+            description: "Optional CSS selector to screenshot a specific element"
+          width:
+            type: integer
+            description: "Viewport width in pixels (default: 1280)"
+          height:
+            type: integer
+            description: "Viewport height in pixels (default: 720)"
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+
+    - name: web_click
+      description: "Click an element on the page"
+      parameters:
+        type: object
+        properties:
+          selector:
+            type: string
+            description: "CSS selector of the element to click"
+        required:
+          - selector
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+
+    - name: web_type
+      description: "Type text into an input field"
+      parameters:
+        type: object
+        properties:
+          selector:
+            type: string
+            description: "CSS selector of the input field"
+          text:
+            type: string
+            description: "Text to type"
+        required:
+          - selector
+          - text
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+
+    # ====================
+    # WEB SEARCH (Brave)
+    # Requires: BRAVE_API_KEY in vault
+    # ====================
+    - name: web_search
+      description: "Search the web using Brave Search"
+      parameters:
+        type: object
+        properties:
+          query:
+            type: string
+            description: "The search query"
+          count:
+            type: integer
+            description: "Number of results to return (default: 10)"
+        required:
+          - query
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-brave-search"]
+        env:
+          BRAVE_API_KEY: "{{vault.brave_api_key}}"
+
+    - name: web_local_search
+      description: "Search for local businesses and places"
+      parameters:
+        type: object
+        properties:
+          query:
+            type: string
+            description: "The local search query (e.g., 'coffee shops near me')"
+          count:
+            type: integer
+            description: "Number of results to return (default: 5)"
+        required:
+          - query
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-brave-search"]
+        env:
+          BRAVE_API_KEY: "{{vault.brave_api_key}}"
+
+    # ====================
+    # FETCH (URL Scraping)
+    # ====================
+    - name: web_fetch
+      description: "Fetch content from a URL and convert to markdown"
+      parameters:
+        type: object
+        properties:
+          url:
+            type: string
+            description: "The URL to fetch"
+          max_length:
+            type: integer
+            description: "Maximum content length to return (default: 50000)"
+          raw:
+            type: boolean
+            description: "Return raw HTML instead of markdown (default: false)"
+        required:
+          - url
+      config:
+        type: mcp
+        command: uvx
+        args: ["mcp-server-fetch"]
+
+    # ====================
+    # MEMORY (Knowledge Graph)
+    # ====================
+    - name: memory_read
+      description: "Read the entire knowledge graph"
+      parameters:
+        type: object
+        properties: {}
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-memory"]
+
+    - name: memory_search
+      description: "Search for nodes in the knowledge graph"
+      parameters:
+        type: object
+        properties:
+          query:
+            type: string
+            description: "Search query to find matching nodes"
+        required:
+          - query
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-memory"]
+
+    - name: memory_add
+      description: "Add a new memory to the knowledge graph"
+      parameters:
+        type: object
+        properties:
+          content:
+            type: string
+            description: "The memory content to store"
+        required:
+          - content
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-memory"]
+
+    - name: memory_create_entities
+      description: "Create new entities in the knowledge graph"
+      parameters:
+        type: object
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                entityType:
+                  type: string
+                observations:
+                  type: array
+                  items:
+                    type: string
+            description: "Entities to create"
+        required:
+          - entities
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-memory"]
+
+    - name: memory_create_relations
+      description: "Create relations between entities"
+      parameters:
+        type: object
+        properties:
+          relations:
+            type: array
+            items:
+              type: object
+              properties:
+                from:
+                  type: string
+                to:
+                  type: string
+                relationType:
+                  type: string
+            description: "Relations to create"
+        required:
+          - relations
+      config:
+        type: mcp
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-memory"]
+
+  permissions:
+    - network:outbound
+    - filesystem:write
+
+  requirements:
+    - type: runtime
+      name: nodejs
+      description: "Node.js and npm/npx required for Puppeteer and Brave Search"
+      optional: false
+    - type: runtime
+      name: python
+      description: "Python and uvx required for Fetch tool"
+      optional: true
+    - type: api-key
+      name: brave_api_key
+      description: "Brave Search API key (https://brave.com/search/api/) - required for web_search"
+      optional: true

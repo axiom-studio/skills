@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-telegram
+  name: Telegram Skill
+  description: Telegram messaging bot operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: communication
+  tags:
+    - telegram
+    - messaging
+    - bot
+    - chat
+  icon: send
+  color: "#0088CC"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - telegram-send-message
+    - telegram-edit-message
+    - telegram-delete-message
+    - telegram-send-photo
+    - telegram-send-document
+    - telegram-get-updates
+    - telegram-get-chat
+    - telegram-set-webhook
+  grpc:
+    port: 50109
+    binary:
+      linux-amd64: skill-telegram-linux-amd64
+      linux-arm64: skill-telegram-linux-arm64
+      darwin-amd64: skill-telegram-darwin-amd64
+      darwin-arm64: skill-telegram-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - telegram:read
+    - telegram:write

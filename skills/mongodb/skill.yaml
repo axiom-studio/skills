@@ -1,0 +1,49 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-mongodb
+  name: MongoDB Skill
+  description: MongoDB document database operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: database
+  tags:
+    - mongodb
+    - document
+    - database
+    - nosql
+  icon: database
+  color: "#47A248"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - mongo-find
+    - mongo-find-one
+    - mongo-insert-one
+    - mongo-insert-many
+    - mongo-update-one
+    - mongo-update-many
+    - mongo-delete-one
+    - mongo-delete-many
+    - mongo-aggregate
+    - mongo-count
+    - mongo-distinct
+    - mongo-create-index
+    - mongo-list-indexes
+    - mongo-watch
+  grpc:
+    port: 50063
+    binary:
+      linux-amd64: skill-mongodb-linux-amd64
+      linux-arm64: skill-mongodb-linux-arm64
+      darwin-amd64: skill-mongodb-darwin-amd64
+      darwin-arm64: skill-mongodb-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - mongodb:read
+    - mongodb:write

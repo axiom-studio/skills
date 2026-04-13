@@ -1,0 +1,56 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-vault
+  name: HashiCorp Vault Skill
+  description: HashiCorp Vault secrets management operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: security
+  tags:
+    - vault
+    - secrets
+    - security
+    - pki
+    - encryption
+  icon: lock
+  color: "#FFEC6E"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - vault-read
+    - vault-write
+    - vault-delete
+    - vault-list
+    - vault-kv-get
+    - vault-kv-put
+    - vault-kv-delete
+    - vault-lease-renew
+    - vault-lease-revoke
+    - vault-token-lookup
+    - vault-token-create
+    - vault-token-renew
+    - vault-token-revoke
+    - vault-pki-issue
+    - vault-pki-renew
+    - vault-pki-revoke
+    - vault-database-creds
+    - vault-transit-encrypt
+    - vault-transit-decrypt
+    - vault-health
+  grpc:
+    port: 50072
+    binary:
+      linux-amd64: skill-vault-linux-amd64
+      linux-arm64: skill-vault-linux-arm64
+      darwin-amd64: skill-vault-darwin-amd64
+      darwin-arm64: skill-vault-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - vault:read
+    - vault:write

@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-splunk
+  name: Splunk Skill
+  description: Splunk log analytics operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: monitoring
+  tags:
+    - splunk
+    - logs
+    - analytics
+    - siem
+  icon: search
+  color: "#000000"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - splunk-search
+    - splunk-saved-search
+    - splunk-search-job-create
+    - splunk-search-job-status
+    - splunk-index-list
+    - splunk-alert-create
+    - splunk-dashboard-list
+    - splunk-event-type-list
+  grpc:
+    port: 50122
+    binary:
+      linux-amd64: skill-splunk-linux-amd64
+      linux-arm64: skill-splunk-linux-arm64
+      darwin-amd64: skill-splunk-darwin-amd64
+      darwin-arm64: skill-splunk-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - splunk:read
+    - splunk:write
