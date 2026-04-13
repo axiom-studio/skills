@@ -1,0 +1,45 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-circleci
+  name: CircleCI Skill
+  description: CircleCI pipeline operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - circleci
+    - ci-cd
+    - pipeline
+    - build
+  icon: circle
+  color: "#343434"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - circleci-project-list
+    - circleci-pipeline-trigger
+    - circleci-pipeline-list
+    - circleci-pipeline-status
+    - circleci-workflow-list
+    - circleci-workflow-status
+    - circleci-job-list
+    - circleci-job-logs
+    - circleci-context-list
+    - circleci-context-set-env
+  grpc:
+    port: 50086
+    binary:
+      linux-amd64: skill-circleci-linux-amd64
+      linux-arm64: skill-circleci-linux-arm64
+      darwin-amd64: skill-circleci-darwin-amd64
+      darwin-arm64: skill-circleci-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - circleci:read
+    - circleci:write

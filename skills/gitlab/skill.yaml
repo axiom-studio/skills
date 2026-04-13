@@ -1,0 +1,49 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-gitlab
+  name: GitLab Skill
+  description: GitLab repository and CI/CD operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - gitlab
+    - git
+    - ci-cd
+    - pipeline
+  icon: git-branch
+  color: "#FC6D26"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - gitlab-project-list
+    - gitlab-project-get
+    - gitlab-pipeline-trigger
+    - gitlab-pipeline-status
+    - gitlab-job-list
+    - gitlab-job-logs
+    - gitlab-mr-list
+    - gitlab-mr-create
+    - gitlab-mr-merge
+    - gitlab-issue-list
+    - gitlab-issue-create
+    - gitlab-variable-list
+    - gitlab-variable-set
+    - gitlab-repo-file
+  grpc:
+    port: 50084
+    binary:
+      linux-amd64: skill-gitlab-linux-amd64
+      linux-arm64: skill-gitlab-linux-arm64
+      darwin-amd64: skill-gitlab-darwin-amd64
+      darwin-arm64: skill-gitlab-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - gitlab:read
+    - gitlab:write

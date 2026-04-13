@@ -1,0 +1,13 @@
+# Binaries
+skill-teams
+skill-teams-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

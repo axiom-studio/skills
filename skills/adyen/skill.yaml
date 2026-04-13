@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-adyen
+  name: Adyen Skill
+  description: Adyen payment platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: finance
+  tags:
+    - adyen
+    - payments
+    - finance
+    - transactions
+  icon: credit-card
+  color: "#0ABF53"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - adyen-payment
+    - adyen-capture
+    - adyen-refund
+    - adyen-cancel
+    - adyen-payment-list
+    - adyen-payment-get
+    - adyen-payout
+    - adyen-3ds-authenticate
+  grpc:
+    port: 50118
+    binary:
+      linux-amd64: skill-adyen-linux-amd64
+      linux-arm64: skill-adyen-linux-arm64
+      darwin-amd64: skill-adyen-darwin-amd64
+      darwin-arm64: skill-adyen-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - adyen:read
+    - adyen:write

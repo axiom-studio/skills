@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-snyk
+  name: Snyk Skill
+  description: Snyk security vulnerability scanning for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: security
+  tags:
+    - snyk
+    - security
+    - vulnerability
+    - scanning
+  icon: shield
+  color: "#4C4A73"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - snyk-project-list
+    - snyk-project-scan
+    - snyk-issue-list
+    - snyk-issue-ignore
+    - snyk-test-deps
+    - snyk-monitor
+    - snyk-severity-list
+    - snyk-license-list
+  grpc:
+    port: 50095
+    binary:
+      linux-amd64: skill-snyk-linux-amd64
+      linux-arm64: skill-snyk-linux-arm64
+      darwin-amd64: skill-snyk-darwin-amd64
+      darwin-arm64: skill-snyk-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - snyk:read
+    - snyk:write

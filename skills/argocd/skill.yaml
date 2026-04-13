@@ -1,0 +1,63 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-argocd
+  name: ArgoCD Skill
+  description: ArgoCD GitOps operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - argocd
+    - gitops
+    - kubernetes
+    - deployment
+    - cd
+  icon: git-branch
+  color: "#EF7B4D"
+spec:
+  executorType: grpc
+  nodeTypes:
+    # Application operations
+    - argocd-app-list
+    - argocd-app-get
+    - argocd-app-create
+    - argocd-app-update
+    - argocd-app-delete
+    - argocd-app-sync
+    - argocd-app-rollback
+    - argocd-app-refresh
+    - argocd-app-restart
+    - argocd-app-status
+    - argocd-app-history
+    - argocd-app-diff
+    - argocd-app-resources
+    - argocd-app-logs
+    # Project operations
+    - argocd-project-list
+    - argocd-project-get
+    - argocd-project-create
+    # Repository operations
+    - argocd-repo-add
+    - argocd-repo-list
+    # Cluster operations
+    - argocd-cluster-list
+    - argocd-cluster-create
+    # System operations
+    - argocd-version
+  grpc:
+    port: 50073
+    binary:
+      linux-amd64: skill-argocd-linux-amd64
+      linux-arm64: skill-argocd-linux-arm64
+      darwin-amd64: skill-argocd-darwin-amd64
+      darwin-arm64: skill-argocd-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - argocd:read
+    - argocd:write

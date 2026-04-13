@@ -1,0 +1,42 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-fivetran
+  name: Fivetran Skill
+  description: Fivetran data pipeline operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: data
+  tags:
+    - fivetran
+    - etl
+    - data
+    - integration
+  icon: database
+  color: "#FF6B35"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - fivetran-connector-list
+    - fivetran-connector-create
+    - fivetran-connector-sync
+    - fivetran-connector-status
+    - fivetran-destination-list
+    - fivetran-schema-config
+    - fivetran-group-list
+  grpc:
+    port: 50102
+    binary:
+      linux-amd64: skill-fivetran-linux-amd64
+      linux-arm64: skill-fivetran-linux-arm64
+      darwin-amd64: skill-fivetran-darwin-amd64
+      darwin-arm64: skill-fivetran-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - fivetran:read
+    - fivetran:write

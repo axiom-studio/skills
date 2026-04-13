@@ -1,0 +1,40 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-snowflake
+  name: Snowflake Skill
+  description: Snowflake data warehouse operations
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: data
+  tags:
+    - snowflake
+    - data-warehouse
+    - analytics
+    - sql
+  icon: database
+  color: "#29B5E8"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - sf-query
+    - sf-warehouse
+    - sf-stage
+    - sf-copy
+    - sf-stream
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-snowflake-linux-amd64
+      linux-arm64: skill-snowflake-linux-arm64
+      darwin-amd64: skill-snowflake-darwin-amd64
+      darwin-arm64: skill-snowflake-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - snowflake:read
+    - snowflake:write

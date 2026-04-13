@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-netlify
+  name: Netlify Skill
+  description: Netlify deployment platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - netlify
+    - deployment
+    - serverless
+    - jamstack
+  icon: cloud
+  color: "#00C7B7"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - netlify-deploy
+    - netlify-site-list
+    - netlify-site-create
+    - netlify-site-get
+    - netlify-deploy-list
+    - netlify-dns-records
+    - netlify-env-set
+    - netlify-env-list
+    - netlify-build-hook-create
+  grpc:
+    port: 50127
+    binary:
+      linux-amd64: skill-netlify-linux-amd64
+      linux-arm64: skill-netlify-linux-arm64
+      darwin-amd64: skill-netlify-darwin-amd64
+      darwin-arm64: skill-netlify-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - netlify:read
+    - netlify:write

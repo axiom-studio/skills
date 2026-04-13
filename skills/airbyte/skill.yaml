@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-airbyte
+  name: Airbyte Skill
+  description: Airbyte data integration operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: data
+  tags:
+    - airbyte
+    - etl
+    - data
+    - integration
+  icon: database
+  color: "#615EFF"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - airbyte-source-list
+    - airbyte-source-create
+    - airbyte-destination-list
+    - airbyte-destination-create
+    - airbyte-connection-list
+    - airbyte-connection-create
+    - airbyte-connection-sync
+    - airbyte-job-status
+    - airbyte-job-list
+  grpc:
+    port: 50101
+    binary:
+      linux-amd64: skill-airbyte-linux-amd64
+      linux-arm64: skill-airbyte-linux-arm64
+      darwin-amd64: skill-airbyte-darwin-amd64
+      darwin-arm64: skill-airbyte-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - airbyte:read
+    - airbyte:write

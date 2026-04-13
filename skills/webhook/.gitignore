@@ -1,0 +1,13 @@
+# Binaries
+skill-webhook
+skill-webhook-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

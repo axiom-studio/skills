@@ -1,0 +1,13 @@
+# Binaries
+skill-k8s
+skill-k8s-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

@@ -1,0 +1,40 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-shopify
+  name: Shopify Skill
+  description: Shopify e-commerce operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ecommerce
+  tags:
+    - shopify
+    - ecommerce
+    - orders
+    - products
+  icon: shopping-bag
+  color: "#5E8E3E"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - shopify-product
+    - shopify-order
+    - shopify-customer
+    - shopify-inventory
+    - shopify-fulfillment
+  grpc:
+    port: 50052
+    binary:
+      linux-amd64: skill-shopify-linux-amd64
+      linux-arm64: skill-shopify-linux-arm64
+      darwin-amd64: skill-shopify-darwin-amd64
+      darwin-arm64: skill-shopify-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - shopify:read
+    - shopify:write

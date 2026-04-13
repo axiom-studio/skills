@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-box
+  name: Box Skill
+  description: Box file storage operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: storage
+  tags:
+    - box
+    - files
+    - storage
+    - enterprise
+  icon: archive
+  color: "#0061D5"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - box-list
+    - box-upload
+    - box-download
+    - box-delete
+    - box-share
+    - box-folder-create
+    - box-search
+    - box-metadata-get
+  grpc:
+    port: 50115
+    binary:
+      linux-amd64: skill-box-linux-amd64
+      linux-arm64: skill-box-linux-arm64
+      darwin-amd64: skill-box-darwin-amd64
+      darwin-arm64: skill-box-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - box:read
+    - box:write

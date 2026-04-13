@@ -1,0 +1,42 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-replicate
+  name: Replicate Skill
+  description: Replicate ML model hosting operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ai
+  tags:
+    - replicate
+    - ml
+    - models
+    - inference
+  icon: cpu
+  color: "#000000"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - replicate-run
+    - replicate-prediction-status
+    - replicate-prediction-cancel
+    - replicate-model-list
+    - replicate-model-get
+    - replicate-training-create
+    - replicate-training-status
+  grpc:
+    port: 50099
+    binary:
+      linux-amd64: skill-replicate-linux-amd64
+      linux-arm64: skill-replicate-linux-arm64
+      darwin-amd64: skill-replicate-darwin-amd64
+      darwin-arm64: skill-replicate-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - replicate:read
+    - replicate:write

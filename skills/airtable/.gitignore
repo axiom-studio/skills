@@ -1,0 +1,13 @@
+# Binaries
+skill-airtable
+skill-airtable-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

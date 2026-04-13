@@ -1,0 +1,49 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-helm
+  name: Helm Skill
+  description: Helm Kubernetes package manager operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: devops
+  tags:
+    - helm
+    - kubernetes
+    - charts
+    - package
+  icon: anchor
+  color: "#0F1689"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - helm-install
+    - helm-upgrade
+    - helm-uninstall
+    - helm-rollback
+    - helm-list
+    - helm-status
+    - helm-history
+    - helm-repo-add
+    - helm-repo-list
+    - helm-repo-update
+    - helm-search
+    - helm-template
+    - helm-values
+    - helm-pull
+  grpc:
+    port: 50087
+    binary:
+      linux-amd64: skill-helm-linux-amd64
+      linux-arm64: skill-helm-linux-arm64
+      darwin-amd64: skill-helm-darwin-amd64
+      darwin-arm64: skill-helm-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - helm:read
+    - helm:write

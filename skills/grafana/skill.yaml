@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-grafana
+  name: Grafana Skill
+  description: Grafana visualization operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: monitoring
+  tags:
+    - grafana
+    - visualization
+    - dashboards
+    - monitoring
+  icon: bar-chart
+  color: "#F46800"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - grafana-dashboard-list
+    - grafana-dashboard-create
+    - grafana-dashboard-update
+    - grafana-dashboard-delete
+    - grafana-datasource-list
+    - grafana-datasource-create
+    - grafana-annotation-create
+    - grafana-alert-rule-list
+    - grafana-alert-rule-create
+  grpc:
+    port: 50124
+    binary:
+      linux-amd64: skill-grafana-linux-amd64
+      linux-arm64: skill-grafana-linux-arm64
+      darwin-amd64: skill-grafana-darwin-amd64
+      darwin-arm64: skill-grafana-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - grafana:read
+    - grafana:write

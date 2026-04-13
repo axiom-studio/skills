@@ -1,0 +1,45 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-asana
+  name: Asana Skill
+  description: Asana project management operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: project-management
+  tags:
+    - asana
+    - project
+    - tasks
+    - workflow
+  icon: check-square
+  color: "#F06A6A"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - asana-task-list
+    - asana-task-create
+    - asana-task-update
+    - asana-task-delete
+    - asana-project-list
+    - asana-project-get
+    - asana-section-list
+    - asana-story-create
+    - asana-subtask-list
+    - asana-tag-list
+  grpc:
+    port: 50105
+    binary:
+      linux-amd64: skill-asana-linux-amd64
+      linux-arm64: skill-asana-linux-arm64
+      darwin-amd64: skill-asana-darwin-amd64
+      darwin-arm64: skill-asana-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - asana:read
+    - asana:write

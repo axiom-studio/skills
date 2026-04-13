@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skill-k8s
+  namespace: axiomcd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skill-k8s
+  template:
+    metadata:
+      labels:
+        app: skill-k8s
+    spec:
+      containers:
+        - name: skill-k8s
+          image: axiomstudio/skill-k8s:v1.0.1
+          ports:
+            - containerPort: 50051
+          env:
+            - name: SKILL_PORT
+              value: "50051"
+            - name: ATLAS_URL
+              value: "http://atlas.axiomcd.svc.cluster.local:8081"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skill-k8s
+  namespace: axiomcd
+spec:
+  selector:
+    app: skill-k8s
+  ports:
+    - port: 50051
+      targetPort: 50051

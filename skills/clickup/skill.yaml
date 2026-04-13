@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-clickup
+  name: ClickUp Skill
+  description: ClickUp productivity platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: project-management
+  tags:
+    - clickup
+    - tasks
+    - project
+    - productivity
+  icon: check-circle
+  color: "#7B68EE"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - clickup-task-list
+    - clickup-task-create
+    - clickup-task-update
+    - clickup-task-delete
+    - clickup-space-list
+    - clickup-folder-list
+    - clickup-list-list
+    - clickup-time-track
+    - clickup-comment-create
+  grpc:
+    port: 50108
+    binary:
+      linux-amd64: skill-clickup-linux-amd64
+      linux-arm64: skill-clickup-linux-arm64
+      darwin-amd64: skill-clickup-darwin-amd64
+      darwin-arm64: skill-clickup-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - clickup:read
+    - clickup:write

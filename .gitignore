@@ -1,0 +1,25 @@
+# Platform-specific binaries
+*-linux-amd64
+*-linux-arm64
+*-darwin-amd64
+*-darwin-arm64
+
+# Shared libraries and executables
+*.so
+*.exe
+
+# Go vendor directory
+vendor/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build output
+dist/
+build/

@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-hubspot
+  name: HubSpot Skill
+  description: HubSpot CRM operations for Atlas agents - contacts, deals, companies, tickets
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: crm
+  tags:
+    - hubspot
+    - crm
+    - marketing
+    - sales
+  icon: users
+  color: "#FF7A59"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - hs-contact-create
+    - hs-contact-update
+    - hs-contact-search
+    - hs-deal-create
+    - hs-deal-update
+    - hs-company-create
+    - hs-ticket-create
+    - hs-engagement
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-hubspot-linux-amd64
+      linux-arm64: skill-hubspot-linux-arm64
+      darwin-amd64: skill-hubspot-darwin-amd64
+      darwin-arm64: skill-hubspot-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+      - http
+  permissions:
+    - hubspot:read
+    - hubspot:write

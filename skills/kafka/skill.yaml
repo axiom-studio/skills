@@ -1,0 +1,45 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-kafka
+  name: Apache Kafka Skill
+  description: Apache Kafka event streaming operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: messaging
+  tags:
+    - kafka
+    - events
+    - streaming
+    - messaging
+  icon: radio
+  color: "#231F20"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - kafka-produce
+    - kafka-consume
+    - kafka-topic-create
+    - kafka-topic-list
+    - kafka-topic-delete
+    - kafka-topic-describe
+    - kafka-consumer-group-list
+    - kafka-consumer-group-reset
+    - kafka-partition-list
+    - kafka-offset-get
+  grpc:
+    port: 50089
+    binary:
+      linux-amd64: skill-kafka-linux-amd64
+      linux-arm64: skill-kafka-linux-arm64
+      darwin-amd64: skill-kafka-darwin-amd64
+      darwin-arm64: skill-kafka-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - kafka:read
+    - kafka:write

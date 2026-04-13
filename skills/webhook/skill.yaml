@@ -1,0 +1,39 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-webhook
+  name: Webhook Skill
+  description: Webhook triggers and actions for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: integration
+  tags:
+    - webhook
+    - http
+    - api
+    - trigger
+  icon: link
+  color: "#10B981"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - webhook-trigger
+    - webhook-send
+    - webhook-parse
+    - webhook-signature
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-webhook-linux-amd64
+      linux-arm64: skill-webhook-linux-arm64
+      darwin-amd64: skill-webhook-darwin-amd64
+      darwin-arm64: skill-webhook-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - http:send
+    - webhook:receive

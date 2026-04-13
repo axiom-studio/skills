@@ -1,0 +1,41 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-salesforce
+  name: Salesforce Skill
+  description: Salesforce CRM operations for Atlas agents - accounts, contacts, opportunities, leads, cases
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: crm
+  tags:
+    - salesforce
+    - crm
+    - sales
+    - sfdc
+  icon: cloud
+  color: "#00A1E0"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - sf-query
+    - sf-create
+    - sf-update
+    - sf-delete
+    - sf-describe
+    - sf-soql
+  grpc:
+    port: 50053
+    binary:
+      linux-amd64: skill-salesforce-linux-amd64
+      linux-arm64: skill-salesforce-linux-arm64
+      darwin-amd64: skill-salesforce-darwin-amd64
+      darwin-arm64: skill-salesforce-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - salesforce:read
+    - salesforce:write

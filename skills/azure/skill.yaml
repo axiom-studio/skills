@@ -1,0 +1,49 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-azure
+  name: Azure Skill
+  description: Microsoft Azure cloud operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: cloud
+  tags:
+    - azure
+    - microsoft
+    - cloud
+    - vm
+    - aks
+  icon: cloud
+  color: "#0078D4"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - azure-vm-list
+    - azure-vm-start
+    - azure-vm-stop
+    - azure-vm-restart
+    - azure-aks-list
+    - azure-aks-get-credentials
+    - azure-storage-list
+    - azure-blob-upload
+    - azure-blob-download
+    - azure-function-list
+    - azure-function-invoke
+    - azure-resource-group-list
+    - azure-resource-group-create
+  grpc:
+    port: 50080
+    binary:
+      linux-amd64: skill-azure-linux-amd64
+      linux-arm64: skill-azure-linux-arm64
+      darwin-amd64: skill-azure-darwin-amd64
+      darwin-arm64: skill-azure-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - azure:read
+    - azure:write

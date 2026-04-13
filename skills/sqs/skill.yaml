@@ -1,0 +1,44 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-sqs
+  name: AWS SQS Skill
+  description: AWS Simple Queue Service operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: messaging
+  tags:
+    - sqs
+    - aws
+    - queue
+    - messaging
+  icon: mail
+  color: "#FF9900"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - sqs-send-message
+    - sqs-receive-message
+    - sqs-delete-message
+    - sqs-queue-create
+    - sqs-queue-list
+    - sqs-queue-delete
+    - sqs-queue-purge
+    - sqs-queue-attributes
+    - sqs-dead-letter-queue
+  grpc:
+    port: 50092
+    binary:
+      linux-amd64: skill-sqs-linux-amd64
+      linux-arm64: skill-sqs-linux-arm64
+      darwin-amd64: skill-sqs-darwin-amd64
+      darwin-arm64: skill-sqs-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - sqs:read
+    - sqs:write

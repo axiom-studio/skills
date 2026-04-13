@@ -1,0 +1,45 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-rabbitmq
+  name: RabbitMQ Skill
+  description: RabbitMQ message broker operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: messaging
+  tags:
+    - rabbitmq
+    - amqp
+    - messaging
+    - queue
+  icon: mail
+  color: "#FF6600"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - rabbitmq-publish
+    - rabbitmq-consume
+    - rabbitmq-queue-create
+    - rabbitmq-queue-list
+    - rabbitmq-queue-delete
+    - rabbitmq-queue-purge
+    - rabbitmq-exchange-create
+    - rabbitmq-exchange-list
+    - rabbitmq-binding-create
+    - rabbitmq-binding-list
+  grpc:
+    port: 50090
+    binary:
+      linux-amd64: skill-rabbitmq-linux-amd64
+      linux-arm64: skill-rabbitmq-linux-arm64
+      darwin-amd64: skill-rabbitmq-darwin-amd64
+      darwin-arm64: skill-rabbitmq-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - rabbitmq:read
+    - rabbitmq:write

@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-zoom
+  name: Zoom Skill
+  description: Zoom video conferencing operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: productivity
+  tags:
+    - zoom
+    - video
+    - meetings
+    - conferencing
+  icon: video
+  color: "#2D8CFF"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - zoom-meeting-create
+    - zoom-meeting-list
+    - zoom-meeting-get
+    - zoom-meeting-delete
+    - zoom-recording-list
+    - zoom-participant-list
+    - zoom-user-list
+    - zoom-webinar-create
+  grpc:
+    port: 50120
+    binary:
+      linux-amd64: skill-zoom-linux-amd64
+      linux-arm64: skill-zoom-linux-arm64
+      darwin-amd64: skill-zoom-darwin-amd64
+      darwin-arm64: skill-zoom-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - zoom:read
+    - zoom:write

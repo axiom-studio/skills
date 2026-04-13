@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-paypal
+  name: PayPal Skill
+  description: PayPal payment operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: finance
+  tags:
+    - paypal
+    - payments
+    - finance
+    - transactions
+  icon: credit-card
+  color: "#003087"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - paypal-order-create
+    - paypal-order-capture
+    - paypal-order-get
+    - paypal-payment-list
+    - paypal-refund
+    - paypal-payout
+    - paypal-transaction-list
+    - paypal-invoice-create
+  grpc:
+    port: 50116
+    binary:
+      linux-amd64: skill-paypal-linux-amd64
+      linux-arm64: skill-paypal-linux-arm64
+      darwin-amd64: skill-paypal-darwin-amd64
+      darwin-arm64: skill-paypal-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - paypal:read
+    - paypal:write

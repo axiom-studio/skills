@@ -1,0 +1,46 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-okta
+  name: Okta Skill
+  description: Okta identity management operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: security
+  tags:
+    - okta
+    - identity
+    - sso
+    - authentication
+  icon: lock
+  color: "#007DC1"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - okta-user-list
+    - okta-user-create
+    - okta-user-update
+    - okta-user-deactivate
+    - okta-group-list
+    - okta-group-create
+    - okta-group-add-user
+    - okta-app-list
+    - okta-app-assign-user
+    - okta-mfa-enroll
+    - okta-session-revoke
+  grpc:
+    port: 50093
+    binary:
+      linux-amd64: skill-okta-linux-amd64
+      linux-arm64: skill-okta-linux-arm64
+      darwin-amd64: skill-okta-darwin-amd64
+      darwin-arm64: skill-okta-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - okta:read
+    - okta:write

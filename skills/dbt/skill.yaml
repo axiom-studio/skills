@@ -1,0 +1,43 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-dbt
+  name: dbt Skill
+  description: dbt data transformation operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: data
+  tags:
+    - dbt
+    - transformation
+    - data
+    - analytics
+  icon: database
+  color: "#FF694B"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - dbt-run
+    - dbt-test
+    - dbt-compile
+    - dbt-docs-generate
+    - dbt-seed
+    - dbt-snapshot
+    - dbt-debug
+    - dbt-list
+  grpc:
+    port: 50103
+    binary:
+      linux-amd64: skill-dbt-linux-amd64
+      linux-arm64: skill-dbt-linux-arm64
+      darwin-amd64: skill-dbt-darwin-amd64
+      darwin-arm64: skill-dbt-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - dbt:read
+    - dbt:write

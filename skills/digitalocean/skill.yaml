@@ -1,0 +1,49 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-digitalocean
+  name: DigitalOcean Skill
+  description: DigitalOcean cloud infrastructure operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: cloud
+  tags:
+    - digitalocean
+    - droplet
+    - kubernetes
+    - spaces
+    - app-platform
+  icon: cloud
+  color: "#0080FF"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - do-droplet-list
+    - do-droplet-create
+    - do-droplet-delete
+    - do-droplet-power
+    - do-kubernetes-list
+    - do-kubernetes-create
+    - do-space-list
+    - do-space-upload
+    - do-space-download
+    - do-app-list
+    - do-app-deploy
+    - do-database-list
+    - do-loadbalancer-list
+  grpc:
+    port: 50083
+    binary:
+      linux-amd64: skill-digitalocean-linux-amd64
+      linux-arm64: skill-digitalocean-linux-arm64
+      darwin-amd64: skill-digitalocean-darwin-amd64
+      darwin-arm64: skill-digitalocean-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - digitalocean:read
+    - digitalocean:write

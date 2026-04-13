@@ -1,0 +1,45 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-auth0
+  name: Auth0 Skill
+  description: Auth0 authentication platform operations for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: security
+  tags:
+    - auth0
+    - authentication
+    - identity
+    - oauth
+  icon: lock
+  color: "#EB5424"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - auth0-user-list
+    - auth0-user-create
+    - auth0-user-update
+    - auth0-user-delete
+    - auth0-role-list
+    - auth0-role-assign
+    - auth0-connection-list
+    - auth0-client-list
+    - auth0-rule-list
+    - auth0-log-list
+  grpc:
+    port: 50094
+    binary:
+      linux-amd64: skill-auth0-linux-amd64
+      linux-arm64: skill-auth0-linux-arm64
+      darwin-amd64: skill-auth0-darwin-amd64
+      darwin-arm64: skill-auth0-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - auth0:read
+    - auth0:write

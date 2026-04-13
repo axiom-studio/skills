@@ -1,0 +1,48 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-aws
+  name: AWS Skill
+  description: AWS cloud operations (S3, EC2, Lambda) for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: cloud
+  tags:
+    - aws
+    - s3
+    - ec2
+    - lambda
+    - cloud
+  icon: cloud
+  color: "#FF9900"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - aws-s3-list-buckets
+    - aws-s3-list-objects
+    - aws-s3-get-object
+    - aws-s3-put-object
+    - aws-s3-delete-object
+    - aws-ec2-list-instances
+    - aws-ec2-start-instance
+    - aws-ec2-stop-instance
+    - aws-ec2-reboot-instance
+    - aws-lambda-list-functions
+    - aws-lambda-invoke
+    - aws-lambda-get-function
+  grpc:
+    port: 50057
+    binary:
+      linux-amd64: skill-aws-linux-amd64
+      linux-arm64: skill-aws-linux-arm64
+      darwin-amd64: skill-aws-darwin-amd64
+      darwin-arm64: skill-aws-darwin-arm64
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - aws:read
+    - aws:write
