@@ -9,7 +9,6 @@
 *.exe
 
 # Go vendor directory
-vendor/
 
 # macOS
 .DS_Store

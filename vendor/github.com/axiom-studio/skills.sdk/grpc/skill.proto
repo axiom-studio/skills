@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package axiom.skill.v1;
+
+option go_package = "github.com/axiom-studio/skills.sdk/grpc/skillpb";
+
+// SkillService is the gRPC service that external skills implement
+// Atlas calls this service to execute nodes
+service SkillService {
+    // Execute runs a single node
+    rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+    
+    // GetNodeTypes returns all node types this skill provides
+    rpc GetNodeTypes(GetNodeTypesRequest) returns (GetNodeTypesResponse);
+    
+    // GetNodeSchema returns the JSON schema for a node type
+    rpc GetNodeSchema(GetNodeSchemaRequest) returns (GetNodeSchemaResponse);
+    
+    // Health check
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ExecuteRequest is sent by Atlas to execute a node
+message ExecuteRequest {
+    // Node identification
+    string node_id = 1;
+    string node_type = 2;
+
+    // Node configuration (from the workflow definition)
+    map<string, bytes> config = 3;
+
+    // Input data from previous node
+    map<string, bytes> input = 4;
+
+    // Execution context
+    ExecutionContext context = 5;
+
+    // Resolved bindings (connection strings, API keys, etc.)
+    map<string, bytes> bindings = 6;
+}
+
+// ExecutionContext provides runtime information
+message ExecutionContext {
+    string run_id = 1;
+    string agent_id = 2;
+    string namespace = 3;
+    map<string, string> variables = 4;
+}
+
+// ExecuteResponse is returned by the skill
+message ExecuteResponse {
+    // Output data for next node
+    map<string, bytes> output = 1;
+    
+    // Error if execution failed
+    Error error = 2;
+    
+    // Next step for branching nodes (if, switch)
+    string next_step = 3;
+}
+
+// Error represents an execution error
+message Error {
+    string message = 1;
+    string type = 2;  // "validation", "execution", "timeout", etc.
+    map<string, string> details = 3;
+}
+
+// GetNodeTypesRequest
+message GetNodeTypesRequest {}
+
+// GetNodeTypesResponse
+message GetNodeTypesResponse {
+    repeated string node_types = 1;
+}
+
+// GetNodeSchemaRequest
+message GetNodeSchemaRequest {
+    string node_type = 1;
+}
+
+// GetNodeSchemaResponse
+message GetNodeSchemaResponse {
+    // JSON schema for the node configuration
+    bytes schema = 1;
+}
+
+// HealthRequest
+message HealthRequest {}
+
+// HealthResponse
+message HealthResponse {
+    bool healthy = 1;
+    string skill_id = 2;
+    string version = 3;
+}
