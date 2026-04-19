@@ -26,6 +26,9 @@ spec:
     - k8s-scale
     - k8s-patch
     - k8s-delete
+    - k8s-event
+    - k8s-log-monitor
+    - k8s-watch
   grpc:
     port: 50053
     binary:

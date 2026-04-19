@@ -27,6 +27,32 @@ spec:
     - splunk-alert-create
     - splunk-dashboard-list
     - splunk-event-type-list
+    - splunk-alert-delete
+    - splunk-alert-get
+    - splunk-alert-history
+    - splunk-alert-list
+    - splunk-alert-update
+    - splunk-dashboard-create
+    - splunk-dashboard-delete
+    - splunk-dashboard-get
+    - splunk-dashboard-update
+    - splunk-event-type-create
+    - splunk-event-type-delete
+    - splunk-event-type-get
+    - splunk-event-type-update
+    - splunk-index-create
+    - splunk-index-delete
+    - splunk-index-get
+    - splunk-index-update
+    - splunk-info
+    - splunk-saved-search-create
+    - splunk-saved-search-delete
+    - splunk-saved-search-list
+    - splunk-saved-search-run
+    - splunk-saved-search-update
+    - splunk-search-job-cancel
+    - splunk-search-job-results
+    - splunk-search-job-wait
   grpc:
     port: 50122
     binary:
