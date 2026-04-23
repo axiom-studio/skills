@@ -27,6 +27,145 @@ spec:
     - monday-column-list
     - monday-group-list
     - monday-query
+  inputs:
+    monday-board-list:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardIds
+        type: array
+        description: Filter by board IDs
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+    monday-board-get:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardId
+        type: integer
+        description: Board ID
+        required: true
+        source: input
+    monday-item-list:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardId
+        type: integer
+        description: Board ID
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+    monday-item-create:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardId
+        type: integer
+        description: Board ID
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Item name
+        required: true
+        source: input
+      - name: groupId
+        type: string
+        description: Group ID
+        required: false
+        source: input
+      - name: columnValues
+        type: object
+        description: Column values
+        required: false
+        source: input
+    monday-item-update:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: itemId
+        type: integer
+        description: Item ID
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: New item name
+        required: false
+        source: input
+      - name: columnValues
+        type: object
+        description: Column values
+        required: false
+        source: input
+    monday-column-list:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardId
+        type: integer
+        description: Board ID
+        required: true
+        source: input
+    monday-group-list:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: boardId
+        type: integer
+        description: Board ID
+        required: true
+        source: input
+    monday-query:
+      - name: apiToken
+        type: string
+        description: Monday.com API token
+        required: true
+        source: connection
+        binding: vault://monday-credentials
+      - name: query
+        type: string
+        description: GraphQL query
+        required: true
+        source: input
+      - name: variables
+        type: object
+        description: Query variables
+        required: false
+        source: input
   grpc:
     port: 50107
     binary:

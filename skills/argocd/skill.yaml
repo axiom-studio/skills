@@ -47,6 +47,582 @@ spec:
     - argocd-cluster-create
     # System operations
     - argocd-version
+  inputs:
+    argocd-app-sync:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: revision
+        type: string
+        description: Revision to sync to
+        required: false
+        source: input
+        default: "HEAD"
+      - name: prune
+        type: boolean
+        description: Prune resources
+        required: false
+        source: default
+        default: false
+      - name: dryRun
+        type: boolean
+        description: Dry run mode
+        required: false
+        source: default
+        default: false
+      - name: strategy
+        type: string
+        description: Sync strategy (apply, hook, replace)
+        required: false
+        source: input
+      - name: force
+        type: boolean
+        description: Force sync
+        required: false
+        source: default
+        default: false
+      - name: async
+        type: boolean
+        description: Async sync
+        required: false
+        source: default
+        default: false
+    argocd-app-status:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: refresh
+        type: boolean
+        description: Refresh status before returning
+        required: false
+        source: default
+        default: true
+    argocd-app-get:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+    argocd-app-create:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: name
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: project
+        type: string
+        description: Project name
+        required: false
+        source: input
+        default: "default"
+      - name: repoUrl
+        type: string
+        description: Git repository URL
+        required: true
+        source: input
+      - name: path
+        type: string
+        description: Application path in repo
+        required: true
+        source: input
+      - name: revision
+        type: string
+        description: Git revision
+        required: false
+        source: input
+        default: "HEAD"
+      - name: destServer
+        type: string
+        description: Destination cluster URL
+        required: true
+        source: input
+      - name: destNamespace
+        type: string
+        description: Destination namespace
+        required: true
+        source: input
+      - name: syncPolicy
+        type: string
+        description: Sync policy (automated, manual)
+        required: false
+        source: input
+      - name: prune
+        type: boolean
+        description: Auto-prune
+        required: false
+        source: default
+        default: false
+      - name: selfHeal
+        type: boolean
+        description: Self-heal
+        required: false
+        source: default
+        default: false
+    argocd-app-update:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: name
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: repoUrl
+        type: string
+        description: New repository URL
+        required: false
+        source: input
+      - name: path
+        type: string
+        description: New path
+        required: false
+        source: input
+      - name: revision
+        type: string
+        description: New revision
+        required: false
+        source: input
+      - name: destNamespace
+        type: string
+        description: New namespace
+        required: false
+        source: input
+      - name: syncPolicy
+        type: string
+        description: New sync policy
+        required: false
+        source: input
+    argocd-app-delete:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: cascade
+        type: boolean
+        description: Cascade delete resources
+        required: false
+        source: default
+        default: true
+    argocd-app-rollback:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: historyId
+        type: string
+        description: History ID to rollback to
+        required: true
+        source: input
+    argocd-app-refresh:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: hard
+        type: boolean
+        description: Hard refresh
+        required: false
+        source: default
+        default: false
+    argocd-app-restart:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+    argocd-app-history:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+    argocd-app-diff:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: revision
+        type: string
+        description: Revision to compare
+        required: false
+        source: input
+    argocd-app-resources:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Filter by namespace
+        required: false
+        source: input
+      - name: kind
+        type: string
+        description: Filter by kind
+        required: false
+        source: input
+      - name: group
+        type: string
+        description: Filter by group
+        required: false
+        source: input
+    argocd-app-logs:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: appName
+        type: string
+        description: Application name
+        required: true
+        source: input
+      - name: podName
+        type: string
+        description: Pod name
+        required: false
+        source: input
+      - name: container
+        type: string
+        description: Container name
+        required: false
+        source: input
+      - name: tailLines
+        type: integer
+        description: Number of lines to tail
+        required: false
+        source: input
+      - name: sinceTime
+        type: string
+        description: Logs since time
+        required: false
+        source: input
+    argocd-app-list:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: project
+        type: string
+        description: Filter by project name
+        required: false
+        source: input
+    argocd-project-list:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+    argocd-project-get:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: name
+        type: string
+        description: Project name
+        required: true
+        source: input
+    argocd-project-create:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: name
+        type: string
+        description: Project name
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Project description
+        required: false
+        source: input
+      - name: destinations
+        type: array
+        description: Allowed destinations
+        required: false
+        source: input
+      - name: sourceRepos
+        type: array
+        description: Allowed source repos
+        required: false
+        source: input
+    argocd-repo-add:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: repoUrl
+        type: string
+        description: Repository URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: false
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: false
+        source: connection
+        binding: vault://argocd-credentials
+      - name: sshPrivateKey
+        type: string
+        description: SSH private key
+        required: false
+        source: connection
+        binding: vault://argocd-credentials
+      - name: insecure
+        type: boolean
+        description: Skip TLS verification
+        required: false
+        source: default
+        default: false
+    argocd-repo-list:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+    argocd-cluster-list:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+    argocd-cluster-create:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+      - name: name
+        type: string
+        description: Cluster name
+        required: true
+        source: input
+      - name: serverUrl
+        type: string
+        description: Cluster server URL
+        required: true
+        source: input
+      - name: credentials
+        type: object
+        description: Cluster credentials
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
+    argocd-version:
+      - name: server
+        type: string
+        description: ArgoCD server address
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: Authentication token
+        required: true
+        source: connection
+        binding: vault://argocd-credentials
   grpc:
     port: 50073
     binary:

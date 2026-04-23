@@ -24,6 +24,228 @@ spec:
     - sg-contact
     - sg-list
     - sg-campaign
+  inputs:
+    sg-send:
+      - name: apiKey
+        type: string
+        description: SendGrid API key
+        required: true
+        source: connection
+        binding: vault://sendgrid-credentials
+      - name: fromEmail
+        type: string
+        description: Sender email address
+        required: true
+        source: input
+      - name: fromName
+        type: string
+        description: Sender name
+        required: false
+        source: input
+      - name: toEmails
+        type: array
+        description: Recipient email addresses
+        required: true
+        source: input
+      - name: ccEmails
+        type: array
+        description: CC email addresses
+        required: false
+        source: input
+      - name: bccEmails
+        type: array
+        description: BCC email addresses
+        required: false
+        source: input
+      - name: subject
+        type: string
+        description: Email subject
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Email body content
+        required: false
+        source: input
+      - name: contentType
+        type: string
+        description: Content type (text/plain or text/html)
+        required: false
+        source: input
+        default: "text/plain"
+      - name: templateId
+        type: string
+        description: Dynamic template ID
+        required: false
+        source: input
+      - name: templateData
+        type: object
+        description: Data for dynamic template substitution
+        required: false
+        source: input
+    sg-template:
+      - name: apiKey
+        type: string
+        description: SendGrid API key
+        required: true
+        source: connection
+        binding: vault://sendgrid-credentials
+      - name: action
+        type: string
+        description: Action to perform (list, get, create, update, delete)
+        required: true
+        source: input
+      - name: templateId
+        type: string
+        description: Template ID (required for get/update/delete)
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Template name (required for create/update)
+        required: false
+        source: input
+      - name: content
+        type: string
+        description: Template HTML content
+        required: false
+        source: input
+      - name: subject
+        type: string
+        description: Template subject
+        required: false
+        source: input
+    sg-contact:
+      - name: apiKey
+        type: string
+        description: SendGrid API key
+        required: true
+        source: connection
+        binding: vault://sendgrid-credentials
+      - name: action
+        type: string
+        description: Action to perform (list, get, create, update, delete, search)
+        required: true
+        source: input
+      - name: contactId
+        type: string
+        description: Contact ID (required for get/update/delete)
+        required: false
+        source: input
+      - name: email
+        type: string
+        description: Contact email address (required for create)
+        required: false
+        source: input
+      - name: firstName
+        type: string
+        description: Contact first name
+        required: false
+        source: input
+      - name: lastName
+        type: string
+        description: Contact last name
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Contact phone number
+        required: false
+        source: input
+      - name: customFields
+        type: object
+        description: Custom field values
+        required: false
+        source: input
+      - name: query
+        type: string
+        description: Search query (required for search action)
+        required: false
+        source: input
+    sg-list:
+      - name: apiKey
+        type: string
+        description: SendGrid API key
+        required: true
+        source: connection
+        binding: vault://sendgrid-credentials
+      - name: action
+        type: string
+        description: Action to perform (list, get, create, update, delete)
+        required: true
+        source: input
+      - name: listId
+        type: string
+        description: List ID (required for get/update/delete)
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: List name (required for create/update)
+        required: false
+        source: input
+      - name: contactIds
+        type: array
+        description: Contact IDs to add to list
+        required: false
+        source: input
+    sg-campaign:
+      - name: apiKey
+        type: string
+        description: SendGrid API key
+        required: true
+        source: connection
+        binding: vault://sendgrid-credentials
+      - name: action
+        type: string
+        description: Action to perform (list, get, create, update, delete, schedule, send)
+        required: true
+        source: input
+      - name: campaignId
+        type: string
+        description: Campaign ID (required for get/update/delete/schedule/send)
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Campaign name (required for create)
+        required: false
+        source: input
+      - name: subject
+        type: string
+        description: Campaign subject (required for create)
+        required: false
+        source: input
+      - name: fromEmail
+        type: string
+        description: Sender email (required for create)
+        required: false
+        source: input
+      - name: fromName
+        type: string
+        description: Sender name
+        required: false
+        source: input
+      - name: listIds
+        type: array
+        description: Contact list IDs to send to (required for create)
+        required: false
+        source: input
+      - name: templateId
+        type: string
+        description: Dynamic template ID
+        required: false
+        source: input
+      - name: customUnsubscribeUrl
+        type: string
+        description: Custom unsubscribe URL
+        required: false
+        source: input
+      - name: sendTime
+        type: string
+        description: Scheduled send time in ISO 8601 format (required for schedule)
+        required: false
+        source: input
   grpc:
     port: 50053
     binary:

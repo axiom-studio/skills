@@ -25,6 +25,138 @@ spec:
     - dropbox-delete
     - dropbox-share
     - dropbox-search
+  inputs:
+    dropbox-upload:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: path
+        type: string
+        description: Destination path in Dropbox
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content to upload
+        required: true
+        source: input
+      - name: mode
+        type: string
+        description: Upload mode (add, update, add_no_overwrite)
+        required: false
+        source: input
+        default: "add"
+    dropbox-download:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: path
+        type: string
+        description: Path to file in Dropbox
+        required: true
+        source: input
+    dropbox-list:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: path
+        type: string
+        description: Folder path to list
+        required: false
+        source: input
+        default: "/"
+      - name: recursive
+        type: boolean
+        description: List recursively
+        required: false
+        source: default
+        default: false
+      - name: limit
+        type: integer
+        description: Maximum entries to return
+        required: false
+        source: input
+        default: 100
+    dropbox-delete:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: path
+        type: string
+        description: Path to file or folder to delete
+        required: true
+        source: input
+    dropbox-share:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: path
+        type: string
+        description: Path to file or folder to share
+        required: true
+        source: input
+      - name: viewerInfo
+        type: boolean
+        description: Request viewer info
+        required: false
+        source: default
+        default: false
+      - name: password
+        type: string
+        description: Password for shared link
+        required: false
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: expires
+        type: string
+        description: Expiration time (ISO 8601)
+        required: false
+        source: input
+    dropbox-search:
+      - name: accessToken
+        type: string
+        description: Dropbox API access token
+        required: true
+        source: connection
+        binding: vault://dropbox-credentials
+      - name: query
+        type: string
+        description: Search query string
+        required: true
+        source: input
+      - name: path
+        type: string
+        description: Restrict search to this path
+        required: false
+        source: input
+        default: ""
+      - name: maxResults
+        type: integer
+        description: Maximum number of results
+        required: false
+        source: input
+        default: 20
+      - name: orderBy
+        type: string
+        description: Sort order (relevance, modified, size)
+        required: false
+        source: input
+        default: "relevance"
   grpc:
     port: 50052
     binary:

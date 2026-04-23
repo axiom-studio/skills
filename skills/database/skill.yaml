@@ -25,6 +25,122 @@ spec:
     - db-update
     - db-delete
     - db-transaction
+  inputs:
+    db-query:
+      - name: connectionString
+        type: string
+        description: Database connection string
+        required: true
+        source: connection
+        binding: vault://database-credentials
+      - name: query
+        type: string
+        description: SQL query to execute
+        required: true
+        source: input
+      - name: databaseType
+        type: string
+        description: Database type (postgres, mysql, mssql)
+        required: false
+        source: input
+        default: "postgres"
+      - name: params
+        type: array
+        description: Query parameters
+        required: false
+        source: input
+    db-insert:
+      - name: connectionString
+        type: string
+        description: Database connection string
+        required: true
+        source: connection
+        binding: vault://database-credentials
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Data to insert
+        required: true
+        source: input
+      - name: databaseType
+        type: string
+        description: Database type
+        required: false
+        source: input
+        default: "postgres"
+    db-update:
+      - name: connectionString
+        type: string
+        description: Database connection string
+        required: true
+        source: connection
+        binding: vault://database-credentials
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Data to update
+        required: true
+        source: input
+      - name: whereClause
+        type: string
+        description: WHERE clause condition
+        required: true
+        source: input
+      - name: databaseType
+        type: string
+        description: Database type
+        required: false
+        source: input
+        default: "postgres"
+    db-delete:
+      - name: connectionString
+        type: string
+        description: Database connection string
+        required: true
+        source: connection
+        binding: vault://database-credentials
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: whereClause
+        type: string
+        description: WHERE clause condition
+        required: true
+        source: input
+      - name: databaseType
+        type: string
+        description: Database type
+        required: false
+        source: input
+        default: "postgres"
+    db-transaction:
+      - name: connectionString
+        type: string
+        description: Database connection string
+        required: true
+        source: connection
+        binding: vault://database-credentials
+      - name: queries
+        type: array
+        description: Array of SQL queries to execute in transaction
+        required: true
+        source: input
+      - name: databaseType
+        type: string
+        description: Database type
+        required: false
+        source: input
+        default: "postgres"
   grpc:
     port: 50052
     binary:

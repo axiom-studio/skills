@@ -24,6 +24,198 @@ spec:
     - shopify-customer
     - shopify-inventory
     - shopify-fulfillment
+  inputs:
+    shopify-product:
+      - name: storeUrl
+        type: string
+        description: Shopify store URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Shopify API key
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: apiSecret
+        type: string
+        description: Shopify API access token
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: action
+        type: string
+        description: Action (list, get, create, update, delete)
+        required: true
+        source: input
+      - name: productId
+        type: string
+        description: Product ID
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+    shopify-order:
+      - name: storeUrl
+        type: string
+        description: Shopify store URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Shopify API key
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: apiSecret
+        type: string
+        description: Shopify API access token
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: action
+        type: string
+        description: Action (list, get, update, fulfill)
+        required: true
+        source: input
+      - name: orderId
+        type: string
+        description: Order ID
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Status filter
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+    shopify-customer:
+      - name: storeUrl
+        type: string
+        description: Shopify store URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Shopify API key
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: apiSecret
+        type: string
+        description: Shopify API access token
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: action
+        type: string
+        description: Action (list, get, create, update, delete)
+        required: true
+        source: input
+      - name: customerId
+        type: string
+        description: Customer ID
+        required: false
+        source: input
+      - name: email
+        type: string
+        description: Customer email
+        required: false
+        source: input
+    shopify-inventory:
+      - name: storeUrl
+        type: string
+        description: Shopify store URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Shopify API key
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: apiSecret
+        type: string
+        description: Shopify API access token
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: action
+        type: string
+        description: Action (list, get, set, adjust)
+        required: true
+        source: input
+      - name: inventoryItemId
+        type: string
+        description: Inventory item ID
+        required: false
+        source: input
+      - name: locationId
+        type: string
+        description: Location ID
+        required: false
+        source: input
+      - name: quantity
+        type: integer
+        description: Quantity
+        required: false
+        source: input
+    shopify-fulfillment:
+      - name: storeUrl
+        type: string
+        description: Shopify store URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Shopify API key
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: apiSecret
+        type: string
+        description: Shopify API access token
+        required: true
+        source: connection
+        binding: vault://shopify-credentials
+      - name: action
+        type: string
+        description: Action (list, get, create, update, track)
+        required: true
+        source: input
+      - name: orderId
+        type: string
+        description: Order ID
+        required: false
+        source: input
+      - name: fulfillmentId
+        type: string
+        description: Fulfillment ID
+        required: false
+        source: input
+      - name: notifyCustomer
+        type: boolean
+        description: Notify customer
+        required: false
+        source: default
+        default: true
+      - name: trackingCompany
+        type: string
+        description: Tracking company
+        required: false
+        source: input
+      - name: trackingNumber
+        type: string
+        description: Tracking number
+        required: false
+        source: input
   grpc:
     port: 50052
     binary:

@@ -33,6 +33,466 @@ spec:
     - gitlab-variable-list
     - gitlab-variable-set
     - gitlab-repo-file
+  inputs:
+    gitlab-project-list:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: owned
+        type: boolean
+        description: Only return owned projects
+        required: false
+        source: input
+        default: false
+      - name: membership
+        type: boolean
+        description: Only return projects with membership
+        required: false
+        source: input
+        default: true
+      - name: search
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: perPage
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 20
+    gitlab-project-get:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID or path
+        required: true
+        source: input
+    gitlab-pipeline-trigger:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID or path
+        required: true
+        source: input
+      - name: ref
+        type: string
+        description: Branch or tag name
+        required: true
+        source: input
+      - name: variables
+        type: object
+        description: Pipeline variables
+        required: false
+        source: input
+    gitlab-pipeline-status:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: pipelineId
+        type: integer
+        description: Pipeline ID
+        required: true
+        source: input
+    gitlab-job-list:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: pipelineId
+        type: integer
+        description: Pipeline ID
+        required: true
+        source: input
+      - name: scope
+        type: array
+        description: Job scopes (created, pending, running, failed, success)
+        required: false
+        source: input
+    gitlab-job-logs:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: jobId
+        type: integer
+        description: Job ID
+        required: true
+        source: input
+    gitlab-mr-list:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: state
+        type: string
+        description: MR state (opened, closed, merged, all)
+        required: false
+        source: input
+        default: "opened"
+      - name: labels
+        type: array
+        description: Filter by labels
+        required: false
+        source: input
+      - name: author
+        type: string
+        description: Filter by author
+        required: false
+        source: input
+    gitlab-mr-create:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: sourceBranch
+        type: string
+        description: Source branch name
+        required: true
+        source: input
+      - name: targetBranch
+        type: string
+        description: Target branch name
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: MR title
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: MR description
+        required: false
+        source: input
+      - name: assigneeIds
+        type: array
+        description: User IDs to assign
+        required: false
+        source: input
+      - name: reviewerIds
+        type: array
+        description: Reviewer user IDs
+        required: false
+        source: input
+      - name: labels
+        type: array
+        description: Labels to apply
+        required: false
+        source: input
+      - name: removeSourceBranch
+        type: boolean
+        description: Remove source branch after merge
+        required: false
+        source: default
+        default: false
+      - name: squash
+        type: boolean
+        description: Squash commits on merge
+        required: false
+        source: default
+        default: false
+    gitlab-mr-merge:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: mrIid
+        type: integer
+        description: MR internal ID
+        required: true
+        source: input
+      - name: squashCommitMessage
+        type: string
+        description: Custom squash message
+        required: false
+        source: input
+      - name: shouldRemoveSourceBranch
+        type: boolean
+        description: Remove source branch
+        required: false
+        source: default
+        default: false
+    gitlab-issue-list:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: state
+        type: string
+        description: Issue state
+        required: false
+        source: input
+        default: "opened"
+      - name: labels
+        type: array
+        description: Filter by labels
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: Filter by assignee
+        required: false
+        source: input
+    gitlab-issue-create:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Issue title
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Issue description
+        required: false
+        source: input
+      - name: labels
+        type: array
+        description: Labels to apply
+        required: false
+        source: input
+      - name: assigneeIds
+        type: array
+        description: Assignee user IDs
+        required: false
+        source: input
+      - name: dueDate
+        type: string
+        description: Due date (YYYY-MM-DD)
+        required: false
+        source: input
+    gitlab-variable-list:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    gitlab-variable-set:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Variable key
+        required: true
+        source: input
+      - name: value
+        type: string
+        description: Variable value
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: protected
+        type: boolean
+        description: Only for protected branches
+        required: false
+        source: default
+        default: false
+      - name: masked
+        type: boolean
+        description: Mask in logs
+        required: false
+        source: default
+        default: false
+      - name: environmentScope
+        type: string
+        description: Environment scope
+        required: false
+        source: input
+        default: "*"
+    gitlab-repo-file:
+      - name: token
+        type: string
+        description: Personal access token
+        required: true
+        source: connection
+        binding: vault://gitlab-credentials
+      - name: url
+        type: string
+        description: GitLab URL
+        required: false
+        source: input
+        default: "https://gitlab.com"
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: filePath
+        type: string
+        description: File path in repo
+        required: true
+        source: input
+      - name: ref
+        type: string
+        description: Branch or commit SHA
+        required: true
+        source: input
   grpc:
     port: 50084
     binary:

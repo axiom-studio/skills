@@ -53,6 +53,653 @@ spec:
     - splunk-search-job-cancel
     - splunk-search-job-results
     - splunk-search-job-wait
+  inputs:
+    splunk-search:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: search
+        type: string
+        description: SPL search query
+        required: true
+        source: input
+      - name: earliest
+        type: string
+        description: Earliest time (e.g., -24h)
+        required: false
+        source: input
+        default: "-24h"
+      - name: latest
+        type: string
+        description: Latest time (e.g., now)
+        required: false
+        source: input
+        default: "now"
+      - name: index
+        type: string
+        description: Index to search
+        required: false
+        source: input
+      - name: maxCount
+        type: integer
+        description: Max results
+        required: false
+        source: input
+    splunk-saved-search:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: savedSearchName
+        type: string
+        description: Saved search name
+        required: true
+        source: input
+    splunk-search-job-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: search
+        type: string
+        description: SPL search query
+        required: true
+        source: input
+      - name: earliest
+        type: string
+        description: Earliest time
+        required: false
+        source: input
+      - name: latest
+        type: string
+        description: Latest time
+        required: false
+        source: input
+      - name: index
+        type: string
+        description: Index to search
+        required: false
+        source: input
+    splunk-search-job-status:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: searchJobId
+        type: string
+        description: Search job ID
+        required: true
+        source: input
+    splunk-index-list:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-alert-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: alertName
+        type: string
+        description: Alert name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: true
+        source: input
+      - name: condition
+        type: object
+        description: Alert condition
+        required: false
+        source: input
+    splunk-dashboard-list:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-event-type-list:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-alert-delete:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: alertName
+        type: string
+        description: Alert name
+        required: true
+        source: input
+    splunk-alert-get:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: alertName
+        type: string
+        description: Alert name
+        required: true
+        source: input
+    splunk-alert-history:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: alertName
+        type: string
+        description: Alert name
+        required: true
+        source: input
+    splunk-alert-list:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-alert-update:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: alertName
+        type: string
+        description: Alert name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: false
+        source: input
+      - name: condition
+        type: object
+        description: Alert condition
+        required: false
+        source: input
+    splunk-dashboard-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: dashboardName
+        type: string
+        description: Dashboard name
+        required: true
+        source: input
+      - name: panels
+        type: array
+        description: Dashboard panels
+        required: false
+        source: input
+    splunk-dashboard-delete:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: dashboardName
+        type: string
+        description: Dashboard name
+        required: true
+        source: input
+    splunk-dashboard-get:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: dashboardName
+        type: string
+        description: Dashboard name
+        required: true
+        source: input
+    splunk-dashboard-update:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: dashboardName
+        type: string
+        description: Dashboard name
+        required: true
+        source: input
+      - name: panels
+        type: array
+        description: Dashboard panels
+        required: false
+        source: input
+    splunk-event-type-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: eventTypeName
+        type: string
+        description: Event type name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: true
+        source: input
+    splunk-event-type-delete:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: eventTypeName
+        type: string
+        description: Event type name
+        required: true
+        source: input
+    splunk-event-type-get:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: eventTypeName
+        type: string
+        description: Event type name
+        required: true
+        source: input
+    splunk-event-type-update:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: eventTypeName
+        type: string
+        description: Event type name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: false
+        source: input
+    splunk-index-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: indexName
+        type: string
+        description: Index name
+        required: true
+        source: input
+    splunk-index-delete:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: indexName
+        type: string
+        description: Index name
+        required: true
+        source: input
+    splunk-index-get:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: indexName
+        type: string
+        description: Index name
+        required: true
+        source: input
+    splunk-index-update:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: indexName
+        type: string
+        description: Index name
+        required: true
+        source: input
+      - name: settings
+        type: object
+        description: Index settings
+        required: false
+        source: input
+    splunk-info:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-saved-search-create:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: savedSearchName
+        type: string
+        description: Saved search name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: true
+        source: input
+    splunk-saved-search-delete:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: savedSearchName
+        type: string
+        description: Saved search name
+        required: true
+        source: input
+    splunk-saved-search-list:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+    splunk-saved-search-run:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: savedSearchName
+        type: string
+        description: Saved search name
+        required: true
+        source: input
+    splunk-saved-search-update:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: savedSearchName
+        type: string
+        description: Saved search name
+        required: true
+        source: input
+      - name: search
+        type: string
+        description: SPL search query
+        required: false
+        source: input
+    splunk-search-job-cancel:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: searchJobId
+        type: string
+        description: Search job ID
+        required: true
+        source: input
+    splunk-search-job-results:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: searchJobId
+        type: string
+        description: Search job ID
+        required: true
+        source: input
+    splunk-search-job-wait:
+      - name: host
+        type: string
+        description: Splunk host URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Splunk API token
+        required: true
+        source: connection
+        binding: vault://splunk-credentials
+      - name: searchJobId
+        type: string
+        description: Search job ID
+        required: true
+        source: input
+      - name: timeout
+        type: string
+        description: Wait timeout
+        required: false
+        source: input
+        default: "300s"
   grpc:
     port: 50122
     binary:

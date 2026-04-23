@@ -27,6 +27,141 @@ spec:
     - figma-team-projects
     - figma-project-files
     - figma-style-list
+  inputs:
+    figma-file-list:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    figma-file-get:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: fileKey
+        type: string
+        description: File key
+        required: true
+        source: input
+      - name: depth
+        type: integer
+        description: Node depth
+        required: false
+        source: input
+        default: 0
+    figma-file-export:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: fileKey
+        type: string
+        description: File key
+        required: true
+        source: input
+      - name: nodeId
+        type: string
+        description: Node ID to export
+        required: true
+        source: input
+      - name: format
+        type: string
+        description: Export format (png, svg, jpg)
+        required: false
+        source: input
+        default: "png"
+      - name: scale
+        type: number
+        description: Scale factor
+        required: false
+        source: input
+        default: 1
+    figma-comment-create:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: fileKey
+        type: string
+        description: File key
+        required: true
+        source: input
+      - name: message
+        type: string
+        description: Comment message
+        required: true
+        source: input
+      - name: nodeId
+        type: string
+        description: Node ID to comment on
+        required: false
+        source: input
+      - name: clientId
+        type: string
+        description: Client user ID
+        required: false
+        source: input
+    figma-comment-list:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: fileKey
+        type: string
+        description: File key
+        required: true
+        source: input
+    figma-team-projects:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: teamId
+        type: string
+        description: Team ID
+        required: true
+        source: input
+    figma-project-files:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    figma-style-list:
+      - name: apiToken
+        type: string
+        description: Figma API token
+        required: true
+        source: connection
+        binding: vault://figma-credentials
+      - name: fileKey
+        type: string
+        description: File key
+        required: true
+        source: input
   grpc:
     port: 50121
     binary:

@@ -27,6 +27,211 @@ spec:
     - freshdesk-contact-list
     - freshdesk-solution-create
     - freshdesk-article-list
+  inputs:
+    freshdesk-ticket-list:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: status
+        type: string
+        description: Filter by status
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: Filter by priority
+        required: false
+        source: input
+      - name: userId
+        type: string
+        description: Filter by requester ID
+        required: false
+        source: input
+    freshdesk-ticket-create:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Ticket subject
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Ticket description
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: Requester email
+        required: true
+        source: input
+      - name: status
+        type: integer
+        description: Status (2=Open, 3=Pending, 4=Resolved)
+        required: false
+        source: input
+        default: 2
+      - name: priority
+        type: integer
+        description: Priority (1-4)
+        required: false
+        source: input
+        default: 1
+    freshdesk-ticket-update:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: ticketId
+        type: integer
+        description: Ticket ID
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: New subject
+        required: false
+        source: input
+      - name: description
+        type: string
+        description: New description
+        required: false
+        source: input
+      - name: status
+        type: integer
+        description: New status
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: New priority
+        required: false
+        source: input
+    freshdesk-ticket-reply:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: ticketId
+        type: integer
+        description: Ticket ID
+        required: true
+        source: input
+      - name: body
+        type: string
+        description: Reply body
+        required: true
+        source: input
+    freshdesk-agent-list:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+    freshdesk-contact-list:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+    freshdesk-solution-create:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Article title
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Article content
+        required: true
+        source: input
+      - name: categoryId
+        type: integer
+        description: Category ID
+        required: true
+        source: input
+      - name: folderId
+        type: integer
+        description: Folder ID
+        required: true
+        source: input
+      - name: status
+        type: integer
+        description: Article status
+        required: false
+        source: input
+        default: 1
+    freshdesk-article-list:
+      - name: apiKey
+        type: string
+        description: Freshdesk API key
+        required: true
+        source: connection
+        binding: vault://freshdesk-credentials
+      - name: domain
+        type: string
+        description: Freshdesk domain
+        required: true
+        source: input
+      - name: categoryId
+        type: integer
+        description: Filter by category ID
+        required: false
+        source: input
   grpc:
     port: 50112
     binary:

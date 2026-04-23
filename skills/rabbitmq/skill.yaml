@@ -29,6 +29,282 @@ spec:
     - rabbitmq-exchange-list
     - rabbitmq-binding-create
     - rabbitmq-binding-list
+  inputs:
+    rabbitmq-publish:
+      - name: url
+        type: string
+        description: RabbitMQ URL (amqp://host:port)
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: exchange
+        type: string
+        description: Exchange name
+        required: true
+        source: input
+      - name: routingKey
+        type: string
+        description: Routing key
+        required: true
+        source: input
+      - name: message
+        type: string
+        description: Message body
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+        default: "text/plain"
+      - name: deliveryMode
+        type: integer
+        description: 1=transient, 2=persistent
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: Message priority
+        required: false
+        source: input
+    rabbitmq-consume:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: queue
+        type: string
+        description: Queue name
+        required: true
+        source: input
+      - name: maxMessages
+        type: integer
+        description: Max messages to consume
+        required: false
+        source: input
+      - name: ack
+        type: boolean
+        description: Auto-acknowledge
+        required: false
+        source: default
+        default: true
+      - name: timeout
+        type: string
+        description: Consume timeout
+        required: false
+        source: input
+    rabbitmq-queue-create:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: name
+        type: string
+        description: Queue name
+        required: true
+        source: input
+      - name: durable
+        type: boolean
+        description: Durable queue
+        required: false
+        source: default
+        default: true
+    rabbitmq-queue-list:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+    rabbitmq-queue-delete:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: name
+        type: string
+        description: Queue name
+        required: true
+        source: input
+    rabbitmq-queue-purge:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: name
+        type: string
+        description: Queue name
+        required: true
+        source: input
+    rabbitmq-exchange-create:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: name
+        type: string
+        description: Exchange name
+        required: true
+        source: input
+      - name: exchangeType
+        type: string
+        description: Exchange type (direct, topic, fanout, headers)
+        required: false
+        source: input
+        default: "direct"
+      - name: durable
+        type: boolean
+        description: Durable exchange
+        required: false
+        source: default
+        default: true
+    rabbitmq-exchange-list:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+    rabbitmq-binding-create:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
+      - name: exchange
+        type: string
+        description: Exchange name
+        required: true
+        source: input
+      - name: queue
+        type: string
+        description: Queue name
+        required: true
+        source: input
+      - name: routingKey
+        type: string
+        description: Routing key
+        required: true
+        source: input
+    rabbitmq-binding-list:
+      - name: url
+        type: string
+        description: RabbitMQ URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://rabbitmq-credentials
   grpc:
     port: 50090
     binary:

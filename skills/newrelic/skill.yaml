@@ -27,6 +27,128 @@ spec:
     - newrelic-dashboard-create
     - newrelic-apdex
     - newrelic-application-list
+  inputs:
+    newrelic-query-nrql:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+      - name: accountId
+        type: string
+        description: Account ID
+        required: true
+        source: input
+      - name: query
+        type: string
+        description: NRQL query
+        required: true
+        source: input
+    newrelic-deploy-marker:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+      - name: accountId
+        type: string
+        description: Account ID
+        required: true
+        source: input
+      - name: applicationId
+        type: string
+        description: Application ID
+        required: true
+        source: input
+      - name: revision
+        type: string
+        description: Deployment revision
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Description
+        required: false
+        source: input
+      - name: user
+        type: string
+        description: Deployer name
+        required: false
+        source: input
+    newrelic-alert-policy-list:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+    newrelic-alert-policy-create:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+      - name: name
+        type: string
+        description: Alert policy name
+        required: true
+        source: input
+      - name: conditions
+        type: array
+        description: Alert conditions
+        required: false
+        source: input
+    newrelic-dashboard-list:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+    newrelic-dashboard-create:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+      - name: name
+        type: string
+        description: Dashboard name
+        required: true
+        source: input
+      - name: widgets
+        type: array
+        description: Dashboard widgets
+        required: false
+        source: input
+    newrelic-apdex:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
+      - name: accountId
+        type: string
+        description: Account ID
+        required: true
+        source: input
+      - name: applicationId
+        type: string
+        description: Application ID
+        required: true
+        source: input
+    newrelic-application-list:
+      - name: apiKey
+        type: string
+        description: New Relic API key
+        required: true
+        source: connection
+        binding: vault://newrelic-credentials
   grpc:
     port: 50123
     binary:

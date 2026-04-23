@@ -32,6 +32,316 @@ spec:
     - aws-lambda-list-functions
     - aws-lambda-invoke
     - aws-lambda-get-function
+  inputs:
+    aws-s3-list-buckets:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+    aws-s3-list-objects:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: bucket
+        type: string
+        description: S3 bucket name
+        required: true
+        source: input
+      - name: prefix
+        type: string
+        description: Key prefix filter
+        required: false
+        source: input
+    aws-s3-get-object:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: bucket
+        type: string
+        description: S3 bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: S3 object key
+        required: true
+        source: input
+    aws-s3-put-object:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: bucket
+        type: string
+        description: S3 bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: S3 object key
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Object content
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+        default: "application/octet-stream"
+    aws-s3-delete-object:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: bucket
+        type: string
+        description: S3 bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: S3 object key
+        required: true
+        source: input
+    aws-ec2-list-instances:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+    aws-ec2-start-instance:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: instanceId
+        type: string
+        description: EC2 instance ID
+        required: true
+        source: input
+    aws-ec2-stop-instance:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: instanceId
+        type: string
+        description: EC2 instance ID
+        required: true
+        source: input
+    aws-ec2-reboot-instance:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: instanceId
+        type: string
+        description: EC2 instance ID
+        required: true
+        source: input
+    aws-lambda-list-functions:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+    aws-lambda-invoke:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: functionName
+        type: string
+        description: Lambda function name
+        required: true
+        source: input
+      - name: payload
+        type: object
+        description: Lambda invocation payload
+        required: false
+        source: input
+    aws-lambda-get-function:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://aws-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+        default: "us-east-1"
+      - name: functionName
+        type: string
+        description: Lambda function name
+        required: true
+        source: input
   grpc:
     port: 50057
     binary:

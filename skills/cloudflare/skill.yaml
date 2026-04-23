@@ -34,6 +34,353 @@ spec:
     - cf-waf-list
     - cf-waf-create-rule
     - cf-zone-list
+  inputs:
+    cf-dns-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Filter by record type (A, AAAA, CNAME, etc.)
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Filter by record name
+        required: false
+        source: input
+    cf-dns-create:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Record type (A, AAAA, CNAME, MX, TXT, etc.)
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Record name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Record content/value
+        required: true
+        source: input
+      - name: ttl
+        type: integer
+        description: TTL in seconds (1 = automatic)
+        required: false
+        source: input
+        default: 1
+      - name: proxied
+        type: boolean
+        description: Proxy through Cloudflare
+        required: false
+        source: default
+        default: false
+      - name: priority
+        type: integer
+        description: Priority for MX records
+        required: false
+        source: input
+    cf-dns-update:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+      - name: recordId
+        type: string
+        description: Record ID to update
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Record type
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Record name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Record content/value
+        required: true
+        source: input
+      - name: ttl
+        type: integer
+        description: TTL in seconds
+        required: false
+        source: input
+      - name: proxied
+        type: boolean
+        description: Proxy through Cloudflare
+        required: false
+        source: input
+    cf-dns-delete:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+      - name: recordId
+        type: string
+        description: Record ID to delete
+        required: true
+        source: input
+    cf-worker-deploy:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+      - name: workerName
+        type: string
+        description: Worker name
+        required: true
+        source: input
+      - name: script
+        type: string
+        description: Worker JavaScript code
+        required: true
+        source: input
+      - name: compatibilityDate
+        type: string
+        description: Compatibility date
+        required: false
+        source: input
+      - name: compatibilityFlags
+        type: array
+        description: Compatibility flags
+        required: false
+        source: input
+      - name: bindings
+        type: object
+        description: Environment variable bindings
+        required: false
+        source: input
+      - name: kvNamespaces
+        type: object
+        description: KV namespace bindings
+        required: false
+        source: input
+      - name: durableObjects
+        type: object
+        description: Durable Object bindings
+        required: false
+        source: input
+    cf-worker-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+    cf-r2-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+    cf-r2-upload:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+      - name: bucket
+        type: string
+        description: R2 bucket name
+        required: true
+        source: input
+      - name: objectName
+        type: string
+        description: Object name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+        default: "application/octet-stream"
+    cf-r2-download:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+      - name: bucket
+        type: string
+        description: R2 bucket name
+        required: true
+        source: input
+      - name: objectName
+        type: string
+        description: Object name
+        required: true
+        source: input
+    cf-d1-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+    cf-d1-query:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Cloudflare account ID
+        required: true
+        source: input
+      - name: databaseId
+        type: string
+        description: Database UUID
+        required: true
+        source: input
+      - name: query
+        type: string
+        description: SQL query to execute
+        required: true
+        source: input
+    cf-waf-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+    cf-waf-create-rule:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: zoneId
+        type: string
+        description: Zone ID
+        required: true
+        source: input
+      - name: expression
+        type: string
+        description: Firewall rule expression
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (block, challenge, allow, log)
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Rule description
+        required: false
+        source: input
+    cf-zone-list:
+      - name: apiToken
+        type: string
+        description: Cloudflare API token
+        required: true
+        source: connection
+        binding: vault://cloudflare-credentials
+      - name: accountId
+        type: string
+        description: Filter by account ID
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Filter by zone name
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Filter by zone status (active, pending)
+        required: false
+        source: input
   grpc:
     port: 50082
     binary:

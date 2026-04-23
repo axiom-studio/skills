@@ -25,6 +25,171 @@ spec:
     - linear-comment
     - linear-cycle
     - linear-project
+  inputs:
+    linear-issue-create:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: teamId
+        type: string
+        description: Team ID
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Issue title
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Issue description
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: Priority (-2=urgent, 0=normal)
+        required: false
+        source: input
+        default: 0
+      - name: assigneeId
+        type: string
+        description: Assignee user ID
+        required: false
+        source: input
+      - name: labelIds
+        type: array
+        description: Label IDs
+        required: false
+        source: input
+      - name: projectId
+        type: string
+        description: Project ID
+        required: false
+        source: input
+    linear-issue-update:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: issueId
+        type: string
+        description: Issue ID to update
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: New title
+        required: false
+        source: input
+      - name: description
+        type: string
+        description: New description
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: New priority
+        required: false
+        source: input
+      - name: stateId
+        type: string
+        description: New state ID
+        required: false
+        source: input
+      - name: assigneeId
+        type: string
+        description: New assignee ID
+        required: false
+        source: input
+    linear-issue-search:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: query
+        type: string
+        description: Linear search query
+        required: true
+        source: input
+      - name: teamId
+        type: string
+        description: Filter by team ID
+        required: false
+        source: input
+      - name: maxResults
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 50
+    linear-comment:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: issueId
+        type: string
+        description: Issue ID
+        required: true
+        source: input
+      - name: body
+        type: string
+        description: Comment body (Markdown)
+        required: true
+        source: input
+    linear-cycle:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: operation
+        type: string
+        description: Operation (list, get, getIssues)
+        required: true
+        source: input
+      - name: teamId
+        type: string
+        description: Team ID
+        required: false
+        source: input
+      - name: cycleId
+        type: string
+        description: Cycle ID (required for get operations)
+        required: false
+        source: input
+    linear-project:
+      - name: apiToken
+        type: string
+        description: Linear API token
+        required: true
+        source: connection
+        binding: vault://linear-credentials
+      - name: operation
+        type: string
+        description: Operation (list, get, getIssues)
+        required: true
+        source: input
+      - name: teamId
+        type: string
+        description: Team ID
+        required: false
+        source: input
+      - name: projectId
+        type: string
+        description: Project ID (required for get operations)
+        required: false
+        source: input
   grpc:
     port: 50054
     binary:

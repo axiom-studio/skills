@@ -30,6 +30,235 @@ spec:
     - okta-app-assign-user
     - okta-mfa-enroll
     - okta-session-revoke
+  inputs:
+    okta-user-list:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: search
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+    okta-user-create:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: login
+        type: string
+        description: User login
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: User email
+        required: true
+        source: input
+      - name: firstName
+        type: string
+        description: First name
+        required: true
+        source: input
+      - name: lastName
+        type: string
+        description: Last name
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Initial password
+        required: false
+        source: connection
+        binding: vault://okta-credentials
+      - name: groups
+        type: array
+        description: Group IDs to add
+        required: false
+        source: input
+    okta-user-update:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+    okta-user-deactivate:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+    okta-group-list:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+    okta-group-create:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: name
+        type: string
+        description: Group name
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Group description
+        required: false
+        source: input
+    okta-group-add-user:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: groupId
+        type: string
+        description: Group ID
+        required: true
+        source: input
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+    okta-app-list:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+    okta-app-assign-user:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: appId
+        type: string
+        description: Application ID
+        required: true
+        source: input
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+    okta-mfa-enroll:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+      - name: factorType
+        type: string
+        description: MFA factor type
+        required: true
+        source: input
+    okta-session-revoke:
+      - name: orgUrl
+        type: string
+        description: Okta organization URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Okta API token
+        required: true
+        source: connection
+        binding: vault://okta-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
   grpc:
     port: 50093
     binary:

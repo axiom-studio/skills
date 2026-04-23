@@ -25,6 +25,288 @@ spec:
     - discord-channel
     - discord-user
     - discord-webhook
+  inputs:
+    discord-send:
+      - name: token
+        type: string
+        description: Discord bot token
+        required: true
+        source: connection
+        binding: vault://discord-credentials
+      - name: channelId
+        type: string
+        description: Channel ID to send message
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Message content
+        required: true
+        source: input
+      - name: tts
+        type: boolean
+        description: Send as text-to-speech
+        required: false
+        source: default
+        default: false
+      - name: replyTo
+        type: string
+        description: Message ID to reply to
+        required: false
+        source: input
+      - name: mentionUser
+        type: boolean
+        description: Mention user when replying
+        required: false
+        source: default
+        default: false
+    discord-embed:
+      - name: token
+        type: string
+        description: Discord bot token
+        required: true
+        source: connection
+        binding: vault://discord-credentials
+      - name: channelId
+        type: string
+        description: Channel ID
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Message content above embed
+        required: false
+        source: input
+      - name: title
+        type: string
+        description: Embed title
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Embed description
+        required: true
+        source: input
+      - name: color
+        type: string
+        description: Embed color in hex
+        required: false
+        source: input
+        default: "#5865F2"
+      - name: url
+        type: string
+        description: Embed title URL
+        required: false
+        source: input
+      - name: authorName
+        type: string
+        description: Author name
+        required: false
+        source: input
+      - name: authorURL
+        type: string
+        description: Author URL
+        required: false
+        source: input
+      - name: authorIcon
+        type: string
+        description: Author icon URL
+        required: false
+        source: input
+      - name: footerText
+        type: string
+        description: Footer text
+        required: false
+        source: input
+      - name: footerIcon
+        type: string
+        description: Footer icon URL
+        required: false
+        source: input
+      - name: thumbnail
+        type: string
+        description: Thumbnail image URL
+        required: false
+        source: input
+      - name: image
+        type: string
+        description: Main image URL
+        required: false
+        source: input
+      - name: fields
+        type: array
+        description: Array of embed fields
+        required: false
+        source: input
+      - name: timestamp
+        type: boolean
+        description: Include current timestamp
+        required: false
+        source: default
+        default: true
+    discord-react:
+      - name: token
+        type: string
+        description: Discord bot token
+        required: true
+        source: connection
+        binding: vault://discord-credentials
+      - name: channelId
+        type: string
+        description: Channel ID
+        required: true
+        source: input
+      - name: messageId
+        type: string
+        description: Message ID to react to
+        required: true
+        source: input
+      - name: emoji
+        type: string
+        description: Emoji to react with
+        required: true
+        source: input
+      - name: emojiType
+        type: string
+        description: Type of emoji (unicode, custom)
+        required: false
+        source: input
+        default: "unicode"
+      - name: emojiName
+        type: string
+        description: Custom emoji name
+        required: false
+        source: input
+    discord-channel:
+      - name: token
+        type: string
+        description: Discord bot token
+        required: true
+        source: connection
+        binding: vault://discord-credentials
+      - name: guildId
+        type: string
+        description: Server/Guild ID
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (create, list, get, delete, update)
+        required: true
+        source: input
+      - name: channelId
+        type: string
+        description: Channel ID (required for get/delete/update)
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Channel name (required for create)
+        required: false
+        source: input
+      - name: channelType
+        type: string
+        description: Channel type (text, voice, category, announcement)
+        required: false
+        source: input
+        default: "text"
+      - name: topic
+        type: string
+        description: Channel topic
+        required: false
+        source: input
+      - name: nsfw
+        type: boolean
+        description: Mark as NSFW
+        required: false
+        source: default
+        default: false
+      - name: reason
+        type: string
+        description: Audit log reason
+        required: false
+        source: input
+    discord-user:
+      - name: token
+        type: string
+        description: Discord bot token
+        required: true
+        source: connection
+        binding: vault://discord-credentials
+      - name: guildId
+        type: string
+        description: Server/Guild ID
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (get, kick, ban, unban, timeout, get-role, add-role, remove-role)
+        required: true
+        source: input
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+      - name: roleId
+        type: string
+        description: Role ID (required for role operations)
+        required: false
+        source: input
+      - name: reason
+        type: string
+        description: Audit log reason
+        required: false
+        source: input
+      - name: duration
+        type: integer
+        description: Timeout duration in seconds
+        required: false
+        source: input
+      - name: deleteDays
+        type: integer
+        description: Days of messages to delete on ban (0-7)
+        required: false
+        source: input
+        default: 0
+    discord-webhook:
+      - name: webhookUrl
+        type: string
+        description: Discord webhook URL
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Message content
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Override webhook username
+        required: false
+        source: input
+      - name: avatarUrl
+        type: string
+        description: Override webhook avatar URL
+        required: false
+        source: input
+      - name: tts
+        type: boolean
+        description: Send as text-to-speech
+        required: false
+        source: default
+        default: false
+      - name: threadId
+        type: string
+        description: Send to specific thread
+        required: false
+        source: input
+      - name: wait
+        type: boolean
+        description: Wait for server confirmation
+        required: false
+        source: default
+        default: false
   grpc:
     port: 50053
     binary:

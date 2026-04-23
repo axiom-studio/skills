@@ -31,6 +31,214 @@ spec:
     - docker-image-build
     - docker-volume-list
     - docker-network-list
+  inputs:
+    docker-container-list:
+      - name: all
+        type: boolean
+        description: Show all containers (including stopped)
+        required: false
+        source: default
+        default: true
+      - name: filters
+        type: object
+        description: Filter containers
+        required: false
+        source: input
+    docker-container-create:
+      - name: image
+        type: string
+        description: Image name
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Container name
+        required: false
+        source: input
+      - name: command
+        type: array
+        description: Command to run
+        required: false
+        source: input
+      - name: env
+        type: object
+        description: Environment variables
+        required: false
+        source: input
+      - name: ports
+        type: array
+        description: Port mappings
+        required: false
+        source: input
+      - name: volumes
+        type: array
+        description: Volume mounts
+        required: false
+        source: input
+      - name: network
+        type: string
+        description: Network to connect to
+        required: false
+        source: input
+      - name: detach
+        type: boolean
+        description: Run in background
+        required: false
+        source: default
+        default: true
+      - name: restart
+        type: string
+        description: Restart policy (no, always, on-failure)
+        required: false
+        source: input
+      - name: memory
+        type: string
+        description: Memory limit
+        required: false
+        source: input
+      - name: cpus
+        type: number
+        description: CPU limit
+        required: false
+        source: input
+    docker-container-start:
+      - name: containerId
+        type: string
+        description: Container name or ID
+        required: true
+        source: input
+    docker-container-stop:
+      - name: containerId
+        type: string
+        description: Container name or ID
+        required: true
+        source: input
+      - name: time
+        type: integer
+        description: Seconds to wait before killing
+        required: false
+        source: input
+        default: 10
+    docker-container-delete:
+      - name: containerId
+        type: string
+        description: Container name or ID
+        required: true
+        source: input
+      - name: force
+        type: boolean
+        description: Force removal
+        required: false
+        source: default
+        default: false
+      - name: volumes
+        type: boolean
+        description: Remove associated volumes
+        required: false
+        source: default
+        default: false
+    docker-container-logs:
+      - name: containerId
+        type: string
+        description: Container name or ID
+        required: true
+        source: input
+      - name: follow
+        type: boolean
+        description: Follow log output
+        required: false
+        source: default
+        default: false
+      - name: tail
+        type: integer
+        description: Number of lines from end
+        required: false
+        source: input
+      - name: timestamps
+        type: boolean
+        description: Show timestamps
+        required: false
+        source: default
+        default: false
+    docker-image-list:
+      - name: all
+        type: boolean
+        description: Show all images
+        required: false
+        source: default
+        default: false
+      - name: filters
+        type: object
+        description: Filter images
+        required: false
+        source: input
+    docker-image-pull:
+      - name: image
+        type: string
+        description: Image name with tag
+        required: true
+        source: input
+      - name: platform
+        type: string
+        description: Target platform
+        required: false
+        source: input
+    docker-image-build:
+      - name: context
+        type: string
+        description: Build context path
+        required: true
+        source: input
+      - name: dockerfile
+        type: string
+        description: Dockerfile path
+        required: false
+        source: input
+        default: "Dockerfile"
+      - name: tag
+        type: string
+        description: Image tag
+        required: false
+        source: input
+      - name: buildArgs
+        type: object
+        description: Build arguments
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target build stage
+        required: false
+        source: input
+      - name: noCache
+        type: boolean
+        description: Disable cache
+        required: false
+        source: default
+        default: false
+      - name: pull
+        type: boolean
+        description: Pull base images
+        required: false
+        source: default
+        default: false
+      - name: platform
+        type: string
+        description: Target platform
+        required: false
+        source: input
+    docker-volume-list:
+      - name: filters
+        type: object
+        description: Filter volumes
+        required: false
+        source: input
+    docker-network-list:
+      - name: filters
+        type: object
+        description: Filter networks
+        required: false
+        source: input
   grpc:
     port: 50074
     binary:

@@ -23,6 +23,118 @@ spec:
     - webhook-send
     - webhook-parse
     - webhook-signature
+  inputs:
+    webhook-trigger:
+      - name: endpoint
+        type: string
+        description: Webhook endpoint path
+        required: true
+        source: input
+      - name: method
+        type: string
+        description: HTTP method
+        required: false
+        source: input
+        default: "POST"
+      - name: headers
+        type: object
+        description: Expected headers
+        required: false
+        source: input
+      - name: timeout
+        type: string
+        description: Request timeout
+        required: false
+        source: input
+        default: "30s"
+    webhook-send:
+      - name: url
+        type: string
+        description: Target webhook URL
+        required: true
+        source: input
+      - name: method
+        type: string
+        description: HTTP method
+        required: false
+        source: input
+        default: "POST"
+      - name: headers
+        type: object
+        description: Custom headers
+        required: false
+        source: input
+      - name: body
+        type: object
+        description: Request body
+        required: false
+        source: input
+      - name: timeout
+        type: string
+        description: Request timeout
+        required: false
+        source: input
+      - name: retryCount
+        type: integer
+        description: Number of retries
+        required: false
+        source: input
+        default: 0
+      - name: authToken
+        type: string
+        description: Authentication token for target
+        required: false
+        source: connection
+        binding: vault://webhook-credentials
+    webhook-parse:
+      - name: payload
+        type: string
+        description: JSON payload to parse
+        required: true
+        source: input
+      - name: schema
+        type: object
+        description: JSON schema for validation
+        required: false
+        source: input
+      - name: extractFields
+        type: array
+        description: Fields to extract from payload
+        required: false
+        source: input
+    webhook-signature:
+      - name: signature
+        type: string
+        description: Signature from headers
+        required: true
+        source: input
+      - name: secret
+        type: string
+        description: Shared secret for verification
+        required: true
+        source: connection
+        binding: vault://webhook-credentials
+      - name: algorithm
+        type: string
+        description: Hash algorithm
+        required: false
+        source: input
+        default: "sha256"
+      - name: headerName
+        type: string
+        description: Header containing signature
+        required: false
+        source: input
+      - name: timestampHeader
+        type: string
+        description: Header containing timestamp
+        required: false
+        source: input
+      - name: timestampTolerance
+        type: string
+        description: Allowed timestamp drift
+        required: false
+        source: input
   grpc:
     port: 50053
     binary:

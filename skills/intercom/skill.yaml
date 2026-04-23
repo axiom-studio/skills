@@ -27,6 +27,177 @@ spec:
     - intercom-message-send
     - intercom-tag-create
     - intercom-tag-apply
+  inputs:
+    intercom-conversation-list:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: type
+        type: string
+        description: Filter by type (open, closed, unassigned)
+        required: false
+        source: input
+      - name: page
+        type: integer
+        description: Page number
+        required: false
+        source: input
+        default: 1
+      - name: perPage
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 20
+    intercom-conversation-get:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: conversationId
+        type: string
+        description: Conversation ID
+        required: true
+        source: input
+    intercom-conversation-reply:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: conversationId
+        type: string
+        description: Conversation ID
+        required: true
+        source: input
+      - name: messageType
+        type: string
+        description: Message type (comment, note)
+        required: false
+        source: input
+        default: "comment"
+      - name: body
+        type: string
+        description: Message body
+        required: true
+        source: input
+      - name: attachmentUrls
+        type: array
+        description: Attachment URLs
+        required: false
+        source: input
+    intercom-user-list:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: page
+        type: integer
+        description: Page number
+        required: false
+        source: input
+      - name: perPage
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 50
+    intercom-user-create:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: email
+        type: string
+        description: User email
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: User name
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: User phone
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Custom user properties
+        required: false
+        source: input
+    intercom-message-send:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+      - name: messageType
+        type: string
+        description: Message type (email, inapp)
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Message subject
+        required: false
+        source: input
+      - name: body
+        type: string
+        description: Message body
+        required: true
+        source: input
+    intercom-tag-create:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: name
+        type: string
+        description: Tag name
+        required: true
+        source: input
+    intercom-tag-apply:
+      - name: apiToken
+        type: string
+        description: Intercom API token
+        required: true
+        source: connection
+        binding: vault://intercom-credentials
+      - name: tagName
+        type: string
+        description: Tag name
+        required: true
+        source: input
+      - name: userId
+        type: string
+        description: User ID to tag
+        required: false
+        source: input
+      - name: conversationId
+        type: string
+        description: Conversation ID to tag
+        required: false
+        source: input
   grpc:
     port: 50111
     binary:

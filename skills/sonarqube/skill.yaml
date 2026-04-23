@@ -27,6 +27,173 @@ spec:
     - sonar-measures
     - sonar-rules-list
     - sonar-branches-list
+  inputs:
+    sonar-project-list:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: organization
+        type: string
+        description: Organization key
+        required: false
+        source: input
+    sonar-scan:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: projectKey
+        type: string
+        description: Project key
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Branch name
+        required: false
+        source: input
+    sonar-issues-list:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: projectKey
+        type: string
+        description: Project key
+        required: true
+        source: input
+      - name: severities
+        type: array
+        description: Filter by severities
+        required: false
+        source: input
+      - name: types
+        type: array
+        description: Filter by types
+        required: false
+        source: input
+      - name: statuses
+        type: array
+        description: Filter by statuses
+        required: false
+        source: input
+    sonar-issue-assign:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: issueKey
+        type: string
+        description: Issue key
+        required: true
+        source: input
+      - name: assignee
+        type: string
+        description: Assignee user
+        required: true
+        source: input
+    sonar-quality-gate:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: projectKey
+        type: string
+        description: Project key
+        required: true
+        source: input
+    sonar-measures:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: projectKey
+        type: string
+        description: Project key
+        required: true
+        source: input
+      - name: metrics
+        type: array
+        description: Metrics to retrieve
+        required: false
+        source: input
+    sonar-rules-list:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: repository
+        type: string
+        description: Rules repository
+        required: false
+        source: input
+    sonar-branches-list:
+      - name: url
+        type: string
+        description: SonarQube URL
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: SonarQube token
+        required: true
+        source: connection
+        binding: vault://sonarqube-credentials
+      - name: projectKey
+        type: string
+        description: Project key
+        required: true
+        source: input
   grpc:
     port: 50096
     binary:

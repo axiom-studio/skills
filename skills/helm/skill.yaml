@@ -33,6 +33,331 @@ spec:
     - helm-template
     - helm-values
     - helm-pull
+  inputs:
+    helm-install:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: chart
+        type: string
+        description: Chart name or path
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Target namespace
+        required: false
+        source: input
+        default: "default"
+      - name: createNamespace
+        type: boolean
+        description: Create namespace if missing
+        required: false
+        source: default
+        default: false
+      - name: values
+        type: object
+        description: Override values
+        required: false
+        source: input
+      - name: valuesFile
+        type: string
+        description: Values file path
+        required: false
+        source: input
+      - name: repo
+        type: string
+        description: Chart repository URL
+        required: false
+        source: input
+      - name: version
+        type: string
+        description: Chart version
+        required: false
+        source: input
+      - name: timeout
+        type: string
+        description: Timeout (e.g., 10m)
+        required: false
+        source: input
+      - name: wait
+        type: boolean
+        description: Wait for resources
+        required: false
+        source: default
+        default: true
+      - name: waitForJobs
+        type: boolean
+        description: Wait for Jobs to complete
+        required: false
+        source: default
+        default: false
+    helm-upgrade:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: chart
+        type: string
+        description: Chart name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+      - name: values
+        type: object
+        description: Override values
+        required: false
+        source: input
+      - name: reuseValues
+        type: boolean
+        description: Reuse existing values
+        required: false
+        source: default
+        default: false
+      - name: resetValues
+        type: boolean
+        description: Reset to chart defaults
+        required: false
+        source: default
+        default: false
+      - name: force
+        type: boolean
+        description: Force resource updates
+        required: false
+        source: default
+        default: false
+      - name: timeout
+        type: string
+        description: Timeout
+        required: false
+        source: input
+      - name: wait
+        type: boolean
+        description: Wait for resources
+        required: false
+        source: default
+        default: true
+    helm-uninstall:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+      - name: keepHistory
+        type: boolean
+        description: Keep release history
+        required: false
+        source: default
+        default: false
+    helm-rollback:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+      - name: revision
+        type: integer
+        description: Revision to rollback to
+        required: false
+        source: input
+      - name: timeout
+        type: string
+        description: Timeout
+        required: false
+        source: input
+      - name: wait
+        type: boolean
+        description: Wait for resources
+        required: false
+        source: default
+        default: true
+    helm-list:
+      - name: namespace
+        type: string
+        description: Namespace filter
+        required: false
+        source: input
+      - name: all
+        type: boolean
+        description: List all releases
+        required: false
+        source: default
+        default: false
+      - name: filter
+        type: string
+        description: Name filter regex
+        required: false
+        source: input
+    helm-status:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+    helm-history:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+    helm-repo-add:
+      - name: name
+        type: string
+        description: Repository name
+        required: true
+        source: input
+      - name: url
+        type: string
+        description: Repository URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: false
+        source: input
+      - name: password
+        type: string
+        description: Password
+        required: false
+        source: connection
+        binding: vault://helm-credentials
+      - name: passCredentialsAll
+        type: boolean
+        description: Pass credentials to all requests
+        required: false
+        source: default
+        default: false
+    helm-repo-list:
+      - name: config
+        type: object
+        description: Helm configuration
+        required: false
+        source: input
+    helm-repo-update:
+      - name: name
+        type: string
+        description: Repository name to update
+        required: false
+        source: input
+    helm-search:
+      - name: query
+        type: string
+        description: Search query
+        required: true
+        source: input
+      - name: repo
+        type: string
+        description: Repository name filter
+        required: false
+        source: input
+      - name: version
+        type: string
+        description: Version constraint
+        required: false
+        source: input
+    helm-template:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: chart
+        type: string
+        description: Chart name or path
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: values
+        type: object
+        description: Override values
+        required: false
+        source: input
+      - name: repo
+        type: string
+        description: Chart repository URL
+        required: false
+        source: input
+      - name: version
+        type: string
+        description: Chart version
+        required: false
+        source: input
+    helm-values:
+      - name: releaseName
+        type: string
+        description: Release name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+    helm-pull:
+      - name: chart
+        type: string
+        description: Chart name or path
+        required: true
+        source: input
+      - name: version
+        type: string
+        description: Chart version
+        required: false
+        source: input
+      - name: repo
+        type: string
+        description: Chart repository URL
+        required: false
+        source: input
+      - name: untar
+        type: boolean
+        description: Untar the chart
+        required: false
+        source: default
+        default: false
+      - name: destination
+        type: string
+        description: Destination directory
+        required: false
+        source: input
   grpc:
     port: 50087
     binary:

@@ -261,6 +261,133 @@ spec:
         command: npx
         args: ["-y", "@modelcontextprotocol/server-memory"]
 
+  inputs:
+    web_navigate:
+      - name: url
+        type: string
+        description: The URL to navigate to
+        required: true
+        source: input
+    web_screenshot:
+      - name: name
+        type: string
+        description: Name for the screenshot
+        required: true
+        source: input
+      - name: selector
+        type: string
+        description: Optional CSS selector to screenshot a specific element
+        required: false
+        source: input
+      - name: width
+        type: integer
+        description: Viewport width in pixels
+        required: false
+        source: input
+        default: 1280
+      - name: height
+        type: integer
+        description: Viewport height in pixels
+        required: false
+        source: input
+        default: 720
+    web_click:
+      - name: selector
+        type: string
+        description: CSS selector of the element to click
+        required: true
+        source: input
+    web_type:
+      - name: selector
+        type: string
+        description: CSS selector of the input field
+        required: true
+        source: input
+      - name: text
+        type: string
+        description: Text to type
+        required: true
+        source: input
+    web_search:
+      - name: query
+        type: string
+        description: The search query
+        required: true
+        source: input
+      - name: count
+        type: integer
+        description: Number of results to return
+        required: false
+        source: input
+        default: 10
+      - name: braveApiKey
+        type: string
+        description: Brave Search API key
+        required: true
+        source: connection
+        binding: vault://mcp-credentials
+    web_local_search:
+      - name: query
+        type: string
+        description: The local search query
+        required: true
+        source: input
+      - name: count
+        type: integer
+        description: Number of results to return
+        required: false
+        source: input
+        default: 5
+      - name: braveApiKey
+        type: string
+        description: Brave Search API key
+        required: true
+        source: connection
+        binding: vault://mcp-credentials
+    web_fetch:
+      - name: url
+        type: string
+        description: The URL to fetch
+        required: true
+        source: input
+      - name: max_length
+        type: integer
+        description: Maximum content length to return
+        required: false
+        source: input
+        default: 50000
+      - name: raw
+        type: boolean
+        description: Return raw HTML instead of markdown
+        required: false
+        source: default
+        default: false
+    memory_read: []
+    memory_search:
+      - name: query
+        type: string
+        description: Search query to find matching nodes
+        required: true
+        source: input
+    memory_add:
+      - name: content
+        type: string
+        description: The memory content to store
+        required: true
+        source: input
+    memory_create_entities:
+      - name: entities
+        type: array
+        description: Entities to create
+        required: true
+        source: input
+    memory_create_relations:
+      - name: relations
+        type: array
+        description: Relations to create
+        required: true
+        source: input
+
   permissions:
     - network:outbound
     - filesystem:write

@@ -27,6 +27,123 @@ spec:
     - snyk-monitor
     - snyk-severity-list
     - snyk-license-list
+  inputs:
+    snyk-project-list:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: orgId
+        type: string
+        description: Organization ID
+        required: false
+        source: input
+    snyk-project-scan:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    snyk-issue-list:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: severity
+        type: string
+        description: Filter by severity
+        required: false
+        source: input
+    snyk-issue-ignore:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: issueId
+        type: string
+        description: Issue ID
+        required: true
+        source: input
+      - name: reason
+        type: string
+        description: Ignore reason
+        required: true
+        source: input
+      - name: expires
+        type: string
+        description: Expiry date
+        required: false
+        source: input
+    snyk-test-deps:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    snyk-monitor:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    snyk-severity-list:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    snyk-license-list:
+      - name: apiToken
+        type: string
+        description: Snyk API token
+        required: true
+        source: connection
+        binding: vault://snyk-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
   grpc:
     port: 50095
     binary:

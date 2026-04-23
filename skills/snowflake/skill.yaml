@@ -24,6 +24,276 @@ spec:
     - sf-stage
     - sf-copy
     - sf-stream
+  inputs:
+    sf-query:
+      - name: account
+        type: string
+        description: Snowflake account identifier
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: Snowflake username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Snowflake password
+        required: true
+        source: connection
+        binding: vault://snowflake-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: schema
+        type: string
+        description: Schema name
+        required: true
+        source: input
+      - name: warehouse
+        type: string
+        description: Warehouse to use
+        required: true
+        source: input
+      - name: role
+        type: string
+        description: Role to use
+        required: false
+        source: input
+      - name: query
+        type: string
+        description: SQL query to execute
+        required: true
+        source: input
+      - name: args
+        type: object
+        description: Query parameters
+        required: false
+        source: input
+    sf-warehouse:
+      - name: account
+        type: string
+        description: Snowflake account identifier
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: Snowflake username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Snowflake password
+        required: true
+        source: connection
+        binding: vault://snowflake-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: warehouse
+        type: string
+        description: Warehouse name
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (start, stop, resume, suspend, status, resize)
+        required: true
+        source: input
+      - name: size
+        type: string
+        description: Warehouse size for resize
+        required: false
+        source: input
+      - name: autoSuspend
+        type: integer
+        description: Auto-suspend time in minutes
+        required: false
+        source: input
+      - name: autoResume
+        type: boolean
+        description: Enable auto-resume
+        required: false
+        source: default
+        default: true
+    sf-stage:
+      - name: account
+        type: string
+        description: Snowflake account identifier
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: Snowflake username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Snowflake password
+        required: true
+        source: connection
+        binding: vault://snowflake-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: schema
+        type: string
+        description: Schema name
+        required: true
+        source: input
+      - name: stageName
+        type: string
+        description: Stage name
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (create, drop, list, describe)
+        required: true
+        source: input
+      - name: stageType
+        type: string
+        description: internal or external
+        required: false
+        source: input
+        default: "internal"
+      - name: url
+        type: string
+        description: External stage URL
+        required: false
+        source: input
+      - name: fileFormat
+        type: string
+        description: File format name
+        required: false
+        source: input
+    sf-copy:
+      - name: account
+        type: string
+        description: Snowflake account identifier
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: Snowflake username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Snowflake password
+        required: true
+        source: connection
+        binding: vault://snowflake-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: schema
+        type: string
+        description: Schema name
+        required: true
+        source: input
+      - name: warehouse
+        type: string
+        description: Warehouse to use
+        required: true
+        source: input
+      - name: direction
+        type: string
+        description: into_table (load) or from_table (unload)
+        required: true
+        source: input
+      - name: tableName
+        type: string
+        description: Target/source table name
+        required: true
+        source: input
+      - name: stageName
+        type: string
+        description: Stage name
+        required: true
+        source: input
+      - name: filePath
+        type: string
+        description: File path in stage
+        required: false
+        source: input
+      - name: fileFormat
+        type: string
+        description: File format specification
+        required: false
+        source: input
+      - name: onError
+        type: string
+        description: Error handling (CONTINUE, SKIP_FILE, ABORT_STATEMENT)
+        required: false
+        source: input
+      - name: validationMode
+        type: string
+        description: Validation mode
+        required: false
+        source: input
+    sf-stream:
+      - name: account
+        type: string
+        description: Snowflake account identifier
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: Snowflake username
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Snowflake password
+        required: true
+        source: connection
+        binding: vault://snowflake-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: schema
+        type: string
+        description: Schema name
+        required: true
+        source: input
+      - name: streamName
+        type: string
+        description: Stream name
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (create, drop, describe, consume)
+        required: true
+        source: input
+      - name: tableName
+        type: string
+        description: Source table name (for create)
+        required: false
+        source: input
+      - name: appendOnly
+        type: boolean
+        description: Create append-only stream
+        required: false
+        source: default
+        default: false
+      - name: showInitial
+        type: boolean
+        description: Show initial rows
+        required: false
+        source: default
+        default: false
   grpc:
     port: 50053
     binary:

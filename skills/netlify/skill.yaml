@@ -28,6 +28,206 @@ spec:
     - netlify-env-set
     - netlify-env-list
     - netlify-build-hook-create
+  inputs:
+    netlify-deploy:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+      - name: dir
+        type: string
+        description: Directory to deploy
+        required: false
+        source: input
+      - name: functions
+        type: string
+        description: Functions directory
+        required: false
+        source: input
+      - name: draft
+        type: boolean
+        description: Create draft deployment
+        required: false
+        source: default
+        default: false
+      - name: message
+        type: string
+        description: Deployment message
+        required: false
+        source: input
+    netlify-site-list:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: name
+        type: string
+        description: Filter by site name
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 20
+    netlify-site-create:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: name
+        type: string
+        description: Site name
+        required: false
+        source: input
+      - name: customDomain
+        type: string
+        description: Custom domain
+        required: false
+        source: input
+    netlify-site-get:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+    netlify-deploy-list:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 5
+    netlify-dns-records:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (list, create, update, delete)
+        required: true
+        source: input
+      - name: hostname
+        type: string
+        description: DNS hostname
+        required: false
+        source: input
+      - name: type
+        type: string
+        description: Record type (A, CNAME, MX, TXT)
+        required: false
+        source: input
+      - name: value
+        type: string
+        description: Record value
+        required: false
+        source: input
+      - name: ttl
+        type: integer
+        description: TTL in seconds
+        required: false
+        source: input
+        default: 3600
+    netlify-env-set:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Variable key
+        required: true
+        source: input
+      - name: value
+        type: string
+        description: Variable value
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: context
+        type: string
+        description: Context (production, dev, branch)
+        required: false
+        source: input
+        default: "all"
+    netlify-env-list:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+    netlify-build-hook-create:
+      - name: apiToken
+        type: string
+        description: Netlify API token
+        required: true
+        source: connection
+        binding: vault://netlify-credentials
+      - name: siteId
+        type: string
+        description: Site ID
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Build hook title
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Branch to deploy
+        required: false
+        source: input
   grpc:
     port: 50127
     binary:

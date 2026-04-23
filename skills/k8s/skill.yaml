@@ -29,6 +29,282 @@ spec:
     - k8s-event
     - k8s-log-monitor
     - k8s-watch
+  inputs:
+    k8s-get:
+      - name: kind
+        type: string
+        description: Resource kind (Pod, Deployment, Service, etc.)
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-list:
+      - name: kind
+        type: string
+        description: Resource kind
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+      - name: labelSelector
+        type: string
+        description: Label selector filter
+        required: false
+        source: input
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-logs:
+      - name: name
+        type: string
+        description: Pod name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: container
+        type: string
+        description: Container name
+        required: false
+        source: input
+      - name: tail
+        type: integer
+        description: Number of lines from end
+        required: false
+        source: input
+        default: 100
+      - name: follow
+        type: boolean
+        description: Follow log output
+        required: false
+        source: default
+        default: false
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-events:
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: fieldSelector
+        type: string
+        description: Field selector
+        required: false
+        source: input
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-restart:
+      - name: kind
+        type: string
+        description: Resource kind (Deployment, StatefulSet, DaemonSet)
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-scale:
+      - name: kind
+        type: string
+        description: Resource kind (Deployment, StatefulSet, ReplicaSet)
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: replicas
+        type: integer
+        description: Desired replica count
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-patch:
+      - name: kind
+        type: string
+        description: Resource kind
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: patch
+        type: object
+        description: Patch specification
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: patchType
+        type: string
+        description: Patch type (strategic, merge, json)
+        required: false
+        source: input
+        default: "strategic"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-delete:
+      - name: kind
+        type: string
+        description: Resource kind
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-event:
+      - name: kind
+        type: string
+        description: Resource kind
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Resource name
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-log-monitor:
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: labelSelector
+        type: string
+        description: Label selector
+        required: false
+        source: input
+      - name: pattern
+        type: string
+        description: Log pattern to monitor
+        required: false
+        source: input
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
+    k8s-watch:
+      - name: kind
+        type: string
+        description: Resource kind
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Kubernetes namespace
+        required: false
+        source: input
+        default: "default"
+      - name: labelSelector
+        type: string
+        description: Label selector
+        required: false
+        source: input
+      - name: kubeconfig
+        type: string
+        description: Kubeconfig path or content
+        required: false
+        source: connection
+        binding: vault://k8s-credentials
   grpc:
     port: 50053
     binary:

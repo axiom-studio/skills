@@ -24,6 +24,143 @@ spec:
     - airtable-update
     - airtable-delete
     - airtable-search
+  inputs:
+    airtable-list:
+      - name: apiKey
+        type: string
+        description: Airtable API key
+        required: true
+        source: connection
+        binding: vault://airtable-credentials
+      - name: baseId
+        type: string
+        description: ID of the Airtable base
+        required: true
+        source: input
+      - name: table
+        type: string
+        description: Table name to list records from
+        required: true
+        source: input
+      - name: maxRecords
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        source: input
+      - name: filterByFormula
+        type: string
+        description: Airtable formula to filter records
+        required: false
+        source: input
+      - name: sort
+        type: array
+        description: Array of sort options
+        required: false
+        source: input
+      - name: view
+        type: string
+        description: View ID to use for listing
+        required: false
+        source: input
+    airtable-create:
+      - name: apiKey
+        type: string
+        description: Airtable API key
+        required: true
+        source: connection
+        binding: vault://airtable-credentials
+      - name: baseId
+        type: string
+        description: ID of the Airtable base
+        required: true
+        source: input
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: records
+        type: array
+        description: Array of record objects with fields
+        required: true
+        source: input
+    airtable-update:
+      - name: apiKey
+        type: string
+        description: Airtable API key
+        required: true
+        source: connection
+        binding: vault://airtable-credentials
+      - name: baseId
+        type: string
+        description: ID of the Airtable base
+        required: true
+        source: input
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: records
+        type: array
+        description: Array of record objects with id and fields
+        required: true
+        source: input
+    airtable-delete:
+      - name: apiKey
+        type: string
+        description: Airtable API key
+        required: true
+        source: connection
+        binding: vault://airtable-credentials
+      - name: baseId
+        type: string
+        description: ID of the Airtable base
+        required: true
+        source: input
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: recordIds
+        type: array
+        description: Array of record IDs to delete
+        required: true
+        source: input
+    airtable-search:
+      - name: apiKey
+        type: string
+        description: Airtable API key
+        required: true
+        source: connection
+        binding: vault://airtable-credentials
+      - name: baseId
+        type: string
+        description: ID of the Airtable base
+        required: true
+        source: input
+      - name: table
+        type: string
+        description: Table name
+        required: true
+        source: input
+      - name: field
+        type: string
+        description: Field name to search in
+        required: true
+        source: input
+      - name: value
+        type: string
+        description: Value to search for
+        required: true
+        source: input
+      - name: exactMatch
+        type: boolean
+        description: Whether to match exactly
+        required: false
+        source: default
+        default: false
   grpc:
     port: 50052
     binary:

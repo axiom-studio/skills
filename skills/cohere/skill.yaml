@@ -27,6 +27,216 @@ spec:
     - cohere-rerank
     - cohere-detect-language
     - cohere-tokenize
+  inputs:
+    cohere-generate:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: model
+        type: string
+        description: Model name
+        required: false
+        source: input
+        default: "command"
+      - name: prompt
+        type: string
+        description: Input prompt
+        required: true
+        source: input
+      - name: maxTokens
+        type: integer
+        description: Maximum tokens to generate
+        required: false
+        source: input
+      - name: temperature
+        type: number
+        description: Sampling temperature
+        required: false
+        source: input
+        default: 0.7
+      - name: k
+        type: integer
+        description: Top-k sampling
+        required: false
+        source: input
+      - name: p
+        type: number
+        description: Top-p sampling
+        required: false
+        source: input
+      - name: stopSequences
+        type: array
+        description: Stop sequences
+        required: false
+        source: input
+    cohere-chat:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: model
+        type: string
+        description: Model name
+        required: false
+        source: input
+      - name: message
+        type: string
+        description: User message
+        required: true
+        source: input
+      - name: preamble
+        type: string
+        description: System preamble
+        required: false
+        source: input
+      - name: chatHistory
+        type: array
+        description: Chat history
+        required: false
+        source: input
+      - name: temperature
+        type: number
+        description: Sampling temperature
+        required: false
+        source: input
+        default: 0.7
+    cohere-embed:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: texts
+        type: array
+        description: Texts to embed
+        required: true
+        source: input
+      - name: model
+        type: string
+        description: Embedding model
+        required: false
+        source: input
+        default: "embed-english-v3.0"
+      - name: truncate
+        type: string
+        description: Truncate strategy
+        required: false
+        source: input
+    cohere-classify:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: model
+        type: string
+        description: Classification model
+        required: false
+        source: input
+      - name: inputs
+        type: array
+        description: Texts to classify
+        required: true
+        source: input
+      - name: examples
+        type: array
+        description: Classification examples
+        required: true
+        source: input
+    cohere-summarize:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: text
+        type: string
+        description: Text to summarize
+        required: true
+        source: input
+      - name: model
+        type: string
+        description: Summarization model
+        required: false
+        source: input
+      - name: length
+        type: string
+        description: Summary length (short, medium, long)
+        required: false
+        source: input
+        default: "medium"
+      - name: format
+        type: string
+        description: Output format (paragraph, bullets)
+        required: false
+        source: input
+        default: "paragraph"
+    cohere-rerank:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: model
+        type: string
+        description: Rerank model
+        required: false
+        source: input
+        default: "rerank-english-v3.0"
+      - name: query
+        type: string
+        description: Search query
+        required: true
+        source: input
+      - name: documents
+        type: array
+        description: Documents to rerank
+        required: true
+        source: input
+      - name: topN
+        type: integer
+        description: Number of top results to return
+        required: false
+        source: input
+        default: 10
+    cohere-detect-language:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: text
+        type: string
+        description: Text to detect language
+        required: true
+        source: input
+    cohere-tokenize:
+      - name: apiKey
+        type: string
+        description: Cohere API key
+        required: true
+        source: connection
+        binding: vault://cohere-credentials
+      - name: text
+        type: string
+        description: Text to tokenize
+        required: true
+        source: input
+      - name: model
+        type: string
+        description: Tokenizer model
+        required: false
+        source: input
   grpc:
     port: 50098
     binary:

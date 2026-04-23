@@ -27,6 +27,158 @@ spec:
     - gdrive-search
     - gdrive-folder-create
     - gdrive-permission-list
+  inputs:
+    gdrive-list:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: parentId
+        type: string
+        description: Parent folder ID
+        required: false
+        source: input
+        default: "root"
+      - name: query
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: pageSize
+        type: integer
+        description: Max results
+        required: false
+        source: input
+        default: 100
+    gdrive-upload:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: name
+        type: string
+        description: File name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content (base64)
+        required: true
+        source: input
+      - name: mimeType
+        type: string
+        description: MIME type
+        required: false
+        source: input
+        default: "application/octet-stream"
+      - name: parentId
+        type: string
+        description: Parent folder ID
+        required: false
+        source: input
+    gdrive-download:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: fileId
+        type: string
+        description: File ID
+        required: true
+        source: input
+    gdrive-delete:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: fileId
+        type: string
+        description: File ID
+        required: true
+        source: input
+    gdrive-share:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: fileId
+        type: string
+        description: File ID
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: User email
+        required: true
+        source: input
+      - name: role
+        type: string
+        description: Role (reader, writer, commenter)
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Type (user, group, domain, anyone)
+        required: false
+        source: input
+        default: "user"
+    gdrive-search:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: query
+        type: string
+        description: Search query
+        required: true
+        source: input
+      - name: pageSize
+        type: integer
+        description: Max results
+        required: false
+        source: input
+        default: 100
+    gdrive-folder-create:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: name
+        type: string
+        description: Folder name
+        required: true
+        source: input
+      - name: parentId
+        type: string
+        description: Parent folder ID
+        required: false
+        source: input
+    gdrive-permission-list:
+      - name: credentials
+        type: string
+        description: Service account JSON
+        required: true
+        source: connection
+        binding: vault://google-drive-credentials
+      - name: fileId
+        type: string
+        description: File ID
+        required: true
+        source: input
   grpc:
     port: 50113
     binary:

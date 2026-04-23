@@ -27,6 +27,269 @@ spec:
     - braintree-customer-list
     - braintree-subscription-create
     - braintree-subscription-cancel
+  inputs:
+    braintree-transaction-sale:
+      - name: environment
+        type: string
+        description: Environment (sandbox, production)
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: amount
+        type: string
+        description: Transaction amount
+        required: true
+        source: input
+      - name: paymentMethodNonce
+        type: string
+        description: Payment method nonce
+        required: true
+        source: input
+      - name: orderId
+        type: string
+        description: Order ID
+        required: false
+        source: input
+    braintree-transaction-void:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: transactionId
+        type: string
+        description: Transaction ID to void
+        required: true
+        source: input
+    braintree-transaction-refund:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: transactionId
+        type: string
+        description: Transaction ID to refund
+        required: true
+        source: input
+      - name: amount
+        type: string
+        description: Refund amount
+        required: false
+        source: input
+    braintree-transaction-get:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: transactionId
+        type: string
+        description: Transaction ID
+        required: true
+        source: input
+    braintree-customer-create:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: firstName
+        type: string
+        description: First name
+        required: false
+        source: input
+      - name: lastName
+        type: string
+        description: Last name
+        required: false
+        source: input
+      - name: email
+        type: string
+        description: Email
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Phone number
+        required: false
+        source: input
+    braintree-customer-list:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+    braintree-subscription-create:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: paymentMethodToken
+        type: string
+        description: Payment method token
+        required: true
+        source: input
+      - name: planId
+        type: string
+        description: Subscription plan ID
+        required: true
+        source: input
+    braintree-subscription-cancel:
+      - name: environment
+        type: string
+        description: Environment
+        required: true
+        source: input
+      - name: merchantId
+        type: string
+        description: Merchant ID
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: publicKey
+        type: string
+        description: Public key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: privateKey
+        type: string
+        description: Private key
+        required: true
+        source: connection
+        binding: vault://braintree-credentials
+      - name: subscriptionId
+        type: string
+        description: Subscription ID to cancel
+        required: true
+        source: input
   grpc:
     port: 50117
     binary:

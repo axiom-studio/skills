@@ -27,6 +27,180 @@ spec:
     - telegram-get-updates
     - telegram-get-chat
     - telegram-set-webhook
+  inputs:
+    telegram-send-message:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID or username
+        required: true
+        source: input
+      - name: text
+        type: string
+        description: Message text
+        required: true
+        source: input
+      - name: parseMode
+        type: string
+        description: Parse mode (HTML, Markdown)
+        required: false
+        source: input
+      - name: disableNotification
+        type: boolean
+        description: Disable notifications
+        required: false
+        source: default
+        default: false
+      - name: replyToMessageId
+        type: integer
+        description: Reply to message ID
+        required: false
+        source: input
+    telegram-edit-message:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID
+        required: true
+        source: input
+      - name: messageId
+        type: integer
+        description: Message ID to edit
+        required: true
+        source: input
+      - name: text
+        type: string
+        description: New message text
+        required: true
+        source: input
+      - name: parseMode
+        type: string
+        description: Parse mode
+        required: false
+        source: input
+    telegram-delete-message:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID
+        required: true
+        source: input
+      - name: messageId
+        type: integer
+        description: Message ID to delete
+        required: true
+        source: input
+    telegram-send-photo:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID
+        required: true
+        source: input
+      - name: photo
+        type: string
+        description: Photo URL or file ID
+        required: true
+        source: input
+      - name: caption
+        type: string
+        description: Photo caption
+        required: false
+        source: input
+    telegram-send-document:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID
+        required: true
+        source: input
+      - name: document
+        type: string
+        description: Document URL or file ID
+        required: true
+        source: input
+      - name: caption
+        type: string
+        description: Document caption
+        required: false
+        source: input
+    telegram-get-updates:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: offset
+        type: integer
+        description: Offset for updates
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max updates to return
+        required: false
+        source: input
+      - name: timeout
+        type: integer
+        description: Long polling timeout
+        required: false
+        source: input
+    telegram-get-chat:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: chatId
+        type: string
+        description: Chat ID
+        required: true
+        source: input
+    telegram-set-webhook:
+      - name: botToken
+        type: string
+        description: Telegram bot token
+        required: true
+        source: connection
+        binding: vault://telegram-credentials
+      - name: url
+        type: string
+        description: Webhook URL
+        required: true
+        source: input
+      - name: secretToken
+        type: string
+        description: Secret token for verification
+        required: false
+        source: connection
+        binding: vault://telegram-credentials
   grpc:
     port: 50109
     binary:

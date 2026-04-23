@@ -26,6 +26,147 @@ spec:
     - whatsapp-contact-list
     - whatsapp-phone-number-list
     - whatsapp-business-profile
+  inputs:
+    whatsapp-send-message:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+      - name: to
+        type: string
+        description: Recipient phone number
+        required: true
+        source: input
+      - name: message
+        type: string
+        description: Message text
+        required: true
+        source: input
+    whatsapp-send-template:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+      - name: to
+        type: string
+        description: Recipient phone number
+        required: true
+        source: input
+      - name: templateName
+        type: string
+        description: Template name
+        required: true
+        source: input
+      - name: language
+        type: string
+        description: Language code
+        required: false
+        source: input
+        default: "en_US"
+      - name: components
+        type: array
+        description: Template components
+        required: false
+        source: input
+    whatsapp-send-media:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+      - name: to
+        type: string
+        description: Recipient phone number
+        required: true
+        source: input
+      - name: mediaType
+        type: string
+        description: Media type (image, video, document, audio)
+        required: true
+        source: input
+      - name: mediaUrl
+        type: string
+        description: Media URL
+        required: true
+        source: input
+      - name: caption
+        type: string
+        description: Media caption
+        required: false
+        source: input
+    whatsapp-mark-read:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+      - name: messageId
+        type: string
+        description: Message ID to mark as read
+        required: true
+        source: input
+    whatsapp-contact-list:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+    whatsapp-phone-number-list:
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
+      - name: businessAccountId
+        type: string
+        description: Business account ID
+        required: true
+        source: input
+    whatsapp-business-profile:
+      - name: phoneNumberId
+        type: string
+        description: WhatsApp phone number ID
+        required: true
+        source: input
+      - name: accessToken
+        type: string
+        description: Meta access token
+        required: true
+        source: connection
+        binding: vault://whatsapp-credentials
   grpc:
     port: 50110
     binary:

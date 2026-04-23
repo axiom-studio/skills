@@ -27,6 +27,243 @@ spec:
     - zoom-participant-list
     - zoom-user-list
     - zoom-webinar-create
+  inputs:
+    zoom-meeting-create:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: topic
+        type: string
+        description: Meeting topic
+        required: true
+        source: input
+      - name: type
+        type: integer
+        description: Meeting type (1=instant, 2=scheduled)
+        required: false
+        source: input
+        default: 2
+      - name: startTime
+        type: string
+        description: Start time (ISO 8601)
+        required: false
+        source: input
+      - name: duration
+        type: integer
+        description: Duration in minutes
+        required: false
+        source: input
+      - name: timezone
+        type: string
+        description: Timezone
+        required: false
+        source: input
+      - name: password
+        type: string
+        description: Meeting password
+        required: false
+        source: input
+      - name: settings
+        type: object
+        description: Meeting settings
+        required: false
+        source: input
+    zoom-meeting-list:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: false
+        source: input
+        default: "me"
+      - name: type
+        type: string
+        description: Meeting type filter
+        required: false
+        source: input
+    zoom-meeting-get:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: meetingId
+        type: string
+        description: Meeting ID
+        required: true
+        source: input
+    zoom-meeting-delete:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: meetingId
+        type: string
+        description: Meeting ID
+        required: true
+        source: input
+    zoom-recording-list:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: meetingId
+        type: string
+        description: Meeting ID
+        required: false
+        source: input
+    zoom-participant-list:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: meetingId
+        type: string
+        description: Meeting ID
+        required: true
+        source: input
+    zoom-user-list:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: status
+        type: string
+        description: User status filter
+        required: false
+        source: input
+    zoom-webinar-create:
+      - name: accountId
+        type: string
+        description: Zoom account ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Zoom client ID
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: clientSecret
+        type: string
+        description: Zoom client secret
+        required: true
+        source: connection
+        binding: vault://zoom-credentials
+      - name: topic
+        type: string
+        description: Webinar topic
+        required: true
+        source: input
+      - name: startTime
+        type: string
+        description: Start time (ISO 8601)
+        required: true
+        source: input
+      - name: duration
+        type: integer
+        description: Duration in minutes
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Webinar password
+        required: false
+        source: input
   grpc:
     port: 50120
     binary:

@@ -130,12 +130,51 @@ func TestCloneExecutor_Execute_MissingPath(t *testing.T) {
 	}
 }
 
-func TestCloneExecutor_Execute_ReturnsStubMessage(t *testing.T) {
+func TestCloneExecutor_Execute_InvalidRemote(t *testing.T) {
 	e := &CloneExecutor{}
-	// Clone is not yet implemented - should return a stub result
+	tmpDir := t.TempDir()
+	_, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"url":  "https://github.com/example/nonexistent-repo-that-does-not-exist.git",
+		"path": filepath.Join(tmpDir, "clone-dest"),
+	}), &mockResolver{})
+	if err == nil {
+		t.Error("expected error for cloning non-existent remote repository")
+	}
+}
+
+func TestCloneExecutor_Execute_LocalRepo(t *testing.T) {
+	tmpDir := t.TempDir()
+	originPath := filepath.Join(tmpDir, "origin")
+	clonePath := filepath.Join(tmpDir, "clone")
+
+	repo, err := git.PlainInit(originPath, false)
+	if err != nil {
+		t.Fatalf("failed to init origin repo: %v", err)
+	}
+
+	sig := &object.Signature{Name: "Test", Email: "test@example.com"}
+	filePath := filepath.Join(originPath, "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+	_, err = w.Add("hello.txt")
+	if err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+	_, err = w.Commit("Initial commit", &git.CommitOptions{Author: sig})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	e := &CloneExecutor{}
 	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
-		"url":  "https://github.com/example/repo.git",
-		"path": "/tmp/test-clone-stub",
+		"url":  "file://" + originPath,
+		"path": clonePath,
 	}), &mockResolver{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -143,9 +182,10 @@ func TestCloneExecutor_Execute_ReturnsStubMessage(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected result")
 	}
+
 	success, ok := result.Output["success"].(bool)
-	if !ok || success {
-		t.Error("expected success=false for unimplemented clone")
+	if !ok || !success {
+		t.Errorf("expected success=true, got %v", result.Output["success"])
 	}
 }
 
@@ -159,12 +199,63 @@ func TestPullExecutor_Execute_MissingPath(t *testing.T) {
 	}
 }
 
-func TestPullExecutor_Execute_ReturnsStubMessage(t *testing.T) {
+func TestPullExecutor_Execute_InvalidRepo(t *testing.T) {
 	e := &PullExecutor{}
-	// Pull is not yet implemented - should return a stub result
-	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
-		"path":   "/tmp/test-pull-stub",
+	_, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":   "/tmp/test-pull-nonexistent",
 		"remote": "origin",
+	}), &mockResolver{})
+	if err == nil {
+		t.Error("expected error for invalid repo path")
+	}
+}
+
+func TestPullExecutor_Execute_AlreadyUpToDate(t *testing.T) {
+	tmpDir := t.TempDir()
+	originPath := filepath.Join(tmpDir, "origin")
+	repoPath := filepath.Join(tmpDir, "clone")
+
+	repo, err := git.PlainInit(originPath, false)
+	if err != nil {
+		t.Fatalf("failed to init origin: %v", err)
+	}
+
+	sig := &object.Signature{Name: "Test", Email: "test@example.com"}
+	filePath := filepath.Join(originPath, "initial.txt")
+	if err := os.WriteFile(filePath, []byte("initial\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+	_, err = w.Add("initial.txt")
+	if err != nil {
+		t.Fatalf("failed to add: %v", err)
+	}
+	_, err = w.Commit("Initial commit", &git.CommitOptions{Author: sig})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	cloneRepo, err := git.PlainClone(repoPath, false, &git.CloneOptions{
+		URL: "file://" + originPath,
+	})
+	if err != nil {
+		t.Fatalf("failed to clone: %v", err)
+	}
+
+	headRef, err := cloneRepo.Head()
+	if err != nil {
+		t.Fatalf("failed to get head: %v", err)
+	}
+
+	e := &PullExecutor{}
+	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":    repoPath,
+		"remote":  "origin",
+		"branch":  headRef.Name().Short(),
 	}), &mockResolver{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -173,8 +264,8 @@ func TestPullExecutor_Execute_ReturnsStubMessage(t *testing.T) {
 		t.Fatal("expected result")
 	}
 	success, ok := result.Output["success"].(bool)
-	if !ok || success {
-		t.Error("expected success=false for unimplemented pull")
+	if !ok || !success {
+		t.Errorf("expected success=true, got %v", result.Output["success"])
 	}
 }
 
@@ -333,20 +424,13 @@ func TestPushExecutor_Execute_MissingPath(t *testing.T) {
 	}
 }
 
-func TestPushExecutor_Execute_ReturnsStubMessage(t *testing.T) {
+func TestPushExecutor_Execute_InvalidRepo(t *testing.T) {
 	e := &PushExecutor{}
-	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
-		"path": "/tmp/test-push-stub",
+	_, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path": "/tmp/test-push-nonexistent",
 	}), &mockResolver{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected result")
-	}
-	success, ok := result.Output["success"].(bool)
-	if !ok || success {
-		t.Error("expected success=false for unimplemented push")
+	if err == nil {
+		t.Error("expected error for invalid repo path")
 	}
 }
 
@@ -360,10 +444,49 @@ func TestBranchExecutor_Execute_MissingPath(t *testing.T) {
 	}
 }
 
-func TestBranchExecutor_Execute_ReturnsStubMessage(t *testing.T) {
+func TestBranchExecutor_Execute_InvalidRepo(t *testing.T) {
+	e := &BranchExecutor{}
+	_, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":      "/tmp/test-branch-nonexistent",
+		"operation": "list",
+	}), &mockResolver{})
+	if err == nil {
+		t.Error("expected error for invalid repo path")
+	}
+}
+
+func TestBranchExecutor_Execute_ListBranches(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "test-repo")
+
+	repo, err := git.PlainInit(repoPath, false)
+	if err != nil {
+		t.Fatalf("failed to init repo: %v", err)
+	}
+
+	sig := &object.Signature{Name: "Test", Email: "test@example.com"}
+
+	filePath := filepath.Join(repoPath, "initial.txt")
+	if err := os.WriteFile(filePath, []byte("initial content\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+	_, err = w.Add("initial.txt")
+	if err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+	_, err = w.Commit("Initial commit", &git.CommitOptions{Author: sig})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
 	e := &BranchExecutor{}
 	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
-		"path":      "/tmp/test-branch-stub",
+		"path":      repoPath,
 		"operation": "list",
 	}), &mockResolver{})
 	if err != nil {
@@ -372,9 +495,107 @@ func TestBranchExecutor_Execute_ReturnsStubMessage(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected result")
 	}
+
 	success, ok := result.Output["success"].(bool)
-	if !ok || success {
-		t.Error("expected success=false for unimplemented branch operation")
+	if !ok || !success {
+		t.Error("expected success=true")
+	}
+
+	operation, ok := result.Output["operation"].(string)
+	if !ok || operation != "list" {
+		t.Errorf("expected operation 'list', got %v", result.Output["operation"])
+	}
+}
+
+func TestBranchExecutor_Execute_CreateAndDeleteBranch(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "test-repo")
+
+	repo, err := git.PlainInit(repoPath, false)
+	if err != nil {
+		t.Fatalf("failed to init repo: %v", err)
+	}
+
+	sig := &object.Signature{Name: "Test", Email: "test@example.com"}
+
+	filePath := filepath.Join(repoPath, "initial.txt")
+	if err := os.WriteFile(filePath, []byte("initial content\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+	_, err = w.Add("initial.txt")
+	if err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+	_, err = w.Commit("Initial commit", &git.CommitOptions{Author: sig})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	headRef, err := repo.Head()
+	if err != nil {
+		t.Fatalf("failed to get head: %v", err)
+	}
+	originalBranch := headRef.Name()
+
+	e := &BranchExecutor{}
+
+	result, err := e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":       repoPath,
+		"operation":  "create",
+		"branchName": "feature-test",
+	}), &mockResolver{})
+	if err != nil {
+		t.Fatalf("unexpected error creating branch: %v", err)
+	}
+	success, ok := result.Output["success"].(bool)
+	if !ok || !success {
+		t.Error("expected success=true for create branch")
+	}
+
+	w, err = repo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+	err = w.Checkout(&git.CheckoutOptions{Branch: originalBranch})
+	if err != nil {
+		t.Fatalf("failed to checkout original branch: %v", err)
+	}
+
+	result, err = e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":       repoPath,
+		"operation":  "delete",
+		"branchName": "feature-test",
+	}), &mockResolver{})
+	if err != nil {
+		t.Fatalf("unexpected error deleting branch: %v", err)
+	}
+	success, ok = result.Output["success"].(bool)
+	if !ok || !success {
+		t.Error("expected success=true for delete branch")
+	}
+}
+
+func TestBranchExecutor_Execute_InvalidOperation(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "test-repo")
+
+	_, err := git.PlainInit(repoPath, false)
+	if err != nil {
+		t.Fatalf("failed to init repo: %v", err)
+	}
+
+	e := &BranchExecutor{}
+	_, err = e.Execute(newCtx(), newStep(map[string]interface{}{
+		"path":      repoPath,
+		"operation": "invalid-op",
+	}), &mockResolver{})
+	if err == nil {
+		t.Error("expected error for unknown operation")
 	}
 }
 

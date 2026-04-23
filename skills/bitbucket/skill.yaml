@@ -28,6 +28,265 @@ spec:
     - bitbucket-pipeline-status
     - bitbucket-commit-list
     - bitbucket-branch-list
+  inputs:
+    bitbucket-repo-list:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: false
+        source: input
+      - name: role
+        type: string
+        description: Filter by role (member, admin)
+        required: false
+        source: input
+    bitbucket-repo-get:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+    bitbucket-pr-list:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: state
+        type: string
+        description: Filter by PR state (OPEN, MERGED, DECLINED)
+        required: false
+        source: input
+        default: "OPEN"
+    bitbucket-pr-create:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: PR title
+        required: true
+        source: input
+      - name: sourceBranch
+        type: string
+        description: Source branch
+        required: true
+        source: input
+      - name: destinationBranch
+        type: string
+        description: Destination branch
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: PR description
+        required: false
+        source: input
+    bitbucket-pr-merge:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: prId
+        type: string
+        description: Pull request ID
+        required: true
+        source: input
+    bitbucket-pipeline-trigger:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Branch to trigger pipeline on
+        required: true
+        source: input
+      - name: variables
+        type: object
+        description: Pipeline variables
+        required: false
+        source: input
+    bitbucket-pipeline-status:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: pipelineId
+        type: string
+        description: Pipeline UUID
+        required: true
+        source: input
+    bitbucket-commit-list:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Filter by branch
+        required: false
+        source: input
+    bitbucket-branch-list:
+      - name: username
+        type: string
+        description: Bitbucket username
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: appPassword
+        type: string
+        description: App password
+        required: true
+        source: connection
+        binding: vault://bitbucket-credentials
+      - name: workspace
+        type: string
+        description: Workspace slug
+        required: true
+        source: input
+      - name: repoSlug
+        type: string
+        description: Repository slug
+        required: true
+        source: input
   grpc:
     port: 50125
     binary:
