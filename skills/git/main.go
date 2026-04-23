@@ -71,6 +71,21 @@ func getBool(config map[string]interface{}, key string, def bool) bool {
 	return def
 }
 
+func getStringSlice(config map[string]interface{}, key string) []string {
+	if v, ok := config[key]; ok {
+		if slice, ok := v.([]interface{}); ok {
+			result := make([]string, 0, len(slice))
+			for _, item := range slice {
+				if s, ok := item.(string); ok {
+					result = append(result, s)
+				}
+			}
+			return result
+		}
+	}
+	return nil
+}
+
 // ============================================================================
 // SCHEMAS
 // ============================================================================
@@ -358,8 +373,6 @@ func (e *CommitExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 
 	path := res.ResolveString(getString(config, "path"))
 	message := res.ResolveString(getString(config, "message"))
-	authorName := res.ResolveString(getString(config, "authorName"))
-	authorEmail := res.ResolveString(getString(config, "authorEmail"))
 	all := getBool(config, "all", true)
 
 	if path == "" {
@@ -369,16 +382,61 @@ func (e *CommitExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		return nil, fmt.Errorf("commit message is required")
 	}
 
-	// Placeholder implementation
+	// Open repository
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	// Get worktree
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Parse files option
+	files := getStringSlice(config, "files")
+
+	// Stage files
+	if all {
+		err = worktree.AddWithOptions(&git.AddOptions{
+			All: true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to stage all changes: %w", err)
+		}
+	} else if len(files) > 0 {
+		for _, file := range files {
+			_, err = worktree.Add(file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to stage file %s: %w", file, err)
+			}
+		}
+	}
+
+	// Check for changes
+	status, err := worktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status: %w", err)
+	}
+
+	// Simple check: if no entries in status, no changes
+	if len(status) == 0 {
+		return nil, fmt.Errorf("no changes to commit")
+	}
+
+	// Commit
+	hash, err := worktree.Commit(message, &git.CommitOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit: %w", err)
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":    "Commit not yet implemented",
-			"path":       path,
-			"commitMsg":  message,
-			"authorName": authorName,
-			"authorEmail": authorEmail,
-			"stageAll":   all,
-			"success":    false,
+			"sha":     hash.String(),
+			"message": message,
+			"path":    path,
+			"success": true,
 		},
 	}, nil
 }
