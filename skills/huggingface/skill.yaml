@@ -27,6 +27,178 @@ spec:
     - hf-dataset-download
     - hf-space-create
     - hf-space-list
+  inputs:
+    hf-inference:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: true
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: model
+        type: string
+        description: Model ID
+        required: true
+        source: input
+      - name: inputs
+        type: string
+        description: Input text/data
+        required: true
+        source: input
+      - name: parameters
+        type: object
+        description: Model parameters
+        required: false
+        source: input
+    hf-model-list:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: search
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: filter
+        type: string
+        description: Filter by task or library
+        required: false
+        source: input
+      - name: sort
+        type: string
+        description: Sort by (downloads, likes)
+        required: false
+        source: input
+        default: "downloads"
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+        default: 20
+    hf-model-info:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: modelId
+        type: string
+        description: Model ID
+        required: true
+        source: input
+    hf-model-download:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: modelId
+        type: string
+        description: Model ID
+        required: true
+        source: input
+      - name: filename
+        type: string
+        description: Specific file to download
+        required: false
+        source: input
+    hf-dataset-list:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: search
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: filter
+        type: string
+        description: Filter by task or library
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+        default: 20
+    hf-dataset-download:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: datasetId
+        type: string
+        description: Dataset ID
+        required: true
+        source: input
+      - name: config
+        type: string
+        description: Dataset config name
+        required: false
+        source: input
+      - name: split
+        type: string
+        description: Dataset split (train, test, validation)
+        required: false
+        source: input
+        default: "train"
+    hf-space-create:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: true
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: spaceId
+        type: string
+        description: Space ID (user/name)
+        required: true
+        source: input
+      - name: sdk
+        type: string
+        description: SDK (gradio, streamlit, static)
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Space title
+        required: false
+        source: input
+    hf-space-list:
+      - name: apiToken
+        type: string
+        description: Hugging Face API token
+        required: false
+        source: connection
+        binding: vault://huggingface-credentials
+      - name: author
+        type: string
+        description: Filter by author
+        required: false
+        source: input
+      - name: search
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results
+        required: false
+        source: input
+        default: 20
   grpc:
     port: 50097
     binary:

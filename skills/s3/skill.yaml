@@ -28,6 +28,256 @@ spec:
     - s3-bucket-create
     - s3-bucket-delete
     - s3-copy-object
+  inputs:
+    s3-list-buckets:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+    s3-list-objects:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: prefix
+        type: string
+        description: Key prefix filter
+        required: false
+        source: input
+      - name: delimiter
+        type: string
+        description: Delimiter for grouping
+        required: false
+        source: input
+      - name: maxKeys
+        type: integer
+        description: Max keys to return
+        required: false
+        source: input
+    s3-upload:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content (text or base64)
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+      - name: metadata
+        type: object
+        description: User metadata
+        required: false
+        source: input
+      - name: acl
+        type: string
+        description: ACL (private, public-read, etc.)
+        required: false
+        source: input
+    s3-download:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key
+        required: true
+        source: input
+    s3-delete:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key (omit for bucket deletion)
+        required: false
+        source: input
+    s3-presign:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key
+        required: true
+        source: input
+      - name: operation
+        type: string
+        description: get/put object
+        required: false
+        source: input
+        default: "get"
+      - name: expiresIn
+        type: integer
+        description: URL expiry seconds
+        required: false
+        source: input
+        default: 3600
+    s3-bucket-create:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: region
+        type: string
+        description: AWS region
+        required: false
+        source: input
+    s3-bucket-delete:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+    s3-copy-object:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://s3-credentials
+      - name: sourceBucket
+        type: string
+        description: Source bucket name
+        required: true
+        source: input
+      - name: sourceKey
+        type: string
+        description: Source object key
+        required: true
+        source: input
+      - name: destinationBucket
+        type: string
+        description: Destination bucket name
+        required: true
+        source: input
+      - name: destinationKey
+        type: string
+        description: Destination object key
+        required: true
+        source: input
   grpc:
     port: 50114
     binary:

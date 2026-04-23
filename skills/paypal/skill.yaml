@@ -27,6 +27,221 @@ spec:
     - paypal-payout
     - paypal-transaction-list
     - paypal-invoice-create
+  inputs:
+    paypal-order-create:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: intent
+        type: string
+        description: Order intent (CAPTURE, AUTHORIZE)
+        required: false
+        source: input
+        default: "CAPTURE"
+      - name: amount
+        type: string
+        description: Amount (e.g., "99.99")
+        required: true
+        source: input
+      - name: currency
+        type: string
+        description: Currency code
+        required: false
+        source: input
+        default: "USD"
+      - name: description
+        type: string
+        description: Order description
+        required: false
+        source: input
+    paypal-order-capture:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: orderId
+        type: string
+        description: Order ID
+        required: true
+        source: input
+    paypal-order-get:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: orderId
+        type: string
+        description: Order ID
+        required: true
+        source: input
+    paypal-payment-list:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+    paypal-refund:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: captureId
+        type: string
+        description: Capture ID to refund
+        required: true
+        source: input
+      - name: amount
+        type: string
+        description: Refund amount
+        required: false
+        source: input
+      - name: reason
+        type: string
+        description: Refund reason
+        required: false
+        source: input
+    paypal-payout:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: payouts
+        type: array
+        description: Payout items
+        required: true
+        source: input
+    paypal-transaction-list:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+    paypal-invoice-create:
+      - name: clientId
+        type: string
+        description: PayPal client ID
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: clientSecret
+        type: string
+        description: PayPal client secret
+        required: true
+        source: connection
+        binding: vault://paypal-credentials
+      - name: sandbox
+        type: boolean
+        description: Use sandbox environment
+        required: false
+        source: default
+        default: false
+      - name: toEmail
+        type: string
+        description: Recipient email
+        required: true
+        source: input
+      - name: amount
+        type: string
+        description: Invoice amount
+        required: true
+        source: input
   grpc:
     port: 50116
     binary:

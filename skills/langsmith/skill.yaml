@@ -28,6 +28,161 @@ spec:
     - langsmith-run-eval
     - langsmith-feedback-create
     - langsmith-feedback-list
+  inputs:
+    langsmith-trace-list:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: projectId
+        type: string
+        description: Filter by project ID
+        required: false
+        source: input
+      - name: traceId
+        type: string
+        description: Filter by trace ID
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 20
+    langsmith-trace-get:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: traceId
+        type: string
+        description: Trace ID
+        required: true
+        source: input
+    langsmith-project-create:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: name
+        type: string
+        description: Project name
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Project description
+        required: false
+        source: input
+    langsmith-project-list:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+    langsmith-dataset-create:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: name
+        type: string
+        description: Dataset name
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Dataset description
+        required: false
+        source: input
+    langsmith-dataset-list:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+    langsmith-run-eval:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: datasetId
+        type: string
+        description: Dataset ID
+        required: true
+        source: input
+      - name: evaluator
+        type: object
+        description: Evaluator configuration
+        required: true
+        source: input
+      - name: llmOrChain
+        type: object
+        description: LLM or chain to evaluate
+        required: true
+        source: input
+    langsmith-feedback-create:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: runId
+        type: string
+        description: Run ID
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Feedback key
+        required: true
+        source: input
+      - name: score
+        type: number
+        description: Feedback score
+        required: false
+        source: input
+      - name: value
+        type: string
+        description: Feedback value
+        required: false
+        source: input
+      - name: comment
+        type: string
+        description: Feedback comment
+        required: false
+        source: input
+    langsmith-feedback-list:
+      - name: apiKey
+        type: string
+        description: LangSmith API key
+        required: true
+        source: connection
+        binding: vault://langsmith-credentials
+      - name: runId
+        type: string
+        description: Filter by run ID
+        required: false
+        source: input
+      - name: key
+        type: string
+        description: Filter by feedback key
+        required: false
+        source: input
   grpc:
     port: 50100
     binary:

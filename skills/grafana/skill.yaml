@@ -28,6 +28,276 @@ spec:
     - grafana-annotation-create
     - grafana-alert-rule-list
     - grafana-alert-rule-create
+  inputs:
+    grafana-dashboard-list:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: folderId
+        type: integer
+        description: Filter by folder ID
+        required: false
+        source: input
+      - name: tag
+        type: array
+        description: Filter by tags
+        required: false
+        source: input
+    grafana-dashboard-create:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: title
+        type: string
+        description: Dashboard title
+        required: true
+        source: input
+      - name: panels
+        type: array
+        description: Panel configurations
+        required: false
+        source: input
+      - name: templating
+        type: object
+        description: Template variables
+        required: false
+        source: input
+      - name: time
+        type: object
+        description: Default time range
+        required: false
+        source: input
+      - name: refresh
+        type: string
+        description: Auto-refresh interval
+        required: false
+        source: input
+    grafana-dashboard-update:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: uid
+        type: string
+        description: Dashboard UID
+        required: true
+        source: input
+      - name: dashboard
+        type: object
+        description: Dashboard JSON
+        required: true
+        source: input
+      - name: overwrite
+        type: boolean
+        description: Overwrite existing
+        required: false
+        source: default
+        default: false
+    grafana-dashboard-delete:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: uid
+        type: string
+        description: Dashboard UID
+        required: true
+        source: input
+    grafana-datasource-list:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+    grafana-datasource-create:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: name
+        type: string
+        description: Datasource name
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Type (prometheus, influxdb, etc.)
+        required: true
+        source: input
+      - name: access
+        type: string
+        description: Access mode (proxy, direct)
+        required: false
+        source: input
+        default: "proxy"
+      - name: datasourceUrl
+        type: string
+        description: Datasource URL
+        required: true
+        source: input
+      - name: jsonData
+        type: object
+        description: Type-specific config
+        required: false
+        source: input
+      - name: secureJsonData
+        type: object
+        description: Sensitive config
+        required: false
+        source: connection
+        binding: vault://grafana-credentials
+    grafana-annotation-create:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: text
+        type: string
+        description: Annotation text
+        required: true
+        source: input
+      - name: time
+        type: integer
+        description: Timestamp (ms)
+        required: false
+        source: input
+      - name: timeEnd
+        type: integer
+        description: End timestamp (ms)
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Annotation tags
+        required: false
+        source: input
+      - name: dashboardId
+        type: integer
+        description: Dashboard ID
+        required: false
+        source: input
+      - name: panelId
+        type: integer
+        description: Panel ID
+        required: false
+        source: input
+    grafana-alert-rule-list:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: folderUid
+        type: string
+        description: Filter by folder UID
+        required: false
+        source: input
+    grafana-alert-rule-create:
+      - name: url
+        type: string
+        description: Grafana URL
+        required: true
+        source: input
+      - name: apiKey
+        type: string
+        description: Grafana API key
+        required: true
+        source: connection
+        binding: vault://grafana-credentials
+      - name: title
+        type: string
+        description: Alert rule title
+        required: true
+        source: input
+      - name: folderUid
+        type: string
+        description: Folder UID
+        required: true
+        source: input
+      - name: condition
+        type: string
+        description: Alert condition
+        required: true
+        source: input
+      - name: data
+        type: array
+        description: Alert query data
+        required: true
+        source: input
+      - name: noDataState
+        type: string
+        description: No data state (NoData, Alerting, OK)
+        required: false
+        source: input
+        default: "NoData"
+      - name: execErrState
+        type: string
+        description: Execution error state
+        required: false
+        source: input
+        default: "Alerting"
+      - name: for
+        type: string
+        description: Duration before firing
+        required: false
+        source: input
+        default: "5m"
   grpc:
     port: 50124
     binary:

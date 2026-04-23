@@ -28,6 +28,197 @@ spec:
     - clickup-list-list
     - clickup-time-track
     - clickup-comment-create
+  inputs:
+    clickup-task-list:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: listId
+        type: string
+        description: Filter by list ID
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: Filter by assignee ID
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Filter by status
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results to return
+        required: false
+        source: input
+        default: 20
+    clickup-task-create:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: listId
+        type: string
+        description: List ID
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Task name
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Task description
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Initial status
+        required: false
+        source: input
+      - name: assignees
+        type: array
+        description: Assignee user IDs
+        required: false
+        source: input
+      - name: dueDate
+        type: string
+        description: Due date (timestamp or date string)
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: Priority level (1-4)
+        required: false
+        source: input
+    clickup-task-update:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: taskId
+        type: string
+        description: Task ID to update
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: New task name
+        required: false
+        source: input
+      - name: description
+        type: string
+        description: New task description
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: New status
+        required: false
+        source: input
+      - name: priority
+        type: integer
+        description: New priority (1-4)
+        required: false
+        source: input
+    clickup-task-delete:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: taskId
+        type: string
+        description: Task ID to delete
+        required: true
+        source: input
+    clickup-space-list:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: teamId
+        type: string
+        description: Team ID
+        required: true
+        source: input
+    clickup-folder-list:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: spaceId
+        type: string
+        description: Space ID
+        required: true
+        source: input
+    clickup-list-list:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: folderId
+        type: string
+        description: Folder ID
+        required: false
+        source: input
+    clickup-time-track:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: taskId
+        type: string
+        description: Task ID to track time for
+        required: true
+        source: input
+      - name: duration
+        type: integer
+        description: Duration in minutes
+        required: true
+        source: input
+      - name: billable
+        type: boolean
+        description: Mark as billable
+        required: false
+        source: default
+        default: false
+    clickup-comment-create:
+      - name: apiToken
+        type: string
+        description: ClickUp API token
+        required: true
+        source: connection
+        binding: vault://clickup-credentials
+      - name: taskId
+        type: string
+        description: Task ID to add comment to
+        required: true
+        source: input
+      - name: comment
+        type: string
+        description: Comment text
+        required: true
+        source: input
   grpc:
     port: 50108
     binary:

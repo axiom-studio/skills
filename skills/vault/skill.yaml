@@ -40,6 +40,500 @@ spec:
     - vault-transit-encrypt
     - vault-transit-decrypt
     - vault-health
+  inputs:
+    vault-read:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Secret path
+        required: true
+        source: input
+    vault-write:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Secret path
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Data to write
+        required: true
+        source: input
+    vault-delete:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Path to delete
+        required: true
+        source: input
+    vault-list:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Path to list
+        required: true
+        source: input
+    vault-kv-get:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Secret path
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: KV mount path
+        required: false
+        source: input
+        default: "secret"
+      - name: version
+        type: integer
+        description: KV version (1 or 2)
+        required: false
+        source: input
+        default: 2
+      - name: secretVersion
+        type: integer
+        description: Specific version to read
+        required: false
+        source: input
+    vault-kv-put:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Secret path
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: KV mount path
+        required: false
+        source: input
+        default: "secret"
+      - name: version
+        type: integer
+        description: KV version
+        required: false
+        source: input
+        default: 2
+      - name: data
+        type: object
+        description: Secret data
+        required: true
+        source: input
+    vault-kv-delete:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: path
+        type: string
+        description: Secret path
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: KV mount path
+        required: false
+        source: input
+        default: "secret"
+      - name: version
+        type: integer
+        description: KV version
+        required: false
+        source: input
+        default: 2
+      - name: versions
+        type: array
+        description: Versions to delete
+        required: false
+        source: input
+    vault-lease-renew:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: leaseId
+        type: string
+        description: Lease ID
+        required: true
+        source: input
+      - name: increment
+        type: integer
+        description: TTL increment
+        required: false
+        source: input
+    vault-lease-revoke:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: leaseId
+        type: string
+        description: Lease ID
+        required: true
+        source: input
+    vault-token-lookup:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Token to lookup
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+    vault-token-create:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Parent token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: policies
+        type: array
+        description: List of policies
+        required: false
+        source: input
+      - name: ttl
+        type: string
+        description: Token TTL
+        required: false
+        source: input
+      - name: renewable
+        type: boolean
+        description: Is token renewable
+        required: false
+        source: default
+        default: true
+      - name: displayName
+        type: string
+        description: Token display name
+        required: false
+        source: input
+      - name: maxTtl
+        type: string
+        description: Maximum TTL
+        required: false
+        source: input
+      - name: numUses
+        type: integer
+        description: Number of uses
+        required: false
+        source: input
+    vault-token-renew:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Token to renew
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: increment
+        type: string
+        description: TTL increment
+        required: false
+        source: input
+    vault-token-revoke:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Token to revoke
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+    vault-pki-issue:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: role
+        type: string
+        description: PKI role name
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: PKI mount path
+        required: false
+        source: input
+        default: "pki"
+      - name: commonName
+        type: string
+        description: Certificate common name
+        required: true
+        source: input
+      - name: altNames
+        type: string
+        description: Subject alternative names
+        required: false
+        source: input
+      - name: ipSans
+        type: string
+        description: IP SANs
+        required: false
+        source: input
+      - name: ttl
+        type: string
+        description: Certificate TTL
+        required: false
+        source: input
+      - name: format
+        type: string
+        description: Output format (pem, der, pem_bundle)
+        required: false
+        source: input
+        default: "pem"
+    vault-pki-renew:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: serial
+        type: string
+        description: Certificate serial number
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: PKI mount path
+        required: false
+        source: input
+        default: "pki"
+      - name: ttl
+        type: string
+        description: New TTL
+        required: false
+        source: input
+    vault-pki-revoke:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: serial
+        type: string
+        description: Certificate serial number
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: PKI mount path
+        required: false
+        source: input
+        default: "pki"
+    vault-database-creds:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: role
+        type: string
+        description: Database role name
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: Database mount path
+        required: false
+        source: input
+        default: "database"
+    vault-transit-encrypt:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: key
+        type: string
+        description: Transit key name
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: Transit mount path
+        required: false
+        source: input
+        default: "transit"
+      - name: plaintext
+        type: string
+        description: Data to encrypt (base64)
+        required: true
+        source: input
+      - name: context
+        type: string
+        description: Encryption context
+        required: false
+        source: input
+    vault-transit-decrypt:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
+      - name: token
+        type: string
+        description: Vault token
+        required: true
+        source: connection
+        binding: vault://vault-credentials
+      - name: key
+        type: string
+        description: Transit key name
+        required: true
+        source: input
+      - name: mount
+        type: string
+        description: Transit mount path
+        required: false
+        source: input
+        default: "transit"
+      - name: ciphertext
+        type: string
+        description: Ciphertext to decrypt
+        required: true
+        source: input
+      - name: context
+        type: string
+        description: Decryption context
+        required: false
+        source: input
+    vault-health:
+      - name: address
+        type: string
+        description: Vault server address
+        required: true
+        source: input
   grpc:
     port: 50072
     binary:

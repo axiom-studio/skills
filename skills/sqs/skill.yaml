@@ -28,6 +28,277 @@ spec:
     - sqs-queue-purge
     - sqs-queue-attributes
     - sqs-dead-letter-queue
+  inputs:
+    sqs-send-message:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+      - name: messageBody
+        type: string
+        description: Message body
+        required: true
+        source: input
+      - name: delaySeconds
+        type: integer
+        description: Delay in seconds
+        required: false
+        source: input
+      - name: messageAttributes
+        type: object
+        description: Message attributes
+        required: false
+        source: input
+      - name: groupId
+        type: string
+        description: FIFO group ID
+        required: false
+        source: input
+    sqs-receive-message:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+      - name: maxNumberOfMessages
+        type: integer
+        description: Max messages (1-10)
+        required: false
+        source: input
+        default: 1
+      - name: waitTimeSeconds
+        type: integer
+        description: Long polling wait time
+        required: false
+        source: input
+      - name: visibilityTimeout
+        type: integer
+        description: Visibility timeout
+        required: false
+        source: input
+    sqs-delete-message:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+      - name: receiptHandle
+        type: string
+        description: Receipt handle
+        required: true
+        source: input
+    sqs-queue-create:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueName
+        type: string
+        description: Queue name
+        required: true
+        source: input
+      - name: fifo
+        type: boolean
+        description: FIFO queue
+        required: false
+        source: default
+        default: false
+      - name: delaySeconds
+        type: integer
+        description: Default delay
+        required: false
+        source: input
+      - name: visibilityTimeout
+        type: integer
+        description: Default visibility timeout
+        required: false
+        source: input
+    sqs-queue-list:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+    sqs-queue-delete:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+    sqs-queue-purge:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+    sqs-queue-attributes:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+    sqs-dead-letter-queue:
+      - name: accessKeyId
+        type: string
+        description: AWS access key ID
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: secretAccessKey
+        type: string
+        description: AWS secret access key
+        required: true
+        source: connection
+        binding: vault://sqs-credentials
+      - name: region
+        type: string
+        description: AWS region
+        required: true
+        source: input
+      - name: queueUrl
+        type: string
+        description: Queue URL
+        required: true
+        source: input
+      - name: dlqUrl
+        type: string
+        description: Dead letter queue URL
+        required: false
+        source: input
+      - name: maxReceiveCount
+        type: integer
+        description: Max receive count
+        required: false
+        source: input
+        default: 10
   grpc:
     port: 50092
     binary:

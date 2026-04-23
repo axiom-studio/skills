@@ -29,6 +29,265 @@ spec:
     - auth0-client-list
     - auth0-rule-list
     - auth0-log-list
+  inputs:
+    auth0-user-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: q
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: per_page
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 50
+      - name: page
+        type: integer
+        description: Page number
+        required: false
+        source: input
+        default: 0
+    auth0-user-create:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: connection
+        type: string
+        description: Connection name
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: User email
+        required: true
+        source: input
+      - name: password
+        type: string
+        description: Initial password
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: User name
+        required: false
+        source: input
+    auth0-user-update:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: userId
+        type: string
+        description: User ID to update
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: New email
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: New name
+        required: false
+        source: input
+    auth0-user-delete:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: userId
+        type: string
+        description: User ID to delete
+        required: true
+        source: input
+    auth0-role-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+    auth0-role-assign:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: userId
+        type: string
+        description: User ID
+        required: true
+        source: input
+      - name: roleId
+        type: string
+        description: Role ID to assign
+        required: true
+        source: input
+    auth0-connection-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+    auth0-client-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+    auth0-rule-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+    auth0-log-list:
+      - name: domain
+        type: string
+        description: Auth0 domain
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Management API client ID
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: clientSecret
+        type: string
+        description: Management API client secret
+        required: true
+        source: connection
+        binding: vault://auth0-credentials
+      - name: type
+        type: string
+        description: Filter by log type
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum number of logs
+        required: false
+        source: input
+        default: 50
   grpc:
     port: 50094
     binary:

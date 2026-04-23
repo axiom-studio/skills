@@ -29,6 +29,194 @@ spec:
     - circleci-job-logs
     - circleci-context-list
     - circleci-context-set-env
+  inputs:
+    circleci-project-list:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: orgSlug
+        type: string
+        description: Organization slug filter
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum projects to return
+        required: false
+        source: input
+        default: 20
+    circleci-pipeline-trigger:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug (gh/owner/repo)
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Branch name
+        required: true
+        source: input
+      - name: parameters
+        type: object
+        description: Pipeline parameters
+        required: false
+        source: input
+      - name: tag
+        type: string
+        description: Git tag
+        required: false
+        source: input
+    circleci-pipeline-list:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: branch
+        type: string
+        description: Filter by branch
+        required: false
+        source: input
+    circleci-pipeline-status:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: pipelineId
+        type: string
+        description: Pipeline ID
+        required: true
+        source: input
+    circleci-workflow-list:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: pipelineId
+        type: string
+        description: Pipeline ID
+        required: true
+        source: input
+    circleci-workflow-status:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+    circleci-job-list:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+    circleci-job-logs:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: projectSlug
+        type: string
+        description: Project slug
+        required: true
+        source: input
+      - name: jobNumber
+        type: integer
+        description: Job number
+        required: true
+        source: input
+    circleci-context-list:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: orgSlug
+        type: string
+        description: Organization slug
+        required: true
+        source: input
+    circleci-context-set-env:
+      - name: token
+        type: string
+        description: CircleCI API token
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: contextName
+        type: string
+        description: Context name
+        required: true
+        source: input
+      - name: envVarName
+        type: string
+        description: Environment variable name
+        required: true
+        source: input
+      - name: envVarValue
+        type: string
+        description: Environment variable value
+        required: true
+        source: connection
+        binding: vault://circleci-credentials
+      - name: orgSlug
+        type: string
+        description: Organization slug
+        required: true
+        source: input
   grpc:
     port: 50086
     binary:

@@ -27,6 +27,365 @@ spec:
     - temporal-signal-send
     - temporal-query
     - temporal-search-attributes
+  inputs:
+    temporal-workflow-start:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+        default: "default"
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: workflowType
+        type: string
+        description: Workflow type name
+        required: true
+        source: input
+      - name: taskQueue
+        type: string
+        description: Task queue name
+        required: true
+        source: input
+      - name: input
+        type: array
+        description: Workflow input arguments
+        required: false
+        source: input
+      - name: runTimeout
+        type: string
+        description: Run timeout
+        required: false
+        source: input
+      - name: workflowTimeout
+        type: string
+        description: Workflow timeout
+        required: false
+        source: input
+      - name: taskTimeout
+        type: string
+        description: Task timeout
+        required: false
+        source: input
+      - name: retryPolicy
+        type: object
+        description: Retry policy configuration
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-workflow-list:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: query
+        type: string
+        description: SQL-like query filter
+        required: false
+        source: input
+      - name: pageSize
+        type: integer
+        description: Page size
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-workflow-get:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: runId
+        type: string
+        description: Run ID
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-workflow-cancel:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: runId
+        type: string
+        description: Run ID
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-workflow-terminate:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: runId
+        type: string
+        description: Run ID
+        required: false
+        source: input
+      - name: reason
+        type: string
+        description: Termination reason
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-signal-send:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: runId
+        type: string
+        description: Run ID
+        required: false
+        source: input
+      - name: signalName
+        type: string
+        description: Signal name
+        required: true
+        source: input
+      - name: signalData
+        type: string
+        description: Signal data
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-query:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: workflowId
+        type: string
+        description: Workflow ID
+        required: true
+        source: input
+      - name: runId
+        type: string
+        description: Run ID
+        required: false
+        source: input
+      - name: queryType
+        type: string
+        description: Query type (e.g., __stack_trace)
+        required: true
+        source: input
+      - name: queryArgs
+        type: array
+        description: Query arguments
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+    temporal-search-attributes:
+      - name: address
+        type: string
+        description: Temporal server address
+        required: true
+        source: input
+      - name: namespace
+        type: string
+        description: Namespace
+        required: false
+        source: input
+      - name: clientCert
+        type: string
+        description: Client certificate for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: clientKey
+        type: string
+        description: Client key for mTLS
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
+      - name: apiKey
+        type: string
+        description: API key
+        required: false
+        source: connection
+        binding: vault://temporal-credentials
   grpc:
     port: 50129
     binary:

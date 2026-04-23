@@ -26,6 +26,144 @@ spec:
     - fivetran-destination-list
     - fivetran-schema-config
     - fivetran-group-list
+  inputs:
+    fivetran-connector-list:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: groupId
+        type: string
+        description: Filter by group ID
+        required: false
+        source: input
+    fivetran-connector-create:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: groupId
+        type: string
+        description: Group ID
+        required: true
+        source: input
+      - name: service
+        type: string
+        description: Service name
+        required: true
+        source: input
+      - name: config
+        type: object
+        description: Connector configuration
+        required: true
+        source: input
+      - name: paused
+        type: boolean
+        description: Pause connector
+        required: false
+        source: default
+        default: false
+    fivetran-connector-sync:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: connectorId
+        type: string
+        description: Connector ID
+        required: true
+        source: input
+    fivetran-connector-status:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: connectorId
+        type: string
+        description: Connector ID
+        required: true
+        source: input
+    fivetran-destination-list:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+    fivetran-schema-config:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: connectorId
+        type: string
+        description: Connector ID
+        required: true
+        source: input
+      - name: schema
+        type: object
+        description: Schema configuration
+        required: true
+        source: input
+    fivetran-group-list:
+      - name: apiKey
+        type: string
+        description: Fivetran API key
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
+      - name: apiSecret
+        type: string
+        description: Fivetran API secret
+        required: true
+        source: connection
+        binding: vault://fivetran-credentials
   grpc:
     port: 50102
     binary:

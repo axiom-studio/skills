@@ -27,6 +27,165 @@ spec:
     - calendly-availability
     - calendly-user-get
     - calendly-webhook-create
+  inputs:
+    calendly-event-list:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: user
+        type: string
+        description: Filter by user URI
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Filter by event status
+        required: false
+        source: input
+      - name: count
+        type: integer
+        description: Maximum results to return
+        required: false
+        source: input
+        default: 20
+    calendly-event-get:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: eventUri
+        type: string
+        description: Event URI
+        required: true
+        source: input
+    calendly-event-create:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: eventTypeId
+        type: string
+        description: Event type URI
+        required: true
+        source: input
+      - name: inviteeEmail
+        type: string
+        description: Invitee email
+        required: true
+        source: input
+      - name: inviteeName
+        type: string
+        description: Invitee name
+        required: true
+        source: input
+      - name: startTime
+        type: string
+        description: Start time (ISO 8601)
+        required: true
+        source: input
+      - name: timezone
+        type: string
+        description: Timezone
+        required: false
+        source: input
+    calendly-cancel:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: eventUri
+        type: string
+        description: Event URI to cancel
+        required: true
+        source: input
+      - name: reason
+        type: string
+        description: Cancellation reason
+        required: false
+        source: input
+    calendly-reschedule:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: eventUri
+        type: string
+        description: Event URI to reschedule
+        required: true
+        source: input
+      - name: startTime
+        type: string
+        description: New start time (ISO 8601)
+        required: true
+        source: input
+    calendly-availability:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: eventTypeId
+        type: string
+        description: Event type URI
+        required: true
+        source: input
+      - name: startTime
+        type: string
+        description: Search start time (ISO 8601)
+        required: true
+        source: input
+      - name: endTime
+        type: string
+        description: Search end time (ISO 8601)
+        required: true
+        source: input
+    calendly-user-get:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: userUri
+        type: string
+        description: User URI (or 'me' for current user)
+        required: false
+        source: input
+        default: "me"
+    calendly-webhook-create:
+      - name: apiKey
+        type: string
+        description: Calendly API token
+        required: true
+        source: connection
+        binding: vault://calendly-credentials
+      - name: url
+        type: string
+        description: Webhook callback URL
+        required: true
+        source: input
+      - name: events
+        type: array
+        description: Events to subscribe to
+        required: true
+        source: input
+      - name: user
+        type: string
+        description: User URI scope
+        required: false
+        source: input
   grpc:
     port: 50119
     binary:

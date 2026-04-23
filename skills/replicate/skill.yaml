@@ -26,6 +26,112 @@ spec:
     - replicate-model-get
     - replicate-training-create
     - replicate-training-status
+  inputs:
+    replicate-run:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: model
+        type: string
+        description: Model name (owner/name)
+        required: true
+        source: input
+      - name: version
+        type: string
+        description: Model version
+        required: false
+        source: input
+      - name: input
+        type: object
+        description: Model input parameters
+        required: true
+        source: input
+      - name: wait
+        type: boolean
+        description: Wait for completion
+        required: false
+        source: default
+        default: false
+    replicate-prediction-status:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: predictionId
+        type: string
+        description: Prediction ID
+        required: true
+        source: input
+    replicate-prediction-cancel:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: predictionId
+        type: string
+        description: Prediction ID
+        required: true
+        source: input
+    replicate-model-list:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+    replicate-model-get:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: model
+        type: string
+        description: Model name (owner/name)
+        required: true
+        source: input
+    replicate-training-create:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: model
+        type: string
+        description: Model name (owner/name)
+        required: true
+        source: input
+      - name: destination
+        type: string
+        description: Destination model
+        required: true
+        source: input
+      - name: input
+        type: object
+        description: Training input parameters
+        required: true
+        source: input
+    replicate-training-status:
+      - name: apiToken
+        type: string
+        description: Replicate API token
+        required: true
+        source: connection
+        binding: vault://replicate-credentials
+      - name: trainingId
+        type: string
+        description: Training ID
+        required: true
+        source: input
   grpc:
     port: 50099
     binary:

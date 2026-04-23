@@ -27,6 +27,149 @@ spec:
     - box-folder-create
     - box-search
     - box-metadata-get
+  inputs:
+    box-list:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: folderId
+        type: string
+        description: "Folder ID (default: 0 for root)"
+        required: false
+        source: input
+        default: "0"
+      - name: limit
+        type: integer
+        description: Maximum results to return
+        required: false
+        source: input
+        default: 100
+      - name: offset
+        type: integer
+        description: Pagination offset
+        required: false
+        source: input
+        default: 0
+    box-upload:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: folderId
+        type: string
+        description: Destination folder ID
+        required: true
+        source: input
+      - name: filename
+        type: string
+        description: File name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content (base64 encoded)
+        required: true
+        source: input
+    box-download:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: fileId
+        type: string
+        description: File ID to download
+        required: true
+        source: input
+    box-delete:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: fileId
+        type: string
+        description: File or folder ID to delete
+        required: true
+        source: input
+    box-share:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: fileId
+        type: string
+        description: File or folder ID
+        required: true
+        source: input
+      - name: access
+        type: string
+        description: Access level (open, company, collaborators)
+        required: false
+        source: input
+        default: "open"
+      - name: permissions
+        type: object
+        description: Link permissions
+        required: false
+        source: input
+    box-folder-create:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: name
+        type: string
+        description: Folder name
+        required: true
+        source: input
+      - name: parentFolderId
+        type: string
+        description: Parent folder ID
+        required: false
+        source: input
+        default: "0"
+    box-search:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: query
+        type: string
+        description: Search query
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 20
+    box-metadata-get:
+      - name: accessToken
+        type: string
+        description: Box access token
+        required: true
+        source: connection
+        binding: vault://box-credentials
+      - name: fileId
+        type: string
+        description: File ID
+        required: true
+        source: input
   grpc:
     port: 50115
     binary:

@@ -32,6 +32,469 @@ spec:
     - confluence-comment-create
     - confluence-comment-list
     - confluence-search
+  inputs:
+    confluence-page-list:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email (optional for PAT auth)
+        required: false
+        source: input
+      - name: spaceKey
+        type: string
+        description: Filter by space key
+        required: false
+        source: input
+      - name: parentId
+        type: string
+        description: Get child pages of specific page
+        required: false
+        source: input
+      - name: title
+        type: string
+        description: Filter by page title
+        required: false
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+      - name: start
+        type: integer
+        description: Pagination start index
+        required: false
+        source: input
+        default: 0
+      - name: orderBy
+        type: string
+        description: Order by field
+        required: false
+        source: input
+    confluence-page-get:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: pageId
+        type: string
+        description: Specific page ID
+        required: false
+        source: input
+      - name: spaceKey
+        type: string
+        description: Space key for search
+        required: false
+        source: input
+      - name: title
+        type: string
+        description: Title for search
+        required: false
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: version
+        type: integer
+        description: Specific version to retrieve
+        required: false
+        source: input
+    confluence-page-create:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: spaceKey
+        type: string
+        description: Target space key
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: Page title
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Page content (HTML storage format)
+        required: true
+        source: input
+      - name: parentId
+        type: string
+        description: Parent page ID
+        required: false
+        source: input
+    confluence-page-update:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID to update
+        required: true
+        source: input
+      - name: title
+        type: string
+        description: New title
+        required: false
+        source: input
+      - name: content
+        type: string
+        description: New page content
+        required: true
+        source: input
+      - name: minorEdit
+        type: boolean
+        description: Mark as minor edit
+        required: false
+        source: default
+        default: false
+      - name: message
+        type: string
+        description: Version message
+        required: false
+        source: input
+    confluence-page-delete:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID to delete
+        required: true
+        source: input
+    confluence-space-list:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: spaceType
+        type: string
+        description: Type of spaces (global, personal)
+        required: false
+        source: input
+        default: "global"
+      - name: status
+        type: string
+        description: Space status (current, archived)
+        required: false
+        source: input
+        default: "current"
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+    confluence-space-get:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: spaceKey
+        type: string
+        description: Space key to retrieve
+        required: true
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+    confluence-attachment-upload:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID to attach to
+        required: true
+        source: input
+      - name: fileName
+        type: string
+        description: File name
+        required: true
+        source: input
+      - name: fileContent
+        type: string
+        description: Base64 encoded file content
+        required: true
+        source: input
+      - name: comment
+        type: string
+        description: Attachment comment
+        required: false
+        source: input
+    confluence-attachment-list:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID
+        required: true
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+    confluence-attachment-delete:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: attachmentId
+        type: string
+        description: Attachment ID to delete
+        required: true
+        source: input
+    confluence-comment-create:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: true
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Comment content (HTML storage format)
+        required: true
+        source: input
+    confluence-comment-list:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: pageId
+        type: string
+        description: Page ID
+        required: true
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+    confluence-search:
+      - name: baseUrl
+        type: string
+        description: Confluence base URL
+        required: true
+        source: input
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://confluence-credentials
+      - name: email
+        type: string
+        description: Account email
+        required: false
+        source: input
+      - name: query
+        type: string
+        description: CQL search query
+        required: true
+        source: input
+      - name: expand
+        type: string
+        description: Fields to expand
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 25
+      - name: start
+        type: integer
+        description: Starting index
+        required: false
+        source: input
+        default: 0
+      - name: includeArchived
+        type: boolean
+        description: Include archived content
+        required: false
+        source: default
+        default: false
   grpc:
     port: 50053
     binary:

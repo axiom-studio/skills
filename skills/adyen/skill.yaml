@@ -27,6 +27,214 @@ spec:
     - adyen-payment-get
     - adyen-payout
     - adyen-3ds-authenticate
+  inputs:
+    adyen-payment:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: amount
+        type: object
+        description: Payment amount (currency, value)
+        required: true
+        source: input
+      - name: reference
+        type: string
+        description: Payment reference
+        required: true
+        source: input
+      - name: paymentMethod
+        type: object
+        description: Payment method details
+        required: true
+        source: input
+      - name: shopperEmail
+        type: string
+        description: Shopper email
+        required: false
+        source: input
+      - name: shopperReference
+        type: string
+        description: Shopper reference
+        required: false
+        source: input
+    adyen-capture:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: pspReference
+        type: string
+        description: Original payment reference
+        required: true
+        source: input
+      - name: amount
+        type: object
+        description: Capture amount
+        required: false
+        source: input
+      - name: reference
+        type: string
+        description: Capture reference
+        required: false
+        source: input
+    adyen-refund:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: pspReference
+        type: string
+        description: Original payment reference
+        required: true
+        source: input
+      - name: amount
+        type: object
+        description: Refund amount
+        required: false
+        source: input
+      - name: reference
+        type: string
+        description: Refund reference
+        required: false
+        source: input
+    adyen-cancel:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: pspReference
+        type: string
+        description: Original payment reference
+        required: true
+        source: input
+      - name: reference
+        type: string
+        description: Cancel reference
+        required: false
+        source: input
+    adyen-payment-list:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum number of payments to return
+        required: false
+        source: input
+        default: 10
+    adyen-payment-get:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: pspReference
+        type: string
+        description: Payment PSP reference
+        required: true
+        source: input
+    adyen-payout:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: amount
+        type: object
+        description: Payout amount (currency, value)
+        required: true
+        source: input
+      - name: reference
+        type: string
+        description: Payout reference
+        required: true
+        source: input
+      - name: shopperEmail
+        type: string
+        description: Shopper email
+        required: false
+        source: input
+      - name: shopperReference
+        type: string
+        description: Shopper reference
+        required: false
+        source: input
+    adyen-3ds-authenticate:
+      - name: apiKey
+        type: string
+        description: Adyen API key
+        required: true
+        source: connection
+        binding: vault://adyen-credentials
+      - name: merchantAccount
+        type: string
+        description: Merchant account name
+        required: true
+        source: input
+      - name: pspReference
+        type: string
+        description: Payment PSP reference
+        required: true
+        source: input
+      - name: md
+        type: string
+        description: 3D Secure MD parameter
+        required: true
+        source: input
+      - name: paResponse
+        type: string
+        description: 3D Secure PaRes parameter
+        required: true
+        source: input
   grpc:
     port: 50118
     binary:

@@ -25,6 +25,322 @@ spec:
     - zendesk-user
     - zendesk-macro
     - zendesk-view
+  inputs:
+    zendesk-ticket-create:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: subject
+        type: string
+        description: Ticket subject
+        required: true
+        source: input
+      - name: description
+        type: string
+        description: Ticket description
+        required: true
+        source: input
+      - name: priority
+        type: string
+        description: Priority (low, normal, high, urgent)
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Status
+        required: false
+        source: input
+      - name: type
+        type: string
+        description: Type (question, incident, problem, task)
+        required: false
+        source: input
+      - name: requesterId
+        type: integer
+        description: Existing user ID
+        required: false
+        source: input
+      - name: requester
+        type: object
+        description: New requester details
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Array of tags
+        required: false
+        source: input
+      - name: customFields
+        type: array
+        description: Custom field values
+        required: false
+        source: input
+    zendesk-ticket-update:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: ticketId
+        type: integer
+        description: Ticket ID to update
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: New subject
+        required: false
+        source: input
+      - name: description
+        type: string
+        description: New description
+        required: false
+        source: input
+      - name: comment
+        type: string
+        description: Add a comment
+        required: false
+        source: input
+      - name: priority
+        type: string
+        description: New priority
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: New status
+        required: false
+        source: input
+      - name: type
+        type: string
+        description: New type
+        required: false
+        source: input
+      - name: assigneeId
+        type: integer
+        description: Assign to user ID
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Replace existing tags
+        required: false
+        source: input
+    zendesk-ticket-search:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: query
+        type: string
+        description: Search query
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Filter by status
+        required: false
+        source: input
+      - name: type
+        type: string
+        description: Filter by type
+        required: false
+        source: input
+      - name: priority
+        type: string
+        description: Filter by priority
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: Filter by assignee
+        required: false
+        source: input
+      - name: requester
+        type: string
+        description: Filter by requester
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Filter by tags
+        required: false
+        source: input
+      - name: page
+        type: integer
+        description: Page number
+        required: false
+        source: input
+        default: 1
+      - name: perPage
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 100
+    zendesk-user:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: operation
+        type: string
+        description: Operation (get, create, update, search, list)
+        required: true
+        source: input
+      - name: userId
+        type: integer
+        description: User ID for get/update
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: User name
+        required: false
+        source: input
+      - name: userEmail
+        type: string
+        description: User email
+        required: false
+        source: input
+      - name: role
+        type: string
+        description: Role (end-user, agent, admin)
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Phone number
+        required: false
+        source: input
+      - name: notes
+        type: string
+        description: User notes
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: User tags
+        required: false
+        source: input
+    zendesk-macro:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: operation
+        type: string
+        description: Operation (list, get, apply)
+        required: true
+        source: input
+      - name: macroId
+        type: integer
+        description: Macro ID for get/apply
+        required: false
+        source: input
+      - name: ticketId
+        type: integer
+        description: Ticket ID for apply
+        required: false
+        source: input
+    zendesk-view:
+      - name: subdomain
+        type: string
+        description: Zendesk subdomain
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: API email
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: apiToken
+        type: string
+        description: API token
+        required: true
+        source: connection
+        binding: vault://zendesk-credentials
+      - name: operation
+        type: string
+        description: Operation (list, get, tickets)
+        required: true
+        source: input
+      - name: viewId
+        type: integer
+        description: View ID for get/tickets
+        required: false
+        source: input
+      - name: page
+        type: integer
+        description: Page number for tickets
+        required: false
+        source: input
   grpc:
     port: 50053
     binary:

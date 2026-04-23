@@ -30,6 +30,277 @@ spec:
     - jenkins-view-list
     - jenkins-credential-list
     - jenkins-plugin-list
+  inputs:
+    jenkins-job-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: folder
+        type: string
+        description: Folder path
+        required: false
+        source: input
+    jenkins-job-trigger:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: jobName
+        type: string
+        description: Job name
+        required: true
+        source: input
+      - name: parameters
+        type: object
+        description: Build parameters
+        required: false
+        source: input
+      - name: folder
+        type: string
+        description: Folder path
+        required: false
+        source: input
+    jenkins-job-status:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: jobName
+        type: string
+        description: Job name
+        required: true
+        source: input
+      - name: buildNumber
+        type: integer
+        description: Build number
+        required: false
+        source: input
+    jenkins-build-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: jobName
+        type: string
+        description: Job name
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Max builds to return
+        required: false
+        source: input
+        default: 10
+    jenkins-build-logs:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: jobName
+        type: string
+        description: Job name
+        required: true
+        source: input
+      - name: buildNumber
+        type: integer
+        description: Build number
+        required: false
+        source: input
+      - name: startLine
+        type: integer
+        description: Start line for logs
+        required: false
+        source: input
+        default: 0
+    jenkins-build-abort:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: jobName
+        type: string
+        description: Job name
+        required: true
+        source: input
+      - name: buildNumber
+        type: integer
+        description: Build number to abort
+        required: true
+        source: input
+    jenkins-node-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+    jenkins-queue-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+    jenkins-view-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+    jenkins-credential-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: domain
+        type: string
+        description: Credential domain
+        required: false
+        source: input
+    jenkins-plugin-list:
+      - name: url
+        type: string
+        description: Jenkins server URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Jenkins username
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
+      - name: password
+        type: string
+        description: API token or password
+        required: true
+        source: connection
+        binding: vault://jenkins-credentials
   grpc:
     port: 50085
     binary:

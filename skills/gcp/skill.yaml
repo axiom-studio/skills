@@ -33,6 +33,360 @@ spec:
     - gcp-storage-list
     - gcp-storage-upload
     - gcp-storage-download
+  inputs:
+    gcp-instance-list:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: zone
+        type: string
+        description: Filter by zone
+        required: false
+        source: input
+      - name: region
+        type: string
+        description: Filter by region
+        required: false
+        source: input
+    gcp-instance-start:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: zone
+        type: string
+        description: Instance zone
+        required: true
+        source: input
+      - name: instanceName
+        type: string
+        description: Instance name
+        required: true
+        source: input
+    gcp-instance-stop:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: zone
+        type: string
+        description: Instance zone
+        required: true
+        source: input
+      - name: instanceName
+        type: string
+        description: Instance name
+        required: true
+        source: input
+    gcp-gke-list:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: region
+        type: string
+        description: Filter by region
+        required: false
+        source: input
+    gcp-gke-get-credentials:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: region
+        type: string
+        description: Cluster region/zone
+        required: true
+        source: input
+      - name: clusterName
+        type: string
+        description: Cluster name
+        required: true
+        source: input
+    gcp-function-list:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: region
+        type: string
+        description: Filter by region
+        required: false
+        source: input
+    gcp-function-deploy:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: region
+        type: string
+        description: Deployment region
+        required: true
+        source: input
+      - name: functionName
+        type: string
+        description: Function name
+        required: true
+        source: input
+      - name: runtime
+        type: string
+        description: Runtime (nodejs18, python311, go121)
+        required: true
+        source: input
+      - name: entryPoint
+        type: string
+        description: Function entry point
+        required: true
+        source: input
+      - name: sourceUrl
+        type: string
+        description: Source archive URL
+        required: false
+        source: input
+      - name: sourceDir
+        type: string
+        description: Local source directory
+        required: false
+        source: input
+      - name: triggerHttp
+        type: boolean
+        description: HTTP trigger
+        required: false
+        source: default
+        default: true
+      - name: timeout
+        type: string
+        description: Function timeout
+        required: false
+        source: input
+        default: "60s"
+      - name: memoryMB
+        type: integer
+        description: Memory allocation
+        required: false
+        source: input
+        default: 256
+      - name: environmentVariables
+        type: object
+        description: Environment variables
+        required: false
+        source: input
+    gcp-function-invoke:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: region
+        type: string
+        description: Function region
+        required: true
+        source: input
+      - name: functionName
+        type: string
+        description: Function name
+        required: true
+        source: input
+      - name: method
+        type: string
+        description: HTTP method
+        required: false
+        source: input
+        default: "POST"
+      - name: body
+        type: object
+        description: Request body
+        required: false
+        source: input
+      - name: headers
+        type: object
+        description: Request headers
+        required: false
+        source: input
+    gcp-pubsub-publish:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: message
+        type: string
+        description: Message body
+        required: true
+        source: input
+      - name: attributes
+        type: object
+        description: Message attributes
+        required: false
+        source: input
+      - name: orderingKey
+        type: string
+        description: Ordering key
+        required: false
+        source: input
+    gcp-pubsub-subscribe:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: subscription
+        type: string
+        description: Subscription name
+        required: true
+        source: input
+      - name: maxMessages
+        type: integer
+        description: Max messages to pull
+        required: false
+        source: input
+        default: 10
+      - name: ack
+        type: boolean
+        description: Auto-acknowledge messages
+        required: false
+        source: default
+        default: true
+    gcp-storage-list:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+    gcp-storage-upload:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: objectName
+        type: string
+        description: Destination object name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content (text or base64)
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+        default: "application/octet-stream"
+    gcp-storage-download:
+      - name: projectId
+        type: string
+        description: GCP project ID
+        required: true
+        source: input
+      - name: credentials
+        type: string
+        description: Service account JSON key
+        required: true
+        source: connection
+        binding: vault://gcp-credentials
+      - name: bucket
+        type: string
+        description: Bucket name
+        required: true
+        source: input
+      - name: objectName
+        type: string
+        description: Object name to download
+        required: true
+        source: input
   grpc:
     port: 50081
     binary:

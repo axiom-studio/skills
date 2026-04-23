@@ -24,6 +24,222 @@ spec:
     - teams-channel
     - teams-meeting
     - teams-user
+  inputs:
+    teams-send:
+      - name: webhookUrl
+        type: string
+        description: Microsoft Teams incoming webhook URL
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: message
+        type: string
+        description: Message content to send
+        required: true
+        source: input
+      - name: themeColor
+        type: string
+        description: Theme color for the message card
+        required: false
+        source: input
+        default: "#6264A7"
+      - name: summary
+        type: string
+        description: Card summary for accessibility
+        required: false
+        source: input
+      - name: mentionUsers
+        type: string
+        description: Comma-separated user IDs to mention
+        required: false
+        source: input
+    teams-card:
+      - name: webhookUrl
+        type: string
+        description: Microsoft Teams incoming webhook URL
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: title
+        type: string
+        description: Card title
+        required: true
+        source: input
+      - name: text
+        type: string
+        description: Card text content
+        required: true
+        source: input
+      - name: themeColor
+        type: string
+        description: Theme color in hex format
+        required: false
+        source: input
+        default: "#6264A7"
+      - name: summary
+        type: string
+        description: Card summary for accessibility
+        required: false
+        source: input
+      - name: sections
+        type: array
+        description: Array of section objects
+        required: false
+        source: input
+      - name: actions
+        type: array
+        description: Array of action buttons
+        required: false
+        source: input
+    teams-channel:
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientId
+        type: string
+        description: Azure AD application client ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD application client secret
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: teamId
+        type: string
+        description: Team ID containing channels
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (list, get, create, update, delete)
+        required: true
+        source: input
+      - name: channelId
+        type: string
+        description: Channel ID (required for get/update/delete)
+        required: false
+        source: input
+      - name: displayName
+        type: string
+        description: Channel display name
+        required: false
+        source: input
+      - name: description
+        type: string
+        description: Channel description
+        required: false
+        source: input
+      - name: membershipType
+        type: string
+        description: Channel type (standard, private, shared)
+        required: false
+        source: input
+        default: "standard"
+    teams-meeting:
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientId
+        type: string
+        description: Azure AD application client ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD application client secret
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: action
+        type: string
+        description: Action (create, get, cancel, attendees)
+        required: true
+        source: input
+      - name: meetingId
+        type: string
+        description: Meeting ID
+        required: false
+        source: input
+      - name: subject
+        type: string
+        description: Meeting subject
+        required: false
+        source: input
+      - name: startTime
+        type: string
+        description: Meeting start time (ISO 8601)
+        required: false
+        source: input
+      - name: endTime
+        type: string
+        description: Meeting end time (ISO 8601)
+        required: false
+        source: input
+      - name: content
+        type: string
+        description: Meeting content/body
+        required: false
+        source: input
+      - name: attendees
+        type: string
+        description: Comma-separated attendee emails
+        required: false
+        source: input
+      - name: isOnline
+        type: boolean
+        description: Create as online meeting
+        required: false
+        source: default
+        default: true
+    teams-user:
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientId
+        type: string
+        description: Azure AD application client ID
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD application client secret
+        required: true
+        source: connection
+        binding: vault://teams-credentials
+      - name: action
+        type: string
+        description: Action (get, list, chat, install-app)
+        required: true
+        source: input
+      - name: userId
+        type: string
+        description: User ID or email
+        required: false
+        source: input
+      - name: message
+        type: string
+        description: Chat message content
+        required: false
+        source: input
+      - name: appId
+        type: string
+        description: App ID to install
+        required: false
+        source: input
   grpc:
     port: 50054
     binary:

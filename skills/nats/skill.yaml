@@ -27,6 +27,209 @@ spec:
     - nats-consumer-create
     - nats-consumer-list
     - nats-stream-info
+  inputs:
+    nats-publish:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Subject to publish to
+        required: true
+        source: input
+      - name: data
+        type: string
+        description: Message data
+        required: true
+        source: input
+      - name: headers
+        type: object
+        description: Message headers
+        required: false
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-subscribe:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Subject to subscribe
+        required: true
+        source: input
+      - name: queue
+        type: string
+        description: Queue group name
+        required: false
+        source: input
+      - name: timeout
+        type: string
+        description: Subscribe timeout
+        required: false
+        source: input
+      - name: maxMessages
+        type: integer
+        description: Max messages to receive
+        required: false
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-request:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Subject to send request to
+        required: true
+        source: input
+      - name: data
+        type: string
+        description: Request data
+        required: true
+        source: input
+      - name: timeout
+        type: string
+        description: Request timeout
+        required: false
+        source: input
+        default: "5s"
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-jetstream-create:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Stream name
+        required: true
+        source: input
+      - name: subjects
+        type: array
+        description: Subjects to store
+        required: true
+        source: input
+      - name: retention
+        type: string
+        description: Retention policy
+        required: false
+        source: input
+      - name: maxConsumers
+        type: integer
+        description: Max consumers
+        required: false
+        source: input
+      - name: maxMsgs
+        type: integer
+        description: Max messages
+        required: false
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-jetstream-list:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-consumer-create:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: stream
+        type: string
+        description: Stream name
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Consumer name
+        required: true
+        source: input
+      - name: filterSubject
+        type: string
+        description: Filter subject
+        required: false
+        source: input
+      - name: deliverPolicy
+        type: string
+        description: Deliver policy
+        required: false
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-consumer-list:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: stream
+        type: string
+        description: Stream name
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
+    nats-stream-info:
+      - name: url
+        type: string
+        description: NATS server URL
+        required: true
+        source: input
+      - name: stream
+        type: string
+        description: Stream name
+        required: true
+        source: input
+      - name: authToken
+        type: string
+        description: NATS authentication token
+        required: false
+        source: connection
+        binding: vault://nats-credentials
   grpc:
     port: 50091
     binary:

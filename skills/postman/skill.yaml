@@ -27,6 +27,108 @@ spec:
     - postman-monitor-run
     - postman-monitor-list
     - postman-api-list
+  inputs:
+    postman-collection-run:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+      - name: collectionId
+        type: string
+        description: Collection UID
+        required: true
+        source: input
+      - name: environmentId
+        type: string
+        description: Environment UID
+        required: false
+        source: input
+      - name: folder
+        type: string
+        description: Specific folder to run
+        required: false
+        source: input
+      - name: delay
+        type: integer
+        description: Request delay (ms)
+        required: false
+        source: input
+      - name: timeout
+        type: integer
+        description: Request timeout (ms)
+        required: false
+        source: input
+      - name: iterationCount
+        type: integer
+        description: Number of iterations
+        required: false
+        source: input
+    postman-collection-list:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+    postman-collection-get:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+      - name: collectionId
+        type: string
+        description: Collection UID
+        required: true
+        source: input
+    postman-environment-list:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+    postman-environment-get:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+      - name: environmentId
+        type: string
+        description: Environment UID
+        required: true
+        source: input
+    postman-monitor-run:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+      - name: monitorId
+        type: string
+        description: Monitor UID
+        required: true
+        source: input
+    postman-monitor-list:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
+    postman-api-list:
+      - name: apiKey
+        type: string
+        description: Postman API key
+        required: true
+        source: connection
+        binding: vault://postman-credentials
   grpc:
     port: 50128
     binary:

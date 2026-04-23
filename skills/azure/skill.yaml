@@ -33,6 +33,472 @@ spec:
     - azure-function-invoke
     - azure-resource-group-list
     - azure-resource-group-create
+  inputs:
+    azure-vm-list:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Filter by resource group name
+        required: false
+        source: input
+    azure-vm-start:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: vmName
+        type: string
+        description: Virtual machine name
+        required: true
+        source: input
+    azure-vm-stop:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: vmName
+        type: string
+        description: Virtual machine name
+        required: true
+        source: input
+      - name: skipShutdown
+        type: boolean
+        description: Skip graceful shutdown
+        required: false
+        source: default
+        default: false
+    azure-vm-restart:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: vmName
+        type: string
+        description: Virtual machine name
+        required: true
+        source: input
+    azure-aks-list:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Filter by resource group name
+        required: false
+        source: input
+    azure-aks-get-credentials:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: clusterName
+        type: string
+        description: AKS cluster name
+        required: true
+        source: input
+    azure-storage-list:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Filter by resource group name
+        required: false
+        source: input
+    azure-blob-upload:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: storageAccount
+        type: string
+        description: Storage account name
+        required: true
+        source: input
+      - name: container
+        type: string
+        description: Container name
+        required: true
+        source: input
+      - name: blobName
+        type: string
+        description: Destination blob name
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content (text or base64)
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type (e.g., application/json)
+        required: false
+        source: input
+        default: "application/octet-stream"
+    azure-blob-download:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: storageAccount
+        type: string
+        description: Storage account name
+        required: true
+        source: input
+      - name: container
+        type: string
+        description: Container name
+        required: true
+        source: input
+      - name: blobName
+        type: string
+        description: Blob name to download
+        required: true
+        source: input
+    azure-function-list:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Filter by resource group name
+        required: false
+        source: input
+    azure-function-invoke:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: resourceGroup
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: functionAppName
+        type: string
+        description: Function app name
+        required: true
+        source: input
+      - name: functionName
+        type: string
+        description: Function name
+        required: true
+        source: input
+      - name: method
+        type: string
+        description: HTTP method
+        required: false
+        source: input
+        default: "POST"
+      - name: body
+        type: object
+        description: Request body
+        required: false
+        source: input
+      - name: headers
+        type: object
+        description: Request headers
+        required: false
+        source: input
+    azure-resource-group-list:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+    azure-resource-group-create:
+      - name: subscriptionId
+        type: string
+        description: Azure subscription ID
+        required: true
+        source: input
+      - name: clientId
+        type: string
+        description: Azure AD app client ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: clientSecret
+        type: string
+        description: Azure AD app client secret
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: tenantId
+        type: string
+        description: Azure AD tenant ID
+        required: true
+        source: connection
+        binding: vault://azure-credentials
+      - name: name
+        type: string
+        description: Resource group name
+        required: true
+        source: input
+      - name: location
+        type: string
+        description: Azure region (e.g., eastus, westus2)
+        required: true
+        source: input
+      - name: tags
+        type: object
+        description: Tags to apply
+        required: false
+        source: input
   grpc:
     port: 50080
     binary:

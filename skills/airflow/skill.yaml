@@ -28,6 +28,244 @@ spec:
     - airflow-task-logs
     - airflow-run-list
     - airflow-connection-list
+  inputs:
+    airflow-dag-list:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: tags
+        type: array
+        description: Filter DAGs by tags
+        required: false
+        source: input
+      - name: paused
+        type: boolean
+        description: Filter by paused status
+        required: false
+        source: input
+    airflow-dag-trigger:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID to trigger
+        required: true
+        source: input
+      - name: conf
+        type: object
+        description: DAG run configuration
+        required: false
+        source: input
+      - name: logicalDate
+        type: string
+        description: Logical date for the run
+        required: false
+        source: input
+    airflow-dag-status:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID
+        required: true
+        source: input
+      - name: dagRunId
+        type: string
+        description: DAG run ID
+        required: true
+        source: input
+    airflow-dag-pause:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID to pause
+        required: true
+        source: input
+    airflow-dag-unpause:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID to unpause
+        required: true
+        source: input
+    airflow-task-list:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID
+        required: true
+        source: input
+    airflow-task-logs:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID
+        required: true
+        source: input
+      - name: dagRunId
+        type: string
+        description: DAG run ID
+        required: true
+        source: input
+      - name: taskId
+        type: string
+        description: Task ID
+        required: true
+        source: input
+      - name: tryNumber
+        type: integer
+        description: Try number
+        required: false
+        source: input
+    airflow-run-list:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: dagId
+        type: string
+        description: DAG ID
+        required: false
+        source: input
+    airflow-connection-list:
+      - name: baseUrl
+        type: string
+        description: Airflow web URL
+        required: true
+        source: input
+      - name: username
+        type: string
+        description: Username
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
+      - name: password
+        type: string
+        description: Password
+        required: true
+        source: connection
+        binding: vault://airflow-credentials
   grpc:
     port: 50104
     binary:

@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 	"github.com/axiom-studio/skills.sdk/grpc"
 	"github.com/axiom-studio/skills.sdk/resolver"
 	"github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	httputil "github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
 const (
@@ -74,6 +77,32 @@ func getStringSlice(config map[string]interface{}, key string) []string {
 			}
 			return result
 		}
+	}
+	return nil
+}
+
+func getInt(config map[string]interface{}, key string) int {
+	if v, ok := config[key]; ok {
+		switch n := v.(type) {
+		case int:
+			return n
+		case int64:
+			return int(n)
+		case float64:
+			return int(n)
+		case string:
+			i, err := strconv.Atoi(n)
+			if err == nil {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+func getBasicAuth(username, password string) *httputil.BasicAuth {
+	if username != "" && password != "" {
+		return &httputil.BasicAuth{Username: username, Password: password}
 	}
 	return nil
 }
@@ -312,7 +341,9 @@ func (e *CloneExecutor) Execute(ctx context.Context, step *executor.StepDefiniti
 	url := res.ResolveString(getString(config, "url"))
 	path := res.ResolveString(getString(config, "path"))
 	branch := res.ResolveString(getString(config, "branch"))
-	depth := getString(config, "depth")
+	depth := getInt(config, "depth")
+	username := res.ResolveString(getString(config, "username"))
+	password := res.ResolveString(getString(config, "password"))
 
 	if url == "" {
 		return nil, fmt.Errorf("repository URL is required")
@@ -321,14 +352,33 @@ func (e *CloneExecutor) Execute(ctx context.Context, step *executor.StepDefiniti
 		return nil, fmt.Errorf("local path is required")
 	}
 
+	cloneOpts := &git.CloneOptions{
+		URL: url,
+	}
+	if branch != "" {
+		cloneOpts.ReferenceName = plumbing.ReferenceName("refs/heads/" + branch)
+		cloneOpts.SingleBranch = true
+	}
+	if depth > 0 {
+		cloneOpts.Depth = depth
+	}
+	if auth := getBasicAuth(username, password); auth != nil {
+		cloneOpts.Auth = auth
+	}
+
+	_, err := git.PlainClone(path, false, cloneOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone repository: %w", err)
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":  "Clone not yet implemented",
-			"url":      url,
-			"path":     path,
-			"branch":   branch,
-			"depth":    depth,
-			"success":  false,
+			"message": "Repository cloned successfully",
+			"url":     url,
+			"path":    path,
+			"branch":  branch,
+			"depth":   depth,
+			"success": true,
 		},
 	}, nil
 }
@@ -343,18 +393,60 @@ func (e *PullExecutor) Execute(ctx context.Context, step *executor.StepDefinitio
 	path := res.ResolveString(getString(config, "path"))
 	remote := res.ResolveString(getString(config, "remote"))
 	branch := res.ResolveString(getString(config, "branch"))
+	username := res.ResolveString(getString(config, "username"))
+	password := res.ResolveString(getString(config, "password"))
 
 	if path == "" {
 		return nil, fmt.Errorf("local path is required")
 	}
 
+	if remote == "" {
+		remote = "origin"
+	}
+
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	pullOpts := &git.PullOptions{
+		RemoteName: remote,
+	}
+	if branch != "" {
+		pullOpts.ReferenceName = plumbing.ReferenceName("refs/heads/" + branch)
+	}
+	if auth := getBasicAuth(username, password); auth != nil {
+		pullOpts.Auth = auth
+	}
+
+	err = worktree.Pull(pullOpts)
+	if err != nil {
+		if err == git.NoErrAlreadyUpToDate {
+			return &executor.StepResult{
+				Output: map[string]interface{}{
+					"message": "Already up to date",
+					"path":    path,
+					"remote":  remote,
+					"branch":  branch,
+					"success": true,
+				},
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to pull: %w", err)
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message": "Pull not yet implemented",
+			"message": "Pull completed successfully",
 			"path":    path,
 			"remote":  remote,
 			"branch":  branch,
-			"success": false,
+			"success": true,
 		},
 	}, nil
 }
@@ -441,22 +533,57 @@ func (e *PushExecutor) Execute(ctx context.Context, step *executor.StepDefinitio
 	branch := res.ResolveString(getString(config, "branch"))
 	username := res.ResolveString(getString(config, "username"))
 	password := res.ResolveString(getString(config, "password"))
-	_ = password
 	force := getBool(config, "force", false)
 
 	if path == "" {
 		return nil, fmt.Errorf("local path is required")
 	}
 
+	if remote == "" {
+		remote = "origin"
+	}
+
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	pushOpts := &git.PushOptions{
+		RemoteName: remote,
+		Force:      force,
+	}
+	if branch != "" {
+		src := plumbing.ReferenceName("refs/heads/" + branch)
+		dst := plumbing.ReferenceName("refs/heads/" + branch)
+		pushOpts.RefSpecs = []gitconfig.RefSpec{gitconfig.RefSpec(src.String() + ":" + dst.String())}
+	}
+	if auth := getBasicAuth(username, password); auth != nil {
+		pushOpts.Auth = auth
+	}
+
+	err = repo.Push(pushOpts)
+	if err != nil {
+		if err == git.NoErrAlreadyUpToDate {
+			return &executor.StepResult{
+				Output: map[string]interface{}{
+					"message": "Already up to date",
+					"path":    path,
+					"remote":  remote,
+					"branch":  branch,
+					"success": true,
+				},
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to push: %w", err)
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":  "Push not yet implemented",
-			"path":     path,
-			"remote":   remote,
-			"branch":   branch,
-			"username": username,
-			"force":    force,
-			"success":  false,
+			"message": "Push completed successfully",
+			"path":    path,
+			"remote":  remote,
+			"branch":  branch,
+			"success": true,
 		},
 	}, nil
 }
@@ -478,15 +605,134 @@ func (e *BranchExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		return nil, fmt.Errorf("local path is required")
 	}
 
+	if operation == "" {
+		operation = "list"
+	}
+
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	switch operation {
+	case "create":
+		return branchCreate(repo, path, branchName, createFrom)
+	case "delete":
+		return branchDelete(repo, path, branchName, force)
+	case "list":
+		return branchList(repo, path)
+	default:
+		return nil, fmt.Errorf("unknown branch operation: %s (supported: create, delete, list)", operation)
+	}
+}
+
+func branchCreate(repo *git.Repository, path, branchName, createFrom string) (*executor.StepResult, error) {
+	if branchName == "" {
+		return nil, fmt.Errorf("branchName is required for create operation")
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	checkoutOpts := &git.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/" + branchName),
+		Create: true,
+	}
+
+	if createFrom != "" {
+		hash := plumbing.NewHash(createFrom)
+		if hash != plumbing.ZeroHash {
+			checkoutOpts.Hash = hash
+		} else {
+			checkoutOpts.Branch = plumbing.ReferenceName("refs/heads/" + createFrom)
+		}
+	}
+
+	err = worktree.Checkout(checkoutOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create branch: %w", err)
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":    "Branch operation not yet implemented",
+			"message":    fmt.Sprintf("Branch '%s' created and checked out", branchName),
 			"path":       path,
-			"operation":  operation,
+			"operation":  "create",
 			"branchName": branchName,
-			"createFrom": createFrom,
-			"force":      force,
-			"success":    false,
+			"success":    true,
+		},
+	}, nil
+}
+
+func branchDelete(repo *git.Repository, path, branchName string, force bool) (*executor.StepResult, error) {
+	if branchName == "" {
+		return nil, fmt.Errorf("branchName is required for delete operation")
+	}
+
+	headRef, err := repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HEAD: %w", err)
+	}
+	if headRef.Name().Short() == branchName {
+		return nil, fmt.Errorf("cannot delete the currently checked out branch '%s'", branchName)
+	}
+
+	refName := plumbing.ReferenceName("refs/heads/" + branchName)
+	err = repo.Storer.RemoveReference(refName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete branch: %w", err)
+	}
+
+	return &executor.StepResult{
+		Output: map[string]interface{}{
+			"message":    fmt.Sprintf("Branch '%s' deleted", branchName),
+			"path":       path,
+			"operation":  "delete",
+			"branchName": branchName,
+			"success":    true,
+		},
+	}, nil
+}
+
+func branchList(repo *git.Repository, path string) (*executor.StepResult, error) {
+	branches, err := repo.Branches()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get branches: %w", err)
+	}
+	defer branches.Close()
+
+	var branchNames []string
+	err = branches.ForEach(func(ref *plumbing.Reference) error {
+		if ref.Type() == plumbing.HashReference {
+			branchNames = append(branchNames, ref.Name().Short())
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate branches: %w", err)
+	}
+
+	headRef, err := repo.Head()
+	var currentBranch string
+	if err == nil && headRef != nil {
+		if headRef.Type() == plumbing.SymbolicReference {
+			currentBranch = headRef.Name().Short()
+		} else if headRef.Type() == plumbing.HashReference {
+			currentBranch = headRef.Hash().String()[:7]
+		}
+	}
+
+	return &executor.StepResult{
+		Output: map[string]interface{}{
+			"message":       fmt.Sprintf("Found %d branches", len(branchNames)),
+			"path":          path,
+			"operation":    "list",
+			"branches":      branchNames,
+			"currentBranch": currentBranch,
+			"count":         len(branchNames),
+			"success":       true,
 		},
 	}, nil
 }

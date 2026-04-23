@@ -28,6 +28,171 @@ spec:
     - airbyte-connection-sync
     - airbyte-job-status
     - airbyte-job-list
+  inputs:
+    airbyte-source-list:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+    airbyte-source-create:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Source name
+        required: true
+        source: input
+      - name: sourceDefinitionId
+        type: string
+        description: Source definition ID
+        required: true
+        source: input
+      - name: connectionConfiguration
+        type: object
+        description: Source-specific configuration
+        required: true
+        source: input
+    airbyte-destination-list:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+    airbyte-destination-create:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: Destination name
+        required: true
+        source: input
+      - name: destinationDefinitionId
+        type: string
+        description: Destination definition ID
+        required: true
+        source: input
+      - name: connectionConfiguration
+        type: object
+        description: Destination-specific configuration
+        required: true
+        source: input
+    airbyte-connection-list:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+    airbyte-connection-create:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: workspaceId
+        type: string
+        description: Workspace ID
+        required: true
+        source: input
+      - name: sourceId
+        type: string
+        description: Source ID
+        required: true
+        source: input
+      - name: destinationId
+        type: string
+        description: Destination ID
+        required: true
+        source: input
+      - name: syncSchedule
+        type: object
+        description: Sync schedule configuration
+        required: false
+        source: input
+      - name: configurations
+        type: object
+        description: Stream configurations
+        required: false
+        source: input
+    airbyte-connection-sync:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: connectionId
+        type: string
+        description: Connection ID
+        required: true
+        source: input
+    airbyte-job-status:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: jobId
+        type: string
+        description: Job ID
+        required: true
+        source: input
+    airbyte-job-list:
+      - name: apiToken
+        type: string
+        description: Airbyte API token
+        required: true
+        source: connection
+        binding: vault://airbyte-credentials
+      - name: connectionId
+        type: string
+        description: Connection ID to filter jobs
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum number of jobs to return
+        required: false
+        source: input
+        default: 10
   grpc:
     port: 50101
     binary:

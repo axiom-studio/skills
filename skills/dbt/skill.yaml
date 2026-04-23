@@ -27,6 +27,226 @@ spec:
     - dbt-snapshot
     - dbt-debug
     - dbt-list
+  inputs:
+    dbt-run:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: select
+        type: array
+        description: Select models
+        required: false
+        source: input
+      - name: exclude
+        type: array
+        description: Exclude models
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Filter by tags
+        required: false
+        source: input
+      - name: fullRefresh
+        type: boolean
+        description: Full refresh
+        required: false
+        source: default
+        default: false
+    dbt-test:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: select
+        type: array
+        description: Select tests
+        required: false
+        source: input
+      - name: exclude
+        type: array
+        description: Exclude tests
+        required: false
+        source: input
+      - name: severity
+        type: string
+        description: Severity threshold
+        required: false
+        source: input
+    dbt-compile:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: select
+        type: array
+        description: Select models
+        required: false
+        source: input
+    dbt-docs-generate:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+    dbt-seed:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: select
+        type: array
+        description: Select seed files
+        required: false
+        source: input
+    dbt-snapshot:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: select
+        type: array
+        description: Select snapshots
+        required: false
+        source: input
+    dbt-debug:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+    dbt-list:
+      - name: projectDir
+        type: string
+        description: dbt project directory
+        required: true
+        source: input
+      - name: profilesDir
+        type: string
+        description: Profiles directory
+        required: false
+        source: input
+      - name: profile
+        type: string
+        description: Profile name
+        required: false
+        source: input
+      - name: target
+        type: string
+        description: Target environment
+        required: false
+        source: input
+      - name: resourceType
+        type: string
+        description: Resource type to list (model, test, seed, snapshot)
+        required: false
+        source: input
   grpc:
     port: 50103
     binary:

@@ -25,6 +25,186 @@ spec:
     - sf-delete
     - sf-describe
     - sf-soql
+  inputs:
+    sf-query:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: query
+        type: string
+        description: SOQL query
+        required: true
+        source: input
+    sf-create:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: objectType
+        type: string
+        description: Object type (Account, Contact, etc.)
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Record data
+        required: true
+        source: input
+    sf-update:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: objectType
+        type: string
+        description: Object type (Account, Contact, etc.)
+        required: true
+        source: input
+      - name: recordId
+        type: string
+        description: Record ID
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Record data to update
+        required: true
+        source: input
+    sf-delete:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: objectType
+        type: string
+        description: Object type (Account, Contact, etc.)
+        required: true
+        source: input
+      - name: recordId
+        type: string
+        description: Record ID
+        required: true
+        source: input
+    sf-describe:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: objectType
+        type: string
+        description: Object type to describe
+        required: true
+        source: input
+    sf-soql:
+      - name: instanceURL
+        type: string
+        description: Salesforce instance URL
+        required: true
+        source: input
+      - name: consumerKey
+        type: string
+        description: Connected App Consumer Key
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: consumerSecret
+        type: string
+        description: Connected App Consumer Secret
+        required: true
+        source: connection
+        binding: vault://salesforce-credentials
+      - name: mode
+        type: string
+        description: Query mode (raw, builder)
+        required: false
+        source: input
+        default: "raw"
+      - name: objectType
+        type: string
+        description: Object type for builder mode
+        required: false
+        source: input
+      - name: fields
+        type: string
+        description: Fields to select (builder mode)
+        required: false
+        source: input
+      - name: whereClause
+        type: string
+        description: Where clause (builder mode)
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Max results (builder mode)
+        required: false
+        source: input
   grpc:
     port: 50053
     binary:

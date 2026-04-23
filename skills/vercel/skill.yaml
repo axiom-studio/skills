@@ -28,6 +28,173 @@ spec:
     - vercel-domain-list
     - vercel-env-set
     - vercel-env-list
+  inputs:
+    vercel-deploy:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: false
+        source: input
+      - name: name
+        type: string
+        description: Deployment name
+        required: false
+        source: input
+      - name: files
+        type: array
+        description: Files to deploy
+        required: true
+        source: input
+      - name: target
+        type: string
+        description: Target (production, preview)
+        required: false
+        source: input
+        default: "preview"
+      - name: ref
+        type: string
+        description: Git ref (branch/tag)
+        required: false
+        source: input
+    vercel-deployment-list:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: false
+        source: input
+    vercel-deployment-get:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: deploymentId
+        type: string
+        description: Deployment ID
+        required: true
+        source: input
+      - name: projectId
+        type: string
+        description: Project ID
+        required: false
+        source: input
+    vercel-project-list:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+    vercel-project-create:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: name
+        type: string
+        description: Project name
+        required: true
+        source: input
+      - name: framework
+        type: string
+        description: Framework preset
+        required: false
+        source: input
+      - name: gitRepository
+        type: object
+        description: Git repository config
+        required: false
+        source: input
+    vercel-domain-add:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: domain
+        type: string
+        description: Domain name
+        required: true
+        source: input
+    vercel-domain-list:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+    vercel-env-set:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Variable key
+        required: true
+        source: input
+      - name: value
+        type: string
+        description: Variable value
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: target
+        type: array
+        description: Target environments
+        required: false
+        source: input
+      - name: type
+        type: string
+        description: Variable type (plain, encrypted, secret)
+        required: false
+        source: input
+        default: "plain"
+    vercel-env-list:
+      - name: apiToken
+        type: string
+        description: Vercel API token
+        required: true
+        source: connection
+        binding: vault://vercel-credentials
+      - name: projectId
+        type: string
+        description: Project ID
+        required: true
+        source: input
   grpc:
     port: 50126
     binary:

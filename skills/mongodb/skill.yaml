@@ -33,6 +33,358 @@ spec:
     - mongo-create-index
     - mongo-list-indexes
     - mongo-watch
+  inputs:
+    mongo-find:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: false
+        source: input
+        default: {}
+      - name: limit
+        type: integer
+        description: Max documents to return
+        required: false
+        source: input
+        default: 100
+      - name: sort
+        type: object
+        description: Sort specification
+        required: false
+        source: input
+    mongo-find-one:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: true
+        source: input
+    mongo-insert-one:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: document
+        type: object
+        description: Document to insert
+        required: true
+        source: input
+    mongo-insert-many:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: documents
+        type: array
+        description: Documents to insert
+        required: true
+        source: input
+      - name: ordered
+        type: boolean
+        description: Ordered insert (stop on first error)
+        required: false
+        source: default
+        default: true
+    mongo-update-one:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: true
+        source: input
+      - name: update
+        type: object
+        description: Update operations
+        required: true
+        source: input
+      - name: upsert
+        type: boolean
+        description: Insert if not found
+        required: false
+        source: default
+        default: false
+    mongo-update-many:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: true
+        source: input
+      - name: update
+        type: object
+        description: Update operations
+        required: true
+        source: input
+      - name: upsert
+        type: boolean
+        description: Insert if not found
+        required: false
+        source: default
+        default: false
+    mongo-delete-one:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: true
+        source: input
+    mongo-delete-many:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: true
+        source: input
+    mongo-aggregate:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: pipeline
+        type: array
+        description: Aggregation pipeline stages
+        required: true
+        source: input
+    mongo-count:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: filter
+        type: object
+        description: Query filter
+        required: false
+        source: input
+        default: {}
+    mongo-distinct:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: field
+        type: string
+        description: Field name for distinct values
+        required: true
+        source: input
+    mongo-create-index:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: keys
+        type: object
+        description: Index key specification
+        required: true
+        source: input
+      - name: unique
+        type: boolean
+        description: Create unique index
+        required: false
+        source: default
+        default: false
+    mongo-list-indexes:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+    mongo-watch:
+      - name: connectionString
+        type: string
+        description: MongoDB connection string
+        required: true
+        source: connection
+        binding: vault://mongodb-credentials
+      - name: database
+        type: string
+        description: Database name
+        required: true
+        source: input
+      - name: collection
+        type: string
+        description: Collection name
+        required: true
+        source: input
+      - name: timeout
+        type: string
+        description: Watch timeout
+        required: false
+        source: input
+        default: "30s"
   grpc:
     port: 50063
     binary:

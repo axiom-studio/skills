@@ -27,6 +27,382 @@ spec:
     - hs-company-create
     - hs-ticket-create
     - hs-engagement
+  inputs:
+    hs-contact-create:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: email
+        type: string
+        description: Contact email
+        required: true
+        source: input
+      - name: firstName
+        type: string
+        description: Contact first name
+        required: false
+        source: input
+      - name: lastName
+        type: string
+        description: Contact last name
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Contact phone number
+        required: false
+        source: input
+      - name: company
+        type: string
+        description: Contact company name
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional custom properties
+        required: false
+        source: input
+    hs-contact-update:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: contactId
+        type: string
+        description: Contact ID or email
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: New email
+        required: false
+        source: input
+      - name: firstName
+        type: string
+        description: New first name
+        required: false
+        source: input
+      - name: lastName
+        type: string
+        description: New last name
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: New phone
+        required: false
+        source: input
+      - name: company
+        type: string
+        description: New company
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional properties to update
+        required: false
+        source: input
+    hs-contact-search:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: query
+        type: string
+        description: Search query
+        required: true
+        source: input
+      - name: properties
+        type: array
+        description: Properties to return
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 100
+    hs-deal-create:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: dealName
+        type: string
+        description: Deal name
+        required: true
+        source: input
+      - name: amount
+        type: number
+        description: Deal amount
+        required: false
+        source: input
+      - name: currency
+        type: string
+        description: Currency code
+        required: false
+        source: input
+        default: "USD"
+      - name: stage
+        type: string
+        description: Deal stage
+        required: false
+        source: input
+      - name: closeDate
+        type: string
+        description: Expected close date (YYYY-MM-DD)
+        required: false
+        source: input
+      - name: companyId
+        type: string
+        description: Associated company ID
+        required: false
+        source: input
+      - name: contactId
+        type: string
+        description: Associated contact ID
+        required: false
+        source: input
+      - name: dealPipeline
+        type: string
+        description: Deal pipeline ID
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional custom properties
+        required: false
+        source: input
+    hs-deal-update:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: dealId
+        type: string
+        description: Deal ID to update
+        required: true
+        source: input
+      - name: dealName
+        type: string
+        description: New deal name
+        required: false
+        source: input
+      - name: amount
+        type: number
+        description: New deal amount
+        required: false
+        source: input
+      - name: stage
+        type: string
+        description: New deal stage
+        required: false
+        source: input
+      - name: closeDate
+        type: string
+        description: New close date
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional properties to update
+        required: false
+        source: input
+    hs-company-create:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: name
+        type: string
+        description: Company name
+        required: true
+        source: input
+      - name: domain
+        type: string
+        description: Company domain
+        required: false
+        source: input
+      - name: industry
+        type: string
+        description: Company industry
+        required: false
+        source: input
+      - name: annualRevenue
+        type: number
+        description: Annual revenue
+        required: false
+        source: input
+      - name: numberOfEmployees
+        type: integer
+        description: Number of employees
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Company phone
+        required: false
+        source: input
+      - name: address
+        type: string
+        description: Street address
+        required: false
+        source: input
+      - name: city
+        type: string
+        description: City
+        required: false
+        source: input
+      - name: state
+        type: string
+        description: State
+        required: false
+        source: input
+      - name: zip
+        type: string
+        description: Zip code
+        required: false
+        source: input
+      - name: country
+        type: string
+        description: Country
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional custom properties
+        required: false
+        source: input
+    hs-ticket-create:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: subject
+        type: string
+        description: Ticket subject
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: Ticket description
+        required: true
+        source: input
+      - name: status
+        type: string
+        description: Ticket status (NEW, IN_PROGRESS, CLOSED)
+        required: false
+        source: input
+        default: "NEW"
+      - name: priority
+        type: string
+        description: Ticket priority (LOW, MEDIUM, HIGH, URGENT)
+        required: false
+        source: input
+        default: "MEDIUM"
+      - name: contactId
+        type: string
+        description: Associated contact ID
+        required: false
+        source: input
+      - name: companyId
+        type: string
+        description: Associated company ID
+        required: false
+        source: input
+      - name: ownerId
+        type: string
+        description: Assigned owner ID
+        required: false
+        source: input
+      - name: category
+        type: string
+        description: Ticket category
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional custom properties
+        required: false
+        source: input
+    hs-engagement:
+      - name: apiKey
+        type: string
+        description: HubSpot API key
+        required: true
+        source: connection
+        binding: vault://hubspot-credentials
+      - name: engagementType
+        type: string
+        description: Type (NOTE, CALL, EMAIL, TASK, MEETING)
+        required: true
+        source: input
+      - name: subject
+        type: string
+        description: Engagement subject
+        required: false
+        source: input
+      - name: body
+        type: string
+        description: Engagement content
+        required: true
+        source: input
+      - name: contactId
+        type: string
+        description: Associated contact ID
+        required: false
+        source: input
+      - name: companyId
+        type: string
+        description: Associated company ID
+        required: false
+        source: input
+      - name: dealId
+        type: string
+        description: Associated deal ID
+        required: false
+        source: input
+      - name: ticketId
+        type: string
+        description: Associated ticket ID
+        required: false
+        source: input
+      - name: ownerId
+        type: string
+        description: Owner ID
+        required: false
+        source: input
+      - name: status
+        type: string
+        description: Engagement status
+        required: false
+        source: input
+      - name: dueDate
+        type: string
+        description: Due date for tasks/meetings
+        required: false
+        source: input
+      - name: properties
+        type: object
+        description: Additional custom properties
+        required: false
+        source: input
   grpc:
     port: 50053
     binary:

@@ -29,6 +29,198 @@ spec:
     - asana-story-create
     - asana-subtask-list
     - asana-tag-list
+  inputs:
+    asana-task-list:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: projectId
+        type: string
+        description: Filter by project ID
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: Filter by assignee gid
+        required: false
+        source: input
+      - name: completed
+        type: boolean
+        description: Filter by completion status
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum results to return
+        required: false
+        source: input
+        default: 20
+    asana-task-create:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: name
+        type: string
+        description: Task name
+        required: true
+        source: input
+      - name: notes
+        type: string
+        description: Task description
+        required: false
+        source: input
+      - name: projectId
+        type: string
+        description: Add task to project
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: Assign task to user gid
+        required: false
+        source: input
+      - name: dueOn
+        type: string
+        description: Due date (YYYY-MM-DD)
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Tags to add
+        required: false
+        source: input
+    asana-task-update:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: taskId
+        type: string
+        description: Task gid to update
+        required: true
+        source: input
+      - name: name
+        type: string
+        description: New task name
+        required: false
+        source: input
+      - name: notes
+        type: string
+        description: New task description
+        required: false
+        source: input
+      - name: assignee
+        type: string
+        description: New assignee gid
+        required: false
+        source: input
+      - name: dueOn
+        type: string
+        description: New due date
+        required: false
+        source: input
+      - name: completed
+        type: boolean
+        description: Mark as completed
+        required: false
+        source: input
+    asana-task-delete:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: taskId
+        type: string
+        description: Task gid to delete
+        required: true
+        source: input
+    asana-project-list:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: workspace
+        type: string
+        description: Filter by workspace gid
+        required: false
+        source: input
+    asana-project-get:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: projectId
+        type: string
+        description: Project gid
+        required: true
+        source: input
+    asana-section-list:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: projectId
+        type: string
+        description: Project gid
+        required: true
+        source: input
+    asana-story-create:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: taskId
+        type: string
+        description: Task gid to add story to
+        required: true
+        source: input
+      - name: text
+        type: string
+        description: Story text
+        required: true
+        source: input
+    asana-subtask-list:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: taskId
+        type: string
+        description: Parent task gid
+        required: true
+        source: input
+    asana-tag-list:
+      - name: token
+        type: string
+        description: Asana personal access token
+        required: true
+        source: connection
+        binding: vault://asana-credentials
+      - name: workspace
+        type: string
+        description: Filter by workspace gid
+        required: false
+        source: input
   grpc:
     port: 50105
     binary:

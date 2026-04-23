@@ -33,6 +33,254 @@ spec:
     - do-app-deploy
     - do-database-list
     - do-loadbalancer-list
+  inputs:
+    do-droplet-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: tag
+        type: string
+        description: Filter by tag name
+        required: false
+        source: input
+      - name: region
+        type: string
+        description: Filter by region slug
+        required: false
+        source: input
+    do-droplet-create:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: name
+        type: string
+        description: Droplet hostname
+        required: true
+        source: input
+      - name: region
+        type: string
+        description: Region slug
+        required: true
+        source: input
+      - name: size
+        type: string
+        description: Size slug (e.g., s-1vcpu-1gb)
+        required: true
+        source: input
+      - name: image
+        type: string
+        description: Image slug or ID
+        required: true
+        source: input
+      - name: sshKeys
+        type: array
+        description: SSH key IDs or fingerprints
+        required: false
+        source: input
+      - name: userData
+        type: string
+        description: Cloud-init user data script
+        required: false
+        source: input
+      - name: tags
+        type: array
+        description: Tags to apply
+        required: false
+        source: input
+      - name: monitoring
+        type: boolean
+        description: Enable monitoring
+        required: false
+        source: default
+        default: true
+      - name: backups
+        type: boolean
+        description: Enable automated backups
+        required: false
+        source: input
+      - name: ipv6
+        type: boolean
+        description: Enable IPv6
+        required: false
+        source: input
+    do-droplet-delete:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: dropletId
+        type: integer
+        description: Droplet ID to delete
+        required: true
+        source: input
+    do-droplet-power:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: dropletId
+        type: integer
+        description: Droplet ID
+        required: true
+        source: input
+      - name: action
+        type: string
+        description: Action (power_on, power_off, reboot, shutdown)
+        required: true
+        source: input
+    do-kubernetes-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+    do-kubernetes-create:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: name
+        type: string
+        description: Cluster name
+        required: true
+        source: input
+      - name: region
+        type: string
+        description: Region slug
+        required: true
+        source: input
+      - name: version
+        type: string
+        description: Kubernetes version
+        required: true
+        source: input
+      - name: nodePools
+        type: array
+        description: Node pool configurations
+        required: true
+        source: input
+      - name: autoUpgrade
+        type: boolean
+        description: Enable auto-upgrades
+        required: false
+        source: default
+        default: false
+      - name: ha
+        type: boolean
+        description: Enable high availability
+        required: false
+        source: default
+        default: false
+    do-space-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+    do-space-upload:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: space
+        type: string
+        description: Space name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key
+        required: true
+        source: input
+      - name: content
+        type: string
+        description: File content
+        required: true
+        source: input
+      - name: contentType
+        type: string
+        description: Content type
+        required: false
+        source: input
+        default: "application/octet-stream"
+      - name: acl
+        type: string
+        description: Access control (private, public-read)
+        required: false
+        source: input
+        default: "private"
+    do-space-download:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: space
+        type: string
+        description: Space name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Object key
+        required: true
+        source: input
+    do-app-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+    do-app-deploy:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+      - name: appId
+        type: string
+        description: App ID
+        required: true
+        source: input
+      - name: forceBuild
+        type: boolean
+        description: Force a new build
+        required: false
+        source: default
+        default: false
+    do-database-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
+    do-loadbalancer-list:
+      - name: apiToken
+        type: string
+        description: DigitalOcean API token
+        required: true
+        source: connection
+        binding: vault://digitalocean-credentials
   grpc:
     port: 50083
     binary:

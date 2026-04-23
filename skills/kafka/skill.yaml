@@ -29,6 +29,331 @@ spec:
     - kafka-consumer-group-reset
     - kafka-partition-list
     - kafka-offset-get
+  inputs:
+    kafka-produce:
+      - name: brokers
+        type: array
+        description: Broker addresses (host:port)
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: key
+        type: string
+        description: Message key
+        required: false
+        source: input
+      - name: value
+        type: string
+        description: Message value
+        required: true
+        source: input
+      - name: headers
+        type: object
+        description: Message headers
+        required: false
+        source: input
+      - name: partition
+        type: integer
+        description: Target partition
+        required: false
+        source: input
+      - name: ack
+        type: string
+        description: Ack mode (none, leader, all)
+        required: false
+        source: input
+        default: "all"
+      - name: compression
+        type: string
+        description: Compression type
+        required: false
+        source: input
+        default: "none"
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: tls
+        type: boolean
+        description: Enable TLS
+        required: false
+        source: default
+        default: false
+    kafka-consume:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: groupId
+        type: string
+        description: Consumer group ID
+        required: false
+        source: input
+      - name: fromBeginning
+        type: boolean
+        description: Start from beginning
+        required: false
+        source: default
+        default: false
+      - name: maxMessages
+        type: integer
+        description: Max messages to consume
+        required: false
+        source: input
+        default: 10
+      - name: timeout
+        type: string
+        description: Poll timeout
+        required: false
+        source: input
+      - name: autoCommit
+        type: boolean
+        description: Auto-commit offsets
+        required: false
+        source: default
+        default: true
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-topic-create:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: partitions
+        type: integer
+        description: Number of partitions
+        required: false
+        source: input
+        default: 3
+      - name: replicationFactor
+        type: integer
+        description: Replication factor
+        required: false
+        source: input
+        default: 1
+      - name: config
+        type: object
+        description: Topic configuration
+        required: false
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-topic-list:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-topic-delete:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-topic-describe:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-consumer-group-list:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-consumer-group-reset:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: groupId
+        type: string
+        description: Consumer group ID
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: false
+        source: input
+      - name: toOffset
+        type: string
+        description: Reset to (earliest, latest, specific)
+        required: false
+        source: input
+        default: "latest"
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-partition-list:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+    kafka-offset-get:
+      - name: brokers
+        type: array
+        description: Broker addresses
+        required: true
+        source: input
+      - name: topic
+        type: string
+        description: Topic name
+        required: true
+        source: input
+      - name: groupId
+        type: string
+        description: Consumer group ID
+        required: false
+        source: input
+      - name: partition
+        type: integer
+        description: Partition number
+        required: false
+        source: input
+      - name: saslUsername
+        type: string
+        description: SASL username
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
+      - name: saslPassword
+        type: string
+        description: SASL password
+        required: false
+        source: connection
+        binding: vault://kafka-credentials
   grpc:
     port: 50089
     binary:
