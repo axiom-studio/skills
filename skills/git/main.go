@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 	"github.com/axiom-studio/skills.sdk/grpc"
 	"github.com/axiom-studio/skills.sdk/resolver"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 const (
@@ -16,24 +18,21 @@ const (
 )
 
 func main() {
-	// Get port from env or use default
 	port := os.Getenv("SKILL_PORT")
 	if port == "" {
 		port = "50095"
 	}
 
-	// Create skill server
 	server := grpc.NewSkillServer("skill-git", "1.0.0")
 
-	// Register health check
 	server.RegisterExecutorWithSchema("git-health", &HealthExecutor{}, HealthSchema)
 
-	// Repository executors
 	server.RegisterExecutorWithSchema("git-clone", &CloneExecutor{}, CloneSchema)
 	server.RegisterExecutorWithSchema("git-pull", &PullExecutor{}, PullSchema)
 	server.RegisterExecutorWithSchema("git-commit", &CommitExecutor{}, CommitSchema)
 	server.RegisterExecutorWithSchema("git-push", &PushExecutor{}, PushSchema)
 	server.RegisterExecutorWithSchema("git-branch", &BranchExecutor{}, BranchSchema)
+	server.RegisterExecutorWithSchema("git-branch-list", &BranchListExecutor{}, BranchListSchema)
 	server.RegisterExecutorWithSchema("git-status", &StatusExecutor{}, StatusSchema)
 
 	fmt.Printf("Starting skill-git gRPC server on port %s\n", port)
@@ -43,11 +42,6 @@ func main() {
 	}
 }
 
-// ============================================================================
-// CONFIG HELPERS
-// ============================================================================
-
-// Helper to get string from config
 func getString(config map[string]interface{}, key string) string {
 	if v, ok := config[key]; ok {
 		if s, ok := v.(string); ok {
@@ -57,13 +51,11 @@ func getString(config map[string]interface{}, key string) string {
 	return ""
 }
 
-// Helper to get bool from config
 func getBool(config map[string]interface{}, key string, def bool) bool {
 	if v, ok := config[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b
 		}
-		// Handle string "true"/"false"
 		if s, ok := v.(string); ok {
 			return s == "true"
 		}
@@ -86,11 +78,6 @@ func getStringSlice(config map[string]interface{}, key string) []string {
 	return nil
 }
 
-// ============================================================================
-// SCHEMAS
-// ============================================================================
-
-// HealthSchema is the UI schema for git-health
 var HealthSchema = resolver.NewSchemaBuilder("git-health").
 	WithName("Git Health Check").
 	WithCategory("action").
@@ -98,7 +85,6 @@ var HealthSchema = resolver.NewSchemaBuilder("git-health").
 	WithDescription("Check if Git skill is running").
 	Build()
 
-// CloneSchema is the UI schema for git-clone
 var CloneSchema = resolver.NewSchemaBuilder("git-clone").
 	WithName("Clone Repository").
 	WithCategory("action").
@@ -135,7 +121,6 @@ var CloneSchema = resolver.NewSchemaBuilder("git-clone").
 		EndSection().
 	Build()
 
-// PullSchema is the UI schema for git-pull
 var PullSchema = resolver.NewSchemaBuilder("git-pull").
 	WithName("Pull Changes").
 	WithCategory("action").
@@ -159,7 +144,6 @@ var PullSchema = resolver.NewSchemaBuilder("git-pull").
 		EndSection().
 	Build()
 
-// CommitSchema is the UI schema for git-commit
 var CommitSchema = resolver.NewSchemaBuilder("git-commit").
 	WithName("Commit Changes").
 	WithCategory("action").
@@ -191,7 +175,6 @@ var CommitSchema = resolver.NewSchemaBuilder("git-commit").
 		EndSection().
 	Build()
 
-// PushSchema is the UI schema for git-push
 var PushSchema = resolver.NewSchemaBuilder("git-push").
 	WithName("Push Changes").
 	WithCategory("action").
@@ -228,7 +211,6 @@ var PushSchema = resolver.NewSchemaBuilder("git-push").
 		EndSection().
 	Build()
 
-// BranchSchema is the UI schema for git-branch
 var BranchSchema = resolver.NewSchemaBuilder("git-branch").
 	WithName("Branch Operations").
 	WithCategory("action").
@@ -266,7 +248,6 @@ var BranchSchema = resolver.NewSchemaBuilder("git-branch").
 		EndSection().
 	Build()
 
-// StatusSchema is the UI schema for git-status
 var StatusSchema = resolver.NewSchemaBuilder("git-status").
 	WithName("Repository Status").
 	WithCategory("action").
@@ -285,11 +266,30 @@ var StatusSchema = resolver.NewSchemaBuilder("git-status").
 		EndSection().
 	Build()
 
-// ============================================================================
-// EXECUTORS
-// ============================================================================
+var BranchListSchema = resolver.NewSchemaBuilder("git-branch-list").
+	WithName("List Branches").
+	WithCategory("action").
+	WithIcon(iconGit).
+	WithDescription("List all branches in a Git repository").
+	AddSection("Repository").
+		AddExpressionField("path", "Local Path",
+			resolver.WithRequired(),
+			resolver.WithPlaceholder("/path/to/repo"),
+			resolver.WithHint("Local repository path"),
+		).
+		EndSection().
+	AddSection("Options").
+		AddToggleField("all", "Include Remote",
+			resolver.WithDefault(false),
+			resolver.WithHint("Include remote branches"),
+		).
+		AddExpressionField("remote", "Remote Name",
+			resolver.WithPlaceholder("origin"),
+			resolver.WithHint("Filter by remote name"),
+		).
+		EndSection().
+	Build()
 
-// HealthExecutor handles git-health
 type HealthExecutor struct{}
 
 func (e *HealthExecutor) Type() string { return "git-health" }
@@ -302,7 +302,6 @@ func (e *HealthExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}, nil
 }
 
-// CloneExecutor handles git-clone
 type CloneExecutor struct{}
 
 func (e *CloneExecutor) Type() string { return "git-clone" }
@@ -322,7 +321,6 @@ func (e *CloneExecutor) Execute(ctx context.Context, step *executor.StepDefiniti
 		return nil, fmt.Errorf("local path is required")
 	}
 
-	// Placeholder implementation
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"message":  "Clone not yet implemented",
@@ -335,7 +333,6 @@ func (e *CloneExecutor) Execute(ctx context.Context, step *executor.StepDefiniti
 	}, nil
 }
 
-// PullExecutor handles git-pull
 type PullExecutor struct{}
 
 func (e *PullExecutor) Type() string { return "git-pull" }
@@ -351,7 +348,6 @@ func (e *PullExecutor) Execute(ctx context.Context, step *executor.StepDefinitio
 		return nil, fmt.Errorf("local path is required")
 	}
 
-	// Placeholder implementation
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"message": "Pull not yet implemented",
@@ -363,7 +359,6 @@ func (e *PullExecutor) Execute(ctx context.Context, step *executor.StepDefinitio
 	}, nil
 }
 
-// CommitExecutor handles git-commit
 type CommitExecutor struct{}
 
 func (e *CommitExecutor) Type() string { return "git-commit" }
@@ -382,22 +377,18 @@ func (e *CommitExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		return nil, fmt.Errorf("commit message is required")
 	}
 
-	// Open repository
 	repo, err := git.PlainOpen(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	// Get worktree
 	worktree, err := repo.Worktree()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
-	// Parse files option
 	files := getStringSlice(config, "files")
 
-	// Stage files
 	if all {
 		err = worktree.AddWithOptions(&git.AddOptions{
 			All: true,
@@ -414,18 +405,15 @@ func (e *CommitExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		}
 	}
 
-	// Check for changes
 	status, err := worktree.Status()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status: %w", err)
 	}
 
-	// Simple check: if no entries in status, no changes
 	if len(status) == 0 {
 		return nil, fmt.Errorf("no changes to commit")
 	}
 
-	// Commit
 	hash, err := worktree.Commit(message, &git.CommitOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit: %w", err)
@@ -441,7 +429,6 @@ func (e *CommitExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}, nil
 }
 
-// PushExecutor handles git-push
 type PushExecutor struct{}
 
 func (e *PushExecutor) Type() string { return "git-push" }
@@ -454,28 +441,26 @@ func (e *PushExecutor) Execute(ctx context.Context, step *executor.StepDefinitio
 	branch := res.ResolveString(getString(config, "branch"))
 	username := res.ResolveString(getString(config, "username"))
 	password := res.ResolveString(getString(config, "password"))
-	_ = password // TODO: implement password authentication
+	_ = password
 	force := getBool(config, "force", false)
 
 	if path == "" {
 		return nil, fmt.Errorf("local path is required")
 	}
 
-	// Placeholder implementation
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message": "Push not yet implemented",
-			"path":    path,
-			"remote":  remote,
-			"branch":  branch,
+			"message":  "Push not yet implemented",
+			"path":     path,
+			"remote":   remote,
+			"branch":   branch,
 			"username": username,
-			"force":   force,
-			"success": false,
+			"force":    force,
+			"success":  false,
 		},
 	}, nil
 }
 
-// BranchExecutor handles git-branch
 type BranchExecutor struct{}
 
 func (e *BranchExecutor) Type() string { return "git-branch" }
@@ -493,7 +478,6 @@ func (e *BranchExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		return nil, fmt.Errorf("local path is required")
 	}
 
-	// Placeholder implementation
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"message":    "Branch operation not yet implemented",
@@ -507,7 +491,6 @@ func (e *BranchExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}, nil
 }
 
-// StatusExecutor handles git-status
 type StatusExecutor struct{}
 
 func (e *StatusExecutor) Type() string { return "git-status" }
@@ -522,8 +505,7 @@ func (e *StatusExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		return nil, fmt.Errorf("local path is required")
 	}
 
-	// Placeholder implementation - try to open the repo to check if it's valid
-	_, err := git.PlainOpen(path)
+	repo, err := git.PlainOpen(path)
 	if err != nil {
 		return &executor.StepResult{
 			Output: map[string]interface{}{
@@ -531,17 +513,134 @@ func (e *StatusExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 				"path":      path,
 				"porcelain": porcelain,
 				"valid":     false,
+				"success":   false,
 			},
 		}, nil
 	}
 
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	status, err := worktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status: %w", err)
+	}
+
+	var staged, unstaged, untracked []string
+
+	for file, fileStatus := range status {
+		if fileStatus.Staging == git.Untracked && fileStatus.Worktree == git.Untracked {
+			untracked = append(untracked, file)
+			continue
+		}
+
+		if fileStatus.Staging != git.Untracked && fileStatus.Staging != git.Unmodified {
+			staged = append(staged, file)
+		}
+
+		if fileStatus.Worktree != git.Unmodified {
+			unstaged = append(unstaged, file)
+		}
+	}
+
+	isClean := len(staged) == 0 && len(unstaged) == 0 && len(untracked) == 0
+
+	var summary string
+	if isClean {
+		summary = "Working tree clean"
+	} else {
+		parts := []string{}
+		if len(staged) > 0 {
+			parts = append(parts, fmt.Sprintf("%d staged", len(staged)))
+		}
+		if len(unstaged) > 0 {
+			parts = append(parts, fmt.Sprintf("%d unstaged", len(unstaged)))
+		}
+		if len(untracked) > 0 {
+			parts = append(parts, fmt.Sprintf("%d untracked", len(untracked)))
+		}
+		summary = strings.Join(parts, ", ")
+	}
+
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":  "Status not yet implemented",
-			"path":     path,
-			"porcelain": porcelain,
-			"valid":    true,
-			"success":  false,
+			"success":   true,
+			"isClean":   isClean,
+			"staged":    staged,
+			"unstaged":  unstaged,
+			"untracked": untracked,
+			"summary":   summary,
+			"path":      path,
+			"valid":     true,
+		},
+	}, nil
+}
+
+type BranchListExecutor struct{}
+
+func (e *BranchListExecutor) Type() string { return "git-branch-list" }
+
+func (e *BranchListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, res executor.TemplateResolver) (*executor.StepResult, error) {
+	config := res.ResolveMap(step.Config)
+
+	path := res.ResolveString(getString(config, "path"))
+	includeRemote := getBool(config, "all", false)
+	remoteName := res.ResolveString(getString(config, "remote"))
+
+	if path == "" {
+		return nil, fmt.Errorf("local path is required")
+	}
+
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	branches, err := repo.Branches()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get branches: %w", err)
+	}
+	defer branches.Close()
+
+	var branchNames []string
+
+	err = branches.ForEach(func(ref *plumbing.Reference) error {
+		if ref.Type() == plumbing.SymbolicReference && ref.Type() != plumbing.HashReference {
+			return nil
+		}
+		branchName := ref.Name().Short()
+		if remoteName != "" {
+			expectedPrefix := remoteName + "/"
+			if branchName != remoteName && len(branchName) > len(expectedPrefix) && branchName[:len(expectedPrefix)] == expectedPrefix {
+				branchNames = append(branchNames, branchName)
+			}
+		} else if ref.Name().IsBranch() || (includeRemote && ref.Name().IsRemote()) {
+			branchNames = append(branchNames, branchName)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate branches: %w", err)
+	}
+
+	headRef, err := repo.Head()
+	var currentBranch string
+	if err == nil && headRef != nil {
+		if headRef.Type() == plumbing.SymbolicReference {
+			currentBranch = headRef.Name().Short()
+		} else if headRef.Type() == plumbing.HashReference {
+			currentBranch = headRef.Hash().String()[:7]
+		}
+	}
+
+	return &executor.StepResult{
+		Output: map[string]interface{}{
+			"success":       true,
+			"branches":      branchNames,
+			"currentBranch": currentBranch,
+			"count":         len(branchNames),
 		},
 	}, nil
 }
