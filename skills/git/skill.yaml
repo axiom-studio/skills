@@ -55,7 +55,12 @@ spec:
         type: object
         description: Git credentials for private repos
         required: false
-        source: connection
+        source: credential
+        credentialTypes:
+          - http_basic_auth
+          - github_token
+          - gitlab_token
+          - bitbucket_token
         binding: vault://git-credentials
     git-commit:
       - name: repositoryPath
@@ -121,7 +126,12 @@ spec:
         type: object
         description: Push credentials
         required: false
-        source: connection
+        source: credential
+        credentialTypes:
+          - http_basic_auth
+          - github_token
+          - gitlab_token
+          - bitbucket_token
         binding: vault://git-push-credentials
     git-pull:
       - name: repositoryPath
