@@ -3,6 +3,11 @@
 *.exe
 
 # Go vendor directory
+vendor/
+
+# Skill binaries
+skills/*/*-skill
+skills/*/git
 
 # macOS
 .DS_Store
