@@ -232,11 +232,8 @@ spec:
         binding: vault://nats-credentials
   grpc:
     port: 50091
-    binary:
-      linux-amd64: skill-nats-linux-amd64
-      linux-arm64: skill-nats-linux-arm64
-      darwin-amd64: skill-nats-darwin-amd64
-      darwin-arm64: skill-nats-darwin-arm64
+    docker:
+      image: axiomstudio/skill-nats:1.0.0
   dependencies:
     standard:
       - logger

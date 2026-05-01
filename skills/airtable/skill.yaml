@@ -163,11 +163,8 @@ spec:
         default: false
   grpc:
     port: 50052
-    binary:
-      linux-amd64: skill-airtable-linux-amd64
-      linux-arm64: skill-airtable-linux-arm64
-      darwin-amd64: skill-airtable-darwin-amd64
-      darwin-arm64: skill-airtable-darwin-arm64
+    docker:
+      image: axiomstudio/skill-airtable:1.0.0
   dependencies:
     standard:
       - logger

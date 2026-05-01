@@ -360,11 +360,8 @@ spec:
         source: input
   grpc:
     port: 50087
-    binary:
-      linux-amd64: skill-helm-linux-amd64
-      linux-arm64: skill-helm-linux-arm64
-      darwin-amd64: skill-helm-darwin-amd64
-      darwin-arm64: skill-helm-darwin-arm64
+    docker:
+      image: axiomstudio/skill-helm:1.0.0
   dependencies:
     standard:
       - logger

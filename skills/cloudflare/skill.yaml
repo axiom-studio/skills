@@ -383,11 +383,8 @@ spec:
         source: input
   grpc:
     port: 50082
-    binary:
-      linux-amd64: skill-cloudflare-linux-amd64
-      linux-arm64: skill-cloudflare-linux-arm64
-      darwin-amd64: skill-cloudflare-darwin-amd64
-      darwin-arm64: skill-cloudflare-darwin-arm64
+    docker:
+      image: axiomstudio/skill-cloudflare:1.0.0
   dependencies:
     standard:
       - logger

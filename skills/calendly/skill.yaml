@@ -188,11 +188,8 @@ spec:
         source: input
   grpc:
     port: 50119
-    binary:
-      linux-amd64: skill-calendly-linux-amd64
-      linux-arm64: skill-calendly-linux-arm64
-      darwin-amd64: skill-calendly-darwin-amd64
-      darwin-arm64: skill-calendly-darwin-arm64
+    docker:
+      image: axiomstudio/skill-calendly:1.0.0
   dependencies:
     standard:
       - logger

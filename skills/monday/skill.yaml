@@ -168,11 +168,8 @@ spec:
         source: input
   grpc:
     port: 50107
-    binary:
-      linux-amd64: skill-monday-linux-amd64
-      linux-arm64: skill-monday-linux-arm64
-      darwin-amd64: skill-monday-darwin-amd64
-      darwin-arm64: skill-monday-darwin-arm64
+    docker:
+      image: axiomstudio/skill-monday:1.0.0
   dependencies:
     standard:
       - logger

@@ -39,6 +39,18 @@ run_manifest_validation() {
             fi
         done
 
+        # Check that grpc skills declare a docker image
+        if grep -q "executorType: grpc" "$manifest_file" 2>/dev/null; then
+            if ! grep -q "docker:" "$manifest_file" 2>/dev/null; then
+                log_fail "$skill_name: grpc skill missing required 'docker' field"
+                valid=false
+            fi
+            if ! grep -q "image:" "$manifest_file" 2>/dev/null; then
+                log_fail "$skill_name: grpc skill missing required 'image' field"
+                valid=false
+            fi
+        fi
+
         if [ "$valid" = true ]; then
             log_pass "$skill_name manifest valid"
             PASSED=$((PASSED + 1))

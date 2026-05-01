@@ -497,11 +497,8 @@ spec:
         default: false
   grpc:
     port: 50053
-    binary:
-      linux-amd64: skill-confluence-linux-amd64
-      linux-arm64: skill-confluence-linux-arm64
-      darwin-amd64: skill-confluence-darwin-amd64
-      darwin-arm64: skill-confluence-darwin-arm64
+    docker:
+      image: axiomstudio/skill-confluence:1.0.0
   dependencies:
     standard:
       - logger

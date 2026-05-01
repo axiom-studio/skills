@@ -244,11 +244,8 @@ spec:
         source: input
   grpc:
     port: 50116
-    binary:
-      linux-amd64: skill-paypal-linux-amd64
-      linux-arm64: skill-paypal-linux-arm64
-      darwin-amd64: skill-paypal-darwin-amd64
-      darwin-arm64: skill-paypal-darwin-arm64
+    docker:
+      image: axiomstudio/skill-paypal:1.0.0
   dependencies:
     standard:
       - logger

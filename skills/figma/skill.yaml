@@ -164,11 +164,8 @@ spec:
         source: input
   grpc:
     port: 50121
-    binary:
-      linux-amd64: skill-figma-linux-amd64
-      linux-arm64: skill-figma-linux-arm64
-      darwin-amd64: skill-figma-darwin-amd64
-      darwin-arm64: skill-figma-darwin-arm64
+    docker:
+      image: axiomstudio/skill-figma:1.0.0
   dependencies:
     standard:
       - logger

@@ -283,11 +283,8 @@ spec:
         binding: vault://digitalocean-credentials
   grpc:
     port: 50083
-    binary:
-      linux-amd64: skill-digitalocean-linux-amd64
-      linux-arm64: skill-digitalocean-linux-arm64
-      darwin-amd64: skill-digitalocean-darwin-amd64
-      darwin-arm64: skill-digitalocean-darwin-arm64
+    docker:
+      image: axiomstudio/skill-digitalocean:1.0.0
   dependencies:
     standard:
       - logger

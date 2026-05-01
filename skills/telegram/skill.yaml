@@ -203,11 +203,8 @@ spec:
         binding: vault://telegram-credentials
   grpc:
     port: 50109
-    binary:
-      linux-amd64: skill-telegram-linux-amd64
-      linux-arm64: skill-telegram-linux-arm64
-      darwin-amd64: skill-telegram-darwin-amd64
-      darwin-arm64: skill-telegram-darwin-arm64
+    docker:
+      image: axiomstudio/skill-telegram:1.0.0
   dependencies:
     standard:
       - logger

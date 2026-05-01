@@ -169,11 +169,8 @@ spec:
         binding: vault://whatsapp-credentials
   grpc:
     port: 50110
-    binary:
-      linux-amd64: skill-whatsapp-linux-amd64
-      linux-arm64: skill-whatsapp-linux-arm64
-      darwin-amd64: skill-whatsapp-darwin-amd64
-      darwin-arm64: skill-whatsapp-darwin-arm64
+    docker:
+      image: axiomstudio/skill-whatsapp:1.0.0
   dependencies:
     standard:
       - logger

@@ -344,11 +344,8 @@ spec:
         source: input
   grpc:
     port: 50057
-    binary:
-      linux-amd64: skill-aws-linux-amd64
-      linux-arm64: skill-aws-linux-arm64
-      darwin-amd64: skill-aws-darwin-amd64
-      darwin-arm64: skill-aws-darwin-arm64
+    docker:
+      image: axiomstudio/skill-aws:1.0.0
   dependencies:
     standard:
       - logger

@@ -625,11 +625,8 @@ spec:
         binding: vault://argocd-credentials
   grpc:
     port: 50073
-    binary:
-      linux-amd64: skill-argocd-linux-amd64
-      linux-arm64: skill-argocd-linux-arm64
-      darwin-amd64: skill-argocd-darwin-amd64
-      darwin-arm64: skill-argocd-darwin-arm64
+    docker:
+      image: axiomstudio/skill-argocd:1.0.0
   dependencies:
     standard:
       - logger

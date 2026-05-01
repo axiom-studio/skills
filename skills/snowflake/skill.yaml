@@ -296,11 +296,8 @@ spec:
         default: false
   grpc:
     port: 50053
-    binary:
-      linux-amd64: skill-snowflake-linux-amd64
-      linux-arm64: skill-snowflake-linux-arm64
-      darwin-amd64: skill-snowflake-darwin-amd64
-      darwin-arm64: skill-snowflake-darwin-arm64
+    docker:
+      image: axiomstudio/skill-snowflake:1.0.0
   dependencies:
     standard:
       - logger

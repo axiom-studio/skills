@@ -253,11 +253,8 @@ spec:
         source: input
   grpc:
     port: 50106
-    binary:
-      linux-amd64: skill-trello-linux-amd64
-      linux-arm64: skill-trello-linux-arm64
-      darwin-amd64: skill-trello-darwin-amd64
-      darwin-arm64: skill-trello-darwin-arm64
+    docker:
+      image: axiomstudio/skill-trello:1.0.0
   dependencies:
     standard:
       - logger

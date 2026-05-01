@@ -137,11 +137,8 @@ spec:
         source: input
   grpc:
     port: 50053
-    binary:
-      linux-amd64: skill-webhook-linux-amd64
-      linux-arm64: skill-webhook-linux-arm64
-      darwin-amd64: skill-webhook-darwin-amd64
-      darwin-arm64: skill-webhook-darwin-arm64
+    docker:
+      image: axiomstudio/skill-webhook:1.0.0
   dependencies:
     standard:
       - logger

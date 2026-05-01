@@ -300,11 +300,8 @@ spec:
         default: "5m"
   grpc:
     port: 50124
-    binary:
-      linux-amd64: skill-grafana-linux-amd64
-      linux-arm64: skill-grafana-linux-arm64
-      darwin-amd64: skill-grafana-darwin-amd64
-      darwin-arm64: skill-grafana-darwin-arm64
+    docker:
+      image: axiomstudio/skill-grafana:1.0.0
   dependencies:
     standard:
       - logger
