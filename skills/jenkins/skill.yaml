@@ -303,11 +303,8 @@ spec:
         binding: vault://jenkins-credentials
   grpc:
     port: 50085
-    binary:
-      linux-amd64: skill-jenkins-linux-amd64
-      linux-arm64: skill-jenkins-linux-arm64
-      darwin-amd64: skill-jenkins-darwin-amd64
-      darwin-arm64: skill-jenkins-darwin-arm64
+    docker:
+      image: axiomstudio/skill-jenkins:1.0.0
   dependencies:
     standard:
       - logger

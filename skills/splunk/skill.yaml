@@ -702,11 +702,8 @@ spec:
         default: "300s"
   grpc:
     port: 50122
-    binary:
-      linux-amd64: skill-splunk-linux-amd64
-      linux-arm64: skill-splunk-linux-arm64
-      darwin-amd64: skill-splunk-darwin-amd64
-      darwin-arm64: skill-splunk-darwin-arm64
+    docker:
+      image: axiomstudio/skill-splunk:1.0.0
   dependencies:
     standard:
       - logger

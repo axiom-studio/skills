@@ -28,7 +28,7 @@ run_build_validation() {
         build_count=$((build_count + 1))
         log_info "Building $skill_name..."
 
-        if (cd "$MONOREPO_DIR" && go build -buildvcs=false -o /dev/null "./skills/${skill_name}/..." 2>&1); then
+        if (cd "$MONOREPO_DIR" && go build -mod=mod -buildvcs=false -o /dev/null "./skills/${skill_name}/..." 2>&1); then
             log_pass "$skill_name built successfully"
             PASSED=$((PASSED + 1))
         else

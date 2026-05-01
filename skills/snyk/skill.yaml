@@ -146,11 +146,8 @@ spec:
         source: input
   grpc:
     port: 50095
-    binary:
-      linux-amd64: skill-snyk-linux-amd64
-      linux-arm64: skill-snyk-linux-arm64
-      darwin-amd64: skill-snyk-darwin-amd64
-      darwin-arm64: skill-snyk-darwin-arm64
+    docker:
+      image: axiomstudio/skill-snyk:1.0.0
   dependencies:
     standard:
       - logger

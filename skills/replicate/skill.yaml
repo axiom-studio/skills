@@ -134,11 +134,8 @@ spec:
         source: input
   grpc:
     port: 50099
-    binary:
-      linux-amd64: skill-replicate-linux-amd64
-      linux-arm64: skill-replicate-linux-arm64
-      darwin-amd64: skill-replicate-darwin-amd64
-      darwin-arm64: skill-replicate-darwin-arm64
+    docker:
+      image: axiomstudio/skill-replicate:1.0.0
   dependencies:
     standard:
       - logger

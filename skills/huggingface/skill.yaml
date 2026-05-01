@@ -201,11 +201,8 @@ spec:
         default: 20
   grpc:
     port: 50097
-    binary:
-      linux-amd64: skill-huggingface-linux-amd64
-      linux-arm64: skill-huggingface-linux-arm64
-      darwin-amd64: skill-huggingface-darwin-amd64
-      darwin-arm64: skill-huggingface-darwin-arm64
+    docker:
+      image: axiomstudio/skill-huggingface:1.0.0
   dependencies:
     standard:
       - logger

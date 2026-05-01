@@ -201,11 +201,8 @@ spec:
         default: "v1"
   grpc:
     port: 50095
-    binary:
-      linux-amd64: skill-git-linux-amd64
-      linux-arm64: skill-git-linux-arm64
-      darwin-amd64: skill-git-darwin-amd64
-      darwin-arm64: skill-git-darwin-arm64
+    docker:
+      image: axiomstudio/skill-git:1.0.0
   dependencies:
     standard:
       - logger

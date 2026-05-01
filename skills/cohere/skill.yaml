@@ -239,11 +239,8 @@ spec:
         source: input
   grpc:
     port: 50098
-    binary:
-      linux-amd64: skill-cohere-linux-amd64
-      linux-arm64: skill-cohere-linux-arm64
-      darwin-amd64: skill-cohere-darwin-amd64
-      darwin-arm64: skill-cohere-darwin-arm64
+    docker:
+      image: axiomstudio/skill-cohere:1.0.0
   dependencies:
     standard:
       - logger

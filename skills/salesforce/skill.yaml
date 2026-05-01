@@ -207,11 +207,8 @@ spec:
         source: input
   grpc:
     port: 50053
-    binary:
-      linux-amd64: skill-salesforce-linux-amd64
-      linux-arm64: skill-salesforce-linux-arm64
-      darwin-amd64: skill-salesforce-darwin-amd64
-      darwin-arm64: skill-salesforce-darwin-arm64
+    docker:
+      image: axiomstudio/skill-salesforce:1.0.0
   dependencies:
     standard:
       - logger

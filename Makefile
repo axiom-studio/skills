@@ -1,9 +1,10 @@
-# Axiom Skills Monorepo - Build System
-# Builds all skills as Linux amd64 static binaries
+# Axiom Skills Monorepo - Docker Build System
+# Builds all skills as Docker images
 
 SHELL := /bin/bash
 
 SKILLS_DIR := skills
+REGISTRY := axiomstudio
 
 # Skills that are NOT buildable as Go binaries
 # mcp: manifest-only, uses npx/uvx for external MCP servers
@@ -15,34 +16,49 @@ ALL_SKILL_DIRS := $(filter-out $(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS)),\
                    $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go))))
 SKILL_NAMES := $(notdir $(patsubst %/,%,$(ALL_SKILL_DIRS)))
 
-# Build flags
-CGO_ENABLED := 0
-GOOS := linux
-GOARCH := amd64
-LDFLAGS := -s -w
+.PHONY: docker-build docker-push clean help
 
-.PHONY: build clean help
-
-build: ## Build all skills as Linux amd64 binaries
-	@echo "Building $(words $(SKILL_NAMES)) skills for linux-amd64..."
+docker-build: ## Build Docker images for all skills
+	@echo "Building $(words $(SKILL_NAMES)) skill images..."
 	@echo ""
 	@for skill in $(SKILL_NAMES); do \
-		echo "  Building $$skill..."; \
-		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-			go build -ldflags="$(LDFLAGS)" -buildvcs=false \
-			-o $(SKILLS_DIR)/$$skill/skill-$$skill-linux-amd64 \
-			./$(SKILLS_DIR)/$$skill/... && \
-			echo "    ✓ $$skill" || \
-			echo "    ✗ $$skill FAILED"; \
+		port=$$(awk '/grpc:/{f=1} f&&/port:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		version=$$(awk '/^  version:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		id=$$(awk '/^  id:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		echo "  Building $(REGISTRY)/$$id:$$version..."; \
+		dockerfile="$(SKILLS_DIR)/$$skill/Dockerfile"; \
+		[ -f "$$dockerfile" ] || dockerfile="Dockerfile"; \
+		docker build -f $$dockerfile \
+			--build-arg SKILL_NAME=$$skill \
+			--build-arg SKILL_PORT=$$port \
+			-t $(REGISTRY)/$$id:$$version \
+			. && \
+		echo "    ✓ $$skill" || \
+		echo "    ✗ $$skill FAILED"; \
 	done
 	@echo ""
 	@echo "Build complete."
 
-clean: ## Remove all built binaries
-	@echo "Cleaning built binaries..."
-	@for dir in $(SKILLS_DIR)/*/; do \
-		rm -f "$$dir"/skill-*-linux-amd64; \
+docker-push: ## Push Docker images to registry
+	@echo "Pushing images..."
+	@echo ""
+	@for skill in $(SKILL_NAMES); do \
+		version=$$(awk '/^  version:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		id=$$(awk '/^  id:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		echo "  Pushing $(REGISTRY)/$$id:$$version..."; \
+		docker push $(REGISTRY)/$$id:$$version && \
+		echo "    ✓ $$skill" || \
+		echo "    ✗ $$skill FAILED"; \
 	done
+	@echo ""
+	@echo "Push complete."
+
+clean: ## Remove built binaries and dangling images
+	@echo "Cleaning..."
+	@for dir in $(SKILLS_DIR)/*/; do \
+		rm -f "$$dir"/skill-*-linux-*; \
+	done
+	@docker image prune -f >/dev/null 2>&1 || true
 	@echo "Clean complete."
 
 help: ## Show this help

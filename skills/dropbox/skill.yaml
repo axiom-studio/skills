@@ -159,11 +159,8 @@ spec:
         default: "relevance"
   grpc:
     port: 50052
-    binary:
-      linux-amd64: skill-dropbox-linux-amd64
-      linux-arm64: skill-dropbox-linux-arm64
-      darwin-amd64: skill-dropbox-darwin-amd64
-      darwin-arm64: skill-dropbox-darwin-arm64
+    docker:
+      image: axiomstudio/skill-dropbox:1.0.0
   dependencies:
     standard:
       - logger

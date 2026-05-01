@@ -356,11 +356,8 @@ spec:
         binding: vault://kafka-credentials
   grpc:
     port: 50089
-    binary:
-      linux-amd64: skill-kafka-linux-amd64
-      linux-arm64: skill-kafka-linux-arm64
-      darwin-amd64: skill-kafka-darwin-amd64
-      darwin-arm64: skill-kafka-darwin-arm64
+    docker:
+      image: axiomstudio/skill-kafka:1.0.0
   dependencies:
     standard:
       - logger

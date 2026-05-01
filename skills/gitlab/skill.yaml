@@ -495,11 +495,8 @@ spec:
         source: input
   grpc:
     port: 50084
-    binary:
-      linux-amd64: skill-gitlab-linux-amd64
-      linux-arm64: skill-gitlab-linux-arm64
-      darwin-amd64: skill-gitlab-darwin-amd64
-      darwin-arm64: skill-gitlab-darwin-arm64
+    docker:
+      image: axiomstudio/skill-gitlab:1.0.0
   dependencies:
     standard:
       - logger

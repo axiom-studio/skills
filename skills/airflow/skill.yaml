@@ -268,11 +268,8 @@ spec:
         binding: vault://airflow-credentials
   grpc:
     port: 50104
-    binary:
-      linux-amd64: skill-airflow-linux-amd64
-      linux-arm64: skill-airflow-linux-arm64
-      darwin-amd64: skill-airflow-darwin-amd64
-      darwin-arm64: skill-airflow-darwin-arm64
+    docker:
+      image: axiomstudio/skill-airflow:1.0.0
   dependencies:
     standard:
       - logger

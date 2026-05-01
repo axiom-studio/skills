@@ -166,11 +166,8 @@ spec:
         binding: vault://fivetran-credentials
   grpc:
     port: 50102
-    binary:
-      linux-amd64: skill-fivetran-linux-amd64
-      linux-arm64: skill-fivetran-linux-arm64
-      darwin-amd64: skill-fivetran-darwin-amd64
-      darwin-arm64: skill-fivetran-darwin-arm64
+    docker:
+      image: axiomstudio/skill-fivetran:1.0.0
   dependencies:
     standard:
       - logger

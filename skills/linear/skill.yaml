@@ -192,11 +192,8 @@ spec:
         source: input
   grpc:
     port: 50054
-    binary:
-      linux-amd64: skill-linear-linux-amd64
-      linux-arm64: skill-linear-linux-arm64
-      darwin-amd64: skill-linear-darwin-amd64
-      darwin-arm64: skill-linear-darwin-arm64
+    docker:
+      image: axiomstudio/skill-linear:1.0.0
   dependencies:
     standard:
       - logger
