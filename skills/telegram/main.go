@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ type TelegramConfig struct {
 
 // HTTPClient is the HTTP client for Telegram API calls
 var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: 45 * time.Second,
 }
 
 // TelegramAPIBase is the base URL for Telegram Bot API
@@ -88,6 +89,10 @@ func getInt(config map[string]interface{}, key string, def int) int {
 			return int(n)
 		case int:
 			return n
+		case string:
+			if i, err := strconv.Atoi(n); err == nil {
+				return i
+			}
 		}
 	}
 	return def
