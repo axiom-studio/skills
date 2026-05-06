@@ -212,7 +212,8 @@ spec:
         source: input
         default: 2
       - name: versions
-        type: array
+        items:
+          type: string
         description: Versions to delete
         required: false
         source: input
@@ -280,7 +281,8 @@ spec:
         source: connection
         binding: vault://vault-credentials
       - name: policies
-        type: array
+        items:
+          type: string
         description: List of policies
         required: false
         source: input

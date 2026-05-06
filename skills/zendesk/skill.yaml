@@ -80,12 +80,14 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Array of tags
         required: false
         source: input
       - name: customFields
-        type: array
+        items:
+          type: string
         description: Custom field values
         required: false
         source: input
@@ -148,7 +150,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Replace existing tags
         required: false
         source: input
@@ -201,7 +204,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Filter by tags
         required: false
         source: input
@@ -271,7 +275,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: User tags
         required: false
         source: input

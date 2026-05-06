@@ -88,7 +88,8 @@ spec:
         required: true
         source: input
       - name: attachmentUrls
-        type: array
+        items:
+          type: string
         description: Attachment URLs
         required: false
         source: input

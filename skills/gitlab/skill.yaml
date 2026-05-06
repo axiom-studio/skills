@@ -163,7 +163,8 @@ spec:
         required: true
         source: input
       - name: scope
-        type: array
+        items:
+          type: string
         description: Job scopes (created, pending, running, failed, success)
         required: false
         source: input
@@ -215,7 +216,8 @@ spec:
         source: input
         default: "opened"
       - name: labels
-        type: array
+        items:
+          type: string
         description: Filter by labels
         required: false
         source: input
@@ -263,17 +265,20 @@ spec:
         required: false
         source: input
       - name: assigneeIds
-        type: array
+        items:
+          type: string
         description: User IDs to assign
         required: false
         source: input
       - name: reviewerIds
-        type: array
+        items:
+          type: string
         description: Reviewer user IDs
         required: false
         source: input
       - name: labels
-        type: array
+        items:
+          type: string
         description: Labels to apply
         required: false
         source: input
@@ -348,7 +353,8 @@ spec:
         source: input
         default: "opened"
       - name: labels
-        type: array
+        items:
+          type: string
         description: Filter by labels
         required: false
         source: input
@@ -386,12 +392,14 @@ spec:
         required: false
         source: input
       - name: labels
-        type: array
+        items:
+          type: string
         description: Labels to apply
         required: false
         source: input
       - name: assigneeIds
-        type: array
+        items:
+          type: string
         description: Assignee user IDs
         required: false
         source: input

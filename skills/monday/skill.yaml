@@ -36,7 +36,8 @@ spec:
         source: connection
         binding: vault://monday-credentials
       - name: boardIds
-        type: array
+        items:
+          type: string
         description: Filter by board IDs
         required: false
         source: input

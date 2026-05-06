@@ -91,7 +91,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Tags to add
         required: false
         source: input

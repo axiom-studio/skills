@@ -85,17 +85,20 @@ spec:
         required: true
         source: input
       - name: severities
-        type: array
+        items:
+          type: string
         description: Filter by severities
         required: false
         source: input
       - name: types
-        type: array
+        items:
+          type: string
         description: Filter by types
         required: false
         source: input
       - name: statuses
-        type: array
+        items:
+          type: string
         description: Filter by statuses
         required: false
         source: input
@@ -156,7 +159,8 @@ spec:
         required: true
         source: input
       - name: metrics
-        type: array
+        items:
+          type: string
         description: Metrics to retrieve
         required: false
         source: input

@@ -32,7 +32,8 @@ spec:
   inputs:
     kafka-produce:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses (host:port)
         required: true
         source: input
@@ -93,7 +94,8 @@ spec:
         default: false
     kafka-consume:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -144,7 +146,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-topic-create:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -184,7 +187,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-topic-list:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -202,7 +206,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-topic-delete:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -225,7 +230,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-topic-describe:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -248,7 +254,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-consumer-group-list:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -266,7 +273,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-consumer-group-reset:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -300,7 +308,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-partition-list:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input
@@ -323,7 +332,8 @@ spec:
         binding: vault://kafka-credentials
     kafka-offset-get:
       - name: brokers
-        type: array
+        items:
+          type: string
         description: Broker addresses
         required: true
         source: input

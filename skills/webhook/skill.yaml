@@ -98,7 +98,8 @@ spec:
         required: false
         source: input
       - name: extractFields
-        type: array
+        items:
+          type: string
         description: Fields to extract from payload
         required: false
         source: input

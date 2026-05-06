@@ -43,17 +43,20 @@ spec:
         required: false
         source: input
       - name: toEmails
-        type: array
+        items:
+          type: string
         description: Recipient email addresses
         required: true
         source: input
       - name: ccEmails
-        type: array
+        items:
+          type: string
         description: CC email addresses
         required: false
         source: input
       - name: bccEmails
-        type: array
+        items:
+          type: string
         description: BCC email addresses
         required: false
         source: input
@@ -185,7 +188,8 @@ spec:
         required: false
         source: input
       - name: contactIds
-        type: array
+        items:
+          type: string
         description: Contact IDs to add to list
         required: false
         source: input
@@ -227,7 +231,8 @@ spec:
         required: false
         source: input
       - name: listIds
-        type: array
+        items:
+          type: string
         description: Contact list IDs to send to (required for create)
         required: false
         source: input

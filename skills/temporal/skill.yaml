@@ -56,7 +56,8 @@ spec:
         required: true
         source: input
       - name: input
-        type: array
+        items:
+          type: string
         description: Workflow input arguments
         required: false
         source: input
@@ -335,7 +336,8 @@ spec:
         required: true
         source: input
       - name: queryArgs
-        type: array
+        items:
+          type: string
         description: Query arguments
         required: false
         source: input

@@ -122,7 +122,8 @@ spec:
         required: false
         source: input
       - name: labels
-        type: array
+        items:
+          type: string
         description: Label IDs
         required: false
         source: input

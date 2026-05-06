@@ -82,12 +82,14 @@ spec:
         required: false
         source: input
       - name: sections
-        type: array
+        items:
+          type: string
         description: Array of section objects
         required: false
         source: input
       - name: actions
-        type: array
+        items:
+          type: string
         description: Array of action buttons
         required: false
         source: input
