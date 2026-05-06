@@ -75,7 +75,8 @@ spec:
         required: true
         source: input
       - name: files
-        type: array
+        items:
+          type: string
         description: Files to commit (empty for all)
         required: false
         source: input

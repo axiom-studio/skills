@@ -92,7 +92,8 @@ spec:
         source: connection
         binding: vault://okta-credentials
       - name: groups
-        type: array
+        items:
+          type: string
         description: Group IDs to add
         required: false
         source: input

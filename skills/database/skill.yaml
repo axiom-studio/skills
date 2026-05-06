@@ -45,7 +45,8 @@ spec:
         source: input
         default: "postgres"
       - name: params
-        type: array
+        items:
+          type: string
         description: Query parameters
         required: false
         source: input
@@ -131,7 +132,8 @@ spec:
         source: connection
         binding: vault://database-credentials
       - name: queries
-        type: array
+        items:
+          type: string
         description: Array of SQL queries to execute in transaction
         required: true
         source: input

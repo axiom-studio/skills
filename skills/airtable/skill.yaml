@@ -53,7 +53,8 @@ spec:
         required: false
         source: input
       - name: sort
-        type: array
+        items:
+          type: string
         description: Array of sort options
         required: false
         source: input
@@ -80,7 +81,8 @@ spec:
         required: true
         source: input
       - name: records
-        type: array
+        items:
+          type: string
         description: Array of record objects with fields
         required: true
         source: input
@@ -102,7 +104,8 @@ spec:
         required: true
         source: input
       - name: records
-        type: array
+        items:
+          type: string
         description: Array of record objects with id and fields
         required: true
         source: input
@@ -124,7 +127,8 @@ spec:
         required: true
         source: input
       - name: recordIds
-        type: array
+        items:
+          type: string
         description: Array of record IDs to delete
         required: true
         source: input

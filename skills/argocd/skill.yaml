@@ -510,12 +510,14 @@ spec:
         required: false
         source: input
       - name: destinations
-        type: array
+        items:
+          type: string
         description: Allowed destinations
         required: false
         source: input
       - name: sourceRepos
-        type: array
+        items:
+          type: string
         description: Allowed source repos
         required: false
         source: input

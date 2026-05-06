@@ -68,7 +68,8 @@ spec:
         required: false
         source: input
       - name: stopSequences
-        type: array
+        items:
+          type: string
         description: Stop sequences
         required: false
         source: input
@@ -95,7 +96,8 @@ spec:
         required: false
         source: input
       - name: chatHistory
-        type: array
+        items:
+          type: string
         description: Chat history
         required: false
         source: input
@@ -113,7 +115,8 @@ spec:
         source: connection
         binding: vault://cohere-credentials
       - name: texts
-        type: array
+        items:
+          type: string
         description: Texts to embed
         required: true
         source: input
@@ -141,12 +144,14 @@ spec:
         required: false
         source: input
       - name: inputs
-        type: array
+        items:
+          type: string
         description: Texts to classify
         required: true
         source: input
       - name: examples
-        type: array
+        items:
+          type: string
         description: Classification examples
         required: true
         source: input
@@ -198,7 +203,8 @@ spec:
         required: true
         source: input
       - name: documents
-        type: array
+        items:
+          type: string
         description: Documents to rerank
         required: true
         source: input

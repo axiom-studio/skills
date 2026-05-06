@@ -134,7 +134,8 @@ spec:
         required: false
         source: input
       - name: fields
-        type: array
+        items:
+          type: string
         description: Array of embed fields
         required: false
         source: input
