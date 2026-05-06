@@ -206,9 +206,15 @@ func (s *SkillServer) registerWithAtlas(port string, nodeTypes []string) {
 	// Then register with Atlas
 	registerURL := fmt.Sprintf("%s/internal/skills/register", atlasURL)
 
+	// Use SKILL_ADDRESS if set (e.g. K8s DNS name), otherwise localhost.
+	address := os.Getenv("SKILL_ADDRESS")
+	if address == "" {
+		address = fmt.Sprintf("localhost:%s", port)
+	}
+
 	req := map[string]interface{}{
 		"skillId":   s.skillID,
-		"address":   fmt.Sprintf("localhost:%s", port),
+		"address":   address,
 		"nodeTypes": nodeTypes,
 	}
 
