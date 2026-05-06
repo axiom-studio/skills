@@ -47,7 +47,8 @@ spec:
         required: false
         source: input
       - name: files
-        type: array
+        items:
+          type: string
         description: Files to deploy
         required: true
         source: input
@@ -173,7 +174,8 @@ spec:
         source: connection
         binding: vault://vercel-credentials
       - name: target
-        type: array
+        items:
+          type: string
         description: Target environments
         required: false
         source: input

@@ -85,7 +85,8 @@ spec:
         required: false
         source: input
       - name: assignees
-        type: array
+        items:
+          type: string
         description: Assignee user IDs
         required: false
         source: input

@@ -377,13 +377,15 @@ spec:
         source: input
     memory_create_entities:
       - name: entities
-        type: array
+        items:
+          type: string
         description: Entities to create
         required: true
         source: input
     memory_create_relations:
       - name: relations
-        type: array
+        items:
+          type: string
         description: Relations to create
         required: true
         source: input

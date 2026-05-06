@@ -178,6 +178,8 @@ spec:
         source: input
       - name: events
         type: array
+        items:
+          type: string
         description: Events to subscribe to
         required: true
         source: input

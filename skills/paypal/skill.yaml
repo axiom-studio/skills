@@ -190,7 +190,8 @@ spec:
         source: default
         default: false
       - name: payouts
-        type: array
+        items:
+          type: string
         description: Payout items
         required: true
         source: input

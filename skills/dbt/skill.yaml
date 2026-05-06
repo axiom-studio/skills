@@ -50,17 +50,20 @@ spec:
         required: false
         source: input
       - name: select
-        type: array
+        items:
+          type: string
         description: Select models
         required: false
         source: input
       - name: exclude
-        type: array
+        items:
+          type: string
         description: Exclude models
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Filter by tags
         required: false
         source: input
@@ -92,12 +95,14 @@ spec:
         required: false
         source: input
       - name: select
-        type: array
+        items:
+          type: string
         description: Select tests
         required: false
         source: input
       - name: exclude
-        type: array
+        items:
+          type: string
         description: Exclude tests
         required: false
         source: input
@@ -128,7 +133,8 @@ spec:
         required: false
         source: input
       - name: select
-        type: array
+        items:
+          type: string
         description: Select models
         required: false
         source: input
@@ -175,7 +181,8 @@ spec:
         required: false
         source: input
       - name: select
-        type: array
+        items:
+          type: string
         description: Select seed files
         required: false
         source: input
@@ -201,7 +208,8 @@ spec:
         required: false
         source: input
       - name: select
-        type: array
+        items:
+          type: string
         description: Select snapshots
         required: false
         source: input

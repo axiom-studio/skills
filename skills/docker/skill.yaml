@@ -56,7 +56,8 @@ spec:
         required: false
         source: input
       - name: command
-        type: array
+        items:
+          type: string
         description: Command to run
         required: false
         source: input
@@ -66,12 +67,14 @@ spec:
         required: false
         source: input
       - name: ports
-        type: array
+        items:
+          type: string
         description: Port mappings
         required: false
         source: input
       - name: volumes
-        type: array
+        items:
+          type: string
         description: Volume mounts
         required: false
         source: input

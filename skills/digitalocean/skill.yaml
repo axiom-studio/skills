@@ -79,7 +79,8 @@ spec:
         required: true
         source: input
       - name: sshKeys
-        type: array
+        items:
+          type: string
         description: SSH key IDs or fingerprints
         required: false
         source: input
@@ -89,7 +90,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Tags to apply
         required: false
         source: input
@@ -168,7 +170,8 @@ spec:
         required: true
         source: input
       - name: nodePools
-        type: array
+        items:
+          type: string
         description: Node pool configurations
         required: true
         source: input

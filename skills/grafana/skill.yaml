@@ -47,7 +47,8 @@ spec:
         required: false
         source: input
       - name: tag
-        type: array
+        items:
+          type: string
         description: Filter by tags
         required: false
         source: input
@@ -69,7 +70,8 @@ spec:
         required: true
         source: input
       - name: panels
-        type: array
+        items:
+          type: string
         description: Panel configurations
         required: false
         source: input
@@ -217,7 +219,8 @@ spec:
         required: false
         source: input
       - name: tags
-        type: array
+        items:
+          type: string
         description: Annotation tags
         required: false
         source: input
@@ -276,7 +279,8 @@ spec:
         required: true
         source: input
       - name: data
-        type: array
+        items:
+          type: string
         description: Alert query data
         required: true
         source: input

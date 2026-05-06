@@ -127,7 +127,8 @@ spec:
         required: true
         source: input
       - name: subjects
-        type: array
+        items:
+          type: string
         description: Subjects to store
         required: true
         source: input

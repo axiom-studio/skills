@@ -120,7 +120,8 @@ spec:
         required: true
         source: input
       - name: properties
-        type: array
+        items:
+          type: string
         description: Properties to return
         required: false
         source: input

@@ -97,7 +97,8 @@ spec:
         required: true
         source: input
       - name: conditions
-        type: array
+        items:
+          type: string
         description: Alert conditions
         required: false
         source: input
@@ -121,7 +122,8 @@ spec:
         required: true
         source: input
       - name: widgets
-        type: array
+        items:
+          type: string
         description: Dashboard widgets
         required: false
         source: input

@@ -78,7 +78,8 @@ spec:
         source: input
         default: "en_US"
       - name: components
-        type: array
+        items:
+          type: string
         description: Template components
         required: false
         source: input

@@ -330,7 +330,8 @@ spec:
         required: true
         source: input
       - name: panels
-        type: array
+        items:
+          type: string
         description: Dashboard panels
         required: false
         source: input
@@ -386,7 +387,8 @@ spec:
         required: true
         source: input
       - name: panels
-        type: array
+        items:
+          type: string
         description: Dashboard panels
         required: false
         source: input

@@ -48,7 +48,8 @@ spec:
         source: connection
         binding: vault://airflow-credentials
       - name: tags
-        type: array
+        items:
+          type: string
         description: Filter DAGs by tags
         required: false
         source: input

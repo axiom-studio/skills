@@ -130,7 +130,8 @@ spec:
         required: true
         source: input
       - name: documents
-        type: array
+        items:
+          type: string
         description: Documents to insert
         required: true
         source: input
@@ -268,7 +269,8 @@ spec:
         required: true
         source: input
       - name: pipeline
-        type: array
+        items:
+          type: string
         description: Aggregation pipeline stages
         required: true
         source: input

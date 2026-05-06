@@ -188,7 +188,8 @@ spec:
         required: false
         source: input
       - name: compatibilityFlags
-        type: array
+        items:
+          type: string
         description: Compatibility flags
         required: false
         source: input
