@@ -18,6 +18,7 @@ metadata:
   color: "#4285F4"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - gdrive-list
     - gdrive-upload

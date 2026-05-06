@@ -18,6 +18,7 @@ metadata:
   color: "#7B68EE"
 spec:
   executorType: grpc
+  credentialType: clickup_api
   nodeTypes:
     - clickup-task-list
     - clickup-task-create

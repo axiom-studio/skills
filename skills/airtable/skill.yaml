@@ -18,6 +18,7 @@ metadata:
   color: "#FCB400"
 spec:
   executorType: grpc
+  credentialType: airtable_api
   nodeTypes:
     - airtable-list
     - airtable-create

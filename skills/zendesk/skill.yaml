@@ -18,6 +18,7 @@ metadata:
   color: "#03363D"
 spec:
   executorType: grpc
+  credentialType: zendesk_api
   nodeTypes:
     - zendesk-ticket-create
     - zendesk-ticket-update

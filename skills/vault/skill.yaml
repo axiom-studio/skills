@@ -19,6 +19,7 @@ metadata:
   color: "#FFEC6E"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - vault-read
     - vault-write

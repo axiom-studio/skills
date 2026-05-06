@@ -19,6 +19,7 @@ metadata:
   color: "#FF9900"
 spec:
   executorType: grpc
+  credentialType: aws_credentials
   nodeTypes:
     - aws-s3-list-buckets
     - aws-s3-list-objects

@@ -18,6 +18,7 @@ metadata:
   color: "#1F8DED"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - intercom-conversation-list
     - intercom-conversation-get

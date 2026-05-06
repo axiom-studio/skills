@@ -18,6 +18,7 @@ metadata:
   color: "#2D8CFF"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - zoom-meeting-create
     - zoom-meeting-list

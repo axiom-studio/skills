@@ -18,6 +18,7 @@ metadata:
   color: "#006BFF"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - calendly-event-list
     - calendly-event-get
@@ -29,7 +30,7 @@ spec:
     - calendly-webhook-create
   inputs:
     calendly-event-list:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
@@ -52,7 +53,7 @@ spec:
         source: input
         default: 20
     calendly-event-get:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
@@ -64,13 +65,13 @@ spec:
         required: true
         source: input
     calendly-event-create:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
         source: connection
         binding: vault://calendly-credentials
-      - name: eventTypeId
+      - name: eventTypeUri
         type: string
         description: Event type URI
         required: true
@@ -90,13 +91,38 @@ spec:
         description: Start time (ISO 8601)
         required: true
         source: input
-      - name: timezone
+      - name: endTime
         type: string
-        description: Timezone
+        description: End time (ISO 8601)
+        required: false
+        source: input
+      - name: inviteeTimezone
+        type: string
+        description: Invitee timezone
+        required: false
+        source: input
+      - name: inviteePhone
+        type: string
+        description: Invitee phone number
+        required: false
+        source: input
+      - name: location
+        type: string
+        description: Event location
+        required: false
+        source: input
+      - name: locationType
+        type: string
+        description: Location type (physical, phone, zoom, teams, meet, custom)
+        required: false
+        source: input
+      - name: customAnswers
+        type: object
+        description: Answers to custom questions
         required: false
         source: input
     calendly-cancel:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
@@ -113,7 +139,7 @@ spec:
         required: false
         source: input
     calendly-reschedule:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
@@ -130,13 +156,13 @@ spec:
         required: true
         source: input
     calendly-availability:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
         source: connection
         binding: vault://calendly-credentials
-      - name: eventTypeId
+      - name: eventTypeUri
         type: string
         description: Event type URI
         required: true
@@ -151,8 +177,19 @@ spec:
         description: Search end time (ISO 8601)
         required: true
         source: input
+      - name: duration
+        type: integer
+        description: Required duration in minutes
+        required: false
+        source: input
+      - name: maxResults
+        type: integer
+        description: Maximum number of slots to return
+        required: false
+        source: input
+        default: 10
     calendly-user-get:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true
@@ -165,7 +202,7 @@ spec:
         source: input
         default: "me"
     calendly-webhook-create:
-      - name: apiKey
+      - name: apiToken
         type: string
         description: Calendly API token
         required: true

@@ -18,6 +18,7 @@ metadata:
   color: "#29B5E8"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - sf-query
     - sf-warehouse

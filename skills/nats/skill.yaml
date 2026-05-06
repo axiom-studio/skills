@@ -18,6 +18,7 @@ metadata:
   color: "#27AAE1"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - nats-publish
     - nats-subscribe

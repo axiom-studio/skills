@@ -18,6 +18,7 @@ metadata:
   color: "#0061FE"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - dropbox-upload
     - dropbox-download

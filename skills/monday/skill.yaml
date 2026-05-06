@@ -18,6 +18,7 @@ metadata:
   color: "#FF3D57"
 spec:
   executorType: grpc
+  credentialType: monday_api
   nodeTypes:
     - monday-board-list
     - monday-board-get

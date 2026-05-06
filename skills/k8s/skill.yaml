@@ -17,6 +17,7 @@ metadata:
   color: "#326CE5"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - k8s-get
     - k8s-list

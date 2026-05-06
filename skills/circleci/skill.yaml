@@ -18,6 +18,7 @@ metadata:
   color: "#343434"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - circleci-project-list
     - circleci-pipeline-trigger

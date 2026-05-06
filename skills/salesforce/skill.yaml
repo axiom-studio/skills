@@ -18,6 +18,7 @@ metadata:
   color: "#00A1E0"
 spec:
   executorType: grpc
+  credentialType: salesforce_api
   nodeTypes:
     - sf-query
     - sf-create

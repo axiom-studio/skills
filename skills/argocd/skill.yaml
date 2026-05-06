@@ -19,6 +19,7 @@ metadata:
   color: "#EF7B4D"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     # Application operations
     - argocd-app-list

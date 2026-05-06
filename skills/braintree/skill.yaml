@@ -18,6 +18,7 @@ metadata:
   color: "#000000"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - braintree-transaction-sale
     - braintree-transaction-void

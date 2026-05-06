@@ -18,6 +18,7 @@ metadata:
   color: "#F06A6A"
 spec:
   executorType: grpc
+  credentialType: asana_token
   nodeTypes:
     - asana-task-list
     - asana-task-create

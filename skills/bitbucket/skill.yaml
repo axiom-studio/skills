@@ -18,6 +18,7 @@ metadata:
   color: "#0052CC"
 spec:
   executorType: grpc
+  credentialType: bitbucket_token
   nodeTypes:
     - bitbucket-repo-list
     - bitbucket-repo-get

@@ -18,6 +18,7 @@ metadata:
   color: "#0F1689"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - helm-install
     - helm-upgrade

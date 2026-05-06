@@ -18,6 +18,7 @@ metadata:
   color: "#F05032"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - git-clone
     - git-commit

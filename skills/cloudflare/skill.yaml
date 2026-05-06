@@ -19,6 +19,7 @@ metadata:
   color: "#F38020"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - cf-dns-list
     - cf-dns-create

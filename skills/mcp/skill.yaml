@@ -24,6 +24,7 @@ metadata:
 
 spec:
   executorType: mcp
+  credentialType: generic
 
   tools:
     # ====================

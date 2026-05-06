@@ -19,6 +19,7 @@ metadata:
   color: "#336791"
 spec:
   executorType: grpc
+  credentialType: database
   nodeTypes:
     - db-query
     - db-insert

@@ -18,6 +18,7 @@ metadata:
   color: "#D24939"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - jenkins-job-list
     - jenkins-job-trigger
