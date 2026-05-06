@@ -19,6 +19,7 @@ metadata:
   color: "#2496ED"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - docker-container-list
     - docker-container-create

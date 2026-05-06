@@ -18,6 +18,7 @@ metadata:
   color: "#1C3C3C"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - langsmith-trace-list
     - langsmith-trace-get

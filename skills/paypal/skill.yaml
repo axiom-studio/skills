@@ -18,6 +18,7 @@ metadata:
   color: "#003087"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - paypal-order-create
     - paypal-order-capture

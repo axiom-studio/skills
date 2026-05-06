@@ -19,6 +19,7 @@ metadata:
   color: "#4285F4"
 spec:
   executorType: grpc
+  credentialType: gcp_credentials
   nodeTypes:
     - gcp-instance-list
     - gcp-instance-start

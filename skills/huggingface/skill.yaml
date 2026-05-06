@@ -18,6 +18,7 @@ metadata:
   color: "#FFD21E"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - hf-inference
     - hf-model-list

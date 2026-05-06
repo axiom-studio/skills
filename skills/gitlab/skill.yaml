@@ -18,6 +18,7 @@ metadata:
   color: "#FC6D26"
 spec:
   executorType: grpc
+  credentialType: gitlab_token
   nodeTypes:
     - gitlab-project-list
     - gitlab-project-get

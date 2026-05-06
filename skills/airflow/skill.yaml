@@ -18,6 +18,7 @@ metadata:
   color: "#017CEE"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - airflow-dag-list
     - airflow-dag-trigger

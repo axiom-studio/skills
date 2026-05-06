@@ -19,6 +19,7 @@ metadata:
   color: "#0080FF"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - do-droplet-list
     - do-droplet-create

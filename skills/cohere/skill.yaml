@@ -18,6 +18,7 @@ metadata:
   color: "#39594D"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - cohere-generate
     - cohere-chat

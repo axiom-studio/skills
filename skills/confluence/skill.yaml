@@ -18,6 +18,7 @@ metadata:
   color: "#0052CC"
 spec:
   executorType: grpc
+  credentialType: confluence_api
   nodeTypes:
     - confluence-page-list
     - confluence-page-get

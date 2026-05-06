@@ -18,6 +18,7 @@ metadata:
   color: "#5E6AD2"
 spec:
   executorType: grpc
+  credentialType: linear_api
   nodeTypes:
     - linear-issue-create
     - linear-issue-update
