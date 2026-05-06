@@ -18,6 +18,7 @@ metadata:
   color: "#F24E1E"
 spec:
   executorType: grpc
+  credentialType: figma_token
   nodeTypes:
     - figma-file-list
     - figma-file-get

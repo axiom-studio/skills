@@ -18,6 +18,7 @@ metadata:
   color: "#615EFF"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - airbyte-source-list
     - airbyte-source-create

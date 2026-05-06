@@ -19,6 +19,7 @@ metadata:
   color: "#0078D4"
 spec:
   executorType: grpc
+  credentialType: azure_credentials
   nodeTypes:
     - azure-vm-list
     - azure-vm-start

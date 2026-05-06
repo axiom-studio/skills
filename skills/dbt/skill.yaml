@@ -18,6 +18,7 @@ metadata:
   color: "#FF694B"
 spec:
   executorType: grpc
+  credentialType: generic
   nodeTypes:
     - dbt-run
     - dbt-test

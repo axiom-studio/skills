@@ -18,6 +18,7 @@ metadata:
   color: "#5E8E3E"
 spec:
   executorType: grpc
+  credentialType: shopify_api
   nodeTypes:
     - shopify-product
     - shopify-order

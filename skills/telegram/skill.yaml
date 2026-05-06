@@ -18,6 +18,7 @@ metadata:
   color: "#0088CC"
 spec:
   executorType: grpc
+  credentialType: telegram_bot
   nodeTypes:
     - telegram-send-message
     - telegram-edit-message

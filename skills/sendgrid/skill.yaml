@@ -18,6 +18,7 @@ metadata:
   color: "#0086FF"
 spec:
   executorType: grpc
+  credentialType: sendgrid_api
   nodeTypes:
     - sg-send
     - sg-template
