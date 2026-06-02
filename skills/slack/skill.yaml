@@ -1,0 +1,71 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: slack
+  name: Slack Skill
+  description: Send messages and interact with Slack channels
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: communication
+  tags:
+    - slack
+    - notifications
+    - messaging
+    - chat
+  icon: message-circle
+  color: "#4A154B"
+spec:
+  executorType: grpc
+  credentialType: slack_bot_token
+  nodeTypes:
+    - slack-send-message
+    - slack-read-messages
+    - slack-channel-list
+  inputs:
+    slack-send-message:
+      - name: channel
+        type: string
+        description: Slack channel ID or name
+        required: true
+        source: input
+      - name: message
+        type: string
+        description: Message text to send
+        required: true
+        source: input
+      - name: threadTs
+        type: string
+        description: Thread timestamp for replying in a thread
+        required: false
+        source: input
+    slack-read-messages:
+      - name: channel
+        type: string
+        description: Slack channel ID or name
+        required: true
+        source: input
+      - name: limit
+        type: integer
+        description: Maximum number of messages to retrieve
+        required: false
+        source: input
+        default: 10
+    slack-channel-list:
+      - name: types
+        type: string
+        description: Channel types to filter (public_channel, private_channel)
+        required: false
+        source: input
+  grpc:
+    port: 50054
+    docker:
+      image: axiomstudio/skill-slack:1.0.0
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - slack:read
+    - slack:write
