@@ -1,0 +1,87 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: quickbooks
+  name: QuickBooks Skill
+  description: Manage invoices, expenses, and financial data through QuickBooks
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: finance
+  tags:
+    - quickbooks
+    - accounting
+    - finance
+    - invoicing
+  icon: file-invoice
+  color: "#2CA01C"
+spec:
+  executorType: grpc
+  credentialType: quickbooks_oauth
+  nodeTypes:
+    - quickbooks-invoice
+    - quickbooks-report
+    - quickbooks-customer
+    - quickbooks-expense
+  inputs:
+    quickbooks-invoice:
+      - name: customerId
+        type: string
+        description: QuickBooks customer ID
+        required: true
+        source: input
+      - name: lineItems
+        type: json
+        description: Array of line items with amount and description
+        required: true
+        source: input
+    quickbooks-report:
+      - name: reportType
+        type: string
+        description: Type of report (profit-and-loss, balance-sheet, cash-flow)
+        required: true
+        source: input
+      - name: startDate
+        type: string
+        description: Report start date (YYYY-MM-DD)
+        required: false
+        source: input
+      - name: endDate
+        type: string
+        description: Report end date (YYYY-MM-DD)
+        required: false
+        source: input
+    quickbooks-customer:
+      - name: displayName
+        type: string
+        description: Customer display name
+        required: true
+        source: input
+      - name: email
+        type: string
+        description: Customer email address
+        required: false
+        source: input
+    quickbooks-expense:
+      - name: accountId
+        type: string
+        description: Expense account ID
+        required: true
+        source: input
+      - name: amount
+        type: number
+        description: Expense amount
+        required: true
+        source: input
+  grpc:
+    port: 50053
+    docker:
+      image: axiomstudio/skill-quickbooks:1.0.0
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - quickbooks:read
+    - quickbooks:write
