@@ -1,0 +1,74 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-builtin
+  name: Built-in Agent Tools
+  description: Universal tools available to every agent out of the box. Provides web page fetching, file downloading, and web searching capabilities without requiring any credentials.
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: builtin
+  tags:
+    - builtin
+    - web
+    - download
+    - utility
+    - search
+  icon: zap
+  color: "#10B981"
+spec:
+  executorType: grpc
+  nodeTypes:
+    - fetch-url
+    - download-file
+  inputs:
+    fetch-url:
+      - name: url
+        type: string
+        description: The URL to fetch
+        required: true
+        source: input
+      - name: max_length
+        type: integer
+        description: Maximum characters to return
+        required: false
+        source: input
+        default: 8000
+      - name: timeout
+        type: integer
+        description: Request timeout in seconds
+        required: false
+        source: input
+        default: 10
+    download-file:
+      - name: url
+        type: string
+        description: The URL of the file to download
+        required: true
+        source: input
+      - name: filename
+        type: string
+        description: Optional desired filename
+        required: false
+        source: input
+      - name: mime_type
+        type: string
+        description: Optional MIME type hint
+        required: false
+        source: input
+      - name: timeout
+        type: integer
+        description: Download timeout in seconds
+        required: false
+        source: input
+        default: 30
+  grpc:
+    port: 50130
+    docker:
+      image: axiomstudio/skill-builtin:1.0.0
+  dependencies:
+    standard:
+      - logger
+  permissions:
+    - builtin:read
