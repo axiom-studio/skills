@@ -1,0 +1,133 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-heygen
+  name: HeyGen Skill
+  description: HeyGen avatar video generation and voice discovery for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: ai
+  tags:
+    - heygen
+    - ai
+    - video
+    - avatar
+  icon: video
+  color: "#6366F1"
+spec:
+  executorType: grpc
+  credentialType: generic
+  nodeTypes:
+    - heygen-create-video
+    - heygen-get-video
+    - heygen-list-voices
+  inputs:
+    heygen-create-video:
+      - name: apiKey
+        type: string
+        description: HeyGen API key
+        required: true
+        source: connection
+        binding: vault://heygen-credentials
+      - name: avatarId
+        type: string
+        description: HeyGen avatar ID
+        required: true
+        source: input
+      - name: script
+        type: string
+        description: Text script for the avatar to speak
+        required: true
+        source: input
+      - name: voiceId
+        type: string
+        description: Optional voice ID for text-to-speech
+        required: false
+        source: input
+      - name: title
+        type: string
+        description: Display title for the video
+        required: false
+        source: input
+      - name: resolution
+        type: string
+        description: Output video resolution
+        required: false
+        source: input
+        default: "1080p"
+      - name: aspectRatio
+        type: string
+        description: Output video aspect ratio
+        required: false
+        source: input
+        default: "16:9"
+      - name: callbackUrl
+        type: string
+        description: Webhook URL to receive completion notification
+        required: false
+        source: input
+      - name: idempotencyKey
+        type: string
+        description: Optional idempotency key for safe retries
+        required: false
+        source: input
+    heygen-get-video:
+      - name: apiKey
+        type: string
+        description: HeyGen API key
+        required: true
+        source: connection
+        binding: vault://heygen-credentials
+      - name: videoId
+        type: string
+        description: Video ID to retrieve
+        required: true
+        source: input
+    heygen-list-voices:
+      - name: apiKey
+        type: string
+        description: HeyGen API key
+        required: true
+        source: connection
+        binding: vault://heygen-credentials
+      - name: type
+        type: string
+        description: Voice type, public or private
+        required: false
+        source: input
+        default: "public"
+      - name: engine
+        type: string
+        description: Optional voice engine filter
+        required: false
+        source: input
+      - name: language
+        type: string
+        description: Optional language filter
+        required: false
+        source: input
+      - name: gender
+        type: string
+        description: Optional gender filter
+        required: false
+        source: input
+      - name: limit
+        type: integer
+        description: Results per page
+        required: false
+        source: input
+        default: 20
+  grpc:
+    port: 50132
+    docker:
+      image: axiomstudio/skill-heygen:1.0.0
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - heygen:video:create
+    - heygen:video:read
+    - heygen:voice:read
