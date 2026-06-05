@@ -1,0 +1,375 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-pipedrive
+  name: Pipedrive Skill
+  description: Pipedrive CRM operations for Atlas agents - search, deals, persons, organizations, and activities
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: crm
+  tags:
+    - pipedrive
+    - crm
+    - sales
+    - pipeline
+  icon: kanban
+  color: "#017737"
+spec:
+  executorType: grpc
+  credentialType: generic
+  nodeTypes:
+    - pipedrive-api-request
+    - pipedrive-search
+    - pipedrive-list
+    - pipedrive-get
+    - pipedrive-create-record
+    - pipedrive-update-record
+    - pipedrive-delete-record
+    - pipedrive-create-person
+    - pipedrive-create-organization
+    - pipedrive-create-deal
+    - pipedrive-update-deal
+    - pipedrive-create-activity
+  inputs:
+    pipedrive-api-request:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: baseURL
+        type: string
+        description: Optional Pipedrive API base URL
+        required: false
+        source: input
+        default: "https://api.pipedrive.com"
+      - name: method
+        type: string
+        description: HTTP method
+        required: true
+        source: input
+        default: "GET"
+      - name: path
+        type: string
+        description: API path, for example /api/v2/deals
+        required: true
+        source: input
+      - name: query
+        type: object
+        description: Query parameters
+        required: false
+        source: input
+      - name: body
+        type: object
+        description: JSON request body
+        required: false
+        source: input
+    pipedrive-search:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: baseURL
+        type: string
+        description: Optional Pipedrive API base URL
+        required: false
+        source: input
+        default: "https://api.pipedrive.com"
+      - name: term
+        type: string
+        description: Search term
+        required: true
+        source: input
+      - name: itemTypes
+        type: string
+        description: Comma-separated item types
+        required: false
+        source: input
+      - name: fields
+        type: string
+        description: Comma-separated fields to search
+        required: false
+        source: input
+      - name: exactMatch
+        type: boolean
+        description: Whether to return exact matches only
+        required: false
+        source: input
+        default: false
+      - name: limit
+        type: integer
+        description: Maximum results
+        required: false
+        source: input
+        default: 100
+    pipedrive-list:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: entity
+        type: string
+        description: Entity type to list
+        required: true
+        source: input
+      - name: filters
+        type: object
+        description: Query filters
+        required: false
+        source: input
+    pipedrive-get:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: entity
+        type: string
+        description: Entity type to fetch
+        required: true
+        source: input
+      - name: id
+        type: string
+        description: Entity ID
+        required: true
+        source: input
+    pipedrive-create-record:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: entity
+        type: string
+        description: Entity type to create
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Record fields
+        required: true
+        source: input
+    pipedrive-update-record:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: entity
+        type: string
+        description: Entity type to update
+        required: true
+        source: input
+      - name: id
+        type: string
+        description: Record ID
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Record fields to update
+        required: true
+        source: input
+    pipedrive-delete-record:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: entity
+        type: string
+        description: Entity type to delete
+        required: true
+        source: input
+      - name: id
+        type: string
+        description: Record ID
+        required: true
+        source: input
+    pipedrive-create-person:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: name
+        type: string
+        description: Person name
+        required: true
+        source: input
+      - name: orgId
+        type: integer
+        description: Organization ID
+        required: false
+        source: input
+      - name: email
+        type: string
+        description: Email address
+        required: false
+        source: input
+      - name: phone
+        type: string
+        description: Phone number
+        required: false
+        source: input
+      - name: data
+        type: object
+        description: Additional Pipedrive person fields
+        required: false
+        source: input
+    pipedrive-create-organization:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: name
+        type: string
+        description: Organization name
+        required: true
+        source: input
+      - name: ownerId
+        type: integer
+        description: Owner user ID
+        required: false
+        source: input
+      - name: data
+        type: object
+        description: Additional Pipedrive organization fields
+        required: false
+        source: input
+    pipedrive-create-deal:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: title
+        type: string
+        description: Deal title
+        required: true
+        source: input
+      - name: value
+        type: number
+        description: Deal value
+        required: false
+        source: input
+      - name: currency
+        type: string
+        description: Currency code
+        required: false
+        source: input
+      - name: personId
+        type: integer
+        description: Linked person ID
+        required: false
+        source: input
+      - name: orgId
+        type: integer
+        description: Linked organization ID
+        required: false
+        source: input
+      - name: pipelineId
+        type: integer
+        description: Pipeline ID
+        required: false
+        source: input
+      - name: stageId
+        type: integer
+        description: Stage ID
+        required: false
+        source: input
+      - name: data
+        type: object
+        description: Additional Pipedrive deal fields
+        required: false
+        source: input
+    pipedrive-update-deal:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: dealId
+        type: string
+        description: Deal ID
+        required: true
+        source: input
+      - name: data
+        type: object
+        description: Deal fields to update
+        required: true
+        source: input
+    pipedrive-create-activity:
+      - name: apiToken
+        type: string
+        description: Pipedrive API token
+        required: true
+        source: connection
+        binding: vault://pipedrive-credentials
+      - name: subject
+        type: string
+        description: Activity subject
+        required: true
+        source: input
+      - name: type
+        type: string
+        description: Activity type
+        required: false
+        source: input
+      - name: dealId
+        type: integer
+        description: Linked deal ID
+        required: false
+        source: input
+      - name: personId
+        type: integer
+        description: Linked person ID
+        required: false
+        source: input
+      - name: orgId
+        type: integer
+        description: Linked organization ID
+        required: false
+        source: input
+      - name: dueDate
+        type: string
+        description: Due date
+        required: false
+        source: input
+      - name: dueTime
+        type: string
+        description: Due time
+        required: false
+        source: input
+      - name: data
+        type: object
+        description: Additional Pipedrive activity fields
+        required: false
+        source: input
+  grpc:
+    port: 50133
+    docker:
+      image: axiomstudio/skill-pipedrive:1.0.0
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - pipedrive:read
+    - pipedrive:write
