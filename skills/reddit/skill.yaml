@@ -1,0 +1,192 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: skill-reddit
+  name: Reddit Skill
+  description: Complete Reddit OAuth and Data API access for Atlas agents
+  author: Axiom Studio
+  authorEmail: engineering@axiomstudio.ai
+  version: 1.0.0
+  license: MIT
+  category: social-media
+  tags:
+    - reddit
+    - social-media
+    - community
+    - moderation
+    - monitoring
+  icon: reddit
+  color: "#FF4500"
+spec:
+  executorType: grpc
+  credentialType: reddit_oauth
+  nodeTypes:
+    - reddit-health
+    - reddit-authorize-url
+    - reddit-token
+    - reddit-api-request
+  inputs:
+    reddit-health: []
+    reddit-authorize-url:
+      - name: clientId
+        type: string
+        description: Reddit application client ID
+        required: true
+        source: connection
+        binding: vault://reddit-credentials
+      - name: redirectUri
+        type: string
+        description: Exact registered OAuth redirect URI
+        required: true
+        source: input
+      - name: state
+        type: string
+        description: Unique CSRF state persisted and verified by the caller
+        required: true
+        source: input
+      - name: duration
+        type: string
+        description: temporary or permanent authorization
+        required: false
+        source: default
+        default: permanent
+      - name: scope
+        type: string
+        description: Space-separated Reddit OAuth scopes
+        required: false
+        source: default
+        default: identity
+    reddit-token:
+      - name: clientId
+        type: string
+        description: Reddit application client ID
+        required: true
+        source: connection
+        binding: vault://reddit-credentials
+      - name: clientSecret
+        type: string
+        description: Reddit application client secret; empty for installed apps
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+      - name: userAgent
+        type: string
+        description: Stable descriptive Reddit API User-Agent
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+        default: axiom-atlas-reddit-skill/1.0.0
+      - name: grantType
+        type: string
+        description: Reddit OAuth grant type
+        required: true
+        source: input
+      - name: code
+        type: string
+        description: One-time authorization code
+        required: false
+        source: input
+      - name: redirectUri
+        type: string
+        description: Exact registered OAuth redirect URI
+        required: false
+        source: input
+      - name: refreshToken
+        type: string
+        description: OAuth refresh token
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+      - name: username
+        type: string
+        description: Reddit username for script applications
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+      - name: password
+        type: string
+        description: Reddit password for script applications
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+      - name: deviceId
+        type: string
+        description: Stable non-PII device ID for installed-client grants
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+    reddit-api-request:
+      - name: accessToken
+        type: string
+        description: Reddit OAuth bearer token
+        required: true
+        source: connection
+        binding: vault://reddit-credentials
+      - name: userAgent
+        type: string
+        description: Stable descriptive Reddit API User-Agent
+        required: false
+        source: connection
+        binding: vault://reddit-credentials
+        default: axiom-atlas-reddit-skill/1.0.0
+      - name: method
+        type: string
+        description: HTTP method
+        required: false
+        source: default
+        default: GET
+      - name: path
+        type: string
+        description: Relative oauth.reddit.com API path
+        required: true
+        source: input
+      - name: query
+        type: object
+        description: Query parameters; array values become repeated parameters
+        required: false
+        source: input
+      - name: bodyType
+        type: string
+        description: none, json, form, multipart, or raw
+        required: false
+        source: default
+        default: none
+      - name: body
+        type: object
+        description: Request body; multipart files use filename and contentBase64
+        required: false
+        source: input
+      - name: rawBody
+        type: string
+        description: Literal body used when bodyType is raw
+        required: false
+        source: input
+      - name: headers
+        type: object
+        description: Additional non-authentication request headers
+        required: false
+        source: input
+      - name: timeoutSeconds
+        type: integer
+        description: Request timeout from 1 to 120 seconds
+        required: false
+        source: default
+        default: 60
+      - name: responseEncoding
+        type: string
+        description: auto, text, or base64 response representation
+        required: false
+        source: default
+        default: auto
+  grpc:
+    port: 50111
+    docker:
+      image: axiomstudio/skill-reddit:1.0.0
+  dependencies:
+    standard:
+      - logger
+      - secrets
+  permissions:
+    - reddit:read
+    - reddit:write
+    - reddit:moderate
