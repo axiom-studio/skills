@@ -2,16 +2,13 @@
 package grpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 	skillpb "github.com/axiom-studio/skills.sdk/grpc/skillpb"
@@ -165,7 +162,8 @@ func (s *SkillServer) Health(ctx context.Context, req *skillpb.HealthRequest) (*
 	}, nil
 }
 
-// Serve starts the gRPC server and registers with Atlas
+// Serve starts the Skill's gRPC endpoint. Discovery and lifecycle ownership
+// belong to the installing runtime; a Skill never phones home to a product.
 func (s *SkillServer) Serve(port string) error {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -174,15 +172,6 @@ func (s *SkillServer) Serve(port string) error {
 
 	grpcServer := grpc.NewServer()
 	skillpb.RegisterSkillServiceServer(grpcServer, s)
-
-	// Get node types for registration
-	nodeTypes := make([]string, 0, len(s.executors))
-	for t := range s.executors {
-		nodeTypes = append(nodeTypes, t)
-	}
-
-	// Phone home to Atlas
-	go s.registerWithAtlas(port, nodeTypes)
 
 	// Handle graceful shutdown
 	go func() {
@@ -193,50 +182,4 @@ func (s *SkillServer) Serve(port string) error {
 	}()
 
 	return grpcServer.Serve(lis)
-}
-
-// registerWithAtlas phones home to Atlas to register this skill
-func (s *SkillServer) registerWithAtlas(port string, nodeTypes []string) {
-	atlasURL := os.Getenv("ATLAS_URL")
-	if atlasURL == "" {
-		atlasURL = "http://localhost:8081"
-	}
-
-	// Wait a moment for gRPC server to be ready
-	// Then register with Atlas
-	registerURL := fmt.Sprintf("%s/internal/skills/register", atlasURL)
-
-	// Use SKILL_ADDRESS if set (e.g. K8s DNS name), otherwise localhost.
-	address := os.Getenv("SKILL_ADDRESS")
-	if address == "" {
-		address = fmt.Sprintf("localhost:%s", port)
-	}
-
-	req := map[string]interface{}{
-		"skillId":   s.skillID,
-		"address":   address,
-		"nodeTypes": nodeTypes,
-	}
-
-	// Try to register (with retries)
-	for i := 0; i < 5; i++ {
-		data, _ := json.Marshal(req)
-		resp, err := httpPost(registerURL, data)
-		if err == nil && resp.StatusCode == 200 {
-			fmt.Printf("Successfully registered skill %s with Atlas at %s\n", s.skillID, atlasURL)
-			resp.Body.Close()
-			return
-		}
-		if resp != nil {
-			resp.Body.Close()
-		}
-		// Wait before retry
-		time.Sleep(2 * time.Second)
-	}
-	fmt.Printf("Warning: Failed to register skill %s with Atlas at %s\n", s.skillID, atlasURL)
-}
-
-// httpPost is a simple HTTP POST helper (to avoid importing net/http in the main package)
-func httpPost(url string, data []byte) (*http.Response, error) {
-	return http.Post(url, "application/json", bytes.NewReader(data))
 }

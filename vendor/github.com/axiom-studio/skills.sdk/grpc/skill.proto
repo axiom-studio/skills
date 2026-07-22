@@ -4,8 +4,8 @@ package axiom.skill.v1;
 
 option go_package = "github.com/axiom-studio/skills.sdk/grpc/skillpb";
 
-// SkillService is the gRPC service that external skills implement
-// Atlas calls this service to execute nodes
+// SkillService is the gRPC service that external Skills implement.
+// An installing runtime calls this service to execute typed actions.
 service SkillService {
     // Execute runs a single node
     rpc Execute(ExecuteRequest) returns (ExecuteResponse);
@@ -20,7 +20,7 @@ service SkillService {
     rpc Health(HealthRequest) returns (HealthResponse);
 }
 
-// ExecuteRequest is sent by Atlas to execute a node
+// ExecuteRequest is sent by an authorized runtime to execute a node.
 message ExecuteRequest {
     // Node identification
     string node_id = 1;
