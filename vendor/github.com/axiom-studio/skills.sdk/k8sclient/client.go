@@ -1,5 +1,5 @@
-// Package k8sclient provides a client for K8s operations via Atlas proxy.
-// Skills use this to interact with Kubernetes resources through Cortex's kubelink.
+// Package k8sclient provides a client for Kubernetes operations through a
+// host-authorized HTTP proxy.
 package k8sclient
 
 import (
@@ -13,23 +13,24 @@ import (
 	"time"
 )
 
-// Client provides K8s operations via Atlas proxy
+// Client provides Kubernetes operations through a configured proxy.
 type Client struct {
-	atlasURL   string
+	proxyURL   string
 	httpClient *http.Client
 }
 
 // NewClient creates a new K8s client.
-// If atlasURL is empty, it uses ATLAS_URL env var or defaults to localhost.
-func NewClient(atlasURL string) *Client {
-	if atlasURL == "" {
-		atlasURL = os.Getenv("ATLAS_URL")
-		if atlasURL == "" {
-			atlasURL = "http://localhost:8081"
+// If proxyURL is empty, it uses SKILL_K8S_PROXY_URL or defaults to localhost
+// for local development. The proxy remains responsible for authorization.
+func NewClient(proxyURL string) *Client {
+	if proxyURL == "" {
+		proxyURL = os.Getenv("SKILL_K8S_PROXY_URL")
+		if proxyURL == "" {
+			proxyURL = "http://localhost:8081"
 		}
 	}
 	return &Client{
-		atlasURL: atlasURL,
+		proxyURL: proxyURL,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -52,7 +53,7 @@ type GroupVersionKind struct {
 
 // ResourceRequest is the request format for K8s API calls
 type ResourceRequest struct {
-	ClusterId        int                `json:"clusterId,omitempty"`
+	ClusterId          int                `json:"clusterId,omitempty"`
 	ResourceIdentifier ResourceIdentifier `json:"resourceIdentifier,omitempty"`
 }
 
@@ -197,7 +198,7 @@ func (c *Client) GetPodLogs(ctx context.Context, clusterId int, namespace, podNa
 
 // EventsRequest is the request for listing events
 type EventsRequest struct {
-	ClusterId        int                `json:"clusterId"`
+	ClusterId          int                `json:"clusterId"`
 	ResourceIdentifier ResourceIdentifier `json:"resourceIdentifier"`
 }
 
@@ -232,8 +233,8 @@ func (c *Client) ListEvents(ctx context.Context, clusterId int, namespace, resou
 
 // RestartRequest is the request for restarting workloads
 type RestartRequest struct {
-	ClusterId int                       `json:"clusterId"`
-	Resources  []map[string]interface{} `json:"resources"`
+	ClusterId int                      `json:"clusterId"`
+	Resources []map[string]interface{} `json:"resources"`
 }
 
 // RestartResource restarts a deployment, statefulset, or daemonset
@@ -274,7 +275,7 @@ func (c *Client) ScaleResource(ctx context.Context, clusterId int, namespace, na
 
 // doRequest makes a request to the K8s proxy endpoint
 func (c *Client) doRequest(ctx context.Context, path string, req interface{}, result interface{}) error {
-	url := fmt.Sprintf("%s/internal/k8s%s", c.atlasURL, path)
+	url := fmt.Sprintf("%s/internal/k8s%s", c.proxyURL, path)
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -309,7 +310,7 @@ func (c *Client) doRequest(ctx context.Context, path string, req interface{}, re
 
 // doRequestRaw makes a request and returns the raw response body
 func (c *Client) doRequestRaw(ctx context.Context, path string, req interface{}) (string, error) {
-	url := fmt.Sprintf("%s/internal/k8s%s", c.atlasURL, path)
+	url := fmt.Sprintf("%s/internal/k8s%s", c.proxyURL, path)
 
 	body, err := json.Marshal(req)
 	if err != nil {

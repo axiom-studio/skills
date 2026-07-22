@@ -1,6 +1,6 @@
 module github.com/axiom-studio/skills
 
-go 1.25.0
+go 1.26.0
 
 require (
 	cloud.google.com/go/compute v1.29.0
@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.70.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.5
-	github.com/axiom-studio/skills.sdk v0.0.0-20260506082524-1625aacd791d
+	github.com/axiom-studio/skills.sdk v0.0.0-20260722213022-39ae152bf2a9
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/go-git/go-git/v5 v5.18.0
