@@ -1,0 +1,28 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: openseal.delivery
+  name: Governed Email Delivery
+  description: Deliver reviewed messages and durable artifacts through authorized email identities
+  author: OpenSeal Contributors
+  version: 1.1.0
+  license: Apache-2.0
+  category: communication
+  tags: [email, smtp, delivery, artifact]
+  icon: mail
+spec:
+  executorType: grpc
+  credentialType: email-delivery
+  nodeTypes: [openseal.delivery]
+  inputs:
+    openseal.delivery:
+      - {name: to, type: array, required: true, source: input, items: {type: string}}
+      - {name: subject, type: string, required: true, source: input}
+      - {name: body, type: string, required: true, source: input}
+      - {name: artifactRefs, type: array, required: false, source: input, items: {type: object}}
+      - {name: email-delivery, type: string, required: true, source: connection, binding: credential://email-delivery}
+  grpc:
+    port: 50123
+    docker:
+      image: axiomstudio/skill-openseal-delivery:1.1.0
+  permissions: [communications:email:send, artifact:read]
