@@ -1,0 +1,24 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: openseal.outreach
+  name: Governed Outreach
+  description: Post reviewed replies under exact source, identity, and approval policy
+  author: OpenSeal Contributors
+  version: 1.0.0
+  license: Apache-2.0
+  category: communication
+  tags: [outreach, webhook, approval, research]
+  icon: message-circle
+spec:
+  executorType: grpc
+  nodeTypes: [openseal.outreach]
+  inputs:
+    openseal.outreach:
+      - {name: targetUri, type: string, required: true, source: input}
+      - {name: body, type: string, required: true, source: input}
+  grpc:
+    port: 50122
+    docker:
+      image: axiomstudio/skill-openseal-outreach:1.0.0
+  permissions: [network:https:write, communications:source:reply]
