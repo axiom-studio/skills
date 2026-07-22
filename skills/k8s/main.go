@@ -24,7 +24,7 @@ func main() {
 		port = "50051"
 	}
 
-	// Initialize K8s client (uses ATLAS_URL env var)
+	// Initialize the Kubernetes client through the host-authorized proxy.
 	k8sClient = k8sclient.NewClient("")
 
 	server := grpc.NewSkillServer("skill-k8s", "1.0.0")
@@ -91,7 +91,7 @@ func makeK8sWatchSchema() *resolver.NodeSchema {
 		DisplayName: "Watch Resources",
 		Category:    "trigger",
 		Description: "Trigger workflow when Kubernetes resources change",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -153,7 +153,7 @@ func makeK8sLogMonitorSchema() *resolver.NodeSchema {
 		DisplayName: "Log Monitor",
 		Category:    "trigger",
 		Description: "Periodically monitor logs and trigger when patterns match",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -281,7 +281,7 @@ func makeK8sLogsSchema() *resolver.NodeSchema {
 		DisplayName: "Get Logs",
 		Category:    "action",
 		Description: "Get logs from a pod or container",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -380,7 +380,7 @@ func makeK8sScaleSchema() *resolver.NodeSchema {
 		DisplayName: "Scale Workload",
 		Category:    "action",
 		Description: "Scale a deployment or statefulset to desired replicas",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -418,7 +418,7 @@ func makeK8sPatchSchema() *resolver.NodeSchema {
 		DisplayName: "Patch Resource",
 		Category:    "action",
 		Description: "Apply a patch to a Kubernetes resource",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -450,7 +450,7 @@ func makeK8sDeleteSchema() *resolver.NodeSchema {
 		DisplayName: "Delete Resource",
 		Category:    "action",
 		Description: "Delete a Kubernetes resource",
-		Icon: iconKubernetes,
+		Icon:        iconKubernetes,
 		Sections: []*resolver.ConfigSection{
 			{
 				Title: "Target",
@@ -530,7 +530,7 @@ type K8sWatchExecutor struct{}
 func (e *K8sWatchExecutor) Type() string { return "k8s-watch" }
 
 func (e *K8sWatchExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
-	// k8s-watch is a trigger - it's handled by Sentinel's trigger manager
+	// k8s-watch is a trigger handled by the installing runtime's trigger manager.
 	// When executed, it means the trigger fired and we're returning the event data
 	return &executor.StepResult{
 		Output: map[string]interface{}{
@@ -545,7 +545,7 @@ type K8sEventExecutor struct{}
 func (e *K8sEventExecutor) Type() string { return "k8s-event" }
 
 func (e *K8sEventExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
-	// k8s-event is a trigger - handled by Sentinel's trigger manager
+	// k8s-event is a trigger handled by the installing runtime's trigger manager.
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"message": "k8s-event trigger fired",
@@ -559,7 +559,7 @@ type K8sLogMonitorExecutor struct{}
 func (e *K8sLogMonitorExecutor) Type() string { return "k8s-log-monitor" }
 
 func (e *K8sLogMonitorExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
-	// k8s-log-monitor is a trigger - handled by Sentinel's trigger manager
+	// k8s-log-monitor is a trigger handled by the installing runtime's trigger manager.
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"message": "k8s-log-monitor trigger fired",
@@ -620,9 +620,9 @@ func (e *K8sListExecutor) Execute(ctx context.Context, step *executor.StepDefini
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"items":    resources,
-			"count":    len(resources),
-			"kind":     resourceType,
+			"items": resources,
+			"count": len(resources),
+			"kind":  resourceType,
 		},
 	}, nil
 }
@@ -652,8 +652,8 @@ func (e *K8sLogsExecutor) Execute(ctx context.Context, step *executor.StepDefini
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"logs":     logs,
-			"pod":      pod,
+			"logs":      logs,
+			"pod":       pod,
 			"container": container,
 		},
 	}, nil
@@ -709,9 +709,9 @@ func (e *K8sRestartExecutor) Execute(ctx context.Context, step *executor.StepDef
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"message":  "resource restarted successfully",
-			"name":     name,
-			"kind":     resourceType,
+			"message": "resource restarted successfully",
+			"name":    name,
+			"kind":    resourceType,
 		},
 	}, nil
 }
