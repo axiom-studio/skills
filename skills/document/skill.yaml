@@ -1,0 +1,27 @@
+apiVersion: skills.axiom.dev/v1
+kind: Skill
+metadata:
+  id: openseal.document
+  name: Document Renderer
+  description: Render cited reports into durable PDF artifacts
+  author: OpenSeal Contributors
+  version: 1.0.0
+  license: Apache-2.0
+  category: documents
+  tags: [pdf, report, artifact]
+  icon: file-text
+spec:
+  executorType: grpc
+  nodeTypes: [openseal.document]
+  inputs:
+    openseal.document:
+      - {name: title, type: string, required: true, source: input}
+      - {name: body, type: string, required: true, source: input}
+      - {name: filename, type: string, required: true, source: input}
+      - {name: requirementName, type: string, required: true, source: input}
+      - {name: sources, type: array, required: false, source: input, items: {type: string}}
+  grpc:
+    port: 50120
+    docker:
+      image: axiomstudio/skill-openseal-document:1.0.0
+  permissions: [artifact:write]
