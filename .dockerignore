@@ -1,0 +1,9 @@
+.git
+.gitignore
+build
+dist
+skills/*/git
+skills/*/skill-*
+**/*.so
+**/*.exe
+**/.DS_Store
