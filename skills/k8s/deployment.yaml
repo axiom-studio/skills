@@ -21,7 +21,7 @@ spec:
           env:
             - name: SKILL_PORT
               value: "50051"
-            - name: ATLAS_URL
+            - name: SKILL_K8S_PROXY_URL
               value: "http://atlas.axiomcd.svc.cluster.local:8081"
 ---
 apiVersion: v1
