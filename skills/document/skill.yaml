@@ -70,7 +70,9 @@ definition:
         maxAttempts: 1
       risk: write
       sideEffect: write
+  category: documents
   description: Render durable reports into governed PDF artifacts.
+  icon: file-text
   id: openseal.document
   installers:
   - id: oci
@@ -86,8 +88,12 @@ definition:
     userInvocable: true
   requirements:
     alwaysAvailable: true
+  tags:
+  - pdf
+  - report
+  - artifact
   transport:
     endpoint: openseal.document
     kind: tool
-  version: 1.0.0
+  version: 1.0.1
 kind: SkillDefinition

@@ -68,8 +68,10 @@ definition:
         target: targetUri
       sideEffect: external
       timeout: 30000000000
+  category: communication
   description: Post a reviewed, identity-disclosed reply to an evidence-linked webhook-compatible
     source.
+  icon: message-circle
   id: openseal.outreach
   installers:
   - id: oci
@@ -86,8 +88,13 @@ definition:
     userInvocable: true
   requirements:
     alwaysAvailable: true
+  tags:
+  - outreach
+  - webhook
+  - approval
+  - research
   transport:
     endpoint: openseal.outreach
     kind: tool
-  version: 1.0.0
+  version: 1.0.1
 kind: SkillDefinition
