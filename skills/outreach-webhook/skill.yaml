@@ -1,24 +1,93 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
+apiVersion: openseal.dev/v1alpha1
+definition:
+  actions:
+    post_reply:
+      description: Post one reviewed follow-up to the exact evidence source URL.
+      emittedEventTypes:
+      - outreach.reply.accepted
+      idempotency: required
+      inputSchema:
+        additionalProperties: false
+        properties:
+          body:
+            maxLength: 20000
+            minLength: 1
+            type: string
+          targetUri:
+            format: uri
+            maxLength: 2000
+            pattern: ^https://
+            type: string
+        required:
+        - targetUri
+        - body
+        type: object
+      name: post_reply
+      outputSchema:
+        additionalProperties: false
+        properties:
+          outreachReceipt:
+            additionalProperties: false
+            properties:
+              deliveredAt:
+                format: date-time
+                type: string
+              digest:
+                pattern: ^sha256:[a-f0-9]{64}$
+                type: string
+              externalId:
+                maxLength: 512
+                minLength: 1
+                type: string
+              externalUri:
+                format: uri
+                maxLength: 2000
+                pattern: ^https://
+                type: string
+              provider:
+                const: http-webhook
+                type: string
+            required:
+            - provider
+            - externalId
+            - externalUri
+            - deliveredAt
+            - digest
+            type: object
+        required:
+        - outreachReceipt
+        type: object
+      permissions:
+      - network:https:write
+      - communications:source:reply
+      retry:
+        maxAttempts: 1
+      risk: external
+      semanticArguments:
+        body: body
+        target: targetUri
+      sideEffect: external
+      timeout: 30000000000
+  description: Post a reviewed, identity-disclosed reply to an evidence-linked webhook-compatible
+    source.
   id: openseal.outreach
-  name: Governed Outreach
-  description: Post reviewed replies under exact source, identity, and approval policy
-  author: OpenSeal Contributors
+  installers:
+  - id: oci
+    kind: oci
+    label: Governed outreach service image
+    package: axiomstudio/skill-openseal-outreach:1.0.0
+  name: Governed source outreach
+  prompt:
+    allowedTools:
+    - post_reply
+    instructions: Use post_reply only inside a governed OutreachThread after source
+      policy and approval are satisfied. Preserve the reviewed body, truthful identity
+      disclosure, and exact evidence URL.
+    userInvocable: true
+  requirements:
+    alwaysAvailable: true
+  transport:
+    endpoint: openseal.outreach
+    kind: tool
   version: 1.0.0
-  license: Apache-2.0
-  category: communication
-  tags: [outreach, webhook, approval, research]
-  icon: message-circle
-spec:
-  executorType: grpc
-  nodeTypes: [openseal.outreach]
-  inputs:
-    openseal.outreach:
-      - {name: targetUri, type: string, required: true, source: input}
-      - {name: body, type: string, required: true, source: input}
-  grpc:
-    port: 50122
-    docker:
-      image: axiomstudio/skill-openseal-outreach:1.0.0
-  permissions: [network:https:write, communications:source:reply]
+kind: SkillDefinition

@@ -1,24 +1,86 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
+apiVersion: openseal.dev/v1alpha1
+definition:
+  actions:
+    observe_feed:
+      description: Read a permitted RSS or Atom feed and normalize its newest entries.
+      emittedEventTypes:
+      - source.observed
+      idempotency: supported
+      inputSchema:
+        additionalProperties: false
+        properties:
+          maxItems:
+            default: 25
+            maximum: 100
+            minimum: 1
+            type: integer
+          url:
+            format: uri
+            pattern: ^https://
+            type: string
+        required:
+        - url
+        type: object
+      name: observe_feed
+      outputSchema:
+        additionalProperties: false
+        properties:
+          checkpointRevision:
+            minimum: 1
+            type: integer
+          observationCount:
+            maximum: 100
+            minimum: 0
+            type: integer
+          observationRefs:
+            items:
+              additionalProperties: false
+              properties:
+                id:
+                  minLength: 1
+                  type: string
+                replayed:
+                  type: boolean
+              required:
+              - id
+              - replayed
+              type: object
+            maxItems: 100
+            minItems: 0
+            type: array
+        required:
+        - observationRefs
+        - observationCount
+        - checkpointRevision
+        type: object
+      permissions:
+      - network:https:read
+      retry:
+        initialBackoff: 1000000000
+        maxAttempts: 3
+        maxBackoff: 10000000000
+      risk: read
+      sideEffect: read
+      timeout: 30000000000
+  description: Observe permitted RSS or Atom sources and emit provenance-linked evidence.
   id: openseal.source
-  name: Source Feed Observer
-  description: Observe authorized RSS and Atom feeds with durable provenance
-  author: OpenSeal Contributors
+  installers:
+  - id: oci
+    kind: oci
+    label: Source observer service image
+    package: axiomstudio/skill-openseal-source:1.0.2
+  name: Source observer
+  prompt:
+    allowedTools:
+    - observe_feed
+    instructions: Use observe_feed for permitted recurring research or operational
+      source monitoring. Preserve source provenance; do not infer facts absent from
+      observations.
+    userInvocable: true
+  requirements:
+    alwaysAvailable: true
+  transport:
+    endpoint: openseal.source
+    kind: tool
   version: 1.0.2
-  license: Apache-2.0
-  category: research
-  tags: [rss, atom, monitoring, evidence]
-  icon: rss
-spec:
-  executorType: grpc
-  nodeTypes: [openseal.source]
-  inputs:
-    openseal.source:
-      - {name: url, type: string, required: true, source: input}
-      - {name: maxItems, type: integer, required: false, source: default, default: 25}
-  grpc:
-    port: 50121
-    docker:
-      image: axiomstudio/skill-openseal-source:1.0.2
-  permissions: [network:https:read, evidence:write]
+kind: SkillDefinition
