@@ -1,219 +1,224 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-salesforce
-  name: Salesforce Skill
-  description: Salesforce CRM operations for Atlas agents - accounts, contacts, opportunities, leads, cases
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: crm
-  tags:
-    - salesforce
-    - crm
-    - sales
-    - sfdc
-  icon: cloud
-  color: "#00A1E0"
-spec:
-  executorType: grpc
-  credentialType: salesforce_api
-  nodeTypes:
-    - sf-query
-    - sf-create
-    - sf-update
-    - sf-delete
-    - sf-describe
-    - sf-soql
-  inputs:
-    sf-query:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: query
-        type: string
-        description: SOQL query
-        required: true
-        source: input
-    sf-create:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: objectType
-        type: string
-        description: Object type (Account, Contact, etc.)
-        required: true
-        source: input
-      - name: data
-        type: object
-        description: Record data
-        required: true
-        source: input
-    sf-update:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: objectType
-        type: string
-        description: Object type (Account, Contact, etc.)
-        required: true
-        source: input
-      - name: recordId
-        type: string
-        description: Record ID
-        required: true
-        source: input
-      - name: data
-        type: object
-        description: Record data to update
-        required: true
-        source: input
-    sf-delete:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: objectType
-        type: string
-        description: Object type (Account, Contact, etc.)
-        required: true
-        source: input
-      - name: recordId
-        type: string
-        description: Record ID
-        required: true
-        source: input
-    sf-describe:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: objectType
-        type: string
-        description: Object type to describe
-        required: true
-        source: input
-    sf-soql:
-      - name: instanceURL
-        type: string
-        description: Salesforce instance URL
-        required: true
-        source: input
-      - name: consumerKey
-        type: string
-        description: Connected App Consumer Key
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: consumerSecret
-        type: string
-        description: Connected App Consumer Secret
-        required: true
-        source: connection
-        binding: vault://salesforce-credentials
-      - name: mode
-        type: string
-        description: Query mode (raw, builder)
-        required: false
-        source: input
-        default: "raw"
-      - name: objectType
-        type: string
-        description: Object type for builder mode
-        required: false
-        source: input
-      - name: fields
-        type: string
-        description: Fields to select (builder mode)
-        required: false
-        source: input
-      - name: whereClause
-        type: string
-        description: Where clause (builder mode)
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results (builder mode)
-        required: false
-        source: input
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-salesforce:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - salesforce:read
-    - salesforce:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        sf-create:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    data:
+                        description: Record data
+                        type: object
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    objectType:
+                        description: Object type (Account, Contact, etc.)
+                        type: string
+                required:
+                    - data
+                    - instanceURL
+                    - objectType
+                type: object
+            name: sf-create
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sf-delete:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    objectType:
+                        description: Object type (Account, Contact, etc.)
+                        type: string
+                    recordId:
+                        description: Record ID
+                        type: string
+                required:
+                    - instanceURL
+                    - objectType
+                    - recordId
+                type: object
+            name: sf-delete
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        sf-describe:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Describe
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    objectType:
+                        description: Object type to describe
+                        type: string
+                required:
+                    - instanceURL
+                    - objectType
+                type: object
+            name: sf-describe
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sf-query:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    query:
+                        description: SOQL query
+                        type: string
+                required:
+                    - instanceURL
+                    - query
+                type: object
+            name: sf-query
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sf-soql:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Soql
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fields:
+                        description: Fields to select (builder mode)
+                        type: string
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    limit:
+                        description: Max results (builder mode)
+                        type: integer
+                    mode:
+                        default: raw
+                        description: Query mode (raw, builder)
+                        type: string
+                    objectType:
+                        description: Object type for builder mode
+                        type: string
+                    whereClause:
+                        description: Where clause (builder mode)
+                        type: string
+                required:
+                    - instanceURL
+                type: object
+            name: sf-soql
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sf-update:
+            credentials:
+                - kind: salesforce_api
+                  name: salesforce_api
+            description: Sf Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    data:
+                        description: Record data to update
+                        type: object
+                    instanceURL:
+                        description: Salesforce instance URL
+                        type: string
+                    objectType:
+                        description: Object type (Account, Contact, etc.)
+                        type: string
+                    recordId:
+                        description: Record ID
+                        type: string
+                required:
+                    - data
+                    - instanceURL
+                    - objectType
+                    - recordId
+                type: object
+            name: sf-update
+            permissions:
+                - salesforce:read
+                - salesforce:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: crm
+    description: Salesforce CRM operations for Atlas agents - accounts, contacts, opportunities, leads, cases
+    icon: cloud
+    id: skill-salesforce
+    installers:
+        - id: oci
+          kind: oci
+          label: Salesforce Skill service image
+          package: axiomstudio/skill-salesforce:1.0.0
+    name: Salesforce Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-salesforce
+        resolvedVersion: 1.0.0
+    tags:
+        - crm
+        - sales
+        - salesforce
+        - sfdc
+    transport:
+        endpoint: skill-salesforce
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

@@ -1,716 +1,991 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-splunk
-  name: Splunk Skill
-  description: Splunk log analytics operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: monitoring
-  tags:
-    - splunk
-    - logs
-    - analytics
-    - siem
-  icon: search
-  color: "#000000"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - splunk-search
-    - splunk-saved-search
-    - splunk-search-job-create
-    - splunk-search-job-status
-    - splunk-index-list
-    - splunk-alert-create
-    - splunk-dashboard-list
-    - splunk-event-type-list
-    - splunk-alert-delete
-    - splunk-alert-get
-    - splunk-alert-history
-    - splunk-alert-list
-    - splunk-alert-update
-    - splunk-dashboard-create
-    - splunk-dashboard-delete
-    - splunk-dashboard-get
-    - splunk-dashboard-update
-    - splunk-event-type-create
-    - splunk-event-type-delete
-    - splunk-event-type-get
-    - splunk-event-type-update
-    - splunk-index-create
-    - splunk-index-delete
-    - splunk-index-get
-    - splunk-index-update
-    - splunk-info
-    - splunk-saved-search-create
-    - splunk-saved-search-delete
-    - splunk-saved-search-list
-    - splunk-saved-search-run
-    - splunk-saved-search-update
-    - splunk-search-job-cancel
-    - splunk-search-job-results
-    - splunk-search-job-wait
-  inputs:
-    splunk-search:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: search
-        type: string
-        description: SPL search query
-        required: true
-        source: input
-      - name: earliest
-        type: string
-        description: Earliest time (e.g., -24h)
-        required: false
-        source: input
-        default: "-24h"
-      - name: latest
-        type: string
-        description: Latest time (e.g., now)
-        required: false
-        source: input
-        default: "now"
-      - name: index
-        type: string
-        description: Index to search
-        required: false
-        source: input
-      - name: maxCount
-        type: integer
-        description: Max results
-        required: false
-        source: input
-    splunk-saved-search:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: savedSearchName
-        type: string
-        description: Saved search name
-        required: true
-        source: input
-    splunk-search-job-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: search
-        type: string
-        description: SPL search query
-        required: true
-        source: input
-      - name: earliest
-        type: string
-        description: Earliest time
-        required: false
-        source: input
-      - name: latest
-        type: string
-        description: Latest time
-        required: false
-        source: input
-      - name: index
-        type: string
-        description: Index to search
-        required: false
-        source: input
-    splunk-search-job-status:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: searchJobId
-        type: string
-        description: Search job ID
-        required: true
-        source: input
-    splunk-index-list:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-alert-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: alertName
-        type: string
-        description: Alert name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: true
-        source: input
-      - name: condition
-        type: object
-        description: Alert condition
-        required: false
-        source: input
-    splunk-dashboard-list:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-event-type-list:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-alert-delete:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: alertName
-        type: string
-        description: Alert name
-        required: true
-        source: input
-    splunk-alert-get:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: alertName
-        type: string
-        description: Alert name
-        required: true
-        source: input
-    splunk-alert-history:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: alertName
-        type: string
-        description: Alert name
-        required: true
-        source: input
-    splunk-alert-list:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-alert-update:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: alertName
-        type: string
-        description: Alert name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: false
-        source: input
-      - name: condition
-        type: object
-        description: Alert condition
-        required: false
-        source: input
-    splunk-dashboard-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: dashboardName
-        type: string
-        description: Dashboard name
-        required: true
-        source: input
-      - name: panels
-        items:
-          type: string
-        description: Dashboard panels
-        required: false
-        source: input
-    splunk-dashboard-delete:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: dashboardName
-        type: string
-        description: Dashboard name
-        required: true
-        source: input
-    splunk-dashboard-get:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: dashboardName
-        type: string
-        description: Dashboard name
-        required: true
-        source: input
-    splunk-dashboard-update:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: dashboardName
-        type: string
-        description: Dashboard name
-        required: true
-        source: input
-      - name: panels
-        items:
-          type: string
-        description: Dashboard panels
-        required: false
-        source: input
-    splunk-event-type-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: eventTypeName
-        type: string
-        description: Event type name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: true
-        source: input
-    splunk-event-type-delete:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: eventTypeName
-        type: string
-        description: Event type name
-        required: true
-        source: input
-    splunk-event-type-get:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: eventTypeName
-        type: string
-        description: Event type name
-        required: true
-        source: input
-    splunk-event-type-update:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: eventTypeName
-        type: string
-        description: Event type name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: false
-        source: input
-    splunk-index-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: indexName
-        type: string
-        description: Index name
-        required: true
-        source: input
-    splunk-index-delete:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: indexName
-        type: string
-        description: Index name
-        required: true
-        source: input
-    splunk-index-get:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: indexName
-        type: string
-        description: Index name
-        required: true
-        source: input
-    splunk-index-update:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: indexName
-        type: string
-        description: Index name
-        required: true
-        source: input
-      - name: settings
-        type: object
-        description: Index settings
-        required: false
-        source: input
-    splunk-info:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-saved-search-create:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: savedSearchName
-        type: string
-        description: Saved search name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: true
-        source: input
-    splunk-saved-search-delete:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: savedSearchName
-        type: string
-        description: Saved search name
-        required: true
-        source: input
-    splunk-saved-search-list:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-    splunk-saved-search-run:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: savedSearchName
-        type: string
-        description: Saved search name
-        required: true
-        source: input
-    splunk-saved-search-update:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: savedSearchName
-        type: string
-        description: Saved search name
-        required: true
-        source: input
-      - name: search
-        type: string
-        description: SPL search query
-        required: false
-        source: input
-    splunk-search-job-cancel:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: searchJobId
-        type: string
-        description: Search job ID
-        required: true
-        source: input
-    splunk-search-job-results:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: searchJobId
-        type: string
-        description: Search job ID
-        required: true
-        source: input
-    splunk-search-job-wait:
-      - name: host
-        type: string
-        description: Splunk host URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Splunk API token
-        required: true
-        source: connection
-        binding: vault://splunk-credentials
-      - name: searchJobId
-        type: string
-        description: Search job ID
-        required: true
-        source: input
-      - name: timeout
-        type: string
-        description: Wait timeout
-        required: false
-        source: input
-        default: "300s"
-  grpc:
-    port: 50122
-    docker:
-      image: axiomstudio/skill-splunk:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - splunk:read
-    - splunk:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        splunk-alert-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    alertName:
+                        description: Alert name
+                        type: string
+                    condition:
+                        description: Alert condition
+                        type: object
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - alertName
+                    - host
+                    - search
+                type: object
+            name: splunk-alert-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-alert-delete:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    alertName:
+                        description: Alert name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - alertName
+                    - host
+                type: object
+            name: splunk-alert-delete
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        splunk-alert-get:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    alertName:
+                        description: Alert name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - alertName
+                    - host
+                type: object
+            name: splunk-alert-get
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-alert-history:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert History
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    alertName:
+                        description: Alert name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - alertName
+                    - host
+                type: object
+            name: splunk-alert-history
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-alert-list:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-alert-list
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-alert-update:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Alert Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    alertName:
+                        description: Alert name
+                        type: string
+                    condition:
+                        description: Alert condition
+                        type: object
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - alertName
+                    - host
+                type: object
+            name: splunk-alert-update
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-dashboard-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Dashboard Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboardName:
+                        description: Dashboard name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    panels:
+                        description: Dashboard panels
+                        type: string
+                required:
+                    - dashboardName
+                    - host
+                type: object
+            name: splunk-dashboard-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-dashboard-delete:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Dashboard Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboardName:
+                        description: Dashboard name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - dashboardName
+                    - host
+                type: object
+            name: splunk-dashboard-delete
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        splunk-dashboard-get:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Dashboard Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboardName:
+                        description: Dashboard name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - dashboardName
+                    - host
+                type: object
+            name: splunk-dashboard-get
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-dashboard-list:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Dashboard List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-dashboard-list
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-dashboard-update:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Dashboard Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboardName:
+                        description: Dashboard name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    panels:
+                        description: Dashboard panels
+                        type: string
+                required:
+                    - dashboardName
+                    - host
+                type: object
+            name: splunk-dashboard-update
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-event-type-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Event Type Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventTypeName:
+                        description: Event type name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - eventTypeName
+                    - host
+                    - search
+                type: object
+            name: splunk-event-type-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-event-type-delete:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Event Type Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventTypeName:
+                        description: Event type name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - eventTypeName
+                    - host
+                type: object
+            name: splunk-event-type-delete
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        splunk-event-type-get:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Event Type Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventTypeName:
+                        description: Event type name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - eventTypeName
+                    - host
+                type: object
+            name: splunk-event-type-get
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-event-type-list:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Event Type List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-event-type-list
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-event-type-update:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Event Type Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventTypeName:
+                        description: Event type name
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - eventTypeName
+                    - host
+                type: object
+            name: splunk-event-type-update
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-index-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Index Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    indexName:
+                        description: Index name
+                        type: string
+                required:
+                    - host
+                    - indexName
+                type: object
+            name: splunk-index-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-index-delete:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Index Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    indexName:
+                        description: Index name
+                        type: string
+                required:
+                    - host
+                    - indexName
+                type: object
+            name: splunk-index-delete
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        splunk-index-get:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Index Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    indexName:
+                        description: Index name
+                        type: string
+                required:
+                    - host
+                    - indexName
+                type: object
+            name: splunk-index-get
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-index-list:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Index List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-index-list
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-index-update:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Index Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    indexName:
+                        description: Index name
+                        type: string
+                    settings:
+                        description: Index settings
+                        type: object
+                required:
+                    - host
+                    - indexName
+                type: object
+            name: splunk-index-update
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        splunk-info:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Info
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-info
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-saved-search:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    savedSearchName:
+                        description: Saved search name
+                        type: string
+                required:
+                    - host
+                    - savedSearchName
+                type: object
+            name: splunk-saved-search
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-saved-search-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search Create
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    savedSearchName:
+                        description: Saved search name
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - host
+                    - savedSearchName
+                    - search
+                type: object
+            name: splunk-saved-search-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-saved-search-delete:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    savedSearchName:
+                        description: Saved search name
+                        type: string
+                required:
+                    - host
+                    - savedSearchName
+                type: object
+            name: splunk-saved-search-delete
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        splunk-saved-search-list:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                required:
+                    - host
+                type: object
+            name: splunk-saved-search-list
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-saved-search-run:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search Run
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    savedSearchName:
+                        description: Saved search name
+                        type: string
+                required:
+                    - host
+                    - savedSearchName
+                type: object
+            name: splunk-saved-search-run
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-saved-search-update:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Saved Search Update
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    savedSearchName:
+                        description: Saved search name
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - host
+                    - savedSearchName
+                type: object
+            name: splunk-saved-search-update
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    earliest:
+                        default: -24h
+                        description: Earliest time (e.g., -24h)
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    index:
+                        description: Index to search
+                        type: string
+                    latest:
+                        default: now
+                        description: Latest time (e.g., now)
+                        type: string
+                    maxCount:
+                        description: Max results
+                        type: integer
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - host
+                    - search
+                type: object
+            name: splunk-search
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search-job-cancel:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search Job Cancel
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    searchJobId:
+                        description: Search job ID
+                        type: string
+                required:
+                    - host
+                    - searchJobId
+                type: object
+            name: splunk-search-job-cancel
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search-job-create:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search Job Create
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    earliest:
+                        description: Earliest time
+                        type: string
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    index:
+                        description: Index to search
+                        type: string
+                    latest:
+                        description: Latest time
+                        type: string
+                    search:
+                        description: SPL search query
+                        type: string
+                required:
+                    - host
+                    - search
+                type: object
+            name: splunk-search-job-create
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search-job-results:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search Job Results
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    searchJobId:
+                        description: Search job ID
+                        type: string
+                required:
+                    - host
+                    - searchJobId
+                type: object
+            name: splunk-search-job-results
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search-job-status:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search Job Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    searchJobId:
+                        description: Search job ID
+                        type: string
+                required:
+                    - host
+                    - searchJobId
+                type: object
+            name: splunk-search-job-status
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        splunk-search-job-wait:
+            credentials:
+                - kind: splunk-credential
+                  name: splunk-credential
+            description: Splunk Search Job Wait
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    host:
+                        description: Splunk host URL
+                        type: string
+                    searchJobId:
+                        description: Search job ID
+                        type: string
+                    timeout:
+                        default: 300s
+                        description: Wait timeout
+                        type: string
+                required:
+                    - host
+                    - searchJobId
+                type: object
+            name: splunk-search-job-wait
+            permissions:
+                - splunk:read
+                - splunk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: monitoring
+    description: Splunk log analytics operations for Atlas agents
+    icon: search
+    id: skill-splunk
+    installers:
+        - id: oci
+          kind: oci
+          label: Splunk Skill service image
+          package: axiomstudio/skill-splunk:1.0.0
+    name: Splunk Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-splunk
+        resolvedVersion: 1.0.0
+    tags:
+        - analytics
+        - logs
+        - siem
+        - splunk
+    transport:
+        endpoint: skill-splunk
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

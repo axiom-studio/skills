@@ -1,192 +1,169 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-reddit
-  name: Reddit Skill
-  description: Complete Reddit OAuth and Data API access for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: social-media
-  tags:
-    - reddit
-    - social-media
-    - community
-    - moderation
-    - monitoring
-  icon: reddit
-  color: "#FF4500"
-spec:
-  executorType: grpc
-  credentialType: reddit_oauth
-  nodeTypes:
-    - reddit-health
-    - reddit-authorize-url
-    - reddit-token
-    - reddit-api-request
-  inputs:
-    reddit-health: []
-    reddit-authorize-url:
-      - name: clientId
-        type: string
-        description: Reddit application client ID
-        required: true
-        source: connection
-        binding: vault://reddit-credentials
-      - name: redirectUri
-        type: string
-        description: Exact registered OAuth redirect URI
-        required: true
-        source: input
-      - name: state
-        type: string
-        description: Unique CSRF state persisted and verified by the caller
-        required: true
-        source: input
-      - name: duration
-        type: string
-        description: temporary or permanent authorization
-        required: false
-        source: default
-        default: permanent
-      - name: scope
-        type: string
-        description: Space-separated Reddit OAuth scopes
-        required: false
-        source: default
-        default: identity
-    reddit-token:
-      - name: clientId
-        type: string
-        description: Reddit application client ID
-        required: true
-        source: connection
-        binding: vault://reddit-credentials
-      - name: clientSecret
-        type: string
-        description: Reddit application client secret; empty for installed apps
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-      - name: userAgent
-        type: string
-        description: Stable descriptive Reddit API User-Agent
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-        default: axiom-atlas-reddit-skill/1.0.0
-      - name: grantType
-        type: string
-        description: Reddit OAuth grant type
-        required: true
-        source: input
-      - name: code
-        type: string
-        description: One-time authorization code
-        required: false
-        source: input
-      - name: redirectUri
-        type: string
-        description: Exact registered OAuth redirect URI
-        required: false
-        source: input
-      - name: refreshToken
-        type: string
-        description: OAuth refresh token
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-      - name: username
-        type: string
-        description: Reddit username for script applications
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-      - name: password
-        type: string
-        description: Reddit password for script applications
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-      - name: deviceId
-        type: string
-        description: Stable non-PII device ID for installed-client grants
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-    reddit-api-request:
-      - name: accessToken
-        type: string
-        description: Reddit OAuth bearer token
-        required: true
-        source: connection
-        binding: vault://reddit-credentials
-      - name: userAgent
-        type: string
-        description: Stable descriptive Reddit API User-Agent
-        required: false
-        source: connection
-        binding: vault://reddit-credentials
-        default: axiom-atlas-reddit-skill/1.0.0
-      - name: method
-        type: string
-        description: HTTP method
-        required: false
-        source: default
-        default: GET
-      - name: path
-        type: string
-        description: Relative oauth.reddit.com API path
-        required: true
-        source: input
-      - name: query
-        type: object
-        description: Query parameters; array values become repeated parameters
-        required: false
-        source: input
-      - name: bodyType
-        type: string
-        description: none, json, form, multipart, or raw
-        required: false
-        source: default
-        default: none
-      - name: body
-        type: object
-        description: Request body; multipart files use filename and contentBase64
-        required: false
-        source: input
-      - name: rawBody
-        type: string
-        description: Literal body used when bodyType is raw
-        required: false
-        source: input
-      - name: headers
-        type: object
-        description: Additional non-authentication request headers
-        required: false
-        source: input
-      - name: timeoutSeconds
-        type: integer
-        description: Request timeout from 1 to 120 seconds
-        required: false
-        source: default
-        default: 60
-      - name: responseEncoding
-        type: string
-        description: auto, text, or base64 response representation
-        required: false
-        source: default
-        default: auto
-  grpc:
-    port: 50111
-    docker:
-      image: axiomstudio/skill-reddit:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - reddit:read
-    - reddit:write
-    - reddit:moderate
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        reddit-api-request:
+            credentials:
+                - kind: reddit_oauth
+                  name: reddit_oauth
+            description: Reddit Api Request
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Request body; multipart files use filename and contentBase64
+                        type: object
+                    bodyType:
+                        default: none
+                        description: none, json, form, multipart, or raw
+                        type: string
+                    headers:
+                        description: Additional non-authentication request headers
+                        type: object
+                    method:
+                        default: GET
+                        description: HTTP method
+                        type: string
+                    path:
+                        description: Relative oauth.reddit.com API path
+                        type: string
+                    query:
+                        description: Query parameters; array values become repeated parameters
+                        type: object
+                    rawBody:
+                        description: Literal body used when bodyType is raw
+                        type: string
+                    responseEncoding:
+                        default: auto
+                        description: auto, text, or base64 response representation
+                        type: string
+                    timeoutSeconds:
+                        default: 60
+                        description: Request timeout from 1 to 120 seconds
+                        type: integer
+                required:
+                    - path
+                type: object
+            name: reddit-api-request
+            permissions:
+                - reddit:moderate
+                - reddit:read
+                - reddit:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        reddit-authorize-url:
+            credentials:
+                - kind: reddit_oauth
+                  name: reddit_oauth
+            description: Reddit Authorize Url
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    duration:
+                        default: permanent
+                        description: temporary or permanent authorization
+                        type: string
+                    redirectUri:
+                        description: Exact registered OAuth redirect URI
+                        type: string
+                    scope:
+                        default: identity
+                        description: Space-separated Reddit OAuth scopes
+                        type: string
+                    state:
+                        description: Unique CSRF state persisted and verified by the caller
+                        type: string
+                required:
+                    - redirectUri
+                    - state
+                type: object
+            name: reddit-authorize-url
+            permissions:
+                - reddit:moderate
+                - reddit:read
+                - reddit:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        reddit-health:
+            description: Reddit Health
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: reddit-health
+            permissions:
+                - reddit:moderate
+                - reddit:read
+                - reddit:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        reddit-token:
+            credentials:
+                - kind: reddit_oauth
+                  name: reddit_oauth
+            description: Reddit Token
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    code:
+                        description: One-time authorization code
+                        type: string
+                    grantType:
+                        description: Reddit OAuth grant type
+                        type: string
+                    redirectUri:
+                        description: Exact registered OAuth redirect URI
+                        type: string
+                required:
+                    - grantType
+                type: object
+            name: reddit-token
+            permissions:
+                - reddit:moderate
+                - reddit:read
+                - reddit:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: social-media
+    description: Complete Reddit OAuth and Data API access for Atlas agents
+    icon: reddit
+    id: skill-reddit
+    installers:
+        - id: oci
+          kind: oci
+          label: Reddit Skill service image
+          package: axiomstudio/skill-reddit:1.0.0
+    name: Reddit Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-reddit
+        resolvedVersion: 1.0.0
+    tags:
+        - community
+        - moderation
+        - monitoring
+        - reddit
+        - social-media
+    transport:
+        endpoint: skill-reddit
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

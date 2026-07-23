@@ -1,550 +1,673 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-vault
-  name: HashiCorp Vault Skill
-  description: HashiCorp Vault secrets management operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: security
-  tags:
-    - vault
-    - secrets
-    - security
-    - pki
-    - encryption
-  icon: lock
-  color: "#FFEC6E"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - vault-read
-    - vault-write
-    - vault-delete
-    - vault-list
-    - vault-kv-get
-    - vault-kv-put
-    - vault-kv-delete
-    - vault-lease-renew
-    - vault-lease-revoke
-    - vault-token-lookup
-    - vault-token-create
-    - vault-token-renew
-    - vault-token-revoke
-    - vault-pki-issue
-    - vault-pki-renew
-    - vault-pki-revoke
-    - vault-database-creds
-    - vault-transit-encrypt
-    - vault-transit-decrypt
-    - vault-health
-  inputs:
-    vault-read:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Secret path
-        required: true
-        source: input
-    vault-write:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Secret path
-        required: true
-        source: input
-      - name: data
-        type: object
-        description: Data to write
-        required: true
-        source: input
-    vault-delete:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Path to delete
-        required: true
-        source: input
-    vault-list:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Path to list
-        required: true
-        source: input
-    vault-kv-get:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Secret path
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: KV mount path
-        required: false
-        source: input
-        default: "secret"
-      - name: version
-        type: integer
-        description: KV version (1 or 2)
-        required: false
-        source: input
-        default: 2
-      - name: secretVersion
-        type: integer
-        description: Specific version to read
-        required: false
-        source: input
-    vault-kv-put:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Secret path
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: KV mount path
-        required: false
-        source: input
-        default: "secret"
-      - name: version
-        type: integer
-        description: KV version
-        required: false
-        source: input
-        default: 2
-      - name: data
-        type: object
-        description: Secret data
-        required: true
-        source: input
-    vault-kv-delete:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: path
-        type: string
-        description: Secret path
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: KV mount path
-        required: false
-        source: input
-        default: "secret"
-      - name: version
-        type: integer
-        description: KV version
-        required: false
-        source: input
-        default: 2
-      - name: versions
-        items:
-          type: string
-        description: Versions to delete
-        required: false
-        source: input
-    vault-lease-renew:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: leaseId
-        type: string
-        description: Lease ID
-        required: true
-        source: input
-      - name: increment
-        type: integer
-        description: TTL increment
-        required: false
-        source: input
-    vault-lease-revoke:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: leaseId
-        type: string
-        description: Lease ID
-        required: true
-        source: input
-    vault-token-lookup:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Token to lookup
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-    vault-token-create:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Parent token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: policies
-        items:
-          type: string
-        description: List of policies
-        required: false
-        source: input
-      - name: ttl
-        type: string
-        description: Token TTL
-        required: false
-        source: input
-      - name: renewable
-        type: boolean
-        description: Is token renewable
-        required: false
-        source: default
-        default: true
-      - name: displayName
-        type: string
-        description: Token display name
-        required: false
-        source: input
-      - name: maxTtl
-        type: string
-        description: Maximum TTL
-        required: false
-        source: input
-      - name: numUses
-        type: integer
-        description: Number of uses
-        required: false
-        source: input
-    vault-token-renew:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Token to renew
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: increment
-        type: string
-        description: TTL increment
-        required: false
-        source: input
-    vault-token-revoke:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Token to revoke
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-    vault-pki-issue:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: role
-        type: string
-        description: PKI role name
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: PKI mount path
-        required: false
-        source: input
-        default: "pki"
-      - name: commonName
-        type: string
-        description: Certificate common name
-        required: true
-        source: input
-      - name: altNames
-        type: string
-        description: Subject alternative names
-        required: false
-        source: input
-      - name: ipSans
-        type: string
-        description: IP SANs
-        required: false
-        source: input
-      - name: ttl
-        type: string
-        description: Certificate TTL
-        required: false
-        source: input
-      - name: format
-        type: string
-        description: Output format (pem, der, pem_bundle)
-        required: false
-        source: input
-        default: "pem"
-    vault-pki-renew:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: serial
-        type: string
-        description: Certificate serial number
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: PKI mount path
-        required: false
-        source: input
-        default: "pki"
-      - name: ttl
-        type: string
-        description: New TTL
-        required: false
-        source: input
-    vault-pki-revoke:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: serial
-        type: string
-        description: Certificate serial number
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: PKI mount path
-        required: false
-        source: input
-        default: "pki"
-    vault-database-creds:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: role
-        type: string
-        description: Database role name
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: Database mount path
-        required: false
-        source: input
-        default: "database"
-    vault-transit-encrypt:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: key
-        type: string
-        description: Transit key name
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: Transit mount path
-        required: false
-        source: input
-        default: "transit"
-      - name: plaintext
-        type: string
-        description: Data to encrypt (base64)
-        required: true
-        source: input
-      - name: context
-        type: string
-        description: Encryption context
-        required: false
-        source: input
-    vault-transit-decrypt:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: Vault token
-        required: true
-        source: connection
-        binding: vault://vault-credentials
-      - name: key
-        type: string
-        description: Transit key name
-        required: true
-        source: input
-      - name: mount
-        type: string
-        description: Transit mount path
-        required: false
-        source: input
-        default: "transit"
-      - name: ciphertext
-        type: string
-        description: Ciphertext to decrypt
-        required: true
-        source: input
-      - name: context
-        type: string
-        description: Decryption context
-        required: false
-        source: input
-    vault-health:
-      - name: address
-        type: string
-        description: Vault server address
-        required: true
-        source: input
-  grpc:
-    port: 50072
-    docker:
-      image: axiomstudio/skill-vault:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - vault:read
-    - vault:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        vault-database-creds:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Database Creds
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    mount:
+                        default: database
+                        description: Database mount path
+                        type: string
+                    role:
+                        description: Database role name
+                        type: string
+                required:
+                    - address
+                    - role
+                type: object
+            name: vault-database-creds
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-delete:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    path:
+                        description: Path to delete
+                        type: string
+                required:
+                    - address
+                    - path
+                type: object
+            name: vault-delete
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        vault-health:
+            description: Vault Health
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                required:
+                    - address
+                type: object
+            name: vault-health
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vault-kv-delete:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Kv Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    mount:
+                        default: secret
+                        description: KV mount path
+                        type: string
+                    path:
+                        description: Secret path
+                        type: string
+                    version:
+                        default: 2
+                        description: KV version
+                        type: integer
+                    versions:
+                        description: Versions to delete
+                        type: string
+                required:
+                    - address
+                    - path
+                type: object
+            name: vault-kv-delete
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        vault-kv-get:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Kv Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    mount:
+                        default: secret
+                        description: KV mount path
+                        type: string
+                    path:
+                        description: Secret path
+                        type: string
+                    secretVersion:
+                        description: Specific version to read
+                        type: integer
+                    version:
+                        default: 2
+                        description: KV version (1 or 2)
+                        type: integer
+                required:
+                    - address
+                    - path
+                type: object
+            name: vault-kv-get
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vault-kv-put:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Kv Put
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    data:
+                        description: Secret data
+                        type: object
+                    mount:
+                        default: secret
+                        description: KV mount path
+                        type: string
+                    path:
+                        description: Secret path
+                        type: string
+                    version:
+                        default: 2
+                        description: KV version
+                        type: integer
+                required:
+                    - address
+                    - data
+                    - path
+                type: object
+            name: vault-kv-put
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-lease-renew:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Lease Renew
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    increment:
+                        description: TTL increment
+                        type: integer
+                    leaseId:
+                        description: Lease ID
+                        type: string
+                required:
+                    - address
+                    - leaseId
+                type: object
+            name: vault-lease-renew
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-lease-revoke:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Lease Revoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    leaseId:
+                        description: Lease ID
+                        type: string
+                required:
+                    - address
+                    - leaseId
+                type: object
+            name: vault-lease-revoke
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        vault-list:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    path:
+                        description: Path to list
+                        type: string
+                required:
+                    - address
+                    - path
+                type: object
+            name: vault-list
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vault-pki-issue:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Pki Issue
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    altNames:
+                        description: Subject alternative names
+                        type: string
+                    commonName:
+                        description: Certificate common name
+                        type: string
+                    format:
+                        default: pem
+                        description: Output format (pem, der, pem_bundle)
+                        type: string
+                    ipSans:
+                        description: IP SANs
+                        type: string
+                    mount:
+                        default: pki
+                        description: PKI mount path
+                        type: string
+                    role:
+                        description: PKI role name
+                        type: string
+                    ttl:
+                        description: Certificate TTL
+                        type: string
+                required:
+                    - address
+                    - commonName
+                    - role
+                type: object
+            name: vault-pki-issue
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-pki-renew:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Pki Renew
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    mount:
+                        default: pki
+                        description: PKI mount path
+                        type: string
+                    serial:
+                        description: Certificate serial number
+                        type: string
+                    ttl:
+                        description: New TTL
+                        type: string
+                required:
+                    - address
+                    - serial
+                type: object
+            name: vault-pki-renew
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-pki-revoke:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Pki Revoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    mount:
+                        default: pki
+                        description: PKI mount path
+                        type: string
+                    serial:
+                        description: Certificate serial number
+                        type: string
+                required:
+                    - address
+                    - serial
+                type: object
+            name: vault-pki-revoke
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        vault-read:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Read
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    path:
+                        description: Secret path
+                        type: string
+                required:
+                    - address
+                    - path
+                type: object
+            name: vault-read
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vault-token-create:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Token Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    displayName:
+                        description: Token display name
+                        type: string
+                    maxTtl:
+                        description: Maximum TTL
+                        type: string
+                    numUses:
+                        description: Number of uses
+                        type: integer
+                    policies:
+                        description: List of policies
+                        type: string
+                    renewable:
+                        default: true
+                        description: Is token renewable
+                        type: boolean
+                    ttl:
+                        description: Token TTL
+                        type: string
+                required:
+                    - address
+                type: object
+            name: vault-token-create
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-token-lookup:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Token Lookup
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                required:
+                    - address
+                type: object
+            name: vault-token-lookup
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vault-token-renew:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Token Renew
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    increment:
+                        description: TTL increment
+                        type: string
+                required:
+                    - address
+                type: object
+            name: vault-token-renew
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-token-revoke:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Token Revoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                required:
+                    - address
+                type: object
+            name: vault-token-revoke
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        vault-transit-decrypt:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Transit Decrypt
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    ciphertext:
+                        description: Ciphertext to decrypt
+                        type: string
+                    context:
+                        description: Decryption context
+                        type: string
+                    key:
+                        description: Transit key name
+                        type: string
+                    mount:
+                        default: transit
+                        description: Transit mount path
+                        type: string
+                required:
+                    - address
+                    - ciphertext
+                    - key
+                type: object
+            name: vault-transit-decrypt
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-transit-encrypt:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Transit Encrypt
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    context:
+                        description: Encryption context
+                        type: string
+                    key:
+                        description: Transit key name
+                        type: string
+                    mount:
+                        default: transit
+                        description: Transit mount path
+                        type: string
+                    plaintext:
+                        description: Data to encrypt (base64)
+                        type: string
+                required:
+                    - address
+                    - key
+                    - plaintext
+                type: object
+            name: vault-transit-encrypt
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        vault-write:
+            credentials:
+                - kind: vault-credential
+                  name: vault-credential
+            description: Vault Write
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Vault server address
+                        type: string
+                    data:
+                        description: Data to write
+                        type: object
+                    path:
+                        description: Secret path
+                        type: string
+                required:
+                    - address
+                    - data
+                    - path
+                type: object
+            name: vault-write
+            permissions:
+                - vault:read
+                - vault:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: security
+    description: HashiCorp Vault secrets management operations for Atlas agents
+    icon: lock
+    id: skill-vault
+    installers:
+        - id: oci
+          kind: oci
+          label: HashiCorp Vault Skill service image
+          package: axiomstudio/skill-vault:1.0.0
+    name: HashiCorp Vault Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-vault
+        resolvedVersion: 1.0.0
+    tags:
+        - encryption
+        - pki
+        - secrets
+        - security
+        - vault
+    transport:
+        endpoint: skill-vault
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

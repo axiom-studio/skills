@@ -1,360 +1,303 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-zendesk
-  name: Zendesk Skill
-  description: Zendesk support ticket operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: support
-  tags:
-    - zendesk
-    - support
-    - tickets
-    - helpdesk
-  icon: life-buoy
-  color: "#03363D"
-spec:
-  executorType: grpc
-  credentialType: zendesk_api
-  nodeTypes:
-    - zendesk-ticket-create
-    - zendesk-ticket-update
-    - zendesk-ticket-search
-    - zendesk-user
-    - zendesk-macro
-    - zendesk-view
-  inputs:
-    zendesk-ticket-create:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: subject
-        type: string
-        description: Ticket subject
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Ticket description
-        required: true
-        source: input
-      - name: priority
-        type: string
-        description: Priority (low, normal, high, urgent)
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Status
-        required: false
-        source: input
-      - name: type
-        type: string
-        description: Type (question, incident, problem, task)
-        required: false
-        source: input
-      - name: requesterId
-        type: integer
-        description: Existing user ID
-        required: false
-        source: input
-      - name: requester
-        type: object
-        description: New requester details
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Array of tags
-        required: false
-        source: input
-      - name: customFields
-        items:
-          type: string
-        description: Custom field values
-        required: false
-        source: input
-    zendesk-ticket-update:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: ticketId
-        type: integer
-        description: Ticket ID to update
-        required: true
-        source: input
-      - name: subject
-        type: string
-        description: New subject
-        required: false
-        source: input
-      - name: description
-        type: string
-        description: New description
-        required: false
-        source: input
-      - name: comment
-        type: string
-        description: Add a comment
-        required: false
-        source: input
-      - name: priority
-        type: string
-        description: New priority
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: New status
-        required: false
-        source: input
-      - name: type
-        type: string
-        description: New type
-        required: false
-        source: input
-      - name: assigneeId
-        type: integer
-        description: Assign to user ID
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Replace existing tags
-        required: false
-        source: input
-    zendesk-ticket-search:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: query
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Filter by status
-        required: false
-        source: input
-      - name: type
-        type: string
-        description: Filter by type
-        required: false
-        source: input
-      - name: priority
-        type: string
-        description: Filter by priority
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: Filter by assignee
-        required: false
-        source: input
-      - name: requester
-        type: string
-        description: Filter by requester
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Filter by tags
-        required: false
-        source: input
-      - name: page
-        type: integer
-        description: Page number
-        required: false
-        source: input
-        default: 1
-      - name: perPage
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 100
-    zendesk-user:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: operation
-        type: string
-        description: Operation (get, create, update, search, list)
-        required: true
-        source: input
-      - name: userId
-        type: integer
-        description: User ID for get/update
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: User name
-        required: false
-        source: input
-      - name: userEmail
-        type: string
-        description: User email
-        required: false
-        source: input
-      - name: role
-        type: string
-        description: Role (end-user, agent, admin)
-        required: false
-        source: input
-      - name: phone
-        type: string
-        description: Phone number
-        required: false
-        source: input
-      - name: notes
-        type: string
-        description: User notes
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: User tags
-        required: false
-        source: input
-    zendesk-macro:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: operation
-        type: string
-        description: Operation (list, get, apply)
-        required: true
-        source: input
-      - name: macroId
-        type: integer
-        description: Macro ID for get/apply
-        required: false
-        source: input
-      - name: ticketId
-        type: integer
-        description: Ticket ID for apply
-        required: false
-        source: input
-    zendesk-view:
-      - name: subdomain
-        type: string
-        description: Zendesk subdomain
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: API email
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://zendesk-credentials
-      - name: operation
-        type: string
-        description: Operation (list, get, tickets)
-        required: true
-        source: input
-      - name: viewId
-        type: integer
-        description: View ID for get/tickets
-        required: false
-        source: input
-      - name: page
-        type: integer
-        description: Page number for tickets
-        required: false
-        source: input
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-zendesk:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - zendesk:read
-    - zendesk:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        zendesk-macro:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk Macro
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    macroId:
+                        description: Macro ID for get/apply
+                        type: integer
+                    operation:
+                        description: Operation (list, get, apply)
+                        type: string
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    ticketId:
+                        description: Ticket ID for apply
+                        type: integer
+                required:
+                    - operation
+                    - subdomain
+                type: object
+            name: zendesk-macro
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        zendesk-ticket-create:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk Ticket Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    customFields:
+                        description: Custom field values
+                        type: string
+                    description:
+                        description: Ticket description
+                        type: string
+                    priority:
+                        description: Priority (low, normal, high, urgent)
+                        type: string
+                    requester:
+                        description: New requester details
+                        type: object
+                    requesterId:
+                        description: Existing user ID
+                        type: integer
+                    status:
+                        description: Status
+                        type: string
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    subject:
+                        description: Ticket subject
+                        type: string
+                    tags:
+                        description: Array of tags
+                        type: string
+                    type:
+                        description: Type (question, incident, problem, task)
+                        type: string
+                required:
+                    - description
+                    - subdomain
+                    - subject
+                type: object
+            name: zendesk-ticket-create
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        zendesk-ticket-search:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk Ticket Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Filter by assignee
+                        type: string
+                    page:
+                        default: 1
+                        description: Page number
+                        type: integer
+                    perPage:
+                        default: 100
+                        description: Results per page
+                        type: integer
+                    priority:
+                        description: Filter by priority
+                        type: string
+                    query:
+                        description: Search query
+                        type: string
+                    requester:
+                        description: Filter by requester
+                        type: string
+                    status:
+                        description: Filter by status
+                        type: string
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    tags:
+                        description: Filter by tags
+                        type: string
+                    type:
+                        description: Filter by type
+                        type: string
+                required:
+                    - subdomain
+                type: object
+            name: zendesk-ticket-search
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        zendesk-ticket-update:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk Ticket Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assigneeId:
+                        description: Assign to user ID
+                        type: integer
+                    comment:
+                        description: Add a comment
+                        type: string
+                    description:
+                        description: New description
+                        type: string
+                    priority:
+                        description: New priority
+                        type: string
+                    status:
+                        description: New status
+                        type: string
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    subject:
+                        description: New subject
+                        type: string
+                    tags:
+                        description: Replace existing tags
+                        type: string
+                    ticketId:
+                        description: Ticket ID to update
+                        type: integer
+                    type:
+                        description: New type
+                        type: string
+                required:
+                    - subdomain
+                    - ticketId
+                type: object
+            name: zendesk-ticket-update
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        zendesk-user:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk User
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: User name
+                        type: string
+                    notes:
+                        description: User notes
+                        type: string
+                    operation:
+                        description: Operation (get, create, update, search, list)
+                        type: string
+                    phone:
+                        description: Phone number
+                        type: string
+                    role:
+                        description: Role (end-user, agent, admin)
+                        type: string
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    tags:
+                        description: User tags
+                        type: string
+                    userEmail:
+                        description: User email
+                        type: string
+                    userId:
+                        description: User ID for get/update
+                        type: integer
+                required:
+                    - operation
+                    - subdomain
+                type: object
+            name: zendesk-user
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        zendesk-view:
+            credentials:
+                - kind: zendesk_api
+                  name: zendesk_api
+            description: Zendesk View
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    operation:
+                        description: Operation (list, get, tickets)
+                        type: string
+                    page:
+                        description: Page number for tickets
+                        type: integer
+                    subdomain:
+                        description: Zendesk subdomain
+                        type: string
+                    viewId:
+                        description: View ID for get/tickets
+                        type: integer
+                required:
+                    - operation
+                    - subdomain
+                type: object
+            name: zendesk-view
+            permissions:
+                - zendesk:read
+                - zendesk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: support
+    description: Zendesk support ticket operations for Atlas agents
+    icon: life-buoy
+    id: skill-zendesk
+    installers:
+        - id: oci
+          kind: oci
+          label: Zendesk Skill service image
+          package: axiomstudio/skill-zendesk:1.0.0
+    name: Zendesk Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-zendesk
+        resolvedVersion: 1.0.0
+    tags:
+        - helpdesk
+        - support
+        - tickets
+        - zendesk
+    transport:
+        endpoint: skill-zendesk
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

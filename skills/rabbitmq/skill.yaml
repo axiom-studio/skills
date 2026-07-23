@@ -1,319 +1,380 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-rabbitmq
-  name: RabbitMQ Skill
-  description: RabbitMQ message broker operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: messaging
-  tags:
-    - rabbitmq
-    - amqp
-    - messaging
-    - queue
-  icon: mail
-  color: "#FF6600"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - rabbitmq-publish
-    - rabbitmq-consume
-    - rabbitmq-queue-create
-    - rabbitmq-queue-list
-    - rabbitmq-queue-delete
-    - rabbitmq-queue-purge
-    - rabbitmq-exchange-create
-    - rabbitmq-exchange-list
-    - rabbitmq-binding-create
-    - rabbitmq-binding-list
-  inputs:
-    rabbitmq-publish:
-      - name: url
-        type: string
-        description: RabbitMQ URL (amqp://host:port)
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: exchange
-        type: string
-        description: Exchange name
-        required: true
-        source: input
-      - name: routingKey
-        type: string
-        description: Routing key
-        required: true
-        source: input
-      - name: message
-        type: string
-        description: Message body
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-        default: "text/plain"
-      - name: deliveryMode
-        type: integer
-        description: 1=transient, 2=persistent
-        required: false
-        source: input
-      - name: priority
-        type: integer
-        description: Message priority
-        required: false
-        source: input
-    rabbitmq-consume:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: queue
-        type: string
-        description: Queue name
-        required: true
-        source: input
-      - name: maxMessages
-        type: integer
-        description: Max messages to consume
-        required: false
-        source: input
-      - name: ack
-        type: boolean
-        description: Auto-acknowledge
-        required: false
-        source: default
-        default: true
-      - name: timeout
-        type: string
-        description: Consume timeout
-        required: false
-        source: input
-    rabbitmq-queue-create:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: name
-        type: string
-        description: Queue name
-        required: true
-        source: input
-      - name: durable
-        type: boolean
-        description: Durable queue
-        required: false
-        source: default
-        default: true
-    rabbitmq-queue-list:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-    rabbitmq-queue-delete:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: name
-        type: string
-        description: Queue name
-        required: true
-        source: input
-    rabbitmq-queue-purge:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: name
-        type: string
-        description: Queue name
-        required: true
-        source: input
-    rabbitmq-exchange-create:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: name
-        type: string
-        description: Exchange name
-        required: true
-        source: input
-      - name: exchangeType
-        type: string
-        description: Exchange type (direct, topic, fanout, headers)
-        required: false
-        source: input
-        default: "direct"
-      - name: durable
-        type: boolean
-        description: Durable exchange
-        required: false
-        source: default
-        default: true
-    rabbitmq-exchange-list:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-    rabbitmq-binding-create:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-      - name: exchange
-        type: string
-        description: Exchange name
-        required: true
-        source: input
-      - name: queue
-        type: string
-        description: Queue name
-        required: true
-        source: input
-      - name: routingKey
-        type: string
-        description: Routing key
-        required: true
-        source: input
-    rabbitmq-binding-list:
-      - name: url
-        type: string
-        description: RabbitMQ URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://rabbitmq-credentials
-  grpc:
-    port: 50090
-    docker:
-      image: axiomstudio/skill-rabbitmq:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - rabbitmq:read
-    - rabbitmq:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        rabbitmq-binding-create:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Binding Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    exchange:
+                        description: Exchange name
+                        type: string
+                    queue:
+                        description: Queue name
+                        type: string
+                    routingKey:
+                        description: Routing key
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - exchange
+                    - queue
+                    - routingKey
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-binding-create
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        rabbitmq-binding-list:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Binding List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-binding-list
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        rabbitmq-consume:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Consume
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    ack:
+                        default: true
+                        description: Auto-acknowledge
+                        type: boolean
+                    maxMessages:
+                        description: Max messages to consume
+                        type: integer
+                    queue:
+                        description: Queue name
+                        type: string
+                    timeout:
+                        description: Consume timeout
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - queue
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-consume
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        rabbitmq-exchange-create:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Exchange Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    durable:
+                        default: true
+                        description: Durable exchange
+                        type: boolean
+                    exchangeType:
+                        default: direct
+                        description: Exchange type (direct, topic, fanout, headers)
+                        type: string
+                    name:
+                        description: Exchange name
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - name
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-exchange-create
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        rabbitmq-exchange-list:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Exchange List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-exchange-list
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        rabbitmq-publish:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Publish
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    contentType:
+                        default: text/plain
+                        description: Content type
+                        type: string
+                    deliveryMode:
+                        description: 1=transient, 2=persistent
+                        type: integer
+                    exchange:
+                        description: Exchange name
+                        type: string
+                    message:
+                        description: Message body
+                        type: string
+                    priority:
+                        description: Message priority
+                        type: integer
+                    routingKey:
+                        description: Routing key
+                        type: string
+                    url:
+                        description: RabbitMQ URL (amqp://host:port)
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - exchange
+                    - message
+                    - routingKey
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-publish
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        rabbitmq-queue-create:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Queue Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    durable:
+                        default: true
+                        description: Durable queue
+                        type: boolean
+                    name:
+                        description: Queue name
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - name
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-queue-create
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        rabbitmq-queue-delete:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Queue Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Queue name
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - name
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-queue-delete
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        rabbitmq-queue-list:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Queue List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-queue-list
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        rabbitmq-queue-purge:
+            credentials:
+                - kind: rabbitmq-credential
+                  name: rabbitmq-credential
+            description: Rabbitmq Queue Purge
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Queue name
+                        type: string
+                    url:
+                        description: RabbitMQ URL
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - name
+                    - url
+                    - username
+                type: object
+            name: rabbitmq-queue-purge
+            permissions:
+                - rabbitmq:read
+                - rabbitmq:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+    category: messaging
+    description: RabbitMQ message broker operations for Atlas agents
+    icon: mail
+    id: skill-rabbitmq
+    installers:
+        - id: oci
+          kind: oci
+          label: RabbitMQ Skill service image
+          package: axiomstudio/skill-rabbitmq:1.0.0
+    name: RabbitMQ Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-rabbitmq
+        resolvedVersion: 1.0.0
+    tags:
+        - amqp
+        - messaging
+        - queue
+        - rabbitmq
+    transport:
+        endpoint: skill-rabbitmq
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

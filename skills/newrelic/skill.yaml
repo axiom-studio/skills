@@ -1,165 +1,231 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-newrelic
-  name: New Relic Skill
-  description: New Relic observability operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: monitoring
-  tags:
-    - newrelic
-    - observability
-    - apm
-    - monitoring
-  icon: activity
-  color: "#008C99"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - newrelic-query-nrql
-    - newrelic-deploy-marker
-    - newrelic-alert-policy-list
-    - newrelic-alert-policy-create
-    - newrelic-dashboard-list
-    - newrelic-dashboard-create
-    - newrelic-apdex
-    - newrelic-application-list
-  inputs:
-    newrelic-query-nrql:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-      - name: accountId
-        type: string
-        description: Account ID
-        required: true
-        source: input
-      - name: query
-        type: string
-        description: NRQL query
-        required: true
-        source: input
-    newrelic-deploy-marker:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-      - name: accountId
-        type: string
-        description: Account ID
-        required: true
-        source: input
-      - name: applicationId
-        type: string
-        description: Application ID
-        required: true
-        source: input
-      - name: revision
-        type: string
-        description: Deployment revision
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Description
-        required: false
-        source: input
-      - name: user
-        type: string
-        description: Deployer name
-        required: false
-        source: input
-    newrelic-alert-policy-list:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-    newrelic-alert-policy-create:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-      - name: name
-        type: string
-        description: Alert policy name
-        required: true
-        source: input
-      - name: conditions
-        items:
-          type: string
-        description: Alert conditions
-        required: false
-        source: input
-    newrelic-dashboard-list:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-    newrelic-dashboard-create:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-      - name: name
-        type: string
-        description: Dashboard name
-        required: true
-        source: input
-      - name: widgets
-        items:
-          type: string
-        description: Dashboard widgets
-        required: false
-        source: input
-    newrelic-apdex:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-      - name: accountId
-        type: string
-        description: Account ID
-        required: true
-        source: input
-      - name: applicationId
-        type: string
-        description: Application ID
-        required: true
-        source: input
-    newrelic-application-list:
-      - name: apiKey
-        type: string
-        description: New Relic API key
-        required: true
-        source: connection
-        binding: vault://newrelic-credentials
-  grpc:
-    port: 50123
-    docker:
-      image: axiomstudio/skill-newrelic:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - newrelic:read
-    - newrelic:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        newrelic-alert-policy-create:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Alert Policy Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    conditions:
+                        description: Alert conditions
+                        type: string
+                    name:
+                        description: Alert policy name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: newrelic-alert-policy-create
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        newrelic-alert-policy-list:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Alert Policy List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: newrelic-alert-policy-list
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        newrelic-apdex:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Apdex
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Account ID
+                        type: string
+                    applicationId:
+                        description: Application ID
+                        type: string
+                required:
+                    - accountId
+                    - applicationId
+                type: object
+            name: newrelic-apdex
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        newrelic-application-list:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Application List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: newrelic-application-list
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        newrelic-dashboard-create:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Dashboard Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Dashboard name
+                        type: string
+                    widgets:
+                        description: Dashboard widgets
+                        type: string
+                required:
+                    - name
+                type: object
+            name: newrelic-dashboard-create
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        newrelic-dashboard-list:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Dashboard List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: newrelic-dashboard-list
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        newrelic-deploy-marker:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Deploy Marker
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Account ID
+                        type: string
+                    applicationId:
+                        description: Application ID
+                        type: string
+                    description:
+                        description: Description
+                        type: string
+                    revision:
+                        description: Deployment revision
+                        type: string
+                    user:
+                        description: Deployer name
+                        type: string
+                required:
+                    - accountId
+                    - applicationId
+                    - revision
+                type: object
+            name: newrelic-deploy-marker
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        newrelic-query-nrql:
+            credentials:
+                - kind: newrelic-credential
+                  name: newrelic-credential
+            description: Newrelic Query Nrql
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Account ID
+                        type: string
+                    query:
+                        description: NRQL query
+                        type: string
+                required:
+                    - accountId
+                    - query
+                type: object
+            name: newrelic-query-nrql
+            permissions:
+                - newrelic:read
+                - newrelic:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: monitoring
+    description: New Relic observability operations for Atlas agents
+    icon: activity
+    id: skill-newrelic
+    installers:
+        - id: oci
+          kind: oci
+          label: New Relic Skill service image
+          package: axiomstudio/skill-newrelic:1.0.0
+    name: New Relic Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-newrelic
+        resolvedVersion: 1.0.0
+    tags:
+        - apm
+        - monitoring
+        - newrelic
+        - observability
+    transport:
+        endpoint: skill-newrelic
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
