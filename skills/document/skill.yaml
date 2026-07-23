@@ -1,27 +1,93 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
+apiVersion: openseal.dev/v1alpha1
+definition:
+  actions:
+    render_pdf:
+      description: Render a title and report body as a PDF artifact.
+      emittedArtifactTypes:
+      - report
+      idempotency: required
+      inputSchema:
+        additionalProperties: false
+        properties:
+          body:
+            maxLength: 500000
+            minLength: 1
+            type: string
+          filename:
+            pattern: ^[^/\\]{1,240}\.pdf$
+            type: string
+          requirementName:
+            maxLength: 128
+            minLength: 1
+            type: string
+          sources:
+            items:
+              format: uri
+              type: string
+            maxItems: 100
+            type: array
+          title:
+            maxLength: 300
+            minLength: 1
+            type: string
+        required:
+        - title
+        - body
+        - filename
+        - requirementName
+        type: object
+      name: render_pdf
+      outputSchema:
+        additionalProperties: false
+        properties:
+          artifactRefs:
+            items:
+              additionalProperties: false
+              properties:
+                id:
+                  type: string
+                requirementName:
+                  type: string
+                version:
+                  minimum: 1
+                  type: integer
+              required:
+              - id
+              - version
+              - requirementName
+              type: object
+            maxItems: 1
+            minItems: 1
+            type: array
+          pages:
+            minimum: 1
+            type: integer
+        required:
+        - artifactRefs
+        - pages
+        type: object
+      retry:
+        maxAttempts: 1
+      risk: write
+      sideEffect: write
+  description: Render durable reports into governed PDF artifacts.
   id: openseal.document
-  name: Document Renderer
-  description: Render cited reports into durable PDF artifacts
-  author: OpenSeal Contributors
+  installers:
+  - id: oci
+    kind: oci
+    label: Document renderer service image
+    package: axiomstudio/skill-openseal-document:1.0.0
+  name: Document renderer
+  prompt:
+    allowedTools:
+    - render_pdf
+    instructions: Use render_pdf when work requires a durable PDF deliverable. Cite
+      sources in the body before rendering.
+    userInvocable: true
+  requirements:
+    alwaysAvailable: true
+  transport:
+    endpoint: openseal.document
+    kind: tool
   version: 1.0.0
-  license: Apache-2.0
-  category: documents
-  tags: [pdf, report, artifact]
-  icon: file-text
-spec:
-  executorType: grpc
-  nodeTypes: [openseal.document]
-  inputs:
-    openseal.document:
-      - {name: title, type: string, required: true, source: input}
-      - {name: body, type: string, required: true, source: input}
-      - {name: filename, type: string, required: true, source: input}
-      - {name: requirementName, type: string, required: true, source: input}
-      - {name: sources, type: array, required: false, source: input, items: {type: string}}
-  grpc:
-    port: 50120
-    docker:
-      image: axiomstudio/skill-openseal-document:1.0.0
-  permissions: [artifact:write]
+kind: SkillDefinition
