@@ -1,178 +1,199 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-fivetran
-  name: Fivetran Skill
-  description: Fivetran data pipeline operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - fivetran
-    - etl
-    - data
-    - integration
-  icon: database
-  color: "#FF6B35"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - fivetran-connector-list
-    - fivetran-connector-create
-    - fivetran-connector-sync
-    - fivetran-connector-status
-    - fivetran-destination-list
-    - fivetran-schema-config
-    - fivetran-group-list
-  inputs:
-    fivetran-connector-list:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: groupId
-        type: string
-        description: Filter by group ID
-        required: false
-        source: input
-    fivetran-connector-create:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: groupId
-        type: string
-        description: Group ID
-        required: true
-        source: input
-      - name: service
-        type: string
-        description: Service name
-        required: true
-        source: input
-      - name: config
-        type: object
-        description: Connector configuration
-        required: true
-        source: input
-      - name: paused
-        type: boolean
-        description: Pause connector
-        required: false
-        source: default
-        default: false
-    fivetran-connector-sync:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: connectorId
-        type: string
-        description: Connector ID
-        required: true
-        source: input
-    fivetran-connector-status:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: connectorId
-        type: string
-        description: Connector ID
-        required: true
-        source: input
-    fivetran-destination-list:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-    fivetran-schema-config:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: connectorId
-        type: string
-        description: Connector ID
-        required: true
-        source: input
-      - name: schema
-        type: object
-        description: Schema configuration
-        required: true
-        source: input
-    fivetran-group-list:
-      - name: apiKey
-        type: string
-        description: Fivetran API key
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-      - name: apiSecret
-        type: string
-        description: Fivetran API secret
-        required: true
-        source: connection
-        binding: vault://fivetran-credentials
-  grpc:
-    port: 50102
-    docker:
-      image: axiomstudio/skill-fivetran:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - fivetran:read
-    - fivetran:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        fivetran-connector-create:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Connector Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    config:
+                        description: Connector configuration
+                        type: object
+                    groupId:
+                        description: Group ID
+                        type: string
+                    paused:
+                        default: false
+                        description: Pause connector
+                        type: boolean
+                    service:
+                        description: Service name
+                        type: string
+                required:
+                    - config
+                    - groupId
+                    - service
+                type: object
+            name: fivetran-connector-create
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        fivetran-connector-list:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Connector List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    groupId:
+                        description: Filter by group ID
+                        type: string
+                type: object
+            name: fivetran-connector-list
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        fivetran-connector-status:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Connector Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectorId:
+                        description: Connector ID
+                        type: string
+                required:
+                    - connectorId
+                type: object
+            name: fivetran-connector-status
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        fivetran-connector-sync:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Connector Sync
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectorId:
+                        description: Connector ID
+                        type: string
+                required:
+                    - connectorId
+                type: object
+            name: fivetran-connector-sync
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        fivetran-destination-list:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Destination List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: fivetran-destination-list
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        fivetran-group-list:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Group List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: fivetran-group-list
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        fivetran-schema-config:
+            credentials:
+                - kind: fivetran-credential
+                  name: fivetran-credential
+            description: Fivetran Schema Config
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectorId:
+                        description: Connector ID
+                        type: string
+                    schema:
+                        description: Schema configuration
+                        type: object
+                required:
+                    - connectorId
+                    - schema
+                type: object
+            name: fivetran-schema-config
+            permissions:
+                - fivetran:read
+                - fivetran:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: data
+    description: Fivetran data pipeline operations for Atlas agents
+    icon: database
+    id: skill-fivetran
+    installers:
+        - id: oci
+          kind: oci
+          label: Fivetran Skill service image
+          package: axiomstudio/skill-fivetran:1.0.0
+    name: Fivetran Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-fivetran
+        resolvedVersion: 1.0.0
+    tags:
+        - data
+        - etl
+        - fivetran
+        - integration
+    transport:
+        endpoint: skill-fivetran
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

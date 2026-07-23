@@ -1,179 +1,205 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-airtable
-  name: Airtable Skill
-  description: Airtable database operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - airtable
-    - database
-    - spreadsheet
-    - no-code
-  icon: table
-  color: "#FCB400"
-spec:
-  executorType: grpc
-  credentialType: airtable_api
-  nodeTypes:
-    - airtable-list
-    - airtable-create
-    - airtable-update
-    - airtable-delete
-    - airtable-search
-  inputs:
-    airtable-list:
-      - name: apiKey
-        type: string
-        description: Airtable API key
-        required: true
-        source: connection
-        binding: vault://airtable-credentials
-      - name: baseId
-        type: string
-        description: ID of the Airtable base
-        required: true
-        source: input
-      - name: table
-        type: string
-        description: Table name to list records from
-        required: true
-        source: input
-      - name: maxRecords
-        type: integer
-        description: Maximum number of records to return
-        required: false
-        source: input
-      - name: filterByFormula
-        type: string
-        description: Airtable formula to filter records
-        required: false
-        source: input
-      - name: sort
-        items:
-          type: string
-        description: Array of sort options
-        required: false
-        source: input
-      - name: view
-        type: string
-        description: View ID to use for listing
-        required: false
-        source: input
-    airtable-create:
-      - name: apiKey
-        type: string
-        description: Airtable API key
-        required: true
-        source: connection
-        binding: vault://airtable-credentials
-      - name: baseId
-        type: string
-        description: ID of the Airtable base
-        required: true
-        source: input
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: records
-        items:
-          type: string
-        description: Array of record objects with fields
-        required: true
-        source: input
-    airtable-update:
-      - name: apiKey
-        type: string
-        description: Airtable API key
-        required: true
-        source: connection
-        binding: vault://airtable-credentials
-      - name: baseId
-        type: string
-        description: ID of the Airtable base
-        required: true
-        source: input
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: records
-        items:
-          type: string
-        description: Array of record objects with id and fields
-        required: true
-        source: input
-    airtable-delete:
-      - name: apiKey
-        type: string
-        description: Airtable API key
-        required: true
-        source: connection
-        binding: vault://airtable-credentials
-      - name: baseId
-        type: string
-        description: ID of the Airtable base
-        required: true
-        source: input
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: recordIds
-        items:
-          type: string
-        description: Array of record IDs to delete
-        required: true
-        source: input
-    airtable-search:
-      - name: apiKey
-        type: string
-        description: Airtable API key
-        required: true
-        source: connection
-        binding: vault://airtable-credentials
-      - name: baseId
-        type: string
-        description: ID of the Airtable base
-        required: true
-        source: input
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: field
-        type: string
-        description: Field name to search in
-        required: true
-        source: input
-      - name: value
-        type: string
-        description: Value to search for
-        required: true
-        source: input
-      - name: exactMatch
-        type: boolean
-        description: Whether to match exactly
-        required: false
-        source: default
-        default: false
-  grpc:
-    port: 50052
-    docker:
-      image: axiomstudio/skill-airtable:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - airtable:read
-    - airtable:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        airtable-create:
+            credentials:
+                - kind: airtable_api
+                  name: airtable_api
+            description: Airtable Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseId:
+                        description: ID of the Airtable base
+                        type: string
+                    records:
+                        description: Array of record objects with fields
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                required:
+                    - baseId
+                    - records
+                    - table
+                type: object
+            name: airtable-create
+            permissions:
+                - airtable:read
+                - airtable:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airtable-delete:
+            credentials:
+                - kind: airtable_api
+                  name: airtable_api
+            description: Airtable Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseId:
+                        description: ID of the Airtable base
+                        type: string
+                    recordIds:
+                        description: Array of record IDs to delete
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                required:
+                    - baseId
+                    - recordIds
+                    - table
+                type: object
+            name: airtable-delete
+            permissions:
+                - airtable:read
+                - airtable:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        airtable-list:
+            credentials:
+                - kind: airtable_api
+                  name: airtable_api
+            description: Airtable List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseId:
+                        description: ID of the Airtable base
+                        type: string
+                    filterByFormula:
+                        description: Airtable formula to filter records
+                        type: string
+                    maxRecords:
+                        description: Maximum number of records to return
+                        type: integer
+                    sort:
+                        description: Array of sort options
+                        type: string
+                    table:
+                        description: Table name to list records from
+                        type: string
+                    view:
+                        description: View ID to use for listing
+                        type: string
+                required:
+                    - baseId
+                    - table
+                type: object
+            name: airtable-list
+            permissions:
+                - airtable:read
+                - airtable:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airtable-search:
+            credentials:
+                - kind: airtable_api
+                  name: airtable_api
+            description: Airtable Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseId:
+                        description: ID of the Airtable base
+                        type: string
+                    exactMatch:
+                        default: false
+                        description: Whether to match exactly
+                        type: boolean
+                    field:
+                        description: Field name to search in
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                    value:
+                        description: Value to search for
+                        type: string
+                required:
+                    - baseId
+                    - field
+                    - table
+                    - value
+                type: object
+            name: airtable-search
+            permissions:
+                - airtable:read
+                - airtable:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airtable-update:
+            credentials:
+                - kind: airtable_api
+                  name: airtable_api
+            description: Airtable Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseId:
+                        description: ID of the Airtable base
+                        type: string
+                    records:
+                        description: Array of record objects with id and fields
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                required:
+                    - baseId
+                    - records
+                    - table
+                type: object
+            name: airtable-update
+            permissions:
+                - airtable:read
+                - airtable:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: data
+    description: Airtable database operations for Atlas agents
+    icon: table
+    id: skill-airtable
+    installers:
+        - id: oci
+          kind: oci
+          label: Airtable Skill service image
+          package: axiomstudio/skill-airtable:1.0.0
+    name: Airtable Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-airtable
+        resolvedVersion: 1.0.0
+    tags:
+        - airtable
+        - database
+        - no-code
+        - spreadsheet
+    transport:
+        endpoint: skill-airtable
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

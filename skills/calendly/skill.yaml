@@ -1,238 +1,283 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-calendly
-  name: Calendly Skill
-  description: Calendly scheduling operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: productivity
-  tags:
-    - calendly
-    - scheduling
-    - calendar
-    - meetings
-  icon: calendar
-  color: "#006BFF"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - calendly-event-list
-    - calendly-event-get
-    - calendly-event-create
-    - calendly-cancel
-    - calendly-reschedule
-    - calendly-availability
-    - calendly-user-get
-    - calendly-webhook-create
-  inputs:
-    calendly-event-list:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: user
-        type: string
-        description: Filter by user URI
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Filter by event status
-        required: false
-        source: input
-      - name: count
-        type: integer
-        description: Maximum results to return
-        required: false
-        source: input
-        default: 20
-    calendly-event-get:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: eventUri
-        type: string
-        description: Event URI
-        required: true
-        source: input
-    calendly-event-create:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: eventTypeUri
-        type: string
-        description: Event type URI
-        required: true
-        source: input
-      - name: inviteeEmail
-        type: string
-        description: Invitee email
-        required: true
-        source: input
-      - name: inviteeName
-        type: string
-        description: Invitee name
-        required: true
-        source: input
-      - name: startTime
-        type: string
-        description: Start time (ISO 8601)
-        required: true
-        source: input
-      - name: endTime
-        type: string
-        description: End time (ISO 8601)
-        required: false
-        source: input
-      - name: inviteeTimezone
-        type: string
-        description: Invitee timezone
-        required: false
-        source: input
-      - name: inviteePhone
-        type: string
-        description: Invitee phone number
-        required: false
-        source: input
-      - name: location
-        type: string
-        description: Event location
-        required: false
-        source: input
-      - name: locationType
-        type: string
-        description: Location type (physical, phone, zoom, teams, meet, custom)
-        required: false
-        source: input
-      - name: customAnswers
-        type: object
-        description: Answers to custom questions
-        required: false
-        source: input
-    calendly-cancel:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: eventUri
-        type: string
-        description: Event URI to cancel
-        required: true
-        source: input
-      - name: reason
-        type: string
-        description: Cancellation reason
-        required: false
-        source: input
-    calendly-reschedule:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: eventUri
-        type: string
-        description: Event URI to reschedule
-        required: true
-        source: input
-      - name: startTime
-        type: string
-        description: New start time (ISO 8601)
-        required: true
-        source: input
-    calendly-availability:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: eventTypeUri
-        type: string
-        description: Event type URI
-        required: true
-        source: input
-      - name: startTime
-        type: string
-        description: Search start time (ISO 8601)
-        required: true
-        source: input
-      - name: endTime
-        type: string
-        description: Search end time (ISO 8601)
-        required: true
-        source: input
-      - name: duration
-        type: integer
-        description: Required duration in minutes
-        required: false
-        source: input
-      - name: maxResults
-        type: integer
-        description: Maximum number of slots to return
-        required: false
-        source: input
-        default: 10
-    calendly-user-get:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: userUri
-        type: string
-        description: User URI (or 'me' for current user)
-        required: false
-        source: input
-        default: "me"
-    calendly-webhook-create:
-      - name: apiToken
-        type: string
-        description: Calendly API token
-        required: true
-        source: connection
-        binding: vault://calendly-credentials
-      - name: url
-        type: string
-        description: Webhook callback URL
-        required: true
-        source: input
-      - name: events
-        type: array
-        items:
-          type: string
-        description: Events to subscribe to
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: User URI scope
-        required: false
-        source: input
-  grpc:
-    port: 50119
-    docker:
-      image: axiomstudio/skill-calendly:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - calendly:read
-    - calendly:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        calendly-availability:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Availability
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    duration:
+                        description: Required duration in minutes
+                        type: integer
+                    endTime:
+                        description: Search end time (ISO 8601)
+                        type: string
+                    eventTypeUri:
+                        description: Event type URI
+                        type: string
+                    maxResults:
+                        default: 10
+                        description: Maximum number of slots to return
+                        type: integer
+                    startTime:
+                        description: Search start time (ISO 8601)
+                        type: string
+                required:
+                    - endTime
+                    - eventTypeUri
+                    - startTime
+                type: object
+            name: calendly-availability
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        calendly-cancel:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Cancel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventUri:
+                        description: Event URI to cancel
+                        type: string
+                    reason:
+                        description: Cancellation reason
+                        type: string
+                required:
+                    - eventUri
+                type: object
+            name: calendly-cancel
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        calendly-event-create:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Event Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    customAnswers:
+                        description: Answers to custom questions
+                        type: object
+                    endTime:
+                        description: End time (ISO 8601)
+                        type: string
+                    eventTypeUri:
+                        description: Event type URI
+                        type: string
+                    inviteeEmail:
+                        description: Invitee email
+                        type: string
+                    inviteeName:
+                        description: Invitee name
+                        type: string
+                    inviteePhone:
+                        description: Invitee phone number
+                        type: string
+                    inviteeTimezone:
+                        description: Invitee timezone
+                        type: string
+                    location:
+                        description: Event location
+                        type: string
+                    locationType:
+                        description: Location type (physical, phone, zoom, teams, meet, custom)
+                        type: string
+                    startTime:
+                        description: Start time (ISO 8601)
+                        type: string
+                required:
+                    - eventTypeUri
+                    - inviteeEmail
+                    - inviteeName
+                    - startTime
+                type: object
+            name: calendly-event-create
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        calendly-event-get:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Event Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventUri:
+                        description: Event URI
+                        type: string
+                required:
+                    - eventUri
+                type: object
+            name: calendly-event-get
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        calendly-event-list:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Event List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    count:
+                        default: 20
+                        description: Maximum results to return
+                        type: integer
+                    status:
+                        description: Filter by event status
+                        type: string
+                    user:
+                        description: Filter by user URI
+                        type: string
+                type: object
+            name: calendly-event-list
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        calendly-reschedule:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Reschedule
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    eventUri:
+                        description: Event URI to reschedule
+                        type: string
+                    startTime:
+                        description: New start time (ISO 8601)
+                        type: string
+                required:
+                    - eventUri
+                    - startTime
+                type: object
+            name: calendly-reschedule
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        calendly-user-get:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly User Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    userUri:
+                        default: me
+                        description: User URI (or 'me' for current user)
+                        type: string
+                type: object
+            name: calendly-user-get
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        calendly-webhook-create:
+            credentials:
+                - kind: calendly-credential
+                  name: calendly-credential
+            description: Calendly Webhook Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    events:
+                        description: Events to subscribe to
+                        items:
+                            type: string
+                        type: array
+                    url:
+                        description: Webhook callback URL
+                        type: string
+                    user:
+                        description: User URI scope
+                        type: string
+                required:
+                    - events
+                    - url
+                type: object
+            name: calendly-webhook-create
+            permissions:
+                - calendly:read
+                - calendly:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: productivity
+    description: Calendly scheduling operations for Atlas agents
+    icon: calendar
+    id: skill-calendly
+    installers:
+        - id: oci
+          kind: oci
+          label: Calendly Skill service image
+          package: axiomstudio/skill-calendly:1.0.0
+    name: Calendly Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-calendly
+        resolvedVersion: 1.0.0
+    tags:
+        - calendar
+        - calendly
+        - meetings
+        - scheduling
+    transport:
+        endpoint: skill-calendly
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

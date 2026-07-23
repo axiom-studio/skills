@@ -1,378 +1,363 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-kafka
-  name: Apache Kafka Skill
-  description: Apache Kafka event streaming operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: messaging
-  tags:
-    - kafka
-    - events
-    - streaming
-    - messaging
-  icon: radio
-  color: "#231F20"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - kafka-produce
-    - kafka-consume
-    - kafka-topic-create
-    - kafka-topic-list
-    - kafka-topic-delete
-    - kafka-topic-describe
-    - kafka-consumer-group-list
-    - kafka-consumer-group-reset
-    - kafka-partition-list
-    - kafka-offset-get
-  inputs:
-    kafka-produce:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses (host:port)
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Message key
-        required: false
-        source: input
-      - name: value
-        type: string
-        description: Message value
-        required: true
-        source: input
-      - name: headers
-        type: object
-        description: Message headers
-        required: false
-        source: input
-      - name: partition
-        type: integer
-        description: Target partition
-        required: false
-        source: input
-      - name: ack
-        type: string
-        description: Ack mode (none, leader, all)
-        required: false
-        source: input
-        default: "all"
-      - name: compression
-        type: string
-        description: Compression type
-        required: false
-        source: input
-        default: "none"
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: tls
-        type: boolean
-        description: Enable TLS
-        required: false
-        source: default
-        default: false
-    kafka-consume:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: groupId
-        type: string
-        description: Consumer group ID
-        required: false
-        source: input
-      - name: fromBeginning
-        type: boolean
-        description: Start from beginning
-        required: false
-        source: default
-        default: false
-      - name: maxMessages
-        type: integer
-        description: Max messages to consume
-        required: false
-        source: input
-        default: 10
-      - name: timeout
-        type: string
-        description: Poll timeout
-        required: false
-        source: input
-      - name: autoCommit
-        type: boolean
-        description: Auto-commit offsets
-        required: false
-        source: default
-        default: true
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-topic-create:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: partitions
-        type: integer
-        description: Number of partitions
-        required: false
-        source: input
-        default: 3
-      - name: replicationFactor
-        type: integer
-        description: Replication factor
-        required: false
-        source: input
-        default: 1
-      - name: config
-        type: object
-        description: Topic configuration
-        required: false
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-topic-list:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-topic-delete:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-topic-describe:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-consumer-group-list:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-consumer-group-reset:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: groupId
-        type: string
-        description: Consumer group ID
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: false
-        source: input
-      - name: toOffset
-        type: string
-        description: Reset to (earliest, latest, specific)
-        required: false
-        source: input
-        default: "latest"
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-partition-list:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-    kafka-offset-get:
-      - name: brokers
-        items:
-          type: string
-        description: Broker addresses
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: groupId
-        type: string
-        description: Consumer group ID
-        required: false
-        source: input
-      - name: partition
-        type: integer
-        description: Partition number
-        required: false
-        source: input
-      - name: saslUsername
-        type: string
-        description: SASL username
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-      - name: saslPassword
-        type: string
-        description: SASL password
-        required: false
-        source: connection
-        binding: vault://kafka-credentials
-  grpc:
-    port: 50089
-    docker:
-      image: axiomstudio/skill-kafka:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - kafka:read
-    - kafka:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        kafka-consume:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Consume
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    autoCommit:
+                        default: true
+                        description: Auto-commit offsets
+                        type: boolean
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    fromBeginning:
+                        default: false
+                        description: Start from beginning
+                        type: boolean
+                    groupId:
+                        description: Consumer group ID
+                        type: string
+                    maxMessages:
+                        default: 10
+                        description: Max messages to consume
+                        type: integer
+                    timeout:
+                        description: Poll timeout
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-consume
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        kafka-consumer-group-list:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Consumer Group List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                required:
+                    - brokers
+                type: object
+            name: kafka-consumer-group-list
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        kafka-consumer-group-reset:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Consumer Group Reset
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    groupId:
+                        description: Consumer group ID
+                        type: string
+                    toOffset:
+                        default: latest
+                        description: Reset to (earliest, latest, specific)
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - groupId
+                type: object
+            name: kafka-consumer-group-reset
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        kafka-offset-get:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Offset Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    groupId:
+                        description: Consumer group ID
+                        type: string
+                    partition:
+                        description: Partition number
+                        type: integer
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-offset-get
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        kafka-partition-list:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Partition List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-partition-list
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        kafka-produce:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Produce
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    ack:
+                        default: all
+                        description: Ack mode (none, leader, all)
+                        type: string
+                    brokers:
+                        description: Broker addresses (host:port)
+                        type: string
+                    compression:
+                        default: none
+                        description: Compression type
+                        type: string
+                    headers:
+                        description: Message headers
+                        type: object
+                    key:
+                        description: Message key
+                        type: string
+                    partition:
+                        description: Target partition
+                        type: integer
+                    tls:
+                        default: false
+                        description: Enable TLS
+                        type: boolean
+                    topic:
+                        description: Topic name
+                        type: string
+                    value:
+                        description: Message value
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                    - value
+                type: object
+            name: kafka-produce
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        kafka-topic-create:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Topic Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    config:
+                        description: Topic configuration
+                        type: object
+                    partitions:
+                        default: 3
+                        description: Number of partitions
+                        type: integer
+                    replicationFactor:
+                        default: 1
+                        description: Replication factor
+                        type: integer
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-topic-create
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        kafka-topic-delete:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Topic Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-topic-delete
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        kafka-topic-describe:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Topic Describe
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - brokers
+                    - topic
+                type: object
+            name: kafka-topic-describe
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        kafka-topic-list:
+            credentials:
+                - kind: kafka-credential
+                  name: kafka-credential
+            description: Kafka Topic List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    brokers:
+                        description: Broker addresses
+                        type: string
+                required:
+                    - brokers
+                type: object
+            name: kafka-topic-list
+            permissions:
+                - kafka:read
+                - kafka:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: messaging
+    description: Apache Kafka event streaming operations for Atlas agents
+    icon: radio
+    id: skill-kafka
+    installers:
+        - id: oci
+          kind: oci
+          label: Apache Kafka Skill service image
+          package: axiomstudio/skill-kafka:1.0.0
+    name: Apache Kafka Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-kafka
+        resolvedVersion: 1.0.0
+    tags:
+        - events
+        - kafka
+        - messaging
+        - streaming
+    transport:
+        endpoint: skill-kafka
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

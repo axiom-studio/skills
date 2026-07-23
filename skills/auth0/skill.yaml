@@ -1,302 +1,318 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-auth0
-  name: Auth0 Skill
-  description: Auth0 authentication platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: security
-  tags:
-    - auth0
-    - authentication
-    - identity
-    - oauth
-  icon: lock
-  color: "#EB5424"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - auth0-user-list
-    - auth0-user-create
-    - auth0-user-update
-    - auth0-user-delete
-    - auth0-role-list
-    - auth0-role-assign
-    - auth0-connection-list
-    - auth0-client-list
-    - auth0-rule-list
-    - auth0-log-list
-  inputs:
-    auth0-user-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: q
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: per_page
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 50
-      - name: page
-        type: integer
-        description: Page number
-        required: false
-        source: input
-        default: 0
-    auth0-user-create:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: connection
-        type: string
-        description: Connection name
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: User email
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Initial password
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: User name
-        required: false
-        source: input
-    auth0-user-update:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: userId
-        type: string
-        description: User ID to update
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: New email
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: New name
-        required: false
-        source: input
-    auth0-user-delete:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: userId
-        type: string
-        description: User ID to delete
-        required: true
-        source: input
-    auth0-role-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-    auth0-role-assign:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-      - name: roleId
-        type: string
-        description: Role ID to assign
-        required: true
-        source: input
-    auth0-connection-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-    auth0-client-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-    auth0-rule-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-    auth0-log-list:
-      - name: domain
-        type: string
-        description: Auth0 domain
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Management API client ID
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: clientSecret
-        type: string
-        description: Management API client secret
-        required: true
-        source: connection
-        binding: vault://auth0-credentials
-      - name: type
-        type: string
-        description: Filter by log type
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum number of logs
-        required: false
-        source: input
-        default: 50
-  grpc:
-    port: 50094
-    docker:
-      image: axiomstudio/skill-auth0:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - auth0:read
-    - auth0:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        auth0-client-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Client List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-client-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-connection-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Connection List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-connection-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-log-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Log List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    limit:
+                        default: 50
+                        description: Maximum number of logs
+                        type: integer
+                    type:
+                        description: Filter by log type
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-log-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-role-assign:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Role Assign
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    roleId:
+                        description: Role ID to assign
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - domain
+                    - roleId
+                    - userId
+                type: object
+            name: auth0-role-assign
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        auth0-role-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Role List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-role-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-rule-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 Rule List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-rule-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-user-create:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 User Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connection:
+                        description: Connection name
+                        type: string
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    email:
+                        description: User email
+                        type: string
+                    name:
+                        description: User name
+                        type: string
+                    password:
+                        description: Initial password
+                        type: string
+                required:
+                    - connection
+                    - domain
+                    - email
+                type: object
+            name: auth0-user-create
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        auth0-user-delete:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 User Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    userId:
+                        description: User ID to delete
+                        type: string
+                required:
+                    - domain
+                    - userId
+                type: object
+            name: auth0-user-delete
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        auth0-user-list:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 User List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    page:
+                        default: 0
+                        description: Page number
+                        type: integer
+                    per_page:
+                        default: 50
+                        description: Results per page
+                        type: integer
+                    q:
+                        description: Search query
+                        type: string
+                required:
+                    - domain
+                type: object
+            name: auth0-user-list
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        auth0-user-update:
+            credentials:
+                - kind: auth0-credential
+                  name: auth0-credential
+            description: Auth0 User Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Auth0 domain
+                        type: string
+                    email:
+                        description: New email
+                        type: string
+                    name:
+                        description: New name
+                        type: string
+                    userId:
+                        description: User ID to update
+                        type: string
+                required:
+                    - domain
+                    - userId
+                type: object
+            name: auth0-user-update
+            permissions:
+                - auth0:read
+                - auth0:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: security
+    description: Auth0 authentication platform operations for Atlas agents
+    icon: lock
+    id: skill-auth0
+    installers:
+        - id: oci
+          kind: oci
+          label: Auth0 Skill service image
+          package: axiomstudio/skill-auth0:1.0.0
+    name: Auth0 Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-auth0
+        resolvedVersion: 1.0.0
+    tags:
+        - auth0
+        - authentication
+        - identity
+        - oauth
+    transport:
+        endpoint: skill-auth0
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

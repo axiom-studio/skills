@@ -1,133 +1,142 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-heygen
-  name: HeyGen Skill
-  description: HeyGen avatar video generation and voice discovery for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - heygen
-    - ai
-    - video
-    - avatar
-  icon: video
-  color: "#6366F1"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - heygen-create-video
-    - heygen-get-video
-    - heygen-list-voices
-  inputs:
-    heygen-create-video:
-      - name: apiKey
-        type: string
-        description: HeyGen API key
-        required: true
-        source: connection
-        binding: vault://heygen-credentials
-      - name: avatarId
-        type: string
-        description: HeyGen avatar ID
-        required: true
-        source: input
-      - name: script
-        type: string
-        description: Text script for the avatar to speak
-        required: true
-        source: input
-      - name: voiceId
-        type: string
-        description: Optional voice ID for text-to-speech
-        required: false
-        source: input
-      - name: title
-        type: string
-        description: Display title for the video
-        required: false
-        source: input
-      - name: resolution
-        type: string
-        description: Output video resolution
-        required: false
-        source: input
-        default: "1080p"
-      - name: aspectRatio
-        type: string
-        description: Output video aspect ratio
-        required: false
-        source: input
-        default: "16:9"
-      - name: callbackUrl
-        type: string
-        description: Webhook URL to receive completion notification
-        required: false
-        source: input
-      - name: idempotencyKey
-        type: string
-        description: Optional idempotency key for safe retries
-        required: false
-        source: input
-    heygen-get-video:
-      - name: apiKey
-        type: string
-        description: HeyGen API key
-        required: true
-        source: connection
-        binding: vault://heygen-credentials
-      - name: videoId
-        type: string
-        description: Video ID to retrieve
-        required: true
-        source: input
-    heygen-list-voices:
-      - name: apiKey
-        type: string
-        description: HeyGen API key
-        required: true
-        source: connection
-        binding: vault://heygen-credentials
-      - name: type
-        type: string
-        description: Voice type, public or private
-        required: false
-        source: input
-        default: "public"
-      - name: engine
-        type: string
-        description: Optional voice engine filter
-        required: false
-        source: input
-      - name: language
-        type: string
-        description: Optional language filter
-        required: false
-        source: input
-      - name: gender
-        type: string
-        description: Optional gender filter
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 20
-  grpc:
-    port: 50132
-    docker:
-      image: axiomstudio/skill-heygen:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - heygen:video:create
-    - heygen:video:read
-    - heygen:voice:read
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        heygen-create-video:
+            credentials:
+                - kind: heygen-credential
+                  name: heygen-credential
+            description: Heygen Create Video
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    aspectRatio:
+                        default: "16:9"
+                        description: Output video aspect ratio
+                        type: string
+                    avatarId:
+                        description: HeyGen avatar ID
+                        type: string
+                    callbackUrl:
+                        description: Webhook URL to receive completion notification
+                        type: string
+                    idempotencyKey:
+                        description: Optional idempotency key for safe retries
+                        type: string
+                    resolution:
+                        default: 1080p
+                        description: Output video resolution
+                        type: string
+                    script:
+                        description: Text script for the avatar to speak
+                        type: string
+                    title:
+                        description: Display title for the video
+                        type: string
+                    voiceId:
+                        description: Optional voice ID for text-to-speech
+                        type: string
+                required:
+                    - avatarId
+                    - script
+                type: object
+            name: heygen-create-video
+            permissions:
+                - heygen:video:create
+                - heygen:video:read
+                - heygen:voice:read
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        heygen-get-video:
+            credentials:
+                - kind: heygen-credential
+                  name: heygen-credential
+            description: Heygen Get Video
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    videoId:
+                        description: Video ID to retrieve
+                        type: string
+                required:
+                    - videoId
+                type: object
+            name: heygen-get-video
+            permissions:
+                - heygen:video:create
+                - heygen:video:read
+                - heygen:voice:read
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        heygen-list-voices:
+            credentials:
+                - kind: heygen-credential
+                  name: heygen-credential
+            description: Heygen List Voices
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    engine:
+                        description: Optional voice engine filter
+                        type: string
+                    gender:
+                        description: Optional gender filter
+                        type: string
+                    language:
+                        description: Optional language filter
+                        type: string
+                    limit:
+                        default: 20
+                        description: Results per page
+                        type: integer
+                    type:
+                        default: public
+                        description: Voice type, public or private
+                        type: string
+                type: object
+            name: heygen-list-voices
+            permissions:
+                - heygen:video:create
+                - heygen:video:read
+                - heygen:voice:read
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: ai
+    description: HeyGen avatar video generation and voice discovery for Atlas agents
+    icon: video
+    id: skill-heygen
+    installers:
+        - id: oci
+          kind: oci
+          label: HeyGen Skill service image
+          package: axiomstudio/skill-heygen:1.0.0
+    name: HeyGen Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-heygen
+        resolvedVersion: 1.0.0
+    tags:
+        - ai
+        - avatar
+        - heygen
+        - video
+    transport:
+        endpoint: skill-heygen
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

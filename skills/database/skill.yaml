@@ -1,157 +1,189 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-database
-  name: Database Skill
-  description: Database operations for Atlas agents - query, insert, update, delete
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - database
-    - sql
-    - postgres
-    - mysql
-    - data
-  icon: database
-  color: "#336791"
-spec:
-  executorType: grpc
-  credentialType: database
-  nodeTypes:
-    - db-query
-    - db-insert
-    - db-update
-    - db-delete
-    - db-transaction
-  inputs:
-    db-query:
-      - name: connectionString
-        type: string
-        description: Database connection string
-        required: true
-        source: connection
-        binding: vault://database-credentials
-      - name: query
-        type: string
-        description: SQL query to execute
-        required: true
-        source: input
-      - name: databaseType
-        type: string
-        description: Database type (postgres, mysql, mssql)
-        required: false
-        source: input
-        default: "postgres"
-      - name: params
-        items:
-          type: string
-        description: Query parameters
-        required: false
-        source: input
-    db-insert:
-      - name: connectionString
-        type: string
-        description: Database connection string
-        required: true
-        source: connection
-        binding: vault://database-credentials
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: data
-        type: object
-        description: Data to insert
-        required: true
-        source: input
-      - name: databaseType
-        type: string
-        description: Database type
-        required: false
-        source: input
-        default: "postgres"
-    db-update:
-      - name: connectionString
-        type: string
-        description: Database connection string
-        required: true
-        source: connection
-        binding: vault://database-credentials
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: data
-        type: object
-        description: Data to update
-        required: true
-        source: input
-      - name: whereClause
-        type: string
-        description: WHERE clause condition
-        required: true
-        source: input
-      - name: databaseType
-        type: string
-        description: Database type
-        required: false
-        source: input
-        default: "postgres"
-    db-delete:
-      - name: connectionString
-        type: string
-        description: Database connection string
-        required: true
-        source: connection
-        binding: vault://database-credentials
-      - name: table
-        type: string
-        description: Table name
-        required: true
-        source: input
-      - name: whereClause
-        type: string
-        description: WHERE clause condition
-        required: true
-        source: input
-      - name: databaseType
-        type: string
-        description: Database type
-        required: false
-        source: input
-        default: "postgres"
-    db-transaction:
-      - name: connectionString
-        type: string
-        description: Database connection string
-        required: true
-        source: connection
-        binding: vault://database-credentials
-      - name: queries
-        items:
-          type: string
-        description: Array of SQL queries to execute in transaction
-        required: true
-        source: input
-      - name: databaseType
-        type: string
-        description: Database type
-        required: false
-        source: input
-        default: "postgres"
-  grpc:
-    port: 50052
-    docker:
-      image: axiomstudio/skill-database:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - database:read
-    - database:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        db-delete:
+            credentials:
+                - kind: database
+                  name: database
+            description: Db Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    databaseType:
+                        default: postgres
+                        description: Database type
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                    whereClause:
+                        description: WHERE clause condition
+                        type: string
+                required:
+                    - table
+                    - whereClause
+                type: object
+            name: db-delete
+            permissions:
+                - database:read
+                - database:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        db-insert:
+            credentials:
+                - kind: database
+                  name: database
+            description: Db Insert
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    data:
+                        description: Data to insert
+                        type: object
+                    databaseType:
+                        default: postgres
+                        description: Database type
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                required:
+                    - data
+                    - table
+                type: object
+            name: db-insert
+            permissions:
+                - database:read
+                - database:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        db-query:
+            credentials:
+                - kind: database
+                  name: database
+            description: Db Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    databaseType:
+                        default: postgres
+                        description: Database type (postgres, mysql, mssql)
+                        type: string
+                    params:
+                        description: Query parameters
+                        type: string
+                    query:
+                        description: SQL query to execute
+                        type: string
+                required:
+                    - query
+                type: object
+            name: db-query
+            permissions:
+                - database:read
+                - database:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        db-transaction:
+            credentials:
+                - kind: database
+                  name: database
+            description: Db Transaction
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    databaseType:
+                        default: postgres
+                        description: Database type
+                        type: string
+                    queries:
+                        description: Array of SQL queries to execute in transaction
+                        type: string
+                required:
+                    - queries
+                type: object
+            name: db-transaction
+            permissions:
+                - database:read
+                - database:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        db-update:
+            credentials:
+                - kind: database
+                  name: database
+            description: Db Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    data:
+                        description: Data to update
+                        type: object
+                    databaseType:
+                        default: postgres
+                        description: Database type
+                        type: string
+                    table:
+                        description: Table name
+                        type: string
+                    whereClause:
+                        description: WHERE clause condition
+                        type: string
+                required:
+                    - data
+                    - table
+                    - whereClause
+                type: object
+            name: db-update
+            permissions:
+                - database:read
+                - database:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: data
+    description: Database operations for Atlas agents - query, insert, update, delete
+    icon: database
+    id: skill-database
+    installers:
+        - id: oci
+          kind: oci
+          label: Database Skill service image
+          package: axiomstudio/skill-database:1.0.0
+    name: Database Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-database
+        resolvedVersion: 1.0.0
+    tags:
+        - data
+        - database
+        - mysql
+        - postgres
+        - sql
+    transport:
+        endpoint: skill-database
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

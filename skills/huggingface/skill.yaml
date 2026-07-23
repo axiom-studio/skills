@@ -1,213 +1,261 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-huggingface
-  name: Hugging Face Skill
-  description: Hugging Face model hub operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - huggingface
-    - ml
-    - models
-    - inference
-  icon: cpu
-  color: "#FFD21E"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - hf-inference
-    - hf-model-list
-    - hf-model-info
-    - hf-model-download
-    - hf-dataset-list
-    - hf-dataset-download
-    - hf-space-create
-    - hf-space-list
-  inputs:
-    hf-inference:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: true
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: model
-        type: string
-        description: Model ID
-        required: true
-        source: input
-      - name: inputs
-        type: string
-        description: Input text/data
-        required: true
-        source: input
-      - name: parameters
-        type: object
-        description: Model parameters
-        required: false
-        source: input
-    hf-model-list:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: search
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: filter
-        type: string
-        description: Filter by task or library
-        required: false
-        source: input
-      - name: sort
-        type: string
-        description: Sort by (downloads, likes)
-        required: false
-        source: input
-        default: "downloads"
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-        default: 20
-    hf-model-info:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: modelId
-        type: string
-        description: Model ID
-        required: true
-        source: input
-    hf-model-download:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: modelId
-        type: string
-        description: Model ID
-        required: true
-        source: input
-      - name: filename
-        type: string
-        description: Specific file to download
-        required: false
-        source: input
-    hf-dataset-list:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: search
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: filter
-        type: string
-        description: Filter by task or library
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-        default: 20
-    hf-dataset-download:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: datasetId
-        type: string
-        description: Dataset ID
-        required: true
-        source: input
-      - name: config
-        type: string
-        description: Dataset config name
-        required: false
-        source: input
-      - name: split
-        type: string
-        description: Dataset split (train, test, validation)
-        required: false
-        source: input
-        default: "train"
-    hf-space-create:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: true
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: spaceId
-        type: string
-        description: Space ID (user/name)
-        required: true
-        source: input
-      - name: sdk
-        type: string
-        description: SDK (gradio, streamlit, static)
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: Space title
-        required: false
-        source: input
-    hf-space-list:
-      - name: apiToken
-        type: string
-        description: Hugging Face API token
-        required: false
-        source: connection
-        binding: vault://huggingface-credentials
-      - name: author
-        type: string
-        description: Filter by author
-        required: false
-        source: input
-      - name: search
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-        default: 20
-  grpc:
-    port: 50097
-    docker:
-      image: axiomstudio/skill-huggingface:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - huggingface:read
-    - huggingface:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        hf-dataset-download:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Dataset Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    config:
+                        description: Dataset config name
+                        type: string
+                    datasetId:
+                        description: Dataset ID
+                        type: string
+                    split:
+                        default: train
+                        description: Dataset split (train, test, validation)
+                        type: string
+                required:
+                    - datasetId
+                type: object
+            name: hf-dataset-download
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        hf-dataset-list:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Dataset List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filter:
+                        description: Filter by task or library
+                        type: string
+                    limit:
+                        default: 20
+                        description: Max results
+                        type: integer
+                    search:
+                        description: Search query
+                        type: string
+                type: object
+            name: hf-dataset-list
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        hf-inference:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Inference
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    inputs:
+                        description: Input text/data
+                        type: string
+                    model:
+                        description: Model ID
+                        type: string
+                    parameters:
+                        description: Model parameters
+                        type: object
+                required:
+                    - inputs
+                    - model
+                type: object
+            name: hf-inference
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        hf-model-download:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Model Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filename:
+                        description: Specific file to download
+                        type: string
+                    modelId:
+                        description: Model ID
+                        type: string
+                required:
+                    - modelId
+                type: object
+            name: hf-model-download
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        hf-model-info:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Model Info
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    modelId:
+                        description: Model ID
+                        type: string
+                required:
+                    - modelId
+                type: object
+            name: hf-model-info
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        hf-model-list:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Model List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filter:
+                        description: Filter by task or library
+                        type: string
+                    limit:
+                        default: 20
+                        description: Max results
+                        type: integer
+                    search:
+                        description: Search query
+                        type: string
+                    sort:
+                        default: downloads
+                        description: Sort by (downloads, likes)
+                        type: string
+                type: object
+            name: hf-model-list
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        hf-space-create:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Space Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    sdk:
+                        description: SDK (gradio, streamlit, static)
+                        type: string
+                    spaceId:
+                        description: Space ID (user/name)
+                        type: string
+                    title:
+                        description: Space title
+                        type: string
+                required:
+                    - sdk
+                    - spaceId
+                type: object
+            name: hf-space-create
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        hf-space-list:
+            credentials:
+                - kind: huggingface-credential
+                  name: huggingface-credential
+            description: Hf Space List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    author:
+                        description: Filter by author
+                        type: string
+                    limit:
+                        default: 20
+                        description: Max results
+                        type: integer
+                    search:
+                        description: Search query
+                        type: string
+                type: object
+            name: hf-space-list
+            permissions:
+                - huggingface:read
+                - huggingface:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: ai
+    description: Hugging Face model hub operations for Atlas agents
+    icon: cpu
+    id: skill-huggingface
+    installers:
+        - id: oci
+          kind: oci
+          label: Hugging Face Skill service image
+          package: axiomstudio/skill-huggingface:1.0.0
+    name: Hugging Face Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-huggingface
+        resolvedVersion: 1.0.0
+    tags:
+        - huggingface
+        - inference
+        - ml
+        - models
+    transport:
+        endpoint: skill-huggingface
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

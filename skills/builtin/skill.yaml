@@ -1,74 +1,91 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-builtin
-  name: Built-in Agent Tools
-  description: Universal tools available to every agent out of the box. Provides web page fetching, file downloading, and web searching capabilities without requiring any credentials.
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: builtin
-  tags:
-    - builtin
-    - web
-    - download
-    - utility
-    - search
-  icon: zap
-  color: "#10B981"
-spec:
-  executorType: grpc
-  nodeTypes:
-    - fetch-url
-    - download-file
-  inputs:
-    fetch-url:
-      - name: url
-        type: string
-        description: The URL to fetch
-        required: true
-        source: input
-      - name: max_length
-        type: integer
-        description: Maximum characters to return
-        required: false
-        source: input
-        default: 8000
-      - name: timeout
-        type: integer
-        description: Request timeout in seconds
-        required: false
-        source: input
-        default: 10
-    download-file:
-      - name: url
-        type: string
-        description: The URL of the file to download
-        required: true
-        source: input
-      - name: filename
-        type: string
-        description: Optional desired filename
-        required: false
-        source: input
-      - name: mime_type
-        type: string
-        description: Optional MIME type hint
-        required: false
-        source: input
-      - name: timeout
-        type: integer
-        description: Download timeout in seconds
-        required: false
-        source: input
-        default: 30
-  grpc:
-    port: 50130
-    docker:
-      image: axiomstudio/skill-builtin:1.0.0
-  dependencies:
-    standard:
-      - logger
-  permissions:
-    - builtin:read
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        download-file:
+            description: Download File
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filename:
+                        description: Optional desired filename
+                        type: string
+                    mime_type:
+                        description: Optional MIME type hint
+                        type: string
+                    timeout:
+                        default: 30
+                        description: Download timeout in seconds
+                        type: integer
+                    url:
+                        description: The URL of the file to download
+                        type: string
+                required:
+                    - url
+                type: object
+            name: download-file
+            permissions:
+                - builtin:read
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        fetch-url:
+            description: Fetch Url
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    max_length:
+                        default: 8000
+                        description: Maximum characters to return
+                        type: integer
+                    timeout:
+                        default: 10
+                        description: Request timeout in seconds
+                        type: integer
+                    url:
+                        description: The URL to fetch
+                        type: string
+                required:
+                    - url
+                type: object
+            name: fetch-url
+            permissions:
+                - builtin:read
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: builtin
+    description: Universal tools available to every agent out of the box. Provides web page fetching, file downloading, and web searching capabilities without requiring any credentials.
+    icon: zap
+    id: skill-builtin
+    installers:
+        - id: oci
+          kind: oci
+          label: Built-in Agent Tools service image
+          package: axiomstudio/skill-builtin:1.0.0
+    name: Built-in Agent Tools
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-builtin
+        resolvedVersion: 1.0.0
+    tags:
+        - builtin
+        - download
+        - search
+        - utility
+        - web
+    transport:
+        endpoint: skill-builtin
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
