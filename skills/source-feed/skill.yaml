@@ -70,7 +70,7 @@ definition:
   - id: oci
     kind: oci
     label: Source observer service image
-    package: axiomstudio/skill-openseal-source:1.0.2
+    package: axiomstudio/skill-openseal-source:1.0.4
   name: Source observer
   prompt:
     allowedTools:
@@ -89,5 +89,5 @@ definition:
   transport:
     endpoint: openseal.source
     kind: tool
-  version: 1.0.3
+  version: 1.0.4
 kind: SkillDefinition
