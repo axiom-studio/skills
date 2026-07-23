@@ -1,6 +1,8 @@
 # Axiom Skills Monorepo
 
-Official Axiom Studio skills collection.
+Official Axiom Studio skills collection. Every published capability is a
+complete canonical OpenSeal `SkillDefinition`; this repository does not publish
+legacy node/executor manifests.
 
 ## Overview
 
@@ -24,7 +26,7 @@ Each skill lives in its own subdirectory under `skills/`:
 ```
 skills/
 └── my-skill/
-    ├── skill.yaml   # Skill manifest
+    ├── skill.yaml   # Canonical OpenSeal SkillDefinition
     ├── main.go      # Implementation
     └── README.md    # Skill documentation
 ```
@@ -32,19 +34,20 @@ skills/
 ## Build Instructions
 
 ```bash
-# Build all skills
-make build
+# Validate Go implementations and manifest structure
+./scripts/validate.sh
 
-# Run tests
-make test
+# Validate one manifest with the OpenSeal CLI
+openseal skill validate skills/<skill-name>/skill.yaml
 
-# Validate skill manifests
-./scripts/validate-skills.sh
+# Build or publish the exact OCI packages declared by each definition
+make docker-build
+make docker-push
 ```
 
 ## Contributing
 
 1. Create a new branch from `main`
-2. Add your skill under `skills/<skill-name>/`
-3. Run validation: `./scripts/validate-skills.sh`
+2. Add your canonical Skill under `skills/<skill-name>/`
+3. Run validation: `./scripts/validate.sh`
 4. Submit a pull request
