@@ -1,242 +1,293 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-netlify
-  name: Netlify Skill
-  description: Netlify deployment platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - netlify
-    - deployment
-    - serverless
-    - jamstack
-  icon: cloud
-  color: "#00C7B7"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - netlify-deploy
-    - netlify-site-list
-    - netlify-site-create
-    - netlify-site-get
-    - netlify-deploy-list
-    - netlify-dns-records
-    - netlify-env-set
-    - netlify-env-list
-    - netlify-build-hook-create
-  inputs:
-    netlify-deploy:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-      - name: dir
-        type: string
-        description: Directory to deploy
-        required: false
-        source: input
-      - name: functions
-        type: string
-        description: Functions directory
-        required: false
-        source: input
-      - name: draft
-        type: boolean
-        description: Create draft deployment
-        required: false
-        source: default
-        default: false
-      - name: message
-        type: string
-        description: Deployment message
-        required: false
-        source: input
-    netlify-site-list:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: name
-        type: string
-        description: Filter by site name
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 20
-    netlify-site-create:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: name
-        type: string
-        description: Site name
-        required: false
-        source: input
-      - name: customDomain
-        type: string
-        description: Custom domain
-        required: false
-        source: input
-    netlify-site-get:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-    netlify-deploy-list:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 5
-    netlify-dns-records:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (list, create, update, delete)
-        required: true
-        source: input
-      - name: hostname
-        type: string
-        description: DNS hostname
-        required: false
-        source: input
-      - name: type
-        type: string
-        description: Record type (A, CNAME, MX, TXT)
-        required: false
-        source: input
-      - name: value
-        type: string
-        description: Record value
-        required: false
-        source: input
-      - name: ttl
-        type: integer
-        description: TTL in seconds
-        required: false
-        source: input
-        default: 3600
-    netlify-env-set:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Variable key
-        required: true
-        source: input
-      - name: value
-        type: string
-        description: Variable value
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: context
-        type: string
-        description: Context (production, dev, branch)
-        required: false
-        source: input
-        default: "all"
-    netlify-env-list:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-    netlify-build-hook-create:
-      - name: apiToken
-        type: string
-        description: Netlify API token
-        required: true
-        source: connection
-        binding: vault://netlify-credentials
-      - name: siteId
-        type: string
-        description: Site ID
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: Build hook title
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Branch to deploy
-        required: false
-        source: input
-  grpc:
-    port: 50127
-    docker:
-      image: axiomstudio/skill-netlify:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - netlify:read
-    - netlify:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        netlify-build-hook-create:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Build Hook Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch to deploy
+                        type: string
+                    siteId:
+                        description: Site ID
+                        type: string
+                    title:
+                        description: Build hook title
+                        type: string
+                required:
+                    - siteId
+                    - title
+                type: object
+            name: netlify-build-hook-create
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        netlify-deploy:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Deploy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dir:
+                        description: Directory to deploy
+                        type: string
+                    draft:
+                        default: false
+                        description: Create draft deployment
+                        type: boolean
+                    functions:
+                        description: Functions directory
+                        type: string
+                    message:
+                        description: Deployment message
+                        type: string
+                    siteId:
+                        description: Site ID
+                        type: string
+                required:
+                    - siteId
+                type: object
+            name: netlify-deploy
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        netlify-deploy-list:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Deploy List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 5
+                        description: Maximum results
+                        type: integer
+                    siteId:
+                        description: Site ID
+                        type: string
+                required:
+                    - siteId
+                type: object
+            name: netlify-deploy-list
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        netlify-dns-records:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Dns Records
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, create, update, delete)
+                        type: string
+                    hostname:
+                        description: DNS hostname
+                        type: string
+                    siteId:
+                        description: Site ID
+                        type: string
+                    ttl:
+                        default: 3600
+                        description: TTL in seconds
+                        type: integer
+                    type:
+                        description: Record type (A, CNAME, MX, TXT)
+                        type: string
+                    value:
+                        description: Record value
+                        type: string
+                required:
+                    - action
+                    - siteId
+                type: object
+            name: netlify-dns-records
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        netlify-env-list:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Env List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    siteId:
+                        description: Site ID
+                        type: string
+                required:
+                    - siteId
+                type: object
+            name: netlify-env-list
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        netlify-env-set:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Env Set
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    context:
+                        default: all
+                        description: Context (production, dev, branch)
+                        type: string
+                    key:
+                        description: Variable key
+                        type: string
+                    siteId:
+                        description: Site ID
+                        type: string
+                required:
+                    - key
+                    - siteId
+                type: object
+            name: netlify-env-set
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        netlify-site-create:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Site Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    customDomain:
+                        description: Custom domain
+                        type: string
+                    name:
+                        description: Site name
+                        type: string
+                type: object
+            name: netlify-site-create
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        netlify-site-get:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Site Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    siteId:
+                        description: Site ID
+                        type: string
+                required:
+                    - siteId
+                type: object
+            name: netlify-site-get
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        netlify-site-list:
+            credentials:
+                - kind: netlify-credential
+                  name: netlify-credential
+            description: Netlify Site List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 20
+                        description: Maximum results
+                        type: integer
+                    name:
+                        description: Filter by site name
+                        type: string
+                type: object
+            name: netlify-site-list
+            permissions:
+                - netlify:read
+                - netlify:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: devops
+    description: Netlify deployment platform operations for Atlas agents
+    icon: cloud
+    id: skill-netlify
+    installers:
+        - id: oci
+          kind: oci
+          label: Netlify Skill service image
+          package: axiomstudio/skill-netlify:1.0.0
+    name: Netlify Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-netlify
+        resolvedVersion: 1.0.0
+    tags:
+        - deployment
+        - jamstack
+        - netlify
+        - serverless
+    transport:
+        endpoint: skill-netlify
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

@@ -1,265 +1,248 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-sendgrid
-  name: SendGrid Skill
-  description: SendGrid email marketing operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: marketing
-  tags:
-    - sendgrid
-    - email
-    - marketing
-    - transactional
-  icon: mail
-  color: "#0086FF"
-spec:
-  executorType: grpc
-  credentialType: sendgrid_api
-  nodeTypes:
-    - sg-send
-    - sg-template
-    - sg-contact
-    - sg-list
-    - sg-campaign
-  inputs:
-    sg-send:
-      - name: apiKey
-        type: string
-        description: SendGrid API key
-        required: true
-        source: connection
-        binding: vault://sendgrid-credentials
-      - name: fromEmail
-        type: string
-        description: Sender email address
-        required: true
-        source: input
-      - name: fromName
-        type: string
-        description: Sender name
-        required: false
-        source: input
-      - name: toEmails
-        items:
-          type: string
-        description: Recipient email addresses
-        required: true
-        source: input
-      - name: ccEmails
-        items:
-          type: string
-        description: CC email addresses
-        required: false
-        source: input
-      - name: bccEmails
-        items:
-          type: string
-        description: BCC email addresses
-        required: false
-        source: input
-      - name: subject
-        type: string
-        description: Email subject
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Email body content
-        required: false
-        source: input
-      - name: contentType
-        type: string
-        description: Content type (text/plain or text/html)
-        required: false
-        source: input
-        default: "text/plain"
-      - name: templateId
-        type: string
-        description: Dynamic template ID
-        required: false
-        source: input
-      - name: templateData
-        type: object
-        description: Data for dynamic template substitution
-        required: false
-        source: input
-    sg-template:
-      - name: apiKey
-        type: string
-        description: SendGrid API key
-        required: true
-        source: connection
-        binding: vault://sendgrid-credentials
-      - name: action
-        type: string
-        description: Action to perform (list, get, create, update, delete)
-        required: true
-        source: input
-      - name: templateId
-        type: string
-        description: Template ID (required for get/update/delete)
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Template name (required for create/update)
-        required: false
-        source: input
-      - name: content
-        type: string
-        description: Template HTML content
-        required: false
-        source: input
-      - name: subject
-        type: string
-        description: Template subject
-        required: false
-        source: input
-    sg-contact:
-      - name: apiKey
-        type: string
-        description: SendGrid API key
-        required: true
-        source: connection
-        binding: vault://sendgrid-credentials
-      - name: action
-        type: string
-        description: Action to perform (list, get, create, update, delete, search)
-        required: true
-        source: input
-      - name: contactId
-        type: string
-        description: Contact ID (required for get/update/delete)
-        required: false
-        source: input
-      - name: email
-        type: string
-        description: Contact email address (required for create)
-        required: false
-        source: input
-      - name: firstName
-        type: string
-        description: Contact first name
-        required: false
-        source: input
-      - name: lastName
-        type: string
-        description: Contact last name
-        required: false
-        source: input
-      - name: phone
-        type: string
-        description: Contact phone number
-        required: false
-        source: input
-      - name: customFields
-        type: object
-        description: Custom field values
-        required: false
-        source: input
-      - name: query
-        type: string
-        description: Search query (required for search action)
-        required: false
-        source: input
-    sg-list:
-      - name: apiKey
-        type: string
-        description: SendGrid API key
-        required: true
-        source: connection
-        binding: vault://sendgrid-credentials
-      - name: action
-        type: string
-        description: Action to perform (list, get, create, update, delete)
-        required: true
-        source: input
-      - name: listId
-        type: string
-        description: List ID (required for get/update/delete)
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: List name (required for create/update)
-        required: false
-        source: input
-      - name: contactIds
-        items:
-          type: string
-        description: Contact IDs to add to list
-        required: false
-        source: input
-    sg-campaign:
-      - name: apiKey
-        type: string
-        description: SendGrid API key
-        required: true
-        source: connection
-        binding: vault://sendgrid-credentials
-      - name: action
-        type: string
-        description: Action to perform (list, get, create, update, delete, schedule, send)
-        required: true
-        source: input
-      - name: campaignId
-        type: string
-        description: Campaign ID (required for get/update/delete/schedule/send)
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Campaign name (required for create)
-        required: false
-        source: input
-      - name: subject
-        type: string
-        description: Campaign subject (required for create)
-        required: false
-        source: input
-      - name: fromEmail
-        type: string
-        description: Sender email (required for create)
-        required: false
-        source: input
-      - name: fromName
-        type: string
-        description: Sender name
-        required: false
-        source: input
-      - name: listIds
-        items:
-          type: string
-        description: Contact list IDs to send to (required for create)
-        required: false
-        source: input
-      - name: templateId
-        type: string
-        description: Dynamic template ID
-        required: false
-        source: input
-      - name: customUnsubscribeUrl
-        type: string
-        description: Custom unsubscribe URL
-        required: false
-        source: input
-      - name: sendTime
-        type: string
-        description: Scheduled send time in ISO 8601 format (required for schedule)
-        required: false
-        source: input
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-sendgrid:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - sendgrid:read
-    - sendgrid:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        sg-campaign:
+            credentials:
+                - kind: sendgrid_api
+                  name: sendgrid_api
+            description: Sg Campaign
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action to perform (list, get, create, update, delete, schedule, send)
+                        type: string
+                    campaignId:
+                        description: Campaign ID (required for get/update/delete/schedule/send)
+                        type: string
+                    customUnsubscribeUrl:
+                        description: Custom unsubscribe URL
+                        type: string
+                    fromEmail:
+                        description: Sender email (required for create)
+                        type: string
+                    fromName:
+                        description: Sender name
+                        type: string
+                    listIds:
+                        description: Contact list IDs to send to (required for create)
+                        type: string
+                    name:
+                        description: Campaign name (required for create)
+                        type: string
+                    sendTime:
+                        description: Scheduled send time in ISO 8601 format (required for schedule)
+                        type: string
+                    subject:
+                        description: Campaign subject (required for create)
+                        type: string
+                    templateId:
+                        description: Dynamic template ID
+                        type: string
+                required:
+                    - action
+                type: object
+            name: sg-campaign
+            permissions:
+                - sendgrid:read
+                - sendgrid:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sg-contact:
+            credentials:
+                - kind: sendgrid_api
+                  name: sendgrid_api
+            description: Sg Contact
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action to perform (list, get, create, update, delete, search)
+                        type: string
+                    contactId:
+                        description: Contact ID (required for get/update/delete)
+                        type: string
+                    customFields:
+                        description: Custom field values
+                        type: object
+                    email:
+                        description: Contact email address (required for create)
+                        type: string
+                    firstName:
+                        description: Contact first name
+                        type: string
+                    lastName:
+                        description: Contact last name
+                        type: string
+                    phone:
+                        description: Contact phone number
+                        type: string
+                    query:
+                        description: Search query (required for search action)
+                        type: string
+                required:
+                    - action
+                type: object
+            name: sg-contact
+            permissions:
+                - sendgrid:read
+                - sendgrid:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sg-list:
+            credentials:
+                - kind: sendgrid_api
+                  name: sendgrid_api
+            description: Sg List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action to perform (list, get, create, update, delete)
+                        type: string
+                    contactIds:
+                        description: Contact IDs to add to list
+                        type: string
+                    listId:
+                        description: List ID (required for get/update/delete)
+                        type: string
+                    name:
+                        description: List name (required for create/update)
+                        type: string
+                required:
+                    - action
+                type: object
+            name: sg-list
+            permissions:
+                - sendgrid:read
+                - sendgrid:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sg-send:
+            credentials:
+                - kind: sendgrid_api
+                  name: sendgrid_api
+            description: Sg Send
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bccEmails:
+                        description: BCC email addresses
+                        type: string
+                    ccEmails:
+                        description: CC email addresses
+                        type: string
+                    content:
+                        description: Email body content
+                        type: string
+                    contentType:
+                        default: text/plain
+                        description: Content type (text/plain or text/html)
+                        type: string
+                    fromEmail:
+                        description: Sender email address
+                        type: string
+                    fromName:
+                        description: Sender name
+                        type: string
+                    subject:
+                        description: Email subject
+                        type: string
+                    templateData:
+                        description: Data for dynamic template substitution
+                        type: object
+                    templateId:
+                        description: Dynamic template ID
+                        type: string
+                    toEmails:
+                        description: Recipient email addresses
+                        type: string
+                required:
+                    - fromEmail
+                    - subject
+                    - toEmails
+                type: object
+            name: sg-send
+            permissions:
+                - sendgrid:read
+                - sendgrid:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sg-template:
+            credentials:
+                - kind: sendgrid_api
+                  name: sendgrid_api
+            description: Sg Template
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action to perform (list, get, create, update, delete)
+                        type: string
+                    content:
+                        description: Template HTML content
+                        type: string
+                    name:
+                        description: Template name (required for create/update)
+                        type: string
+                    subject:
+                        description: Template subject
+                        type: string
+                    templateId:
+                        description: Template ID (required for get/update/delete)
+                        type: string
+                required:
+                    - action
+                type: object
+            name: sg-template
+            permissions:
+                - sendgrid:read
+                - sendgrid:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: marketing
+    description: SendGrid email marketing operations for Atlas agents
+    icon: mail
+    id: skill-sendgrid
+    installers:
+        - id: oci
+          kind: oci
+          label: SendGrid Skill service image
+          package: axiomstudio/skill-sendgrid:1.0.0
+    name: SendGrid Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-sendgrid
+        resolvedVersion: 1.0.0
+    tags:
+        - email
+        - marketing
+        - sendgrid
+        - transactional
+    transport:
+        endpoint: skill-sendgrid
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

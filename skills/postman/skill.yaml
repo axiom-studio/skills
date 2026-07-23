@@ -1,143 +1,213 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-postman
-  name: Postman Skill
-  description: Postman API testing operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - postman
-    - api
-    - testing
-    - collection
-  icon: send
-  color: "#FF6C37"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - postman-collection-run
-    - postman-collection-list
-    - postman-collection-get
-    - postman-environment-list
-    - postman-environment-get
-    - postman-monitor-run
-    - postman-monitor-list
-    - postman-api-list
-  inputs:
-    postman-collection-run:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-      - name: collectionId
-        type: string
-        description: Collection UID
-        required: true
-        source: input
-      - name: environmentId
-        type: string
-        description: Environment UID
-        required: false
-        source: input
-      - name: folder
-        type: string
-        description: Specific folder to run
-        required: false
-        source: input
-      - name: delay
-        type: integer
-        description: Request delay (ms)
-        required: false
-        source: input
-      - name: timeout
-        type: integer
-        description: Request timeout (ms)
-        required: false
-        source: input
-      - name: iterationCount
-        type: integer
-        description: Number of iterations
-        required: false
-        source: input
-    postman-collection-list:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-    postman-collection-get:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-      - name: collectionId
-        type: string
-        description: Collection UID
-        required: true
-        source: input
-    postman-environment-list:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-    postman-environment-get:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-      - name: environmentId
-        type: string
-        description: Environment UID
-        required: true
-        source: input
-    postman-monitor-run:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-      - name: monitorId
-        type: string
-        description: Monitor UID
-        required: true
-        source: input
-    postman-monitor-list:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-    postman-api-list:
-      - name: apiKey
-        type: string
-        description: Postman API key
-        required: true
-        source: connection
-        binding: vault://postman-credentials
-  grpc:
-    port: 50128
-    docker:
-      image: axiomstudio/skill-postman:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - postman:read
-    - postman:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        postman-api-list:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Api List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: postman-api-list
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-collection-get:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Collection Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collectionId:
+                        description: Collection UID
+                        type: string
+                required:
+                    - collectionId
+                type: object
+            name: postman-collection-get
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-collection-list:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Collection List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: postman-collection-list
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-collection-run:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Collection Run
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collectionId:
+                        description: Collection UID
+                        type: string
+                    delay:
+                        description: Request delay (ms)
+                        type: integer
+                    environmentId:
+                        description: Environment UID
+                        type: string
+                    folder:
+                        description: Specific folder to run
+                        type: string
+                    iterationCount:
+                        description: Number of iterations
+                        type: integer
+                    timeout:
+                        description: Request timeout (ms)
+                        type: integer
+                required:
+                    - collectionId
+                type: object
+            name: postman-collection-run
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        postman-environment-get:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Environment Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environmentId:
+                        description: Environment UID
+                        type: string
+                required:
+                    - environmentId
+                type: object
+            name: postman-environment-get
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-environment-list:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Environment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: postman-environment-list
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-monitor-list:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Monitor List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: postman-monitor-list
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        postman-monitor-run:
+            credentials:
+                - kind: postman-credential
+                  name: postman-credential
+            description: Postman Monitor Run
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    monitorId:
+                        description: Monitor UID
+                        type: string
+                required:
+                    - monitorId
+                type: object
+            name: postman-monitor-run
+            permissions:
+                - postman:read
+                - postman:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: devops
+    description: Postman API testing operations for Atlas agents
+    icon: send
+    id: skill-postman
+    installers:
+        - id: oci
+          kind: oci
+          label: Postman Skill service image
+          package: axiomstudio/skill-postman:1.0.0
+    name: Postman Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-postman
+        resolvedVersion: 1.0.0
+    tags:
+        - api
+        - collection
+        - postman
+        - testing
+    transport:
+        endpoint: skill-postman
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

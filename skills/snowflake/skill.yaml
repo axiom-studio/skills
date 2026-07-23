@@ -1,308 +1,302 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-snowflake
-  name: Snowflake Skill
-  description: Snowflake data warehouse operations
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - snowflake
-    - data-warehouse
-    - analytics
-    - sql
-  icon: database
-  color: "#29B5E8"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - sf-query
-    - sf-warehouse
-    - sf-stage
-    - sf-copy
-    - sf-stream
-  inputs:
-    sf-query:
-      - name: account
-        type: string
-        description: Snowflake account identifier
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: Snowflake username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Snowflake password
-        required: true
-        source: connection
-        binding: vault://snowflake-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: schema
-        type: string
-        description: Schema name
-        required: true
-        source: input
-      - name: warehouse
-        type: string
-        description: Warehouse to use
-        required: true
-        source: input
-      - name: role
-        type: string
-        description: Role to use
-        required: false
-        source: input
-      - name: query
-        type: string
-        description: SQL query to execute
-        required: true
-        source: input
-      - name: args
-        type: object
-        description: Query parameters
-        required: false
-        source: input
-    sf-warehouse:
-      - name: account
-        type: string
-        description: Snowflake account identifier
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: Snowflake username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Snowflake password
-        required: true
-        source: connection
-        binding: vault://snowflake-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: warehouse
-        type: string
-        description: Warehouse name
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (start, stop, resume, suspend, status, resize)
-        required: true
-        source: input
-      - name: size
-        type: string
-        description: Warehouse size for resize
-        required: false
-        source: input
-      - name: autoSuspend
-        type: integer
-        description: Auto-suspend time in minutes
-        required: false
-        source: input
-      - name: autoResume
-        type: boolean
-        description: Enable auto-resume
-        required: false
-        source: default
-        default: true
-    sf-stage:
-      - name: account
-        type: string
-        description: Snowflake account identifier
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: Snowflake username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Snowflake password
-        required: true
-        source: connection
-        binding: vault://snowflake-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: schema
-        type: string
-        description: Schema name
-        required: true
-        source: input
-      - name: stageName
-        type: string
-        description: Stage name
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (create, drop, list, describe)
-        required: true
-        source: input
-      - name: stageType
-        type: string
-        description: internal or external
-        required: false
-        source: input
-        default: "internal"
-      - name: url
-        type: string
-        description: External stage URL
-        required: false
-        source: input
-      - name: fileFormat
-        type: string
-        description: File format name
-        required: false
-        source: input
-    sf-copy:
-      - name: account
-        type: string
-        description: Snowflake account identifier
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: Snowflake username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Snowflake password
-        required: true
-        source: connection
-        binding: vault://snowflake-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: schema
-        type: string
-        description: Schema name
-        required: true
-        source: input
-      - name: warehouse
-        type: string
-        description: Warehouse to use
-        required: true
-        source: input
-      - name: direction
-        type: string
-        description: into_table (load) or from_table (unload)
-        required: true
-        source: input
-      - name: tableName
-        type: string
-        description: Target/source table name
-        required: true
-        source: input
-      - name: stageName
-        type: string
-        description: Stage name
-        required: true
-        source: input
-      - name: filePath
-        type: string
-        description: File path in stage
-        required: false
-        source: input
-      - name: fileFormat
-        type: string
-        description: File format specification
-        required: false
-        source: input
-      - name: onError
-        type: string
-        description: Error handling (CONTINUE, SKIP_FILE, ABORT_STATEMENT)
-        required: false
-        source: input
-      - name: validationMode
-        type: string
-        description: Validation mode
-        required: false
-        source: input
-    sf-stream:
-      - name: account
-        type: string
-        description: Snowflake account identifier
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: Snowflake username
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Snowflake password
-        required: true
-        source: connection
-        binding: vault://snowflake-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: schema
-        type: string
-        description: Schema name
-        required: true
-        source: input
-      - name: streamName
-        type: string
-        description: Stream name
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (create, drop, describe, consume)
-        required: true
-        source: input
-      - name: tableName
-        type: string
-        description: Source table name (for create)
-        required: false
-        source: input
-      - name: appendOnly
-        type: boolean
-        description: Create append-only stream
-        required: false
-        source: default
-        default: false
-      - name: showInitial
-        type: boolean
-        description: Show initial rows
-        required: false
-        source: default
-        default: false
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-snowflake:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - snowflake:read
-    - snowflake:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        sf-copy:
+            credentials:
+                - kind: snowflake-credential
+                  name: snowflake-credential
+            description: Sf Copy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    account:
+                        description: Snowflake account identifier
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    direction:
+                        description: into_table (load) or from_table (unload)
+                        type: string
+                    fileFormat:
+                        description: File format specification
+                        type: string
+                    filePath:
+                        description: File path in stage
+                        type: string
+                    onError:
+                        description: Error handling (CONTINUE, SKIP_FILE, ABORT_STATEMENT)
+                        type: string
+                    schema:
+                        description: Schema name
+                        type: string
+                    stageName:
+                        description: Stage name
+                        type: string
+                    tableName:
+                        description: Target/source table name
+                        type: string
+                    user:
+                        description: Snowflake username
+                        type: string
+                    validationMode:
+                        description: Validation mode
+                        type: string
+                    warehouse:
+                        description: Warehouse to use
+                        type: string
+                required:
+                    - account
+                    - database
+                    - direction
+                    - schema
+                    - stageName
+                    - tableName
+                    - user
+                    - warehouse
+                type: object
+            name: sf-copy
+            permissions:
+                - snowflake:read
+                - snowflake:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sf-query:
+            credentials:
+                - kind: snowflake-credential
+                  name: snowflake-credential
+            description: Sf Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    account:
+                        description: Snowflake account identifier
+                        type: string
+                    args:
+                        description: Query parameters
+                        type: object
+                    database:
+                        description: Database name
+                        type: string
+                    query:
+                        description: SQL query to execute
+                        type: string
+                    role:
+                        description: Role to use
+                        type: string
+                    schema:
+                        description: Schema name
+                        type: string
+                    user:
+                        description: Snowflake username
+                        type: string
+                    warehouse:
+                        description: Warehouse to use
+                        type: string
+                required:
+                    - account
+                    - database
+                    - query
+                    - schema
+                    - user
+                    - warehouse
+                type: object
+            name: sf-query
+            permissions:
+                - snowflake:read
+                - snowflake:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sf-stage:
+            credentials:
+                - kind: snowflake-credential
+                  name: snowflake-credential
+            description: Sf Stage
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    account:
+                        description: Snowflake account identifier
+                        type: string
+                    action:
+                        description: Action (create, drop, list, describe)
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    fileFormat:
+                        description: File format name
+                        type: string
+                    schema:
+                        description: Schema name
+                        type: string
+                    stageName:
+                        description: Stage name
+                        type: string
+                    stageType:
+                        default: internal
+                        description: internal or external
+                        type: string
+                    url:
+                        description: External stage URL
+                        type: string
+                    user:
+                        description: Snowflake username
+                        type: string
+                required:
+                    - account
+                    - action
+                    - database
+                    - schema
+                    - stageName
+                    - user
+                type: object
+            name: sf-stage
+            permissions:
+                - snowflake:read
+                - snowflake:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sf-stream:
+            credentials:
+                - kind: snowflake-credential
+                  name: snowflake-credential
+            description: Sf Stream
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    account:
+                        description: Snowflake account identifier
+                        type: string
+                    action:
+                        description: Action (create, drop, describe, consume)
+                        type: string
+                    appendOnly:
+                        default: false
+                        description: Create append-only stream
+                        type: boolean
+                    database:
+                        description: Database name
+                        type: string
+                    schema:
+                        description: Schema name
+                        type: string
+                    showInitial:
+                        default: false
+                        description: Show initial rows
+                        type: boolean
+                    streamName:
+                        description: Stream name
+                        type: string
+                    tableName:
+                        description: Source table name (for create)
+                        type: string
+                    user:
+                        description: Snowflake username
+                        type: string
+                required:
+                    - account
+                    - action
+                    - database
+                    - schema
+                    - streamName
+                    - user
+                type: object
+            name: sf-stream
+            permissions:
+                - snowflake:read
+                - snowflake:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sf-warehouse:
+            credentials:
+                - kind: snowflake-credential
+                  name: snowflake-credential
+            description: Sf Warehouse
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    account:
+                        description: Snowflake account identifier
+                        type: string
+                    action:
+                        description: Action (start, stop, resume, suspend, status, resize)
+                        type: string
+                    autoResume:
+                        default: true
+                        description: Enable auto-resume
+                        type: boolean
+                    autoSuspend:
+                        description: Auto-suspend time in minutes
+                        type: integer
+                    database:
+                        description: Database name
+                        type: string
+                    size:
+                        description: Warehouse size for resize
+                        type: string
+                    user:
+                        description: Snowflake username
+                        type: string
+                    warehouse:
+                        description: Warehouse name
+                        type: string
+                required:
+                    - account
+                    - action
+                    - database
+                    - user
+                    - warehouse
+                type: object
+            name: sf-warehouse
+            permissions:
+                - snowflake:read
+                - snowflake:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: data
+    description: Snowflake data warehouse operations
+    icon: database
+    id: skill-snowflake
+    installers:
+        - id: oci
+          kind: oci
+          label: Snowflake Skill service image
+          package: axiomstudio/skill-snowflake:1.0.0
+    name: Snowflake Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-snowflake
+        resolvedVersion: 1.0.0
+    tags:
+        - analytics
+        - data-warehouse
+        - snowflake
+        - sql
+    transport:
+        endpoint: skill-snowflake
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
