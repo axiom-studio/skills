@@ -1,316 +1,348 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-grafana
-  name: Grafana Skill
-  description: Grafana visualization operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: monitoring
-  tags:
-    - grafana
-    - visualization
-    - dashboards
-    - monitoring
-  icon: bar-chart
-  color: "#F46800"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - grafana-dashboard-list
-    - grafana-dashboard-create
-    - grafana-dashboard-update
-    - grafana-dashboard-delete
-    - grafana-datasource-list
-    - grafana-datasource-create
-    - grafana-annotation-create
-    - grafana-alert-rule-list
-    - grafana-alert-rule-create
-  inputs:
-    grafana-dashboard-list:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: folderId
-        type: integer
-        description: Filter by folder ID
-        required: false
-        source: input
-      - name: tag
-        items:
-          type: string
-        description: Filter by tags
-        required: false
-        source: input
-    grafana-dashboard-create:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: title
-        type: string
-        description: Dashboard title
-        required: true
-        source: input
-      - name: panels
-        items:
-          type: string
-        description: Panel configurations
-        required: false
-        source: input
-      - name: templating
-        type: object
-        description: Template variables
-        required: false
-        source: input
-      - name: time
-        type: object
-        description: Default time range
-        required: false
-        source: input
-      - name: refresh
-        type: string
-        description: Auto-refresh interval
-        required: false
-        source: input
-    grafana-dashboard-update:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: uid
-        type: string
-        description: Dashboard UID
-        required: true
-        source: input
-      - name: dashboard
-        type: object
-        description: Dashboard JSON
-        required: true
-        source: input
-      - name: overwrite
-        type: boolean
-        description: Overwrite existing
-        required: false
-        source: default
-        default: false
-    grafana-dashboard-delete:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: uid
-        type: string
-        description: Dashboard UID
-        required: true
-        source: input
-    grafana-datasource-list:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-    grafana-datasource-create:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: name
-        type: string
-        description: Datasource name
-        required: true
-        source: input
-      - name: type
-        type: string
-        description: Type (prometheus, influxdb, etc.)
-        required: true
-        source: input
-      - name: access
-        type: string
-        description: Access mode (proxy, direct)
-        required: false
-        source: input
-        default: "proxy"
-      - name: datasourceUrl
-        type: string
-        description: Datasource URL
-        required: true
-        source: input
-      - name: jsonData
-        type: object
-        description: Type-specific config
-        required: false
-        source: input
-      - name: secureJsonData
-        type: object
-        description: Sensitive config
-        required: false
-        source: connection
-        binding: vault://grafana-credentials
-    grafana-annotation-create:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: text
-        type: string
-        description: Annotation text
-        required: true
-        source: input
-      - name: time
-        type: integer
-        description: Timestamp (ms)
-        required: false
-        source: input
-      - name: timeEnd
-        type: integer
-        description: End timestamp (ms)
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Annotation tags
-        required: false
-        source: input
-      - name: dashboardId
-        type: integer
-        description: Dashboard ID
-        required: false
-        source: input
-      - name: panelId
-        type: integer
-        description: Panel ID
-        required: false
-        source: input
-    grafana-alert-rule-list:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: folderUid
-        type: string
-        description: Filter by folder UID
-        required: false
-        source: input
-    grafana-alert-rule-create:
-      - name: url
-        type: string
-        description: Grafana URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Grafana API key
-        required: true
-        source: connection
-        binding: vault://grafana-credentials
-      - name: title
-        type: string
-        description: Alert rule title
-        required: true
-        source: input
-      - name: folderUid
-        type: string
-        description: Folder UID
-        required: true
-        source: input
-      - name: condition
-        type: string
-        description: Alert condition
-        required: true
-        source: input
-      - name: data
-        items:
-          type: string
-        description: Alert query data
-        required: true
-        source: input
-      - name: noDataState
-        type: string
-        description: No data state (NoData, Alerting, OK)
-        required: false
-        source: input
-        default: "NoData"
-      - name: execErrState
-        type: string
-        description: Execution error state
-        required: false
-        source: input
-        default: "Alerting"
-      - name: for
-        type: string
-        description: Duration before firing
-        required: false
-        source: input
-        default: "5m"
-  grpc:
-    port: 50124
-    docker:
-      image: axiomstudio/skill-grafana:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - grafana:read
-    - grafana:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        grafana-alert-rule-create:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Alert Rule Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    condition:
+                        description: Alert condition
+                        type: string
+                    data:
+                        description: Alert query data
+                        type: string
+                    execErrState:
+                        default: Alerting
+                        description: Execution error state
+                        type: string
+                    folderUid:
+                        description: Folder UID
+                        type: string
+                    for:
+                        default: 5m
+                        description: Duration before firing
+                        type: string
+                    noDataState:
+                        default: NoData
+                        description: No data state (NoData, Alerting, OK)
+                        type: string
+                    title:
+                        description: Alert rule title
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - condition
+                    - data
+                    - folderUid
+                    - title
+                    - url
+                type: object
+            name: grafana-alert-rule-create
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        grafana-alert-rule-list:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Alert Rule List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    folderUid:
+                        description: Filter by folder UID
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: grafana-alert-rule-list
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        grafana-annotation-create:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Annotation Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboardId:
+                        description: Dashboard ID
+                        type: integer
+                    panelId:
+                        description: Panel ID
+                        type: integer
+                    tags:
+                        description: Annotation tags
+                        type: string
+                    text:
+                        description: Annotation text
+                        type: string
+                    time:
+                        description: Timestamp (ms)
+                        type: integer
+                    timeEnd:
+                        description: End timestamp (ms)
+                        type: integer
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - text
+                    - url
+                type: object
+            name: grafana-annotation-create
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        grafana-dashboard-create:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Dashboard Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    panels:
+                        description: Panel configurations
+                        type: string
+                    refresh:
+                        description: Auto-refresh interval
+                        type: string
+                    templating:
+                        description: Template variables
+                        type: object
+                    time:
+                        description: Default time range
+                        type: object
+                    title:
+                        description: Dashboard title
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - title
+                    - url
+                type: object
+            name: grafana-dashboard-create
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        grafana-dashboard-delete:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Dashboard Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    uid:
+                        description: Dashboard UID
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - uid
+                    - url
+                type: object
+            name: grafana-dashboard-delete
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        grafana-dashboard-list:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Dashboard List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    folderId:
+                        description: Filter by folder ID
+                        type: integer
+                    tag:
+                        description: Filter by tags
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: grafana-dashboard-list
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        grafana-dashboard-update:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Dashboard Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dashboard:
+                        description: Dashboard JSON
+                        type: object
+                    overwrite:
+                        default: false
+                        description: Overwrite existing
+                        type: boolean
+                    uid:
+                        description: Dashboard UID
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - dashboard
+                    - uid
+                    - url
+                type: object
+            name: grafana-dashboard-update
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        grafana-datasource-create:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Datasource Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    access:
+                        default: proxy
+                        description: Access mode (proxy, direct)
+                        type: string
+                    datasourceUrl:
+                        description: Datasource URL
+                        type: string
+                    jsonData:
+                        description: Type-specific config
+                        type: object
+                    name:
+                        description: Datasource name
+                        type: string
+                    type:
+                        description: Type (prometheus, influxdb, etc.)
+                        type: string
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - datasourceUrl
+                    - name
+                    - type
+                    - url
+                type: object
+            name: grafana-datasource-create
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        grafana-datasource-list:
+            credentials:
+                - kind: grafana-credential
+                  name: grafana-credential
+            description: Grafana Datasource List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    url:
+                        description: Grafana URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: grafana-datasource-list
+            permissions:
+                - grafana:read
+                - grafana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: monitoring
+    description: Grafana visualization operations for Atlas agents
+    icon: bar-chart
+    id: skill-grafana
+    installers:
+        - id: oci
+          kind: oci
+          label: Grafana Skill service image
+          package: axiomstudio/skill-grafana:1.0.0
+    name: Grafana Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-grafana
+        resolvedVersion: 1.0.0
+    tags:
+        - dashboards
+        - grafana
+        - monitoring
+        - visualization
+    transport:
+        endpoint: skill-grafana
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

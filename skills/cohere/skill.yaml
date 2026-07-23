@@ -1,257 +1,291 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-cohere
-  name: Cohere Skill
-  description: Cohere AI language model operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - cohere
-    - ai
-    - llm
-    - nlp
-  icon: cpu
-  color: "#39594D"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - cohere-generate
-    - cohere-chat
-    - cohere-embed
-    - cohere-classify
-    - cohere-summarize
-    - cohere-rerank
-    - cohere-detect-language
-    - cohere-tokenize
-  inputs:
-    cohere-generate:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: model
-        type: string
-        description: Model name
-        required: false
-        source: input
-        default: "command"
-      - name: prompt
-        type: string
-        description: Input prompt
-        required: true
-        source: input
-      - name: maxTokens
-        type: integer
-        description: Maximum tokens to generate
-        required: false
-        source: input
-      - name: temperature
-        type: number
-        description: Sampling temperature
-        required: false
-        source: input
-        default: 0.7
-      - name: k
-        type: integer
-        description: Top-k sampling
-        required: false
-        source: input
-      - name: p
-        type: number
-        description: Top-p sampling
-        required: false
-        source: input
-      - name: stopSequences
-        items:
-          type: string
-        description: Stop sequences
-        required: false
-        source: input
-    cohere-chat:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: model
-        type: string
-        description: Model name
-        required: false
-        source: input
-      - name: message
-        type: string
-        description: User message
-        required: true
-        source: input
-      - name: preamble
-        type: string
-        description: System preamble
-        required: false
-        source: input
-      - name: chatHistory
-        items:
-          type: string
-        description: Chat history
-        required: false
-        source: input
-      - name: temperature
-        type: number
-        description: Sampling temperature
-        required: false
-        source: input
-        default: 0.7
-    cohere-embed:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: texts
-        items:
-          type: string
-        description: Texts to embed
-        required: true
-        source: input
-      - name: model
-        type: string
-        description: Embedding model
-        required: false
-        source: input
-        default: "embed-english-v3.0"
-      - name: truncate
-        type: string
-        description: Truncate strategy
-        required: false
-        source: input
-    cohere-classify:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: model
-        type: string
-        description: Classification model
-        required: false
-        source: input
-      - name: inputs
-        items:
-          type: string
-        description: Texts to classify
-        required: true
-        source: input
-      - name: examples
-        items:
-          type: string
-        description: Classification examples
-        required: true
-        source: input
-    cohere-summarize:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: text
-        type: string
-        description: Text to summarize
-        required: true
-        source: input
-      - name: model
-        type: string
-        description: Summarization model
-        required: false
-        source: input
-      - name: length
-        type: string
-        description: Summary length (short, medium, long)
-        required: false
-        source: input
-        default: "medium"
-      - name: format
-        type: string
-        description: Output format (paragraph, bullets)
-        required: false
-        source: input
-        default: "paragraph"
-    cohere-rerank:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: model
-        type: string
-        description: Rerank model
-        required: false
-        source: input
-        default: "rerank-english-v3.0"
-      - name: query
-        type: string
-        description: Search query
-        required: true
-        source: input
-      - name: documents
-        items:
-          type: string
-        description: Documents to rerank
-        required: true
-        source: input
-      - name: topN
-        type: integer
-        description: Number of top results to return
-        required: false
-        source: input
-        default: 10
-    cohere-detect-language:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: text
-        type: string
-        description: Text to detect language
-        required: true
-        source: input
-    cohere-tokenize:
-      - name: apiKey
-        type: string
-        description: Cohere API key
-        required: true
-        source: connection
-        binding: vault://cohere-credentials
-      - name: text
-        type: string
-        description: Text to tokenize
-        required: true
-        source: input
-      - name: model
-        type: string
-        description: Tokenizer model
-        required: false
-        source: input
-  grpc:
-    port: 50098
-    docker:
-      image: axiomstudio/skill-cohere:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - cohere:read
-    - cohere:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        cohere-chat:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Chat
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    chatHistory:
+                        description: Chat history
+                        type: string
+                    message:
+                        description: User message
+                        type: string
+                    model:
+                        description: Model name
+                        type: string
+                    preamble:
+                        description: System preamble
+                        type: string
+                    temperature:
+                        default: 0.7
+                        description: Sampling temperature
+                        type: number
+                required:
+                    - message
+                type: object
+            name: cohere-chat
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-classify:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Classify
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    examples:
+                        description: Classification examples
+                        type: string
+                    inputs:
+                        description: Texts to classify
+                        type: string
+                    model:
+                        description: Classification model
+                        type: string
+                required:
+                    - examples
+                    - inputs
+                type: object
+            name: cohere-classify
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-detect-language:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Detect Language
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    text:
+                        description: Text to detect language
+                        type: string
+                required:
+                    - text
+                type: object
+            name: cohere-detect-language
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-embed:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Embed
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    model:
+                        default: embed-english-v3.0
+                        description: Embedding model
+                        type: string
+                    texts:
+                        description: Texts to embed
+                        type: string
+                    truncate:
+                        description: Truncate strategy
+                        type: string
+                required:
+                    - texts
+                type: object
+            name: cohere-embed
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-generate:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Generate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    k:
+                        description: Top-k sampling
+                        type: integer
+                    maxTokens:
+                        description: Maximum tokens to generate
+                        type: integer
+                    model:
+                        default: command
+                        description: Model name
+                        type: string
+                    p:
+                        description: Top-p sampling
+                        type: number
+                    prompt:
+                        description: Input prompt
+                        type: string
+                    stopSequences:
+                        description: Stop sequences
+                        type: string
+                    temperature:
+                        default: 0.7
+                        description: Sampling temperature
+                        type: number
+                required:
+                    - prompt
+                type: object
+            name: cohere-generate
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-rerank:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Rerank
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    documents:
+                        description: Documents to rerank
+                        type: string
+                    model:
+                        default: rerank-english-v3.0
+                        description: Rerank model
+                        type: string
+                    query:
+                        description: Search query
+                        type: string
+                    topN:
+                        default: 10
+                        description: Number of top results to return
+                        type: integer
+                required:
+                    - documents
+                    - query
+                type: object
+            name: cohere-rerank
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-summarize:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Summarize
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    format:
+                        default: paragraph
+                        description: Output format (paragraph, bullets)
+                        type: string
+                    length:
+                        default: medium
+                        description: Summary length (short, medium, long)
+                        type: string
+                    model:
+                        description: Summarization model
+                        type: string
+                    text:
+                        description: Text to summarize
+                        type: string
+                required:
+                    - text
+                type: object
+            name: cohere-summarize
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        cohere-tokenize:
+            credentials:
+                - kind: cohere-credential
+                  name: cohere-credential
+            description: Cohere Tokenize
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    model:
+                        description: Tokenizer model
+                        type: string
+                    text:
+                        description: Text to tokenize
+                        type: string
+                required:
+                    - text
+                type: object
+            name: cohere-tokenize
+            permissions:
+                - cohere:read
+                - cohere:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: ai
+    description: Cohere AI language model operations for Atlas agents
+    icon: cpu
+    id: skill-cohere
+    installers:
+        - id: oci
+          kind: oci
+          label: Cohere Skill service image
+          package: axiomstudio/skill-cohere:1.0.0
+    name: Cohere Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-cohere
+        resolvedVersion: 1.0.0
+    tags:
+        - ai
+        - cohere
+        - llm
+        - nlp
+    transport:
+        endpoint: skill-cohere
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

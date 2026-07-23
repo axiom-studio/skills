@@ -1,401 +1,495 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-mongodb
-  name: MongoDB Skill
-  description: MongoDB document database operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: database
-  tags:
-    - mongodb
-    - document
-    - database
-    - nosql
-  icon: database
-  color: "#47A248"
-spec:
-  executorType: grpc
-  credentialType: database
-  nodeTypes:
-    - mongo-find
-    - mongo-find-one
-    - mongo-insert-one
-    - mongo-insert-many
-    - mongo-update-one
-    - mongo-update-many
-    - mongo-delete-one
-    - mongo-delete-many
-    - mongo-aggregate
-    - mongo-count
-    - mongo-distinct
-    - mongo-create-index
-    - mongo-list-indexes
-    - mongo-watch
-  inputs:
-    mongo-find:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: false
-        source: input
-        default: {}
-      - name: limit
-        type: integer
-        description: Max documents to return
-        required: false
-        source: input
-        default: 100
-      - name: sort
-        type: object
-        description: Sort specification
-        required: false
-        source: input
-    mongo-find-one:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: true
-        source: input
-    mongo-insert-one:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: document
-        type: object
-        description: Document to insert
-        required: true
-        source: input
-    mongo-insert-many:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: documents
-        items:
-          type: string
-        description: Documents to insert
-        required: true
-        source: input
-      - name: ordered
-        type: boolean
-        description: Ordered insert (stop on first error)
-        required: false
-        source: default
-        default: true
-    mongo-update-one:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: true
-        source: input
-      - name: update
-        type: object
-        description: Update operations
-        required: true
-        source: input
-      - name: upsert
-        type: boolean
-        description: Insert if not found
-        required: false
-        source: default
-        default: false
-    mongo-update-many:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: true
-        source: input
-      - name: update
-        type: object
-        description: Update operations
-        required: true
-        source: input
-      - name: upsert
-        type: boolean
-        description: Insert if not found
-        required: false
-        source: default
-        default: false
-    mongo-delete-one:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: true
-        source: input
-    mongo-delete-many:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: true
-        source: input
-    mongo-aggregate:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: pipeline
-        items:
-          type: string
-        description: Aggregation pipeline stages
-        required: true
-        source: input
-    mongo-count:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: filter
-        type: object
-        description: Query filter
-        required: false
-        source: input
-        default: {}
-    mongo-distinct:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: field
-        type: string
-        description: Field name for distinct values
-        required: true
-        source: input
-    mongo-create-index:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: keys
-        type: object
-        description: Index key specification
-        required: true
-        source: input
-      - name: unique
-        type: boolean
-        description: Create unique index
-        required: false
-        source: default
-        default: false
-    mongo-list-indexes:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-    mongo-watch:
-      - name: connectionString
-        type: string
-        description: MongoDB connection string
-        required: true
-        source: connection
-        binding: vault://mongodb-credentials
-      - name: database
-        type: string
-        description: Database name
-        required: true
-        source: input
-      - name: collection
-        type: string
-        description: Collection name
-        required: true
-        source: input
-      - name: timeout
-        type: string
-        description: Watch timeout
-        required: false
-        source: input
-        default: "30s"
-  grpc:
-    port: 50063
-    docker:
-      image: axiomstudio/skill-mongodb:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - mongodb:read
-    - mongodb:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        mongo-aggregate:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Aggregate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    pipeline:
+                        description: Aggregation pipeline stages
+                        type: string
+                required:
+                    - collection
+                    - database
+                    - pipeline
+                type: object
+            name: mongo-aggregate
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-count:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Count
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        default: {}
+                        description: Query filter
+                        type: object
+                required:
+                    - collection
+                    - database
+                type: object
+            name: mongo-count
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-create-index:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Create Index
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    keys:
+                        description: Index key specification
+                        type: object
+                    unique:
+                        default: false
+                        description: Create unique index
+                        type: boolean
+                required:
+                    - collection
+                    - database
+                    - keys
+                type: object
+            name: mongo-create-index
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-delete-many:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Delete Many
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        description: Query filter
+                        type: object
+                required:
+                    - collection
+                    - database
+                    - filter
+                type: object
+            name: mongo-delete-many
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        mongo-delete-one:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Delete One
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        description: Query filter
+                        type: object
+                required:
+                    - collection
+                    - database
+                    - filter
+                type: object
+            name: mongo-delete-one
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        mongo-distinct:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Distinct
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    field:
+                        description: Field name for distinct values
+                        type: string
+                required:
+                    - collection
+                    - database
+                    - field
+                type: object
+            name: mongo-distinct
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-find:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Find
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        default: {}
+                        description: Query filter
+                        type: object
+                    limit:
+                        default: 100
+                        description: Max documents to return
+                        type: integer
+                    sort:
+                        description: Sort specification
+                        type: object
+                required:
+                    - collection
+                    - database
+                type: object
+            name: mongo-find
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-find-one:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Find One
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        description: Query filter
+                        type: object
+                required:
+                    - collection
+                    - database
+                    - filter
+                type: object
+            name: mongo-find-one
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-insert-many:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Insert Many
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    documents:
+                        description: Documents to insert
+                        type: string
+                    ordered:
+                        default: true
+                        description: Ordered insert (stop on first error)
+                        type: boolean
+                required:
+                    - collection
+                    - database
+                    - documents
+                type: object
+            name: mongo-insert-many
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-insert-one:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Insert One
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    document:
+                        description: Document to insert
+                        type: object
+                required:
+                    - collection
+                    - database
+                    - document
+                type: object
+            name: mongo-insert-one
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-list-indexes:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo List Indexes
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                required:
+                    - collection
+                    - database
+                type: object
+            name: mongo-list-indexes
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        mongo-update-many:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Update Many
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        description: Query filter
+                        type: object
+                    update:
+                        description: Update operations
+                        type: object
+                    upsert:
+                        default: false
+                        description: Insert if not found
+                        type: boolean
+                required:
+                    - collection
+                    - database
+                    - filter
+                    - update
+                type: object
+            name: mongo-update-many
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-update-one:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Update One
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    filter:
+                        description: Query filter
+                        type: object
+                    update:
+                        description: Update operations
+                        type: object
+                    upsert:
+                        default: false
+                        description: Insert if not found
+                        type: boolean
+                required:
+                    - collection
+                    - database
+                    - filter
+                    - update
+                type: object
+            name: mongo-update-one
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        mongo-watch:
+            credentials:
+                - kind: database
+                  name: database
+            description: Mongo Watch
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    collection:
+                        description: Collection name
+                        type: string
+                    database:
+                        description: Database name
+                        type: string
+                    timeout:
+                        default: 30s
+                        description: Watch timeout
+                        type: string
+                required:
+                    - collection
+                    - database
+                type: object
+            name: mongo-watch
+            permissions:
+                - mongodb:read
+                - mongodb:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: database
+    description: MongoDB document database operations for Atlas agents
+    icon: database
+    id: skill-mongodb
+    installers:
+        - id: oci
+          kind: oci
+          label: MongoDB Skill service image
+          package: axiomstudio/skill-mongodb:1.0.0
+    name: MongoDB Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-mongodb
+        resolvedVersion: 1.0.0
+    tags:
+        - database
+        - document
+        - mongodb
+        - nosql
+    transport:
+        endpoint: skill-mongodb
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

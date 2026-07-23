@@ -1,213 +1,263 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-intercom
-  name: Intercom Skill
-  description: Intercom customer messaging operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: communication
-  tags:
-    - intercom
-    - messaging
-    - support
-    - customer
-  icon: message-square
-  color: "#1F8DED"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - intercom-conversation-list
-    - intercom-conversation-get
-    - intercom-conversation-reply
-    - intercom-user-list
-    - intercom-user-create
-    - intercom-message-send
-    - intercom-tag-create
-    - intercom-tag-apply
-  inputs:
-    intercom-conversation-list:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: type
-        type: string
-        description: Filter by type (open, closed, unassigned)
-        required: false
-        source: input
-      - name: page
-        type: integer
-        description: Page number
-        required: false
-        source: input
-        default: 1
-      - name: perPage
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 20
-    intercom-conversation-get:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: conversationId
-        type: string
-        description: Conversation ID
-        required: true
-        source: input
-    intercom-conversation-reply:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: conversationId
-        type: string
-        description: Conversation ID
-        required: true
-        source: input
-      - name: messageType
-        type: string
-        description: Message type (comment, note)
-        required: false
-        source: input
-        default: "comment"
-      - name: body
-        type: string
-        description: Message body
-        required: true
-        source: input
-      - name: attachmentUrls
-        items:
-          type: string
-        description: Attachment URLs
-        required: false
-        source: input
-    intercom-user-list:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: page
-        type: integer
-        description: Page number
-        required: false
-        source: input
-      - name: perPage
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 50
-    intercom-user-create:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: email
-        type: string
-        description: User email
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: User name
-        required: false
-        source: input
-      - name: phone
-        type: string
-        description: User phone
-        required: false
-        source: input
-      - name: properties
-        type: object
-        description: Custom user properties
-        required: false
-        source: input
-    intercom-message-send:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-      - name: messageType
-        type: string
-        description: Message type (email, inapp)
-        required: true
-        source: input
-      - name: subject
-        type: string
-        description: Message subject
-        required: false
-        source: input
-      - name: body
-        type: string
-        description: Message body
-        required: true
-        source: input
-    intercom-tag-create:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: name
-        type: string
-        description: Tag name
-        required: true
-        source: input
-    intercom-tag-apply:
-      - name: apiToken
-        type: string
-        description: Intercom API token
-        required: true
-        source: connection
-        binding: vault://intercom-credentials
-      - name: tagName
-        type: string
-        description: Tag name
-        required: true
-        source: input
-      - name: userId
-        type: string
-        description: User ID to tag
-        required: false
-        source: input
-      - name: conversationId
-        type: string
-        description: Conversation ID to tag
-        required: false
-        source: input
-  grpc:
-    port: 50111
-    docker:
-      image: axiomstudio/skill-intercom:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - intercom:read
-    - intercom:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        intercom-conversation-get:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Conversation Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    conversationId:
+                        description: Conversation ID
+                        type: string
+                required:
+                    - conversationId
+                type: object
+            name: intercom-conversation-get
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        intercom-conversation-list:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Conversation List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    page:
+                        default: 1
+                        description: Page number
+                        type: integer
+                    perPage:
+                        default: 20
+                        description: Results per page
+                        type: integer
+                    type:
+                        description: Filter by type (open, closed, unassigned)
+                        type: string
+                type: object
+            name: intercom-conversation-list
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        intercom-conversation-reply:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Conversation Reply
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    attachmentUrls:
+                        description: Attachment URLs
+                        type: string
+                    body:
+                        description: Message body
+                        type: string
+                    conversationId:
+                        description: Conversation ID
+                        type: string
+                    messageType:
+                        default: comment
+                        description: Message type (comment, note)
+                        type: string
+                required:
+                    - body
+                    - conversationId
+                type: object
+            name: intercom-conversation-reply
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        intercom-message-send:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Message Send
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Message body
+                        type: string
+                    messageType:
+                        description: Message type (email, inapp)
+                        type: string
+                    subject:
+                        description: Message subject
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - body
+                    - messageType
+                    - userId
+                type: object
+            name: intercom-message-send
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        intercom-tag-apply:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Tag Apply
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    conversationId:
+                        description: Conversation ID to tag
+                        type: string
+                    tagName:
+                        description: Tag name
+                        type: string
+                    userId:
+                        description: User ID to tag
+                        type: string
+                required:
+                    - tagName
+                type: object
+            name: intercom-tag-apply
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        intercom-tag-create:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom Tag Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Tag name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: intercom-tag-create
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        intercom-user-create:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom User Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    email:
+                        description: User email
+                        type: string
+                    name:
+                        description: User name
+                        type: string
+                    phone:
+                        description: User phone
+                        type: string
+                    properties:
+                        description: Custom user properties
+                        type: object
+                required:
+                    - email
+                type: object
+            name: intercom-user-create
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        intercom-user-list:
+            credentials:
+                - kind: intercom-credential
+                  name: intercom-credential
+            description: Intercom User List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    page:
+                        description: Page number
+                        type: integer
+                    perPage:
+                        default: 50
+                        description: Results per page
+                        type: integer
+                type: object
+            name: intercom-user-list
+            permissions:
+                - intercom:read
+                - intercom:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: communication
+    description: Intercom customer messaging operations for Atlas agents
+    icon: message-square
+    id: skill-intercom
+    installers:
+        - id: oci
+          kind: oci
+          label: Intercom Skill service image
+          package: axiomstudio/skill-intercom:1.0.0
+    name: Intercom Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-intercom
+        resolvedVersion: 1.0.0
+    tags:
+        - customer
+        - intercom
+        - messaging
+        - support
+    transport:
+        endpoint: skill-intercom
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

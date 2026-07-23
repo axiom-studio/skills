@@ -1,281 +1,295 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-airflow
-  name: Apache Airflow Skill
-  description: Apache Airflow workflow orchestration for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - airflow
-    - workflow
-    - orchestration
-    - dag
-  icon: wind
-  color: "#017CEE"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - airflow-dag-list
-    - airflow-dag-trigger
-    - airflow-dag-status
-    - airflow-dag-pause
-    - airflow-dag-unpause
-    - airflow-task-list
-    - airflow-task-logs
-    - airflow-run-list
-    - airflow-connection-list
-  inputs:
-    airflow-dag-list:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: tags
-        items:
-          type: string
-        description: Filter DAGs by tags
-        required: false
-        source: input
-      - name: paused
-        type: boolean
-        description: Filter by paused status
-        required: false
-        source: input
-    airflow-dag-trigger:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID to trigger
-        required: true
-        source: input
-      - name: conf
-        type: object
-        description: DAG run configuration
-        required: false
-        source: input
-      - name: logicalDate
-        type: string
-        description: Logical date for the run
-        required: false
-        source: input
-    airflow-dag-status:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID
-        required: true
-        source: input
-      - name: dagRunId
-        type: string
-        description: DAG run ID
-        required: true
-        source: input
-    airflow-dag-pause:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID to pause
-        required: true
-        source: input
-    airflow-dag-unpause:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID to unpause
-        required: true
-        source: input
-    airflow-task-list:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID
-        required: true
-        source: input
-    airflow-task-logs:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID
-        required: true
-        source: input
-      - name: dagRunId
-        type: string
-        description: DAG run ID
-        required: true
-        source: input
-      - name: taskId
-        type: string
-        description: Task ID
-        required: true
-        source: input
-      - name: tryNumber
-        type: integer
-        description: Try number
-        required: false
-        source: input
-    airflow-run-list:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: dagId
-        type: string
-        description: DAG ID
-        required: false
-        source: input
-    airflow-connection-list:
-      - name: baseUrl
-        type: string
-        description: Airflow web URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-      - name: password
-        type: string
-        description: Password
-        required: true
-        source: connection
-        binding: vault://airflow-credentials
-  grpc:
-    port: 50104
-    docker:
-      image: axiomstudio/skill-airflow:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - airflow:read
-    - airflow:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        airflow-connection-list:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Connection List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                required:
+                    - baseUrl
+                type: object
+            name: airflow-connection-list
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airflow-dag-list:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Dag List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    paused:
+                        description: Filter by paused status
+                        type: boolean
+                    tags:
+                        description: Filter DAGs by tags
+                        type: string
+                required:
+                    - baseUrl
+                type: object
+            name: airflow-dag-list
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airflow-dag-pause:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Dag Pause
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID to pause
+                        type: string
+                required:
+                    - baseUrl
+                    - dagId
+                type: object
+            name: airflow-dag-pause
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airflow-dag-status:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Dag Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID
+                        type: string
+                    dagRunId:
+                        description: DAG run ID
+                        type: string
+                required:
+                    - baseUrl
+                    - dagId
+                    - dagRunId
+                type: object
+            name: airflow-dag-status
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airflow-dag-trigger:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Dag Trigger
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    conf:
+                        description: DAG run configuration
+                        type: object
+                    dagId:
+                        description: DAG ID to trigger
+                        type: string
+                    logicalDate:
+                        description: Logical date for the run
+                        type: string
+                required:
+                    - baseUrl
+                    - dagId
+                type: object
+            name: airflow-dag-trigger
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airflow-dag-unpause:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Dag Unpause
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID to unpause
+                        type: string
+                required:
+                    - baseUrl
+                    - dagId
+                type: object
+            name: airflow-dag-unpause
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airflow-run-list:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Run List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID
+                        type: string
+                required:
+                    - baseUrl
+                type: object
+            name: airflow-run-list
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airflow-task-list:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Task List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID
+                        type: string
+                required:
+                    - baseUrl
+                    - dagId
+                type: object
+            name: airflow-task-list
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airflow-task-logs:
+            credentials:
+                - kind: airflow-credential
+                  name: airflow-credential
+            description: Airflow Task Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Airflow web URL
+                        type: string
+                    dagId:
+                        description: DAG ID
+                        type: string
+                    dagRunId:
+                        description: DAG run ID
+                        type: string
+                    taskId:
+                        description: Task ID
+                        type: string
+                    tryNumber:
+                        description: Try number
+                        type: integer
+                required:
+                    - baseUrl
+                    - dagId
+                    - dagRunId
+                    - taskId
+                type: object
+            name: airflow-task-logs
+            permissions:
+                - airflow:read
+                - airflow:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: data
+    description: Apache Airflow workflow orchestration for Atlas agents
+    icon: wind
+    id: skill-airflow
+    installers:
+        - id: oci
+          kind: oci
+          label: Apache Airflow Skill service image
+          package: axiomstudio/skill-airflow:1.0.0
+    name: Apache Airflow Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-airflow
+        resolvedVersion: 1.0.0
+    tags:
+        - airflow
+        - dag
+        - orchestration
+        - workflow
+    transport:
+        endpoint: skill-airflow
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

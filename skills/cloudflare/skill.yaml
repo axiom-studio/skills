@@ -1,396 +1,482 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-cloudflare
-  name: Cloudflare Skill
-  description: Cloudflare DNS, Workers, and edge operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: cloud
-  tags:
-    - cloudflare
-    - dns
-    - cdn
-    - workers
-    - edge
-  icon: cloud
-  color: "#F38020"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - cf-dns-list
-    - cf-dns-create
-    - cf-dns-update
-    - cf-dns-delete
-    - cf-worker-deploy
-    - cf-worker-list
-    - cf-r2-list
-    - cf-r2-upload
-    - cf-r2-download
-    - cf-d1-list
-    - cf-d1-query
-    - cf-waf-list
-    - cf-waf-create-rule
-    - cf-zone-list
-  inputs:
-    cf-dns-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-      - name: type
-        type: string
-        description: Filter by record type (A, AAAA, CNAME, etc.)
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Filter by record name
-        required: false
-        source: input
-    cf-dns-create:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-      - name: type
-        type: string
-        description: Record type (A, AAAA, CNAME, MX, TXT, etc.)
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Record name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Record content/value
-        required: true
-        source: input
-      - name: ttl
-        type: integer
-        description: TTL in seconds (1 = automatic)
-        required: false
-        source: input
-        default: 1
-      - name: proxied
-        type: boolean
-        description: Proxy through Cloudflare
-        required: false
-        source: default
-        default: false
-      - name: priority
-        type: integer
-        description: Priority for MX records
-        required: false
-        source: input
-    cf-dns-update:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-      - name: recordId
-        type: string
-        description: Record ID to update
-        required: true
-        source: input
-      - name: type
-        type: string
-        description: Record type
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Record name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Record content/value
-        required: true
-        source: input
-      - name: ttl
-        type: integer
-        description: TTL in seconds
-        required: false
-        source: input
-      - name: proxied
-        type: boolean
-        description: Proxy through Cloudflare
-        required: false
-        source: input
-    cf-dns-delete:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-      - name: recordId
-        type: string
-        description: Record ID to delete
-        required: true
-        source: input
-    cf-worker-deploy:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-      - name: workerName
-        type: string
-        description: Worker name
-        required: true
-        source: input
-      - name: script
-        type: string
-        description: Worker JavaScript code
-        required: true
-        source: input
-      - name: compatibilityDate
-        type: string
-        description: Compatibility date
-        required: false
-        source: input
-      - name: compatibilityFlags
-        items:
-          type: string
-        description: Compatibility flags
-        required: false
-        source: input
-      - name: bindings
-        type: object
-        description: Environment variable bindings
-        required: false
-        source: input
-      - name: kvNamespaces
-        type: object
-        description: KV namespace bindings
-        required: false
-        source: input
-      - name: durableObjects
-        type: object
-        description: Durable Object bindings
-        required: false
-        source: input
-    cf-worker-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-    cf-r2-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-    cf-r2-upload:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-      - name: bucket
-        type: string
-        description: R2 bucket name
-        required: true
-        source: input
-      - name: objectName
-        type: string
-        description: Object name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-        default: "application/octet-stream"
-    cf-r2-download:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-      - name: bucket
-        type: string
-        description: R2 bucket name
-        required: true
-        source: input
-      - name: objectName
-        type: string
-        description: Object name
-        required: true
-        source: input
-    cf-d1-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-    cf-d1-query:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Cloudflare account ID
-        required: true
-        source: input
-      - name: databaseId
-        type: string
-        description: Database UUID
-        required: true
-        source: input
-      - name: query
-        type: string
-        description: SQL query to execute
-        required: true
-        source: input
-    cf-waf-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-    cf-waf-create-rule:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: zoneId
-        type: string
-        description: Zone ID
-        required: true
-        source: input
-      - name: expression
-        type: string
-        description: Firewall rule expression
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (block, challenge, allow, log)
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Rule description
-        required: false
-        source: input
-    cf-zone-list:
-      - name: apiToken
-        type: string
-        description: Cloudflare API token
-        required: true
-        source: connection
-        binding: vault://cloudflare-credentials
-      - name: accountId
-        type: string
-        description: Filter by account ID
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Filter by zone name
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Filter by zone status (active, pending)
-        required: false
-        source: input
-  grpc:
-    port: 50082
-    docker:
-      image: axiomstudio/skill-cloudflare:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - cloudflare:read
-    - cloudflare:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        cf-d1-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf D1 List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                required:
+                    - accountId
+                type: object
+            name: cf-d1-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-d1-query:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf D1 Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                    databaseId:
+                        description: Database UUID
+                        type: string
+                    query:
+                        description: SQL query to execute
+                        type: string
+                required:
+                    - accountId
+                    - databaseId
+                    - query
+                type: object
+            name: cf-d1-query
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-dns-create:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Dns Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    content:
+                        description: Record content/value
+                        type: string
+                    name:
+                        description: Record name
+                        type: string
+                    priority:
+                        description: Priority for MX records
+                        type: integer
+                    proxied:
+                        default: false
+                        description: Proxy through Cloudflare
+                        type: boolean
+                    ttl:
+                        default: 1
+                        description: TTL in seconds (1 = automatic)
+                        type: integer
+                    type:
+                        description: Record type (A, AAAA, CNAME, MX, TXT, etc.)
+                        type: string
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - content
+                    - name
+                    - type
+                    - zoneId
+                type: object
+            name: cf-dns-create
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        cf-dns-delete:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Dns Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    recordId:
+                        description: Record ID to delete
+                        type: string
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - recordId
+                    - zoneId
+                type: object
+            name: cf-dns-delete
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        cf-dns-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Dns List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Filter by record name
+                        type: string
+                    type:
+                        description: Filter by record type (A, AAAA, CNAME, etc.)
+                        type: string
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - zoneId
+                type: object
+            name: cf-dns-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-dns-update:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Dns Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    content:
+                        description: Record content/value
+                        type: string
+                    name:
+                        description: Record name
+                        type: string
+                    proxied:
+                        description: Proxy through Cloudflare
+                        type: boolean
+                    recordId:
+                        description: Record ID to update
+                        type: string
+                    ttl:
+                        description: TTL in seconds
+                        type: integer
+                    type:
+                        description: Record type
+                        type: string
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - content
+                    - name
+                    - recordId
+                    - type
+                    - zoneId
+                type: object
+            name: cf-dns-update
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        cf-r2-download:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf R2 Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                    bucket:
+                        description: R2 bucket name
+                        type: string
+                    objectName:
+                        description: Object name
+                        type: string
+                required:
+                    - accountId
+                    - bucket
+                    - objectName
+                type: object
+            name: cf-r2-download
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-r2-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf R2 List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                required:
+                    - accountId
+                type: object
+            name: cf-r2-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-r2-upload:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf R2 Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                    bucket:
+                        description: R2 bucket name
+                        type: string
+                    content:
+                        description: File content
+                        type: string
+                    contentType:
+                        default: application/octet-stream
+                        description: Content type
+                        type: string
+                    objectName:
+                        description: Object name
+                        type: string
+                required:
+                    - accountId
+                    - bucket
+                    - content
+                    - objectName
+                type: object
+            name: cf-r2-upload
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        cf-waf-create-rule:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Waf Create Rule
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (block, challenge, allow, log)
+                        type: string
+                    description:
+                        description: Rule description
+                        type: string
+                    expression:
+                        description: Firewall rule expression
+                        type: string
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - action
+                    - expression
+                    - zoneId
+                type: object
+            name: cf-waf-create-rule
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        cf-waf-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Waf List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    zoneId:
+                        description: Zone ID
+                        type: string
+                required:
+                    - zoneId
+                type: object
+            name: cf-waf-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-worker-deploy:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Worker Deploy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                    bindings:
+                        description: Environment variable bindings
+                        type: object
+                    compatibilityDate:
+                        description: Compatibility date
+                        type: string
+                    compatibilityFlags:
+                        description: Compatibility flags
+                        type: string
+                    durableObjects:
+                        description: Durable Object bindings
+                        type: object
+                    kvNamespaces:
+                        description: KV namespace bindings
+                        type: object
+                    script:
+                        description: Worker JavaScript code
+                        type: string
+                    workerName:
+                        description: Worker name
+                        type: string
+                required:
+                    - accountId
+                    - script
+                    - workerName
+                type: object
+            name: cf-worker-deploy
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        cf-worker-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Worker List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Cloudflare account ID
+                        type: string
+                required:
+                    - accountId
+                type: object
+            name: cf-worker-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        cf-zone-list:
+            credentials:
+                - kind: cloudflare-credential
+                  name: cloudflare-credential
+            description: Cf Zone List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    accountId:
+                        description: Filter by account ID
+                        type: string
+                    name:
+                        description: Filter by zone name
+                        type: string
+                    status:
+                        description: Filter by zone status (active, pending)
+                        type: string
+                type: object
+            name: cf-zone-list
+            permissions:
+                - cloudflare:read
+                - cloudflare:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: cloud
+    description: Cloudflare DNS, Workers, and edge operations for Atlas agents
+    icon: cloud
+    id: skill-cloudflare
+    installers:
+        - id: oci
+          kind: oci
+          label: Cloudflare Skill service image
+          package: axiomstudio/skill-cloudflare:1.0.0
+    name: Cloudflare Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-cloudflare
+        resolvedVersion: 1.0.0
+    tags:
+        - cdn
+        - cloudflare
+        - dns
+        - edge
+        - workers
+    transport:
+        endpoint: skill-cloudflare
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

@@ -1,304 +1,268 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-braintree
-  name: Braintree Skill
-  description: Braintree payment processing for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: finance
-  tags:
-    - braintree
-    - payments
-    - paypal
-    - transactions
-  icon: credit-card
-  color: "#000000"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - braintree-transaction-sale
-    - braintree-transaction-void
-    - braintree-transaction-refund
-    - braintree-transaction-get
-    - braintree-customer-create
-    - braintree-customer-list
-    - braintree-subscription-create
-    - braintree-subscription-cancel
-  inputs:
-    braintree-transaction-sale:
-      - name: environment
-        type: string
-        description: Environment (sandbox, production)
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: amount
-        type: string
-        description: Transaction amount
-        required: true
-        source: input
-      - name: paymentMethodNonce
-        type: string
-        description: Payment method nonce
-        required: true
-        source: input
-      - name: orderId
-        type: string
-        description: Order ID
-        required: false
-        source: input
-    braintree-transaction-void:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: transactionId
-        type: string
-        description: Transaction ID to void
-        required: true
-        source: input
-    braintree-transaction-refund:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: transactionId
-        type: string
-        description: Transaction ID to refund
-        required: true
-        source: input
-      - name: amount
-        type: string
-        description: Refund amount
-        required: false
-        source: input
-    braintree-transaction-get:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: transactionId
-        type: string
-        description: Transaction ID
-        required: true
-        source: input
-    braintree-customer-create:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: firstName
-        type: string
-        description: First name
-        required: false
-        source: input
-      - name: lastName
-        type: string
-        description: Last name
-        required: false
-        source: input
-      - name: email
-        type: string
-        description: Email
-        required: false
-        source: input
-      - name: phone
-        type: string
-        description: Phone number
-        required: false
-        source: input
-    braintree-customer-list:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-    braintree-subscription-create:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: paymentMethodToken
-        type: string
-        description: Payment method token
-        required: true
-        source: input
-      - name: planId
-        type: string
-        description: Subscription plan ID
-        required: true
-        source: input
-    braintree-subscription-cancel:
-      - name: environment
-        type: string
-        description: Environment
-        required: true
-        source: input
-      - name: merchantId
-        type: string
-        description: Merchant ID
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: publicKey
-        type: string
-        description: Public key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: privateKey
-        type: string
-        description: Private key
-        required: true
-        source: connection
-        binding: vault://braintree-credentials
-      - name: subscriptionId
-        type: string
-        description: Subscription ID to cancel
-        required: true
-        source: input
-  grpc:
-    port: 50117
-    docker:
-      image: axiomstudio/skill-braintree:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - braintree:read
-    - braintree:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        braintree-customer-create:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Customer Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    email:
+                        description: Email
+                        type: string
+                    environment:
+                        description: Environment
+                        type: string
+                    firstName:
+                        description: First name
+                        type: string
+                    lastName:
+                        description: Last name
+                        type: string
+                    phone:
+                        description: Phone number
+                        type: string
+                required:
+                    - environment
+                type: object
+            name: braintree-customer-create
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        braintree-customer-list:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Customer List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environment:
+                        description: Environment
+                        type: string
+                required:
+                    - environment
+                type: object
+            name: braintree-customer-list
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        braintree-subscription-cancel:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Subscription Cancel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environment:
+                        description: Environment
+                        type: string
+                    subscriptionId:
+                        description: Subscription ID to cancel
+                        type: string
+                required:
+                    - environment
+                    - subscriptionId
+                type: object
+            name: braintree-subscription-cancel
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        braintree-subscription-create:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Subscription Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environment:
+                        description: Environment
+                        type: string
+                    paymentMethodToken:
+                        description: Payment method token
+                        type: string
+                    planId:
+                        description: Subscription plan ID
+                        type: string
+                required:
+                    - environment
+                    - paymentMethodToken
+                    - planId
+                type: object
+            name: braintree-subscription-create
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        braintree-transaction-get:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Transaction Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environment:
+                        description: Environment
+                        type: string
+                    transactionId:
+                        description: Transaction ID
+                        type: string
+                required:
+                    - environment
+                    - transactionId
+                type: object
+            name: braintree-transaction-get
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        braintree-transaction-refund:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Transaction Refund
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Refund amount
+                        type: string
+                    environment:
+                        description: Environment
+                        type: string
+                    transactionId:
+                        description: Transaction ID to refund
+                        type: string
+                required:
+                    - environment
+                    - transactionId
+                type: object
+            name: braintree-transaction-refund
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        braintree-transaction-sale:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Transaction Sale
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Transaction amount
+                        type: string
+                    environment:
+                        description: Environment (sandbox, production)
+                        type: string
+                    orderId:
+                        description: Order ID
+                        type: string
+                    paymentMethodNonce:
+                        description: Payment method nonce
+                        type: string
+                required:
+                    - amount
+                    - environment
+                    - paymentMethodNonce
+                type: object
+            name: braintree-transaction-sale
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        braintree-transaction-void:
+            credentials:
+                - kind: braintree-credential
+                  name: braintree-credential
+            description: Braintree Transaction Void
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environment:
+                        description: Environment
+                        type: string
+                    transactionId:
+                        description: Transaction ID to void
+                        type: string
+                required:
+                    - environment
+                    - transactionId
+                type: object
+            name: braintree-transaction-void
+            permissions:
+                - braintree:read
+                - braintree:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: finance
+    description: Braintree payment processing for Atlas agents
+    icon: credit-card
+    id: skill-braintree
+    installers:
+        - id: oci
+          kind: oci
+          label: Braintree Skill service image
+          package: axiomstudio/skill-braintree:1.0.0
+    name: Braintree Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-braintree
+        resolvedVersion: 1.0.0
+    tags:
+        - braintree
+        - payments
+        - paypal
+        - transactions
+    transport:
+        endpoint: skill-braintree
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

@@ -1,513 +1,447 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-azure
-  name: Azure Skill
-  description: Microsoft Azure cloud operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: cloud
-  tags:
-    - azure
-    - microsoft
-    - cloud
-    - vm
-    - aks
-  icon: cloud
-  color: "#0078D4"
-spec:
-  executorType: grpc
-  credentialType: azure_credentials
-  nodeTypes:
-    - azure-vm-list
-    - azure-vm-start
-    - azure-vm-stop
-    - azure-vm-restart
-    - azure-aks-list
-    - azure-aks-get-credentials
-    - azure-storage-list
-    - azure-blob-upload
-    - azure-blob-download
-    - azure-function-list
-    - azure-function-invoke
-    - azure-resource-group-list
-    - azure-resource-group-create
-  inputs:
-    azure-vm-list:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Filter by resource group name
-        required: false
-        source: input
-    azure-vm-start:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: vmName
-        type: string
-        description: Virtual machine name
-        required: true
-        source: input
-    azure-vm-stop:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: vmName
-        type: string
-        description: Virtual machine name
-        required: true
-        source: input
-      - name: skipShutdown
-        type: boolean
-        description: Skip graceful shutdown
-        required: false
-        source: default
-        default: false
-    azure-vm-restart:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: vmName
-        type: string
-        description: Virtual machine name
-        required: true
-        source: input
-    azure-aks-list:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Filter by resource group name
-        required: false
-        source: input
-    azure-aks-get-credentials:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: clusterName
-        type: string
-        description: AKS cluster name
-        required: true
-        source: input
-    azure-storage-list:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Filter by resource group name
-        required: false
-        source: input
-    azure-blob-upload:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: storageAccount
-        type: string
-        description: Storage account name
-        required: true
-        source: input
-      - name: container
-        type: string
-        description: Container name
-        required: true
-        source: input
-      - name: blobName
-        type: string
-        description: Destination blob name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content (text or base64)
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type (e.g., application/json)
-        required: false
-        source: input
-        default: "application/octet-stream"
-    azure-blob-download:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: storageAccount
-        type: string
-        description: Storage account name
-        required: true
-        source: input
-      - name: container
-        type: string
-        description: Container name
-        required: true
-        source: input
-      - name: blobName
-        type: string
-        description: Blob name to download
-        required: true
-        source: input
-    azure-function-list:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Filter by resource group name
-        required: false
-        source: input
-    azure-function-invoke:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: resourceGroup
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: functionAppName
-        type: string
-        description: Function app name
-        required: true
-        source: input
-      - name: functionName
-        type: string
-        description: Function name
-        required: true
-        source: input
-      - name: method
-        type: string
-        description: HTTP method
-        required: false
-        source: input
-        default: "POST"
-      - name: body
-        type: object
-        description: Request body
-        required: false
-        source: input
-      - name: headers
-        type: object
-        description: Request headers
-        required: false
-        source: input
-    azure-resource-group-list:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-    azure-resource-group-create:
-      - name: subscriptionId
-        type: string
-        description: Azure subscription ID
-        required: true
-        source: input
-      - name: clientId
-        type: string
-        description: Azure AD app client ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: clientSecret
-        type: string
-        description: Azure AD app client secret
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: tenantId
-        type: string
-        description: Azure AD tenant ID
-        required: true
-        source: connection
-        binding: vault://azure-credentials
-      - name: name
-        type: string
-        description: Resource group name
-        required: true
-        source: input
-      - name: location
-        type: string
-        description: Azure region (e.g., eastus, westus2)
-        required: true
-        source: input
-      - name: tags
-        type: object
-        description: Tags to apply
-        required: false
-        source: input
-  grpc:
-    port: 50080
-    docker:
-      image: axiomstudio/skill-azure:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - azure:read
-    - azure:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        azure-aks-get-credentials:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Aks Get Credentials
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    clusterName:
+                        description: AKS cluster name
+                        type: string
+                    resourceGroup:
+                        description: Resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - clusterName
+                    - resourceGroup
+                    - subscriptionId
+                type: object
+            name: azure-aks-get-credentials
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-aks-list:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Aks List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Filter by resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - subscriptionId
+                type: object
+            name: azure-aks-list
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-blob-download:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Blob Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    blobName:
+                        description: Blob name to download
+                        type: string
+                    container:
+                        description: Container name
+                        type: string
+                    storageAccount:
+                        description: Storage account name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - blobName
+                    - container
+                    - storageAccount
+                    - subscriptionId
+                type: object
+            name: azure-blob-download
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-blob-upload:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Blob Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    blobName:
+                        description: Destination blob name
+                        type: string
+                    container:
+                        description: Container name
+                        type: string
+                    content:
+                        description: File content (text or base64)
+                        type: string
+                    contentType:
+                        default: application/octet-stream
+                        description: Content type (e.g., application/json)
+                        type: string
+                    storageAccount:
+                        description: Storage account name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - blobName
+                    - container
+                    - content
+                    - storageAccount
+                    - subscriptionId
+                type: object
+            name: azure-blob-upload
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        azure-function-invoke:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Function Invoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Request body
+                        type: object
+                    functionAppName:
+                        description: Function app name
+                        type: string
+                    functionName:
+                        description: Function name
+                        type: string
+                    headers:
+                        description: Request headers
+                        type: object
+                    method:
+                        default: POST
+                        description: HTTP method
+                        type: string
+                    resourceGroup:
+                        description: Resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - functionAppName
+                    - functionName
+                    - resourceGroup
+                    - subscriptionId
+                type: object
+            name: azure-function-invoke
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        azure-function-list:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Function List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Filter by resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - subscriptionId
+                type: object
+            name: azure-function-list
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-resource-group-create:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Resource Group Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    location:
+                        description: Azure region (e.g., eastus, westus2)
+                        type: string
+                    name:
+                        description: Resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                    tags:
+                        description: Tags to apply
+                        type: object
+                required:
+                    - location
+                    - name
+                    - subscriptionId
+                type: object
+            name: azure-resource-group-create
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        azure-resource-group-list:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Resource Group List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - subscriptionId
+                type: object
+            name: azure-resource-group-list
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-storage-list:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Storage List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Filter by resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - subscriptionId
+                type: object
+            name: azure-storage-list
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-vm-list:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Vm List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Filter by resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                required:
+                    - subscriptionId
+                type: object
+            name: azure-vm-list
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        azure-vm-restart:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Vm Restart
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                    vmName:
+                        description: Virtual machine name
+                        type: string
+                required:
+                    - resourceGroup
+                    - subscriptionId
+                    - vmName
+                type: object
+            name: azure-vm-restart
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        azure-vm-start:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Vm Start
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Resource group name
+                        type: string
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                    vmName:
+                        description: Virtual machine name
+                        type: string
+                required:
+                    - resourceGroup
+                    - subscriptionId
+                    - vmName
+                type: object
+            name: azure-vm-start
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        azure-vm-stop:
+            credentials:
+                - kind: azure_credentials
+                  name: azure_credentials
+            description: Azure Vm Stop
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    resourceGroup:
+                        description: Resource group name
+                        type: string
+                    skipShutdown:
+                        default: false
+                        description: Skip graceful shutdown
+                        type: boolean
+                    subscriptionId:
+                        description: Azure subscription ID
+                        type: string
+                    vmName:
+                        description: Virtual machine name
+                        type: string
+                required:
+                    - resourceGroup
+                    - subscriptionId
+                    - vmName
+                type: object
+            name: azure-vm-stop
+            permissions:
+                - azure:read
+                - azure:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+    category: cloud
+    description: Microsoft Azure cloud operations for Atlas agents
+    icon: cloud
+    id: skill-azure
+    installers:
+        - id: oci
+          kind: oci
+          label: Azure Skill service image
+          package: axiomstudio/skill-azure:1.0.0
+    name: Azure Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-azure
+        resolvedVersion: 1.0.0
+    tags:
+        - aks
+        - azure
+        - cloud
+        - microsoft
+        - vm
+    transport:
+        endpoint: skill-azure
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
