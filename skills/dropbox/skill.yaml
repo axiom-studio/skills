@@ -1,171 +1,206 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-dropbox
-  name: Dropbox Skill
-  description: Dropbox file storage operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: storage
-  tags:
-    - dropbox
-    - files
-    - storage
-    - cloud
-  icon: cloud
-  color: "#0061FE"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - dropbox-upload
-    - dropbox-download
-    - dropbox-list
-    - dropbox-delete
-    - dropbox-share
-    - dropbox-search
-  inputs:
-    dropbox-upload:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: path
-        type: string
-        description: Destination path in Dropbox
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content to upload
-        required: true
-        source: input
-      - name: mode
-        type: string
-        description: Upload mode (add, update, add_no_overwrite)
-        required: false
-        source: input
-        default: "add"
-    dropbox-download:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: path
-        type: string
-        description: Path to file in Dropbox
-        required: true
-        source: input
-    dropbox-list:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: path
-        type: string
-        description: Folder path to list
-        required: false
-        source: input
-        default: "/"
-      - name: recursive
-        type: boolean
-        description: List recursively
-        required: false
-        source: default
-        default: false
-      - name: limit
-        type: integer
-        description: Maximum entries to return
-        required: false
-        source: input
-        default: 100
-    dropbox-delete:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: path
-        type: string
-        description: Path to file or folder to delete
-        required: true
-        source: input
-    dropbox-share:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: path
-        type: string
-        description: Path to file or folder to share
-        required: true
-        source: input
-      - name: viewerInfo
-        type: boolean
-        description: Request viewer info
-        required: false
-        source: default
-        default: false
-      - name: password
-        type: string
-        description: Password for shared link
-        required: false
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: expires
-        type: string
-        description: Expiration time (ISO 8601)
-        required: false
-        source: input
-    dropbox-search:
-      - name: accessToken
-        type: string
-        description: Dropbox API access token
-        required: true
-        source: connection
-        binding: vault://dropbox-credentials
-      - name: query
-        type: string
-        description: Search query string
-        required: true
-        source: input
-      - name: path
-        type: string
-        description: Restrict search to this path
-        required: false
-        source: input
-        default: ""
-      - name: maxResults
-        type: integer
-        description: Maximum number of results
-        required: false
-        source: input
-        default: 20
-      - name: orderBy
-        type: string
-        description: Sort order (relevance, modified, size)
-        required: false
-        source: input
-        default: "relevance"
-  grpc:
-    port: 50052
-    docker:
-      image: axiomstudio/skill-dropbox:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - dropbox:read
-    - dropbox:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        dropbox-delete:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    path:
+                        description: Path to file or folder to delete
+                        type: string
+                required:
+                    - path
+                type: object
+            name: dropbox-delete
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        dropbox-download:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    path:
+                        description: Path to file in Dropbox
+                        type: string
+                required:
+                    - path
+                type: object
+            name: dropbox-download
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        dropbox-list:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 100
+                        description: Maximum entries to return
+                        type: integer
+                    path:
+                        default: /
+                        description: Folder path to list
+                        type: string
+                    recursive:
+                        default: false
+                        description: List recursively
+                        type: boolean
+                type: object
+            name: dropbox-list
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        dropbox-search:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    maxResults:
+                        default: 20
+                        description: Maximum number of results
+                        type: integer
+                    orderBy:
+                        default: relevance
+                        description: Sort order (relevance, modified, size)
+                        type: string
+                    path:
+                        default: ""
+                        description: Restrict search to this path
+                        type: string
+                    query:
+                        description: Search query string
+                        type: string
+                required:
+                    - query
+                type: object
+            name: dropbox-search
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        dropbox-share:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox Share
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    expires:
+                        description: Expiration time (ISO 8601)
+                        type: string
+                    path:
+                        description: Path to file or folder to share
+                        type: string
+                    viewerInfo:
+                        default: false
+                        description: Request viewer info
+                        type: boolean
+                required:
+                    - path
+                type: object
+            name: dropbox-share
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dropbox-upload:
+            credentials:
+                - kind: dropbox-credential
+                  name: dropbox-credential
+            description: Dropbox Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    content:
+                        description: File content to upload
+                        type: string
+                    mode:
+                        default: add
+                        description: Upload mode (add, update, add_no_overwrite)
+                        type: string
+                    path:
+                        description: Destination path in Dropbox
+                        type: string
+                required:
+                    - content
+                    - path
+                type: object
+            name: dropbox-upload
+            permissions:
+                - dropbox:read
+                - dropbox:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: storage
+    description: Dropbox file storage operations for Atlas agents
+    icon: cloud
+    id: skill-dropbox
+    installers:
+        - id: oci
+          kind: oci
+          label: Dropbox Skill service image
+          package: axiomstudio/skill-dropbox:1.0.0
+    name: Dropbox Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-dropbox
+        resolvedVersion: 1.0.0
+    tags:
+        - cloud
+        - dropbox
+        - files
+        - storage
+    transport:
+        endpoint: skill-dropbox
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

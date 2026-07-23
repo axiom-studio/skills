@@ -1,207 +1,281 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-airbyte
-  name: Airbyte Skill
-  description: Airbyte data integration operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - airbyte
-    - etl
-    - data
-    - integration
-  icon: database
-  color: "#615EFF"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - airbyte-source-list
-    - airbyte-source-create
-    - airbyte-destination-list
-    - airbyte-destination-create
-    - airbyte-connection-list
-    - airbyte-connection-create
-    - airbyte-connection-sync
-    - airbyte-job-status
-    - airbyte-job-list
-  inputs:
-    airbyte-source-list:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-    airbyte-source-create:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Source name
-        required: true
-        source: input
-      - name: sourceDefinitionId
-        type: string
-        description: Source definition ID
-        required: true
-        source: input
-      - name: connectionConfiguration
-        type: object
-        description: Source-specific configuration
-        required: true
-        source: input
-    airbyte-destination-list:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-    airbyte-destination-create:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Destination name
-        required: true
-        source: input
-      - name: destinationDefinitionId
-        type: string
-        description: Destination definition ID
-        required: true
-        source: input
-      - name: connectionConfiguration
-        type: object
-        description: Destination-specific configuration
-        required: true
-        source: input
-    airbyte-connection-list:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-    airbyte-connection-create:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: workspaceId
-        type: string
-        description: Workspace ID
-        required: true
-        source: input
-      - name: sourceId
-        type: string
-        description: Source ID
-        required: true
-        source: input
-      - name: destinationId
-        type: string
-        description: Destination ID
-        required: true
-        source: input
-      - name: syncSchedule
-        type: object
-        description: Sync schedule configuration
-        required: false
-        source: input
-      - name: configurations
-        type: object
-        description: Stream configurations
-        required: false
-        source: input
-    airbyte-connection-sync:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: connectionId
-        type: string
-        description: Connection ID
-        required: true
-        source: input
-    airbyte-job-status:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: jobId
-        type: string
-        description: Job ID
-        required: true
-        source: input
-    airbyte-job-list:
-      - name: apiToken
-        type: string
-        description: Airbyte API token
-        required: true
-        source: connection
-        binding: vault://airbyte-credentials
-      - name: connectionId
-        type: string
-        description: Connection ID to filter jobs
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum number of jobs to return
-        required: false
-        source: input
-        default: 10
-  grpc:
-    port: 50101
-    docker:
-      image: axiomstudio/skill-airbyte:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - airbyte:read
-    - airbyte:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        airbyte-connection-create:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Connection Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    configurations:
+                        description: Stream configurations
+                        type: object
+                    destinationId:
+                        description: Destination ID
+                        type: string
+                    sourceId:
+                        description: Source ID
+                        type: string
+                    syncSchedule:
+                        description: Sync schedule configuration
+                        type: object
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - destinationId
+                    - sourceId
+                    - workspaceId
+                type: object
+            name: airbyte-connection-create
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airbyte-connection-list:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Connection List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - workspaceId
+                type: object
+            name: airbyte-connection-list
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airbyte-connection-sync:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Connection Sync
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectionId:
+                        description: Connection ID
+                        type: string
+                required:
+                    - connectionId
+                type: object
+            name: airbyte-connection-sync
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airbyte-destination-create:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Destination Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectionConfiguration:
+                        description: Destination-specific configuration
+                        type: object
+                    destinationDefinitionId:
+                        description: Destination definition ID
+                        type: string
+                    name:
+                        description: Destination name
+                        type: string
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - connectionConfiguration
+                    - destinationDefinitionId
+                    - name
+                    - workspaceId
+                type: object
+            name: airbyte-destination-create
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airbyte-destination-list:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Destination List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - workspaceId
+                type: object
+            name: airbyte-destination-list
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airbyte-job-list:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Job List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectionId:
+                        description: Connection ID to filter jobs
+                        type: string
+                    limit:
+                        default: 10
+                        description: Maximum number of jobs to return
+                        type: integer
+                type: object
+            name: airbyte-job-list
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airbyte-job-status:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Job Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    jobId:
+                        description: Job ID
+                        type: string
+                required:
+                    - jobId
+                type: object
+            name: airbyte-job-status
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        airbyte-source-create:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Source Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    connectionConfiguration:
+                        description: Source-specific configuration
+                        type: object
+                    name:
+                        description: Source name
+                        type: string
+                    sourceDefinitionId:
+                        description: Source definition ID
+                        type: string
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - connectionConfiguration
+                    - name
+                    - sourceDefinitionId
+                    - workspaceId
+                type: object
+            name: airbyte-source-create
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        airbyte-source-list:
+            credentials:
+                - kind: airbyte-credential
+                  name: airbyte-credential
+            description: Airbyte Source List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    workspaceId:
+                        description: Workspace ID
+                        type: string
+                required:
+                    - workspaceId
+                type: object
+            name: airbyte-source-list
+            permissions:
+                - airbyte:read
+                - airbyte:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: data
+    description: Airbyte data integration operations for Atlas agents
+    icon: database
+    id: skill-airbyte
+    installers:
+        - id: oci
+          kind: oci
+          label: Airbyte Skill service image
+          package: axiomstudio/skill-airbyte:1.0.0
+    name: Airbyte Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-airbyte
+        resolvedVersion: 1.0.0
+    tags:
+        - airbyte
+        - data
+        - etl
+        - integration
+    transport:
+        endpoint: skill-airbyte
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

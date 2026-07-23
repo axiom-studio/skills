@@ -1,236 +1,302 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-asana
-  name: Asana Skill
-  description: Asana project management operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: project-management
-  tags:
-    - asana
-    - project
-    - tasks
-    - workflow
-  icon: check-square
-  color: "#F06A6A"
-spec:
-  executorType: grpc
-  credentialType: asana_token
-  nodeTypes:
-    - asana-task-list
-    - asana-task-create
-    - asana-task-update
-    - asana-task-delete
-    - asana-project-list
-    - asana-project-get
-    - asana-section-list
-    - asana-story-create
-    - asana-subtask-list
-    - asana-tag-list
-  inputs:
-    asana-task-list:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: projectId
-        type: string
-        description: Filter by project ID
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: Filter by assignee gid
-        required: false
-        source: input
-      - name: completed
-        type: boolean
-        description: Filter by completion status
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results to return
-        required: false
-        source: input
-        default: 20
-    asana-task-create:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: name
-        type: string
-        description: Task name
-        required: true
-        source: input
-      - name: notes
-        type: string
-        description: Task description
-        required: false
-        source: input
-      - name: projectId
-        type: string
-        description: Add task to project
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: Assign task to user gid
-        required: false
-        source: input
-      - name: dueOn
-        type: string
-        description: Due date (YYYY-MM-DD)
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Tags to add
-        required: false
-        source: input
-    asana-task-update:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: taskId
-        type: string
-        description: Task gid to update
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: New task name
-        required: false
-        source: input
-      - name: notes
-        type: string
-        description: New task description
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: New assignee gid
-        required: false
-        source: input
-      - name: dueOn
-        type: string
-        description: New due date
-        required: false
-        source: input
-      - name: completed
-        type: boolean
-        description: Mark as completed
-        required: false
-        source: input
-    asana-task-delete:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: taskId
-        type: string
-        description: Task gid to delete
-        required: true
-        source: input
-    asana-project-list:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: workspace
-        type: string
-        description: Filter by workspace gid
-        required: false
-        source: input
-    asana-project-get:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: projectId
-        type: string
-        description: Project gid
-        required: true
-        source: input
-    asana-section-list:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: projectId
-        type: string
-        description: Project gid
-        required: true
-        source: input
-    asana-story-create:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: taskId
-        type: string
-        description: Task gid to add story to
-        required: true
-        source: input
-      - name: text
-        type: string
-        description: Story text
-        required: true
-        source: input
-    asana-subtask-list:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: taskId
-        type: string
-        description: Parent task gid
-        required: true
-        source: input
-    asana-tag-list:
-      - name: token
-        type: string
-        description: Asana personal access token
-        required: true
-        source: connection
-        binding: vault://asana-credentials
-      - name: workspace
-        type: string
-        description: Filter by workspace gid
-        required: false
-        source: input
-  grpc:
-    port: 50105
-    docker:
-      image: axiomstudio/skill-asana:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - asana:read
-    - asana:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        asana-project-get:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Project Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project gid
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: asana-project-get
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-project-list:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    workspace:
+                        description: Filter by workspace gid
+                        type: string
+                type: object
+            name: asana-project-list
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-section-list:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Section List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project gid
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: asana-section-list
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-story-create:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Story Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    taskId:
+                        description: Task gid to add story to
+                        type: string
+                    text:
+                        description: Story text
+                        type: string
+                required:
+                    - taskId
+                    - text
+                type: object
+            name: asana-story-create
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        asana-subtask-list:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Subtask List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    taskId:
+                        description: Parent task gid
+                        type: string
+                required:
+                    - taskId
+                type: object
+            name: asana-subtask-list
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-tag-list:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Tag List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    workspace:
+                        description: Filter by workspace gid
+                        type: string
+                type: object
+            name: asana-tag-list
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-task-create:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Task Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Assign task to user gid
+                        type: string
+                    dueOn:
+                        description: Due date (YYYY-MM-DD)
+                        type: string
+                    name:
+                        description: Task name
+                        type: string
+                    notes:
+                        description: Task description
+                        type: string
+                    projectId:
+                        description: Add task to project
+                        type: string
+                    tags:
+                        description: Tags to add
+                        type: string
+                required:
+                    - name
+                type: object
+            name: asana-task-create
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        asana-task-delete:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Task Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    taskId:
+                        description: Task gid to delete
+                        type: string
+                required:
+                    - taskId
+                type: object
+            name: asana-task-delete
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        asana-task-list:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Task List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Filter by assignee gid
+                        type: string
+                    completed:
+                        description: Filter by completion status
+                        type: boolean
+                    limit:
+                        default: 20
+                        description: Maximum results to return
+                        type: integer
+                    projectId:
+                        description: Filter by project ID
+                        type: string
+                type: object
+            name: asana-task-list
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        asana-task-update:
+            credentials:
+                - kind: asana_token
+                  name: asana_token
+            description: Asana Task Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: New assignee gid
+                        type: string
+                    completed:
+                        description: Mark as completed
+                        type: boolean
+                    dueOn:
+                        description: New due date
+                        type: string
+                    name:
+                        description: New task name
+                        type: string
+                    notes:
+                        description: New task description
+                        type: string
+                    taskId:
+                        description: Task gid to update
+                        type: string
+                required:
+                    - taskId
+                type: object
+            name: asana-task-update
+            permissions:
+                - asana:read
+                - asana:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: project-management
+    description: Asana project management operations for Atlas agents
+    icon: check-square
+    id: skill-asana
+    installers:
+        - id: oci
+          kind: oci
+          label: Asana Skill service image
+          package: axiomstudio/skill-asana:1.0.0
+    name: Asana Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-asana
+        resolvedVersion: 1.0.0
+    tags:
+        - asana
+        - project
+        - tasks
+        - workflow
+    transport:
+        endpoint: skill-asana
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

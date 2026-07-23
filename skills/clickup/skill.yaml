@@ -1,234 +1,290 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-clickup
-  name: ClickUp Skill
-  description: ClickUp productivity platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: project-management
-  tags:
-    - clickup
-    - tasks
-    - project
-    - productivity
-  icon: check-circle
-  color: "#7B68EE"
-spec:
-  executorType: grpc
-  credentialType: clickup_api
-  nodeTypes:
-    - clickup-task-list
-    - clickup-task-create
-    - clickup-task-update
-    - clickup-task-delete
-    - clickup-space-list
-    - clickup-folder-list
-    - clickup-list-list
-    - clickup-time-track
-    - clickup-comment-create
-  inputs:
-    clickup-task-list:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: listId
-        type: string
-        description: Filter by list ID
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: Filter by assignee ID
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Filter by status
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results to return
-        required: false
-        source: input
-        default: 20
-    clickup-task-create:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: listId
-        type: string
-        description: List ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Task name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Task description
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Initial status
-        required: false
-        source: input
-      - name: assignees
-        items:
-          type: string
-        description: Assignee user IDs
-        required: false
-        source: input
-      - name: dueDate
-        type: string
-        description: Due date (timestamp or date string)
-        required: false
-        source: input
-      - name: priority
-        type: integer
-        description: Priority level (1-4)
-        required: false
-        source: input
-    clickup-task-update:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: taskId
-        type: string
-        description: Task ID to update
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: New task name
-        required: false
-        source: input
-      - name: description
-        type: string
-        description: New task description
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: New status
-        required: false
-        source: input
-      - name: priority
-        type: integer
-        description: New priority (1-4)
-        required: false
-        source: input
-    clickup-task-delete:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: taskId
-        type: string
-        description: Task ID to delete
-        required: true
-        source: input
-    clickup-space-list:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: teamId
-        type: string
-        description: Team ID
-        required: true
-        source: input
-    clickup-folder-list:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: spaceId
-        type: string
-        description: Space ID
-        required: true
-        source: input
-    clickup-list-list:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: folderId
-        type: string
-        description: Folder ID
-        required: false
-        source: input
-    clickup-time-track:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: taskId
-        type: string
-        description: Task ID to track time for
-        required: true
-        source: input
-      - name: duration
-        type: integer
-        description: Duration in minutes
-        required: true
-        source: input
-      - name: billable
-        type: boolean
-        description: Mark as billable
-        required: false
-        source: default
-        default: false
-    clickup-comment-create:
-      - name: apiToken
-        type: string
-        description: ClickUp API token
-        required: true
-        source: connection
-        binding: vault://clickup-credentials
-      - name: taskId
-        type: string
-        description: Task ID to add comment to
-        required: true
-        source: input
-      - name: comment
-        type: string
-        description: Comment text
-        required: true
-        source: input
-  grpc:
-    port: 50108
-    docker:
-      image: axiomstudio/skill-clickup:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - clickup:read
-    - clickup:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        clickup-comment-create:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Comment Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    comment:
+                        description: Comment text
+                        type: string
+                    taskId:
+                        description: Task ID to add comment to
+                        type: string
+                required:
+                    - comment
+                    - taskId
+                type: object
+            name: clickup-comment-create
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        clickup-folder-list:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Folder List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    spaceId:
+                        description: Space ID
+                        type: string
+                required:
+                    - spaceId
+                type: object
+            name: clickup-folder-list
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        clickup-list-list:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup List List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    folderId:
+                        description: Folder ID
+                        type: string
+                type: object
+            name: clickup-list-list
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        clickup-space-list:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Space List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    teamId:
+                        description: Team ID
+                        type: string
+                required:
+                    - teamId
+                type: object
+            name: clickup-space-list
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        clickup-task-create:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Task Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignees:
+                        description: Assignee user IDs
+                        type: string
+                    description:
+                        description: Task description
+                        type: string
+                    dueDate:
+                        description: Due date (timestamp or date string)
+                        type: string
+                    listId:
+                        description: List ID
+                        type: string
+                    name:
+                        description: Task name
+                        type: string
+                    priority:
+                        description: Priority level (1-4)
+                        type: integer
+                    status:
+                        description: Initial status
+                        type: string
+                required:
+                    - listId
+                    - name
+                type: object
+            name: clickup-task-create
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        clickup-task-delete:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Task Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    taskId:
+                        description: Task ID to delete
+                        type: string
+                required:
+                    - taskId
+                type: object
+            name: clickup-task-delete
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        clickup-task-list:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Task List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Filter by assignee ID
+                        type: string
+                    limit:
+                        default: 20
+                        description: Maximum results to return
+                        type: integer
+                    listId:
+                        description: Filter by list ID
+                        type: string
+                    status:
+                        description: Filter by status
+                        type: string
+                type: object
+            name: clickup-task-list
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        clickup-task-update:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Task Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: New task description
+                        type: string
+                    name:
+                        description: New task name
+                        type: string
+                    priority:
+                        description: New priority (1-4)
+                        type: integer
+                    status:
+                        description: New status
+                        type: string
+                    taskId:
+                        description: Task ID to update
+                        type: string
+                required:
+                    - taskId
+                type: object
+            name: clickup-task-update
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        clickup-time-track:
+            credentials:
+                - kind: clickup_api
+                  name: clickup_api
+            description: Clickup Time Track
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    billable:
+                        default: false
+                        description: Mark as billable
+                        type: boolean
+                    duration:
+                        description: Duration in minutes
+                        type: integer
+                    taskId:
+                        description: Task ID to track time for
+                        type: string
+                required:
+                    - duration
+                    - taskId
+                type: object
+            name: clickup-time-track
+            permissions:
+                - clickup:read
+                - clickup:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: project-management
+    description: ClickUp productivity platform operations for Atlas agents
+    icon: check-circle
+    id: skill-clickup
+    installers:
+        - id: oci
+          kind: oci
+          label: ClickUp Skill service image
+          package: axiomstudio/skill-clickup:1.0.0
+    name: ClickUp Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-clickup
+        resolvedVersion: 1.0.0
+    tags:
+        - clickup
+        - productivity
+        - project
+        - tasks
+    transport:
+        endpoint: skill-clickup
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

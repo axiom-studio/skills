@@ -1,64 +1,68 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-ideogram
-  name: Ideogram Skill
-  description: Ideogram AI image generation for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - ideogram
-    - ai
-    - image-generation
-    - design
-  icon: image
-  color: "#111827"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - ideogram-generate
-  inputs:
-    ideogram-generate:
-      - name: apiKey
-        type: string
-        description: Ideogram API key
-        required: true
-        source: connection
-        binding: vault://ideogram-credentials
-      - name: textPrompt
-        type: string
-        description: Natural-language prompt for image generation
-        required: true
-        source: input
-      - name: resolution
-        type: string
-        description: Output image resolution
-        required: false
-        source: input
-        default: "2048x2048"
-      - name: renderingSpeed
-        type: string
-        description: Rendering quality/speed tradeoff
-        required: false
-        source: input
-        default: "DEFAULT"
-      - name: enableCopyrightDetection
-        type: boolean
-        description: Opt into Ideogram copyright detection
-        required: false
-        source: input
-        default: false
-  grpc:
-    port: 50131
-    docker:
-      image: axiomstudio/skill-ideogram:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - ideogram:generate
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        ideogram-generate:
+            credentials:
+                - kind: ideogram-credential
+                  name: ideogram-credential
+            description: Ideogram Generate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    enableCopyrightDetection:
+                        default: false
+                        description: Opt into Ideogram copyright detection
+                        type: boolean
+                    renderingSpeed:
+                        default: DEFAULT
+                        description: Rendering quality/speed tradeoff
+                        type: string
+                    resolution:
+                        default: 2048x2048
+                        description: Output image resolution
+                        type: string
+                    textPrompt:
+                        description: Natural-language prompt for image generation
+                        type: string
+                required:
+                    - textPrompt
+                type: object
+            name: ideogram-generate
+            permissions:
+                - ideogram:generate
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: ai
+    description: Ideogram AI image generation for Atlas agents
+    icon: image
+    id: skill-ideogram
+    installers:
+        - id: oci
+          kind: oci
+          label: Ideogram Skill service image
+          package: axiomstudio/skill-ideogram:1.0.0
+    name: Ideogram Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-ideogram
+        resolvedVersion: 1.0.0
+    tags:
+        - ai
+        - design
+        - ideogram
+        - image-generation
+    transport:
+        endpoint: skill-ideogram
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

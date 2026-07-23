@@ -1,301 +1,311 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-bitbucket
-  name: Bitbucket Skill
-  description: Bitbucket repository operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - bitbucket
-    - git
-    - repository
-    - pipeline
-  icon: git-branch
-  color: "#0052CC"
-spec:
-  executorType: grpc
-  credentialType: bitbucket_token
-  nodeTypes:
-    - bitbucket-repo-list
-    - bitbucket-repo-get
-    - bitbucket-pr-list
-    - bitbucket-pr-create
-    - bitbucket-pr-merge
-    - bitbucket-pipeline-trigger
-    - bitbucket-pipeline-status
-    - bitbucket-commit-list
-    - bitbucket-branch-list
-  inputs:
-    bitbucket-repo-list:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: false
-        source: input
-      - name: role
-        type: string
-        description: Filter by role (member, admin)
-        required: false
-        source: input
-    bitbucket-repo-get:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-    bitbucket-pr-list:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: state
-        type: string
-        description: Filter by PR state (OPEN, MERGED, DECLINED)
-        required: false
-        source: input
-        default: "OPEN"
-    bitbucket-pr-create:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: PR title
-        required: true
-        source: input
-      - name: sourceBranch
-        type: string
-        description: Source branch
-        required: true
-        source: input
-      - name: destinationBranch
-        type: string
-        description: Destination branch
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: PR description
-        required: false
-        source: input
-    bitbucket-pr-merge:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: prId
-        type: string
-        description: Pull request ID
-        required: true
-        source: input
-    bitbucket-pipeline-trigger:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Branch to trigger pipeline on
-        required: true
-        source: input
-      - name: variables
-        type: object
-        description: Pipeline variables
-        required: false
-        source: input
-    bitbucket-pipeline-status:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: pipelineId
-        type: string
-        description: Pipeline UUID
-        required: true
-        source: input
-    bitbucket-commit-list:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Filter by branch
-        required: false
-        source: input
-    bitbucket-branch-list:
-      - name: username
-        type: string
-        description: Bitbucket username
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: appPassword
-        type: string
-        description: App password
-        required: true
-        source: connection
-        binding: vault://bitbucket-credentials
-      - name: workspace
-        type: string
-        description: Workspace slug
-        required: true
-        source: input
-      - name: repoSlug
-        type: string
-        description: Repository slug
-        required: true
-        source: input
-  grpc:
-    port: 50125
-    docker:
-      image: axiomstudio/skill-bitbucket:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - bitbucket:read
-    - bitbucket:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        bitbucket-branch-list:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Branch List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-branch-list
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        bitbucket-commit-list:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Commit List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Filter by branch
+                        type: string
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-commit-list
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        bitbucket-pipeline-status:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Pipeline Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pipelineId:
+                        description: Pipeline UUID
+                        type: string
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - pipelineId
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-pipeline-status
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        bitbucket-pipeline-trigger:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Pipeline Trigger
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch to trigger pipeline on
+                        type: string
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    variables:
+                        description: Pipeline variables
+                        type: object
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - branch
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-pipeline-trigger
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        bitbucket-pr-create:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Pr Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: PR description
+                        type: string
+                    destinationBranch:
+                        description: Destination branch
+                        type: string
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    sourceBranch:
+                        description: Source branch
+                        type: string
+                    title:
+                        description: PR title
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - destinationBranch
+                    - repoSlug
+                    - sourceBranch
+                    - title
+                    - workspace
+                type: object
+            name: bitbucket-pr-create
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        bitbucket-pr-list:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Pr List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    state:
+                        default: OPEN
+                        description: Filter by PR state (OPEN, MERGED, DECLINED)
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-pr-list
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        bitbucket-pr-merge:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Pr Merge
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    prId:
+                        description: Pull request ID
+                        type: string
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - prId
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-pr-merge
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        bitbucket-repo-get:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Repo Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    repoSlug:
+                        description: Repository slug
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                required:
+                    - repoSlug
+                    - workspace
+                type: object
+            name: bitbucket-repo-get
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        bitbucket-repo-list:
+            credentials:
+                - kind: bitbucket_token
+                  name: bitbucket_token
+            description: Bitbucket Repo List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    role:
+                        description: Filter by role (member, admin)
+                        type: string
+                    workspace:
+                        description: Workspace slug
+                        type: string
+                type: object
+            name: bitbucket-repo-list
+            permissions:
+                - bitbucket:read
+                - bitbucket:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: devops
+    description: Bitbucket repository operations for Atlas agents
+    icon: git-branch
+    id: skill-bitbucket
+    installers:
+        - id: oci
+          kind: oci
+          label: Bitbucket Skill service image
+          package: axiomstudio/skill-bitbucket:1.0.0
+    name: Bitbucket Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-bitbucket
+        resolvedVersion: 1.0.0
+    tags:
+        - bitbucket
+        - git
+        - pipeline
+        - repository
+    transport:
+        endpoint: skill-bitbucket
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

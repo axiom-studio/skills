@@ -1,181 +1,243 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-monday
-  name: Monday.com Skill
-  description: Monday.com work management operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: project-management
-  tags:
-    - monday
-    - project
-    - work
-    - boards
-  icon: layout
-  color: "#FF3D57"
-spec:
-  executorType: grpc
-  credentialType: monday_api
-  nodeTypes:
-    - monday-board-list
-    - monday-board-get
-    - monday-item-list
-    - monday-item-create
-    - monday-item-update
-    - monday-column-list
-    - monday-group-list
-    - monday-query
-  inputs:
-    monday-board-list:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardIds
-        items:
-          type: string
-        description: Filter by board IDs
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-    monday-board-get:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardId
-        type: integer
-        description: Board ID
-        required: true
-        source: input
-    monday-item-list:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardId
-        type: integer
-        description: Board ID
-        required: true
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-    monday-item-create:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardId
-        type: integer
-        description: Board ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Item name
-        required: true
-        source: input
-      - name: groupId
-        type: string
-        description: Group ID
-        required: false
-        source: input
-      - name: columnValues
-        type: object
-        description: Column values
-        required: false
-        source: input
-    monday-item-update:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: itemId
-        type: integer
-        description: Item ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: New item name
-        required: false
-        source: input
-      - name: columnValues
-        type: object
-        description: Column values
-        required: false
-        source: input
-    monday-column-list:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardId
-        type: integer
-        description: Board ID
-        required: true
-        source: input
-    monday-group-list:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: boardId
-        type: integer
-        description: Board ID
-        required: true
-        source: input
-    monday-query:
-      - name: apiToken
-        type: string
-        description: Monday.com API token
-        required: true
-        source: connection
-        binding: vault://monday-credentials
-      - name: query
-        type: string
-        description: GraphQL query
-        required: true
-        source: input
-      - name: variables
-        type: object
-        description: Query variables
-        required: false
-        source: input
-  grpc:
-    port: 50107
-    docker:
-      image: axiomstudio/skill-monday:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - monday:read
-    - monday:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        monday-board-get:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Board Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: integer
+                required:
+                    - boardId
+                type: object
+            name: monday-board-get
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        monday-board-list:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Board List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardIds:
+                        description: Filter by board IDs
+                        type: string
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                type: object
+            name: monday-board-list
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        monday-column-list:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Column List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: integer
+                required:
+                    - boardId
+                type: object
+            name: monday-column-list
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        monday-group-list:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Group List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: integer
+                required:
+                    - boardId
+                type: object
+            name: monday-group-list
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        monday-item-create:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Item Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: integer
+                    columnValues:
+                        description: Column values
+                        type: object
+                    groupId:
+                        description: Group ID
+                        type: string
+                    name:
+                        description: Item name
+                        type: string
+                required:
+                    - boardId
+                    - name
+                type: object
+            name: monday-item-create
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        monday-item-list:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Item List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: integer
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                required:
+                    - boardId
+                type: object
+            name: monday-item-list
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        monday-item-update:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Item Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    columnValues:
+                        description: Column values
+                        type: object
+                    itemId:
+                        description: Item ID
+                        type: integer
+                    name:
+                        description: New item name
+                        type: string
+                required:
+                    - itemId
+                type: object
+            name: monday-item-update
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        monday-query:
+            credentials:
+                - kind: monday_api
+                  name: monday_api
+            description: Monday Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    query:
+                        description: GraphQL query
+                        type: string
+                    variables:
+                        description: Query variables
+                        type: object
+                required:
+                    - query
+                type: object
+            name: monday-query
+            permissions:
+                - monday:read
+                - monday:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: project-management
+    description: Monday.com work management operations for Atlas agents
+    icon: layout
+    id: skill-monday
+    installers:
+        - id: oci
+          kind: oci
+          label: Monday.com Skill service image
+          package: axiomstudio/skill-monday:1.0.0
+    name: Monday.com Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-monday
+        resolvedVersion: 1.0.0
+    tags:
+        - boards
+        - monday
+        - project
+        - work
+    transport:
+        endpoint: skill-monday
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

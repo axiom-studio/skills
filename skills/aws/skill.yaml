@@ -1,356 +1,370 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-aws
-  name: AWS Skill
-  description: AWS cloud operations (S3, EC2, Lambda) for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: cloud
-  tags:
-    - aws
-    - s3
-    - ec2
-    - lambda
-    - cloud
-  icon: cloud
-  color: "#FF9900"
-spec:
-  executorType: grpc
-  credentialType: aws_credentials
-  nodeTypes:
-    - aws-s3-list-buckets
-    - aws-s3-list-objects
-    - aws-s3-get-object
-    - aws-s3-put-object
-    - aws-s3-delete-object
-    - aws-ec2-list-instances
-    - aws-ec2-start-instance
-    - aws-ec2-stop-instance
-    - aws-ec2-reboot-instance
-    - aws-lambda-list-functions
-    - aws-lambda-invoke
-    - aws-lambda-get-function
-  inputs:
-    aws-s3-list-buckets:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-    aws-s3-list-objects:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: bucket
-        type: string
-        description: S3 bucket name
-        required: true
-        source: input
-      - name: prefix
-        type: string
-        description: Key prefix filter
-        required: false
-        source: input
-    aws-s3-get-object:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: bucket
-        type: string
-        description: S3 bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: S3 object key
-        required: true
-        source: input
-    aws-s3-put-object:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: bucket
-        type: string
-        description: S3 bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: S3 object key
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Object content
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-        default: "application/octet-stream"
-    aws-s3-delete-object:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: bucket
-        type: string
-        description: S3 bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: S3 object key
-        required: true
-        source: input
-    aws-ec2-list-instances:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-    aws-ec2-start-instance:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: instanceId
-        type: string
-        description: EC2 instance ID
-        required: true
-        source: input
-    aws-ec2-stop-instance:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: instanceId
-        type: string
-        description: EC2 instance ID
-        required: true
-        source: input
-    aws-ec2-reboot-instance:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: instanceId
-        type: string
-        description: EC2 instance ID
-        required: true
-        source: input
-    aws-lambda-list-functions:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-    aws-lambda-invoke:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: functionName
-        type: string
-        description: Lambda function name
-        required: true
-        source: input
-      - name: payload
-        type: object
-        description: Lambda invocation payload
-        required: false
-        source: input
-    aws-lambda-get-function:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://aws-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-        default: "us-east-1"
-      - name: functionName
-        type: string
-        description: Lambda function name
-        required: true
-        source: input
-  grpc:
-    port: 50057
-    docker:
-      image: axiomstudio/skill-aws:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - aws:read
-    - aws:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        aws-ec2-list-instances:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Ec2 List Instances
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                type: object
+            name: aws-ec2-list-instances
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-ec2-reboot-instance:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Ec2 Reboot Instance
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceId:
+                        description: EC2 instance ID
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - instanceId
+                type: object
+            name: aws-ec2-reboot-instance
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        aws-ec2-start-instance:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Ec2 Start Instance
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceId:
+                        description: EC2 instance ID
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - instanceId
+                type: object
+            name: aws-ec2-start-instance
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        aws-ec2-stop-instance:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Ec2 Stop Instance
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceId:
+                        description: EC2 instance ID
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - instanceId
+                type: object
+            name: aws-ec2-stop-instance
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        aws-lambda-get-function:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Lambda Get Function
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    functionName:
+                        description: Lambda function name
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - functionName
+                type: object
+            name: aws-lambda-get-function
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-lambda-invoke:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Lambda Invoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    functionName:
+                        description: Lambda function name
+                        type: string
+                    payload:
+                        description: Lambda invocation payload
+                        type: object
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - functionName
+                type: object
+            name: aws-lambda-invoke
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        aws-lambda-list-functions:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws Lambda List Functions
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                type: object
+            name: aws-lambda-list-functions
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-s3-delete-object:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws S3 Delete Object
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: S3 bucket name
+                        type: string
+                    key:
+                        description: S3 object key
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - bucket
+                    - key
+                type: object
+            name: aws-s3-delete-object
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        aws-s3-get-object:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws S3 Get Object
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: S3 bucket name
+                        type: string
+                    key:
+                        description: S3 object key
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - bucket
+                    - key
+                type: object
+            name: aws-s3-get-object
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-s3-list-buckets:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws S3 List Buckets
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                type: object
+            name: aws-s3-list-buckets
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-s3-list-objects:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws S3 List Objects
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: S3 bucket name
+                        type: string
+                    prefix:
+                        description: Key prefix filter
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - bucket
+                type: object
+            name: aws-s3-list-objects
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        aws-s3-put-object:
+            credentials:
+                - kind: aws_credentials
+                  name: aws_credentials
+            description: Aws S3 Put Object
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: S3 bucket name
+                        type: string
+                    content:
+                        description: Object content
+                        type: string
+                    contentType:
+                        default: application/octet-stream
+                        description: Content type
+                        type: string
+                    key:
+                        description: S3 object key
+                        type: string
+                    region:
+                        default: us-east-1
+                        description: AWS region
+                        type: string
+                required:
+                    - bucket
+                    - content
+                    - key
+                type: object
+            name: aws-s3-put-object
+            permissions:
+                - aws:read
+                - aws:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+    category: cloud
+    description: AWS cloud operations (S3, EC2, Lambda) for Atlas agents
+    icon: cloud
+    id: skill-aws
+    installers:
+        - id: oci
+          kind: oci
+          label: AWS Skill service image
+          package: axiomstudio/skill-aws:1.0.0
+    name: AWS Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-aws
+        resolvedVersion: 1.0.0
+    tags:
+        - aws
+        - cloud
+        - ec2
+        - lambda
+        - s3
+    transport:
+        endpoint: skill-aws
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

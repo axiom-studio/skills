@@ -1,323 +1,317 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-discord
-  name: Discord Skill
-  description: Discord messaging operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: communication
-  tags:
-    - discord
-    - chat
-    - messaging
-    - bot
-  icon: message-square
-  color: "#5865F2"
-spec:
-  executorType: grpc
-  credentialType: discord_bot_token
-  nodeTypes:
-    - discord-send
-    - discord-embed
-    - discord-react
-    - discord-channel
-    - discord-user
-    - discord-webhook
-  inputs:
-    discord-send:
-      - name: token
-        type: string
-        description: Discord bot token
-        required: true
-        source: connection
-        binding: vault://discord-credentials
-      - name: channelId
-        type: string
-        description: Channel ID to send message
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Message content
-        required: true
-        source: input
-      - name: tts
-        type: boolean
-        description: Send as text-to-speech
-        required: false
-        source: default
-        default: false
-      - name: replyTo
-        type: string
-        description: Message ID to reply to
-        required: false
-        source: input
-      - name: mentionUser
-        type: boolean
-        description: Mention user when replying
-        required: false
-        source: default
-        default: false
-    discord-embed:
-      - name: token
-        type: string
-        description: Discord bot token
-        required: true
-        source: connection
-        binding: vault://discord-credentials
-      - name: channelId
-        type: string
-        description: Channel ID
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Message content above embed
-        required: false
-        source: input
-      - name: title
-        type: string
-        description: Embed title
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Embed description
-        required: true
-        source: input
-      - name: color
-        type: string
-        description: Embed color in hex
-        required: false
-        source: input
-        default: "#5865F2"
-      - name: url
-        type: string
-        description: Embed title URL
-        required: false
-        source: input
-      - name: authorName
-        type: string
-        description: Author name
-        required: false
-        source: input
-      - name: authorURL
-        type: string
-        description: Author URL
-        required: false
-        source: input
-      - name: authorIcon
-        type: string
-        description: Author icon URL
-        required: false
-        source: input
-      - name: footerText
-        type: string
-        description: Footer text
-        required: false
-        source: input
-      - name: footerIcon
-        type: string
-        description: Footer icon URL
-        required: false
-        source: input
-      - name: thumbnail
-        type: string
-        description: Thumbnail image URL
-        required: false
-        source: input
-      - name: image
-        type: string
-        description: Main image URL
-        required: false
-        source: input
-      - name: fields
-        items:
-          type: string
-        description: Array of embed fields
-        required: false
-        source: input
-      - name: timestamp
-        type: boolean
-        description: Include current timestamp
-        required: false
-        source: default
-        default: true
-    discord-react:
-      - name: token
-        type: string
-        description: Discord bot token
-        required: true
-        source: connection
-        binding: vault://discord-credentials
-      - name: channelId
-        type: string
-        description: Channel ID
-        required: true
-        source: input
-      - name: messageId
-        type: string
-        description: Message ID to react to
-        required: true
-        source: input
-      - name: emoji
-        type: string
-        description: Emoji to react with
-        required: true
-        source: input
-      - name: emojiType
-        type: string
-        description: Type of emoji (unicode, custom)
-        required: false
-        source: input
-        default: "unicode"
-      - name: emojiName
-        type: string
-        description: Custom emoji name
-        required: false
-        source: input
-    discord-channel:
-      - name: token
-        type: string
-        description: Discord bot token
-        required: true
-        source: connection
-        binding: vault://discord-credentials
-      - name: guildId
-        type: string
-        description: Server/Guild ID
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (create, list, get, delete, update)
-        required: true
-        source: input
-      - name: channelId
-        type: string
-        description: Channel ID (required for get/delete/update)
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Channel name (required for create)
-        required: false
-        source: input
-      - name: channelType
-        type: string
-        description: Channel type (text, voice, category, announcement)
-        required: false
-        source: input
-        default: "text"
-      - name: topic
-        type: string
-        description: Channel topic
-        required: false
-        source: input
-      - name: nsfw
-        type: boolean
-        description: Mark as NSFW
-        required: false
-        source: default
-        default: false
-      - name: reason
-        type: string
-        description: Audit log reason
-        required: false
-        source: input
-    discord-user:
-      - name: token
-        type: string
-        description: Discord bot token
-        required: true
-        source: connection
-        binding: vault://discord-credentials
-      - name: guildId
-        type: string
-        description: Server/Guild ID
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (get, kick, ban, unban, timeout, get-role, add-role, remove-role)
-        required: true
-        source: input
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-      - name: roleId
-        type: string
-        description: Role ID (required for role operations)
-        required: false
-        source: input
-      - name: reason
-        type: string
-        description: Audit log reason
-        required: false
-        source: input
-      - name: duration
-        type: integer
-        description: Timeout duration in seconds
-        required: false
-        source: input
-      - name: deleteDays
-        type: integer
-        description: Days of messages to delete on ban (0-7)
-        required: false
-        source: input
-        default: 0
-    discord-webhook:
-      - name: webhookUrl
-        type: string
-        description: Discord webhook URL
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Message content
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Override webhook username
-        required: false
-        source: input
-      - name: avatarUrl
-        type: string
-        description: Override webhook avatar URL
-        required: false
-        source: input
-      - name: tts
-        type: boolean
-        description: Send as text-to-speech
-        required: false
-        source: default
-        default: false
-      - name: threadId
-        type: string
-        description: Send to specific thread
-        required: false
-        source: input
-      - name: wait
-        type: boolean
-        description: Wait for server confirmation
-        required: false
-        source: default
-        default: false
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-discord:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - discord:send
-    - discord:read
-    - discord:manage
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        discord-channel:
+            credentials:
+                - kind: discord_bot_token
+                  name: discord_bot_token
+            description: Discord Channel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (create, list, get, delete, update)
+                        type: string
+                    channelId:
+                        description: Channel ID (required for get/delete/update)
+                        type: string
+                    channelType:
+                        default: text
+                        description: Channel type (text, voice, category, announcement)
+                        type: string
+                    guildId:
+                        description: Server/Guild ID
+                        type: string
+                    name:
+                        description: Channel name (required for create)
+                        type: string
+                    nsfw:
+                        default: false
+                        description: Mark as NSFW
+                        type: boolean
+                    reason:
+                        description: Audit log reason
+                        type: string
+                    topic:
+                        description: Channel topic
+                        type: string
+                required:
+                    - action
+                    - guildId
+                type: object
+            name: discord-channel
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        discord-embed:
+            credentials:
+                - kind: discord_bot_token
+                  name: discord_bot_token
+            description: Discord Embed
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    authorIcon:
+                        description: Author icon URL
+                        type: string
+                    authorName:
+                        description: Author name
+                        type: string
+                    authorURL:
+                        description: Author URL
+                        type: string
+                    channelId:
+                        description: Channel ID
+                        type: string
+                    color:
+                        default: '#5865F2'
+                        description: Embed color in hex
+                        type: string
+                    content:
+                        description: Message content above embed
+                        type: string
+                    description:
+                        description: Embed description
+                        type: string
+                    fields:
+                        description: Array of embed fields
+                        type: string
+                    footerIcon:
+                        description: Footer icon URL
+                        type: string
+                    footerText:
+                        description: Footer text
+                        type: string
+                    image:
+                        description: Main image URL
+                        type: string
+                    thumbnail:
+                        description: Thumbnail image URL
+                        type: string
+                    timestamp:
+                        default: true
+                        description: Include current timestamp
+                        type: boolean
+                    title:
+                        description: Embed title
+                        type: string
+                    url:
+                        description: Embed title URL
+                        type: string
+                required:
+                    - channelId
+                    - description
+                    - title
+                type: object
+            name: discord-embed
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        discord-react:
+            credentials:
+                - kind: discord_bot_token
+                  name: discord_bot_token
+            description: Discord React
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channelId:
+                        description: Channel ID
+                        type: string
+                    emoji:
+                        description: Emoji to react with
+                        type: string
+                    emojiName:
+                        description: Custom emoji name
+                        type: string
+                    emojiType:
+                        default: unicode
+                        description: Type of emoji (unicode, custom)
+                        type: string
+                    messageId:
+                        description: Message ID to react to
+                        type: string
+                required:
+                    - channelId
+                    - emoji
+                    - messageId
+                type: object
+            name: discord-react
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        discord-send:
+            credentials:
+                - kind: discord_bot_token
+                  name: discord_bot_token
+            description: Discord Send
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channelId:
+                        description: Channel ID to send message
+                        type: string
+                    content:
+                        description: Message content
+                        type: string
+                    mentionUser:
+                        default: false
+                        description: Mention user when replying
+                        type: boolean
+                    replyTo:
+                        description: Message ID to reply to
+                        type: string
+                    tts:
+                        default: false
+                        description: Send as text-to-speech
+                        type: boolean
+                required:
+                    - channelId
+                    - content
+                type: object
+            name: discord-send
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        discord-user:
+            credentials:
+                - kind: discord_bot_token
+                  name: discord_bot_token
+            description: Discord User
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (get, kick, ban, unban, timeout, get-role, add-role, remove-role)
+                        type: string
+                    deleteDays:
+                        default: 0
+                        description: Days of messages to delete on ban (0-7)
+                        type: integer
+                    duration:
+                        description: Timeout duration in seconds
+                        type: integer
+                    guildId:
+                        description: Server/Guild ID
+                        type: string
+                    reason:
+                        description: Audit log reason
+                        type: string
+                    roleId:
+                        description: Role ID (required for role operations)
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - action
+                    - guildId
+                    - userId
+                type: object
+            name: discord-user
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        discord-webhook:
+            description: Discord Webhook
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    avatarUrl:
+                        description: Override webhook avatar URL
+                        type: string
+                    content:
+                        description: Message content
+                        type: string
+                    threadId:
+                        description: Send to specific thread
+                        type: string
+                    tts:
+                        default: false
+                        description: Send as text-to-speech
+                        type: boolean
+                    username:
+                        description: Override webhook username
+                        type: string
+                    wait:
+                        default: false
+                        description: Wait for server confirmation
+                        type: boolean
+                    webhookUrl:
+                        description: Discord webhook URL
+                        type: string
+                required:
+                    - content
+                    - webhookUrl
+                type: object
+            name: discord-webhook
+            permissions:
+                - discord:manage
+                - discord:read
+                - discord:send
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: communication
+    description: Discord messaging operations for Atlas agents
+    icon: message-square
+    id: skill-discord
+    installers:
+        - id: oci
+          kind: oci
+          label: Discord Skill service image
+          package: axiomstudio/skill-discord:1.0.0
+    name: Discord Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-discord
+        resolvedVersion: 1.0.0
+    tags:
+        - bot
+        - chat
+        - discord
+        - messaging
+    transport:
+        endpoint: skill-discord
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

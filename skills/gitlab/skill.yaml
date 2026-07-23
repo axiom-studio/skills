@@ -1,515 +1,547 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-gitlab
-  name: GitLab Skill
-  description: GitLab repository and CI/CD operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - gitlab
-    - git
-    - ci-cd
-    - pipeline
-  icon: git-branch
-  color: "#FC6D26"
-spec:
-  executorType: grpc
-  credentialType: gitlab_token
-  nodeTypes:
-    - gitlab-project-list
-    - gitlab-project-get
-    - gitlab-pipeline-trigger
-    - gitlab-pipeline-status
-    - gitlab-job-list
-    - gitlab-job-logs
-    - gitlab-mr-list
-    - gitlab-mr-create
-    - gitlab-mr-merge
-    - gitlab-issue-list
-    - gitlab-issue-create
-    - gitlab-variable-list
-    - gitlab-variable-set
-    - gitlab-repo-file
-  inputs:
-    gitlab-project-list:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: owned
-        type: boolean
-        description: Only return owned projects
-        required: false
-        source: input
-        default: false
-      - name: membership
-        type: boolean
-        description: Only return projects with membership
-        required: false
-        source: input
-        default: true
-      - name: search
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: perPage
-        type: integer
-        description: Results per page
-        required: false
-        source: input
-        default: 20
-    gitlab-project-get:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID or path
-        required: true
-        source: input
-    gitlab-pipeline-trigger:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID or path
-        required: true
-        source: input
-      - name: ref
-        type: string
-        description: Branch or tag name
-        required: true
-        source: input
-      - name: variables
-        type: object
-        description: Pipeline variables
-        required: false
-        source: input
-    gitlab-pipeline-status:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: pipelineId
-        type: integer
-        description: Pipeline ID
-        required: true
-        source: input
-    gitlab-job-list:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: pipelineId
-        type: integer
-        description: Pipeline ID
-        required: true
-        source: input
-      - name: scope
-        items:
-          type: string
-        description: Job scopes (created, pending, running, failed, success)
-        required: false
-        source: input
-    gitlab-job-logs:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: jobId
-        type: integer
-        description: Job ID
-        required: true
-        source: input
-    gitlab-mr-list:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: state
-        type: string
-        description: MR state (opened, closed, merged, all)
-        required: false
-        source: input
-        default: "opened"
-      - name: labels
-        items:
-          type: string
-        description: Filter by labels
-        required: false
-        source: input
-      - name: author
-        type: string
-        description: Filter by author
-        required: false
-        source: input
-    gitlab-mr-create:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: sourceBranch
-        type: string
-        description: Source branch name
-        required: true
-        source: input
-      - name: targetBranch
-        type: string
-        description: Target branch name
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: MR title
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: MR description
-        required: false
-        source: input
-      - name: assigneeIds
-        items:
-          type: string
-        description: User IDs to assign
-        required: false
-        source: input
-      - name: reviewerIds
-        items:
-          type: string
-        description: Reviewer user IDs
-        required: false
-        source: input
-      - name: labels
-        items:
-          type: string
-        description: Labels to apply
-        required: false
-        source: input
-      - name: removeSourceBranch
-        type: boolean
-        description: Remove source branch after merge
-        required: false
-        source: default
-        default: false
-      - name: squash
-        type: boolean
-        description: Squash commits on merge
-        required: false
-        source: default
-        default: false
-    gitlab-mr-merge:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: mrIid
-        type: integer
-        description: MR internal ID
-        required: true
-        source: input
-      - name: squashCommitMessage
-        type: string
-        description: Custom squash message
-        required: false
-        source: input
-      - name: shouldRemoveSourceBranch
-        type: boolean
-        description: Remove source branch
-        required: false
-        source: default
-        default: false
-    gitlab-issue-list:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: state
-        type: string
-        description: Issue state
-        required: false
-        source: input
-        default: "opened"
-      - name: labels
-        items:
-          type: string
-        description: Filter by labels
-        required: false
-        source: input
-      - name: assignee
-        type: string
-        description: Filter by assignee
-        required: false
-        source: input
-    gitlab-issue-create:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: Issue title
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Issue description
-        required: false
-        source: input
-      - name: labels
-        items:
-          type: string
-        description: Labels to apply
-        required: false
-        source: input
-      - name: assigneeIds
-        items:
-          type: string
-        description: Assignee user IDs
-        required: false
-        source: input
-      - name: dueDate
-        type: string
-        description: Due date (YYYY-MM-DD)
-        required: false
-        source: input
-    gitlab-variable-list:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    gitlab-variable-set:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Variable key
-        required: true
-        source: input
-      - name: value
-        type: string
-        description: Variable value
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: protected
-        type: boolean
-        description: Only for protected branches
-        required: false
-        source: default
-        default: false
-      - name: masked
-        type: boolean
-        description: Mask in logs
-        required: false
-        source: default
-        default: false
-      - name: environmentScope
-        type: string
-        description: Environment scope
-        required: false
-        source: input
-        default: "*"
-    gitlab-repo-file:
-      - name: token
-        type: string
-        description: Personal access token
-        required: true
-        source: connection
-        binding: vault://gitlab-credentials
-      - name: url
-        type: string
-        description: GitLab URL
-        required: false
-        source: input
-        default: "https://gitlab.com"
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: filePath
-        type: string
-        description: File path in repo
-        required: true
-        source: input
-      - name: ref
-        type: string
-        description: Branch or commit SHA
-        required: true
-        source: input
-  grpc:
-    port: 50084
-    docker:
-      image: axiomstudio/skill-gitlab:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - gitlab:read
-    - gitlab:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        gitlab-issue-create:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Issue Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assigneeIds:
+                        description: Assignee user IDs
+                        type: string
+                    description:
+                        description: Issue description
+                        type: string
+                    dueDate:
+                        description: Due date (YYYY-MM-DD)
+                        type: string
+                    labels:
+                        description: Labels to apply
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    title:
+                        description: Issue title
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                    - title
+                type: object
+            name: gitlab-issue-create
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gitlab-issue-list:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Issue List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Filter by assignee
+                        type: string
+                    labels:
+                        description: Filter by labels
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    state:
+                        default: opened
+                        description: Issue state
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gitlab-issue-list
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-job-list:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Job List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pipelineId:
+                        description: Pipeline ID
+                        type: integer
+                    projectId:
+                        description: Project ID
+                        type: string
+                    scope:
+                        description: Job scopes (created, pending, running, failed, success)
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - pipelineId
+                    - projectId
+                type: object
+            name: gitlab-job-list
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-job-logs:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Job Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    jobId:
+                        description: Job ID
+                        type: integer
+                    projectId:
+                        description: Project ID
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - jobId
+                    - projectId
+                type: object
+            name: gitlab-job-logs
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-mr-create:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Mr Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assigneeIds:
+                        description: User IDs to assign
+                        type: string
+                    description:
+                        description: MR description
+                        type: string
+                    labels:
+                        description: Labels to apply
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    removeSourceBranch:
+                        default: false
+                        description: Remove source branch after merge
+                        type: boolean
+                    reviewerIds:
+                        description: Reviewer user IDs
+                        type: string
+                    sourceBranch:
+                        description: Source branch name
+                        type: string
+                    squash:
+                        default: false
+                        description: Squash commits on merge
+                        type: boolean
+                    targetBranch:
+                        description: Target branch name
+                        type: string
+                    title:
+                        description: MR title
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                    - sourceBranch
+                    - targetBranch
+                    - title
+                type: object
+            name: gitlab-mr-create
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gitlab-mr-list:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Mr List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    author:
+                        description: Filter by author
+                        type: string
+                    labels:
+                        description: Filter by labels
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    state:
+                        default: opened
+                        description: MR state (opened, closed, merged, all)
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gitlab-mr-list
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-mr-merge:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Mr Merge
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    mrIid:
+                        description: MR internal ID
+                        type: integer
+                    projectId:
+                        description: Project ID
+                        type: string
+                    shouldRemoveSourceBranch:
+                        default: false
+                        description: Remove source branch
+                        type: boolean
+                    squashCommitMessage:
+                        description: Custom squash message
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - mrIid
+                    - projectId
+                type: object
+            name: gitlab-mr-merge
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gitlab-pipeline-status:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Pipeline Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pipelineId:
+                        description: Pipeline ID
+                        type: integer
+                    projectId:
+                        description: Project ID
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - pipelineId
+                    - projectId
+                type: object
+            name: gitlab-pipeline-status
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-pipeline-trigger:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Pipeline Trigger
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID or path
+                        type: string
+                    ref:
+                        description: Branch or tag name
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                    variables:
+                        description: Pipeline variables
+                        type: object
+                required:
+                    - projectId
+                    - ref
+                type: object
+            name: gitlab-pipeline-trigger
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gitlab-project-get:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Project Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID or path
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gitlab-project-get
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-project-list:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    membership:
+                        default: true
+                        description: Only return projects with membership
+                        type: boolean
+                    owned:
+                        default: false
+                        description: Only return owned projects
+                        type: boolean
+                    perPage:
+                        default: 20
+                        description: Results per page
+                        type: integer
+                    search:
+                        description: Search query
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                type: object
+            name: gitlab-project-list
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-repo-file:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Repo File
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filePath:
+                        description: File path in repo
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    ref:
+                        description: Branch or commit SHA
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - filePath
+                    - projectId
+                    - ref
+                type: object
+            name: gitlab-repo-file
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gitlab-variable-list:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Variable List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gitlab-variable-list
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gitlab-variable-set:
+            credentials:
+                - kind: gitlab_token
+                  name: gitlab_token
+            description: Gitlab Variable Set
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    environmentScope:
+                        default: '*'
+                        description: Environment scope
+                        type: string
+                    key:
+                        description: Variable key
+                        type: string
+                    masked:
+                        default: false
+                        description: Mask in logs
+                        type: boolean
+                    projectId:
+                        description: Project ID
+                        type: string
+                    protected:
+                        default: false
+                        description: Only for protected branches
+                        type: boolean
+                    url:
+                        default: https://gitlab.com
+                        description: GitLab URL
+                        type: string
+                required:
+                    - key
+                    - projectId
+                type: object
+            name: gitlab-variable-set
+            permissions:
+                - gitlab:read
+                - gitlab:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: devops
+    description: GitLab repository and CI/CD operations for Atlas agents
+    icon: git-branch
+    id: skill-gitlab
+    installers:
+        - id: oci
+          kind: oci
+          label: GitLab Skill service image
+          package: axiomstudio/skill-gitlab:1.0.0
+    name: GitLab Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-gitlab
+        resolvedVersion: 1.0.0
+    tags:
+        - ci-cd
+        - git
+        - gitlab
+        - pipeline
+    transport:
+        endpoint: skill-gitlab
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

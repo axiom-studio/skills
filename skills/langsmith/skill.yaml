@@ -1,197 +1,264 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-langsmith
-  name: LangSmith Skill
-  description: LangSmith LLM observability operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - langsmith
-    - langchain
-    - observability
-    - tracing
-  icon: search
-  color: "#1C3C3C"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - langsmith-trace-list
-    - langsmith-trace-get
-    - langsmith-project-create
-    - langsmith-project-list
-    - langsmith-dataset-create
-    - langsmith-dataset-list
-    - langsmith-run-eval
-    - langsmith-feedback-create
-    - langsmith-feedback-list
-  inputs:
-    langsmith-trace-list:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: projectId
-        type: string
-        description: Filter by project ID
-        required: false
-        source: input
-      - name: traceId
-        type: string
-        description: Filter by trace ID
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 20
-    langsmith-trace-get:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: traceId
-        type: string
-        description: Trace ID
-        required: true
-        source: input
-    langsmith-project-create:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: name
-        type: string
-        description: Project name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Project description
-        required: false
-        source: input
-    langsmith-project-list:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-    langsmith-dataset-create:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: name
-        type: string
-        description: Dataset name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Dataset description
-        required: false
-        source: input
-    langsmith-dataset-list:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-    langsmith-run-eval:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: datasetId
-        type: string
-        description: Dataset ID
-        required: true
-        source: input
-      - name: evaluator
-        type: object
-        description: Evaluator configuration
-        required: true
-        source: input
-      - name: llmOrChain
-        type: object
-        description: LLM or chain to evaluate
-        required: true
-        source: input
-    langsmith-feedback-create:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: runId
-        type: string
-        description: Run ID
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Feedback key
-        required: true
-        source: input
-      - name: score
-        type: number
-        description: Feedback score
-        required: false
-        source: input
-      - name: value
-        type: string
-        description: Feedback value
-        required: false
-        source: input
-      - name: comment
-        type: string
-        description: Feedback comment
-        required: false
-        source: input
-    langsmith-feedback-list:
-      - name: apiKey
-        type: string
-        description: LangSmith API key
-        required: true
-        source: connection
-        binding: vault://langsmith-credentials
-      - name: runId
-        type: string
-        description: Filter by run ID
-        required: false
-        source: input
-      - name: key
-        type: string
-        description: Filter by feedback key
-        required: false
-        source: input
-  grpc:
-    port: 50100
-    docker:
-      image: axiomstudio/skill-langsmith:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - langsmith:read
-    - langsmith:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        langsmith-dataset-create:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Dataset Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: Dataset description
+                        type: string
+                    name:
+                        description: Dataset name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: langsmith-dataset-create
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        langsmith-dataset-list:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Dataset List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: langsmith-dataset-list
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        langsmith-feedback-create:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Feedback Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    comment:
+                        description: Feedback comment
+                        type: string
+                    key:
+                        description: Feedback key
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    score:
+                        description: Feedback score
+                        type: number
+                    value:
+                        description: Feedback value
+                        type: string
+                required:
+                    - key
+                    - runId
+                type: object
+            name: langsmith-feedback-create
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        langsmith-feedback-list:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Feedback List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    key:
+                        description: Filter by feedback key
+                        type: string
+                    runId:
+                        description: Filter by run ID
+                        type: string
+                type: object
+            name: langsmith-feedback-list
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        langsmith-project-create:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Project Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: Project description
+                        type: string
+                    name:
+                        description: Project name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: langsmith-project-create
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        langsmith-project-list:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: langsmith-project-list
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        langsmith-run-eval:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Run Eval
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    datasetId:
+                        description: Dataset ID
+                        type: string
+                    evaluator:
+                        description: Evaluator configuration
+                        type: object
+                    llmOrChain:
+                        description: LLM or chain to evaluate
+                        type: object
+                required:
+                    - datasetId
+                    - evaluator
+                    - llmOrChain
+                type: object
+            name: langsmith-run-eval
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        langsmith-trace-get:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Trace Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    traceId:
+                        description: Trace ID
+                        type: string
+                required:
+                    - traceId
+                type: object
+            name: langsmith-trace-get
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        langsmith-trace-list:
+            credentials:
+                - kind: langsmith-credential
+                  name: langsmith-credential
+            description: Langsmith Trace List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 20
+                        description: Maximum results
+                        type: integer
+                    projectId:
+                        description: Filter by project ID
+                        type: string
+                    traceId:
+                        description: Filter by trace ID
+                        type: string
+                type: object
+            name: langsmith-trace-list
+            permissions:
+                - langsmith:read
+                - langsmith:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: ai
+    description: LangSmith LLM observability operations for Atlas agents
+    icon: search
+    id: skill-langsmith
+    installers:
+        - id: oci
+          kind: oci
+          label: LangSmith Skill service image
+          package: axiomstudio/skill-langsmith:1.0.0
+    name: LangSmith Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-langsmith
+        resolvedVersion: 1.0.0
+    tags:
+        - langchain
+        - langsmith
+        - observability
+        - tracing
+    transport:
+        endpoint: skill-langsmith
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

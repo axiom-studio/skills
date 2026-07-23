@@ -1,256 +1,336 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-docker
-  name: Docker Skill
-  description: Docker container, image, volume, and network operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: containers
-  tags:
-    - docker
-    - containers
-    - images
-    - volumes
-    - networks
-  icon: box
-  color: "#2496ED"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - docker-container-list
-    - docker-container-create
-    - docker-container-start
-    - docker-container-stop
-    - docker-container-delete
-    - docker-container-logs
-    - docker-image-list
-    - docker-image-pull
-    - docker-image-build
-    - docker-volume-list
-    - docker-network-list
-  inputs:
-    docker-container-list:
-      - name: all
-        type: boolean
-        description: Show all containers (including stopped)
-        required: false
-        source: default
-        default: true
-      - name: filters
-        type: object
-        description: Filter containers
-        required: false
-        source: input
-    docker-container-create:
-      - name: image
-        type: string
-        description: Image name
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Container name
-        required: false
-        source: input
-      - name: command
-        items:
-          type: string
-        description: Command to run
-        required: false
-        source: input
-      - name: env
-        type: object
-        description: Environment variables
-        required: false
-        source: input
-      - name: ports
-        items:
-          type: string
-        description: Port mappings
-        required: false
-        source: input
-      - name: volumes
-        items:
-          type: string
-        description: Volume mounts
-        required: false
-        source: input
-      - name: network
-        type: string
-        description: Network to connect to
-        required: false
-        source: input
-      - name: detach
-        type: boolean
-        description: Run in background
-        required: false
-        source: default
-        default: true
-      - name: restart
-        type: string
-        description: Restart policy (no, always, on-failure)
-        required: false
-        source: input
-      - name: memory
-        type: string
-        description: Memory limit
-        required: false
-        source: input
-      - name: cpus
-        type: number
-        description: CPU limit
-        required: false
-        source: input
-    docker-container-start:
-      - name: containerId
-        type: string
-        description: Container name or ID
-        required: true
-        source: input
-    docker-container-stop:
-      - name: containerId
-        type: string
-        description: Container name or ID
-        required: true
-        source: input
-      - name: time
-        type: integer
-        description: Seconds to wait before killing
-        required: false
-        source: input
-        default: 10
-    docker-container-delete:
-      - name: containerId
-        type: string
-        description: Container name or ID
-        required: true
-        source: input
-      - name: force
-        type: boolean
-        description: Force removal
-        required: false
-        source: default
-        default: false
-      - name: volumes
-        type: boolean
-        description: Remove associated volumes
-        required: false
-        source: default
-        default: false
-    docker-container-logs:
-      - name: containerId
-        type: string
-        description: Container name or ID
-        required: true
-        source: input
-      - name: follow
-        type: boolean
-        description: Follow log output
-        required: false
-        source: default
-        default: false
-      - name: tail
-        type: integer
-        description: Number of lines from end
-        required: false
-        source: input
-      - name: timestamps
-        type: boolean
-        description: Show timestamps
-        required: false
-        source: default
-        default: false
-    docker-image-list:
-      - name: all
-        type: boolean
-        description: Show all images
-        required: false
-        source: default
-        default: false
-      - name: filters
-        type: object
-        description: Filter images
-        required: false
-        source: input
-    docker-image-pull:
-      - name: image
-        type: string
-        description: Image name with tag
-        required: true
-        source: input
-      - name: platform
-        type: string
-        description: Target platform
-        required: false
-        source: input
-    docker-image-build:
-      - name: context
-        type: string
-        description: Build context path
-        required: true
-        source: input
-      - name: dockerfile
-        type: string
-        description: Dockerfile path
-        required: false
-        source: input
-        default: "Dockerfile"
-      - name: tag
-        type: string
-        description: Image tag
-        required: false
-        source: input
-      - name: buildArgs
-        type: object
-        description: Build arguments
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target build stage
-        required: false
-        source: input
-      - name: noCache
-        type: boolean
-        description: Disable cache
-        required: false
-        source: default
-        default: false
-      - name: pull
-        type: boolean
-        description: Pull base images
-        required: false
-        source: default
-        default: false
-      - name: platform
-        type: string
-        description: Target platform
-        required: false
-        source: input
-    docker-volume-list:
-      - name: filters
-        type: object
-        description: Filter volumes
-        required: false
-        source: input
-    docker-network-list:
-      - name: filters
-        type: object
-        description: Filter networks
-        required: false
-        source: input
-  grpc:
-    port: 50074
-    docker:
-      image: axiomstudio/skill-docker:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - docker:read
-    - docker:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        docker-container-create:
+            description: Docker Container Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    command:
+                        description: Command to run
+                        type: string
+                    cpus:
+                        description: CPU limit
+                        type: number
+                    detach:
+                        default: true
+                        description: Run in background
+                        type: boolean
+                    env:
+                        description: Environment variables
+                        type: object
+                    image:
+                        description: Image name
+                        type: string
+                    memory:
+                        description: Memory limit
+                        type: string
+                    name:
+                        description: Container name
+                        type: string
+                    network:
+                        description: Network to connect to
+                        type: string
+                    ports:
+                        description: Port mappings
+                        type: string
+                    restart:
+                        description: Restart policy (no, always, on-failure)
+                        type: string
+                    volumes:
+                        description: Volume mounts
+                        type: string
+                required:
+                    - image
+                type: object
+            name: docker-container-create
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        docker-container-delete:
+            description: Docker Container Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    containerId:
+                        description: Container name or ID
+                        type: string
+                    force:
+                        default: false
+                        description: Force removal
+                        type: boolean
+                    volumes:
+                        default: false
+                        description: Remove associated volumes
+                        type: boolean
+                required:
+                    - containerId
+                type: object
+            name: docker-container-delete
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        docker-container-list:
+            description: Docker Container List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    all:
+                        default: true
+                        description: Show all containers (including stopped)
+                        type: boolean
+                    filters:
+                        description: Filter containers
+                        type: object
+                type: object
+            name: docker-container-list
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        docker-container-logs:
+            description: Docker Container Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    containerId:
+                        description: Container name or ID
+                        type: string
+                    follow:
+                        default: false
+                        description: Follow log output
+                        type: boolean
+                    tail:
+                        description: Number of lines from end
+                        type: integer
+                    timestamps:
+                        default: false
+                        description: Show timestamps
+                        type: boolean
+                required:
+                    - containerId
+                type: object
+            name: docker-container-logs
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        docker-container-start:
+            description: Docker Container Start
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    containerId:
+                        description: Container name or ID
+                        type: string
+                required:
+                    - containerId
+                type: object
+            name: docker-container-start
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        docker-container-stop:
+            description: Docker Container Stop
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    containerId:
+                        description: Container name or ID
+                        type: string
+                    time:
+                        default: 10
+                        description: Seconds to wait before killing
+                        type: integer
+                required:
+                    - containerId
+                type: object
+            name: docker-container-stop
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        docker-image-build:
+            description: Docker Image Build
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    buildArgs:
+                        description: Build arguments
+                        type: object
+                    context:
+                        description: Build context path
+                        type: string
+                    dockerfile:
+                        default: Dockerfile
+                        description: Dockerfile path
+                        type: string
+                    noCache:
+                        default: false
+                        description: Disable cache
+                        type: boolean
+                    platform:
+                        description: Target platform
+                        type: string
+                    pull:
+                        default: false
+                        description: Pull base images
+                        type: boolean
+                    tag:
+                        description: Image tag
+                        type: string
+                    target:
+                        description: Target build stage
+                        type: string
+                required:
+                    - context
+                type: object
+            name: docker-image-build
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        docker-image-list:
+            description: Docker Image List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    all:
+                        default: false
+                        description: Show all images
+                        type: boolean
+                    filters:
+                        description: Filter images
+                        type: object
+                type: object
+            name: docker-image-list
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        docker-image-pull:
+            description: Docker Image Pull
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    image:
+                        description: Image name with tag
+                        type: string
+                    platform:
+                        description: Target platform
+                        type: string
+                required:
+                    - image
+                type: object
+            name: docker-image-pull
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        docker-network-list:
+            description: Docker Network List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filters:
+                        description: Filter networks
+                        type: object
+                type: object
+            name: docker-network-list
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        docker-volume-list:
+            description: Docker Volume List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filters:
+                        description: Filter volumes
+                        type: object
+                type: object
+            name: docker-volume-list
+            permissions:
+                - docker:read
+                - docker:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: containers
+    description: Docker container, image, volume, and network operations for Atlas agents
+    icon: box
+    id: skill-docker
+    installers:
+        - id: oci
+          kind: oci
+          label: Docker Skill service image
+          package: axiomstudio/skill-docker:1.0.0
+    name: Docker Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-docker
+        resolvedVersion: 1.0.0
+    tags:
+        - containers
+        - docker
+        - images
+        - networks
+        - volumes
+    transport:
+        endpoint: skill-docker
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

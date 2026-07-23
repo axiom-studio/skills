@@ -1,176 +1,244 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-figma
-  name: Figma Skill
-  description: Figma design platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: productivity
-  tags:
-    - figma
-    - design
-    - ui
-    - prototype
-  icon: pen-tool
-  color: "#F24E1E"
-spec:
-  executorType: grpc
-  credentialType: figma_token
-  nodeTypes:
-    - figma-file-list
-    - figma-file-get
-    - figma-file-export
-    - figma-comment-create
-    - figma-comment-list
-    - figma-team-projects
-    - figma-project-files
-    - figma-style-list
-  inputs:
-    figma-file-list:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    figma-file-get:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: fileKey
-        type: string
-        description: File key
-        required: true
-        source: input
-      - name: depth
-        type: integer
-        description: Node depth
-        required: false
-        source: input
-        default: 0
-    figma-file-export:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: fileKey
-        type: string
-        description: File key
-        required: true
-        source: input
-      - name: nodeId
-        type: string
-        description: Node ID to export
-        required: true
-        source: input
-      - name: format
-        type: string
-        description: Export format (png, svg, jpg)
-        required: false
-        source: input
-        default: "png"
-      - name: scale
-        type: number
-        description: Scale factor
-        required: false
-        source: input
-        default: 1
-    figma-comment-create:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: fileKey
-        type: string
-        description: File key
-        required: true
-        source: input
-      - name: message
-        type: string
-        description: Comment message
-        required: true
-        source: input
-      - name: nodeId
-        type: string
-        description: Node ID to comment on
-        required: false
-        source: input
-      - name: clientId
-        type: string
-        description: Client user ID
-        required: false
-        source: input
-    figma-comment-list:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: fileKey
-        type: string
-        description: File key
-        required: true
-        source: input
-    figma-team-projects:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: teamId
-        type: string
-        description: Team ID
-        required: true
-        source: input
-    figma-project-files:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    figma-style-list:
-      - name: apiToken
-        type: string
-        description: Figma API token
-        required: true
-        source: connection
-        binding: vault://figma-credentials
-      - name: fileKey
-        type: string
-        description: File key
-        required: true
-        source: input
-  grpc:
-    port: 50121
-    docker:
-      image: axiomstudio/skill-figma:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - figma:read
-    - figma:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        figma-comment-create:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma Comment Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    clientId:
+                        description: Client user ID
+                        type: string
+                    fileKey:
+                        description: File key
+                        type: string
+                    message:
+                        description: Comment message
+                        type: string
+                    nodeId:
+                        description: Node ID to comment on
+                        type: string
+                required:
+                    - fileKey
+                    - message
+                type: object
+            name: figma-comment-create
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        figma-comment-list:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma Comment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileKey:
+                        description: File key
+                        type: string
+                required:
+                    - fileKey
+                type: object
+            name: figma-comment-list
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        figma-file-export:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma File Export
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileKey:
+                        description: File key
+                        type: string
+                    format:
+                        default: png
+                        description: Export format (png, svg, jpg)
+                        type: string
+                    nodeId:
+                        description: Node ID to export
+                        type: string
+                    scale:
+                        default: 1
+                        description: Scale factor
+                        type: number
+                required:
+                    - fileKey
+                    - nodeId
+                type: object
+            name: figma-file-export
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        figma-file-get:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma File Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    depth:
+                        default: 0
+                        description: Node depth
+                        type: integer
+                    fileKey:
+                        description: File key
+                        type: string
+                required:
+                    - fileKey
+                type: object
+            name: figma-file-get
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        figma-file-list:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma File List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: figma-file-list
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        figma-project-files:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma Project Files
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: figma-project-files
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        figma-style-list:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma Style List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileKey:
+                        description: File key
+                        type: string
+                required:
+                    - fileKey
+                type: object
+            name: figma-style-list
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        figma-team-projects:
+            credentials:
+                - kind: figma_token
+                  name: figma_token
+            description: Figma Team Projects
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    teamId:
+                        description: Team ID
+                        type: string
+                required:
+                    - teamId
+                type: object
+            name: figma-team-projects
+            permissions:
+                - figma:read
+                - figma:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: productivity
+    description: Figma design platform operations for Atlas agents
+    icon: pen-tool
+    id: skill-figma
+    installers:
+        - id: oci
+          kind: oci
+          label: Figma Skill service image
+          package: axiomstudio/skill-figma:1.0.0
+    name: Figma Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-figma
+        resolvedVersion: 1.0.0
+    tags:
+        - design
+        - figma
+        - prototype
+        - ui
+    transport:
+        endpoint: skill-figma
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

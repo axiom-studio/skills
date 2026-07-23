@@ -1,269 +1,297 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-dbt
-  name: dbt Skill
-  description: dbt data transformation operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: data
-  tags:
-    - dbt
-    - transformation
-    - data
-    - analytics
-  icon: database
-  color: "#FF694B"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - dbt-run
-    - dbt-test
-    - dbt-compile
-    - dbt-docs-generate
-    - dbt-seed
-    - dbt-snapshot
-    - dbt-debug
-    - dbt-list
-  inputs:
-    dbt-run:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: select
-        items:
-          type: string
-        description: Select models
-        required: false
-        source: input
-      - name: exclude
-        items:
-          type: string
-        description: Exclude models
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Filter by tags
-        required: false
-        source: input
-      - name: fullRefresh
-        type: boolean
-        description: Full refresh
-        required: false
-        source: default
-        default: false
-    dbt-test:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: select
-        items:
-          type: string
-        description: Select tests
-        required: false
-        source: input
-      - name: exclude
-        items:
-          type: string
-        description: Exclude tests
-        required: false
-        source: input
-      - name: severity
-        type: string
-        description: Severity threshold
-        required: false
-        source: input
-    dbt-compile:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: select
-        items:
-          type: string
-        description: Select models
-        required: false
-        source: input
-    dbt-docs-generate:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-    dbt-seed:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: select
-        items:
-          type: string
-        description: Select seed files
-        required: false
-        source: input
-    dbt-snapshot:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: select
-        items:
-          type: string
-        description: Select snapshots
-        required: false
-        source: input
-    dbt-debug:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-    dbt-list:
-      - name: projectDir
-        type: string
-        description: dbt project directory
-        required: true
-        source: input
-      - name: profilesDir
-        type: string
-        description: Profiles directory
-        required: false
-        source: input
-      - name: profile
-        type: string
-        description: Profile name
-        required: false
-        source: input
-      - name: target
-        type: string
-        description: Target environment
-        required: false
-        source: input
-      - name: resourceType
-        type: string
-        description: Resource type to list (model, test, seed, snapshot)
-        required: false
-        source: input
-  grpc:
-    port: 50103
-    docker:
-      image: axiomstudio/skill-dbt:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - dbt:read
-    - dbt:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        dbt-compile:
+            description: Dbt Compile
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    select:
+                        description: Select models
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-compile
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-debug:
+            description: Dbt Debug
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-debug
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-docs-generate:
+            description: Dbt Docs Generate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-docs-generate
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-list:
+            description: Dbt List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    resourceType:
+                        description: Resource type to list (model, test, seed, snapshot)
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-list
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        dbt-run:
+            description: Dbt Run
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    exclude:
+                        description: Exclude models
+                        type: string
+                    fullRefresh:
+                        default: false
+                        description: Full refresh
+                        type: boolean
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    select:
+                        description: Select models
+                        type: string
+                    tags:
+                        description: Filter by tags
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-run
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-seed:
+            description: Dbt Seed
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    select:
+                        description: Select seed files
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-seed
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-snapshot:
+            description: Dbt Snapshot
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    select:
+                        description: Select snapshots
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-snapshot
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        dbt-test:
+            description: Dbt Test
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    exclude:
+                        description: Exclude tests
+                        type: string
+                    profile:
+                        description: Profile name
+                        type: string
+                    profilesDir:
+                        description: Profiles directory
+                        type: string
+                    projectDir:
+                        description: dbt project directory
+                        type: string
+                    select:
+                        description: Select tests
+                        type: string
+                    severity:
+                        description: Severity threshold
+                        type: string
+                    target:
+                        description: Target environment
+                        type: string
+                required:
+                    - projectDir
+                type: object
+            name: dbt-test
+            permissions:
+                - dbt:read
+                - dbt:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: data
+    description: dbt data transformation operations for Atlas agents
+    icon: database
+    id: skill-dbt
+    installers:
+        - id: oci
+          kind: oci
+          label: dbt Skill service image
+          package: axiomstudio/skill-dbt:1.0.0
+    name: dbt Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-dbt
+        resolvedVersion: 1.0.0
+    tags:
+        - analytics
+        - data
+        - dbt
+        - transformation
+    transport:
+        endpoint: skill-dbt
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

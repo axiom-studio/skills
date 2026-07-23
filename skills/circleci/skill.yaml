@@ -1,231 +1,307 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-circleci
-  name: CircleCI Skill
-  description: CircleCI pipeline operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - circleci
-    - ci-cd
-    - pipeline
-    - build
-  icon: circle
-  color: "#343434"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - circleci-project-list
-    - circleci-pipeline-trigger
-    - circleci-pipeline-list
-    - circleci-pipeline-status
-    - circleci-workflow-list
-    - circleci-workflow-status
-    - circleci-job-list
-    - circleci-job-logs
-    - circleci-context-list
-    - circleci-context-set-env
-  inputs:
-    circleci-project-list:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: orgSlug
-        type: string
-        description: Organization slug filter
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum projects to return
-        required: false
-        source: input
-        default: 20
-    circleci-pipeline-trigger:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug (gh/owner/repo)
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Branch name
-        required: true
-        source: input
-      - name: parameters
-        type: object
-        description: Pipeline parameters
-        required: false
-        source: input
-      - name: tag
-        type: string
-        description: Git tag
-        required: false
-        source: input
-    circleci-pipeline-list:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Filter by branch
-        required: false
-        source: input
-    circleci-pipeline-status:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: pipelineId
-        type: string
-        description: Pipeline ID
-        required: true
-        source: input
-    circleci-workflow-list:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: pipelineId
-        type: string
-        description: Pipeline ID
-        required: true
-        source: input
-    circleci-workflow-status:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-    circleci-job-list:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-    circleci-job-logs:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: projectSlug
-        type: string
-        description: Project slug
-        required: true
-        source: input
-      - name: jobNumber
-        type: integer
-        description: Job number
-        required: true
-        source: input
-    circleci-context-list:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: orgSlug
-        type: string
-        description: Organization slug
-        required: true
-        source: input
-    circleci-context-set-env:
-      - name: token
-        type: string
-        description: CircleCI API token
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: contextName
-        type: string
-        description: Context name
-        required: true
-        source: input
-      - name: envVarName
-        type: string
-        description: Environment variable name
-        required: true
-        source: input
-      - name: envVarValue
-        type: string
-        description: Environment variable value
-        required: true
-        source: connection
-        binding: vault://circleci-credentials
-      - name: orgSlug
-        type: string
-        description: Organization slug
-        required: true
-        source: input
-  grpc:
-    port: 50086
-    docker:
-      image: axiomstudio/skill-circleci:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - circleci:read
-    - circleci:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        circleci-context-list:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Context List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgSlug:
+                        description: Organization slug
+                        type: string
+                required:
+                    - orgSlug
+                type: object
+            name: circleci-context-list
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-context-set-env:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Context Set Env
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    contextName:
+                        description: Context name
+                        type: string
+                    envVarName:
+                        description: Environment variable name
+                        type: string
+                    orgSlug:
+                        description: Organization slug
+                        type: string
+                required:
+                    - contextName
+                    - envVarName
+                    - orgSlug
+                type: object
+            name: circleci-context-set-env
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        circleci-job-list:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Job List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - projectSlug
+                    - workflowId
+                type: object
+            name: circleci-job-list
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-job-logs:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Job Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    jobNumber:
+                        description: Job number
+                        type: integer
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                required:
+                    - jobNumber
+                    - projectSlug
+                type: object
+            name: circleci-job-logs
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-pipeline-list:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Pipeline List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Filter by branch
+                        type: string
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                required:
+                    - projectSlug
+                type: object
+            name: circleci-pipeline-list
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-pipeline-status:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Pipeline Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pipelineId:
+                        description: Pipeline ID
+                        type: string
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                required:
+                    - pipelineId
+                    - projectSlug
+                type: object
+            name: circleci-pipeline-status
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-pipeline-trigger:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Pipeline Trigger
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch name
+                        type: string
+                    parameters:
+                        description: Pipeline parameters
+                        type: object
+                    projectSlug:
+                        description: Project slug (gh/owner/repo)
+                        type: string
+                    tag:
+                        description: Git tag
+                        type: string
+                required:
+                    - branch
+                    - projectSlug
+                type: object
+            name: circleci-pipeline-trigger
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        circleci-project-list:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 20
+                        description: Maximum projects to return
+                        type: integer
+                    orgSlug:
+                        description: Organization slug filter
+                        type: string
+                type: object
+            name: circleci-project-list
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-workflow-list:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Workflow List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pipelineId:
+                        description: Pipeline ID
+                        type: string
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                required:
+                    - pipelineId
+                    - projectSlug
+                type: object
+            name: circleci-workflow-list
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        circleci-workflow-status:
+            credentials:
+                - kind: circleci-credential
+                  name: circleci-credential
+            description: Circleci Workflow Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectSlug:
+                        description: Project slug
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - projectSlug
+                    - workflowId
+                type: object
+            name: circleci-workflow-status
+            permissions:
+                - circleci:read
+                - circleci:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: devops
+    description: CircleCI pipeline operations for Atlas agents
+    icon: circle
+    id: skill-circleci
+    installers:
+        - id: oci
+          kind: oci
+          label: CircleCI Skill service image
+          package: axiomstudio/skill-circleci:1.0.0
+    name: CircleCI Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-circleci
+        resolvedVersion: 1.0.0
+    tags:
+        - build
+        - ci-cd
+        - circleci
+        - pipeline
+    transport:
+        endpoint: skill-circleci
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

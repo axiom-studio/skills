@@ -1,639 +1,745 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-argocd
-  name: ArgoCD Skill
-  description: ArgoCD GitOps operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - argocd
-    - gitops
-    - kubernetes
-    - deployment
-    - cd
-  icon: git-branch
-  color: "#EF7B4D"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    # Application operations
-    - argocd-app-list
-    - argocd-app-get
-    - argocd-app-create
-    - argocd-app-update
-    - argocd-app-delete
-    - argocd-app-sync
-    - argocd-app-rollback
-    - argocd-app-refresh
-    - argocd-app-restart
-    - argocd-app-status
-    - argocd-app-history
-    - argocd-app-diff
-    - argocd-app-resources
-    - argocd-app-logs
-    # Project operations
-    - argocd-project-list
-    - argocd-project-get
-    - argocd-project-create
-    # Repository operations
-    - argocd-repo-add
-    - argocd-repo-list
-    # Cluster operations
-    - argocd-cluster-list
-    - argocd-cluster-create
-    # System operations
-    - argocd-version
-  inputs:
-    argocd-app-sync:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: revision
-        type: string
-        description: Revision to sync to
-        required: false
-        source: input
-        default: "HEAD"
-      - name: prune
-        type: boolean
-        description: Prune resources
-        required: false
-        source: default
-        default: false
-      - name: dryRun
-        type: boolean
-        description: Dry run mode
-        required: false
-        source: default
-        default: false
-      - name: strategy
-        type: string
-        description: Sync strategy (apply, hook, replace)
-        required: false
-        source: input
-      - name: force
-        type: boolean
-        description: Force sync
-        required: false
-        source: default
-        default: false
-      - name: async
-        type: boolean
-        description: Async sync
-        required: false
-        source: default
-        default: false
-    argocd-app-status:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: refresh
-        type: boolean
-        description: Refresh status before returning
-        required: false
-        source: default
-        default: true
-    argocd-app-get:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-    argocd-app-create:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: name
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: project
-        type: string
-        description: Project name
-        required: false
-        source: input
-        default: "default"
-      - name: repoUrl
-        type: string
-        description: Git repository URL
-        required: true
-        source: input
-      - name: path
-        type: string
-        description: Application path in repo
-        required: true
-        source: input
-      - name: revision
-        type: string
-        description: Git revision
-        required: false
-        source: input
-        default: "HEAD"
-      - name: destServer
-        type: string
-        description: Destination cluster URL
-        required: true
-        source: input
-      - name: destNamespace
-        type: string
-        description: Destination namespace
-        required: true
-        source: input
-      - name: syncPolicy
-        type: string
-        description: Sync policy (automated, manual)
-        required: false
-        source: input
-      - name: prune
-        type: boolean
-        description: Auto-prune
-        required: false
-        source: default
-        default: false
-      - name: selfHeal
-        type: boolean
-        description: Self-heal
-        required: false
-        source: default
-        default: false
-    argocd-app-update:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: name
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: repoUrl
-        type: string
-        description: New repository URL
-        required: false
-        source: input
-      - name: path
-        type: string
-        description: New path
-        required: false
-        source: input
-      - name: revision
-        type: string
-        description: New revision
-        required: false
-        source: input
-      - name: destNamespace
-        type: string
-        description: New namespace
-        required: false
-        source: input
-      - name: syncPolicy
-        type: string
-        description: New sync policy
-        required: false
-        source: input
-    argocd-app-delete:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: cascade
-        type: boolean
-        description: Cascade delete resources
-        required: false
-        source: default
-        default: true
-    argocd-app-rollback:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: historyId
-        type: string
-        description: History ID to rollback to
-        required: true
-        source: input
-    argocd-app-refresh:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: hard
-        type: boolean
-        description: Hard refresh
-        required: false
-        source: default
-        default: false
-    argocd-app-restart:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-    argocd-app-history:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-    argocd-app-diff:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: revision
-        type: string
-        description: Revision to compare
-        required: false
-        source: input
-    argocd-app-resources:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Filter by namespace
-        required: false
-        source: input
-      - name: kind
-        type: string
-        description: Filter by kind
-        required: false
-        source: input
-      - name: group
-        type: string
-        description: Filter by group
-        required: false
-        source: input
-    argocd-app-logs:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: appName
-        type: string
-        description: Application name
-        required: true
-        source: input
-      - name: podName
-        type: string
-        description: Pod name
-        required: false
-        source: input
-      - name: container
-        type: string
-        description: Container name
-        required: false
-        source: input
-      - name: tailLines
-        type: integer
-        description: Number of lines to tail
-        required: false
-        source: input
-      - name: sinceTime
-        type: string
-        description: Logs since time
-        required: false
-        source: input
-    argocd-app-list:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: project
-        type: string
-        description: Filter by project name
-        required: false
-        source: input
-    argocd-project-list:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-    argocd-project-get:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: name
-        type: string
-        description: Project name
-        required: true
-        source: input
-    argocd-project-create:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: name
-        type: string
-        description: Project name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Project description
-        required: false
-        source: input
-      - name: destinations
-        items:
-          type: string
-        description: Allowed destinations
-        required: false
-        source: input
-      - name: sourceRepos
-        items:
-          type: string
-        description: Allowed source repos
-        required: false
-        source: input
-    argocd-repo-add:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: repoUrl
-        type: string
-        description: Repository URL
-        required: true
-        source: input
-      - name: username
-        type: string
-        description: Username
-        required: false
-        source: input
-      - name: password
-        type: string
-        description: Password
-        required: false
-        source: connection
-        binding: vault://argocd-credentials
-      - name: sshPrivateKey
-        type: string
-        description: SSH private key
-        required: false
-        source: connection
-        binding: vault://argocd-credentials
-      - name: insecure
-        type: boolean
-        description: Skip TLS verification
-        required: false
-        source: default
-        default: false
-    argocd-repo-list:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-    argocd-cluster-list:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-    argocd-cluster-create:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-      - name: name
-        type: string
-        description: Cluster name
-        required: true
-        source: input
-      - name: serverUrl
-        type: string
-        description: Cluster server URL
-        required: true
-        source: input
-      - name: credentials
-        type: object
-        description: Cluster credentials
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-    argocd-version:
-      - name: server
-        type: string
-        description: ArgoCD server address
-        required: true
-        source: input
-      - name: authToken
-        type: string
-        description: Authentication token
-        required: true
-        source: connection
-        binding: vault://argocd-credentials
-  grpc:
-    port: 50073
-    docker:
-      image: axiomstudio/skill-argocd:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - argocd:read
-    - argocd:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        argocd-app-create:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    destNamespace:
+                        description: Destination namespace
+                        type: string
+                    destServer:
+                        description: Destination cluster URL
+                        type: string
+                    name:
+                        description: Application name
+                        type: string
+                    path:
+                        description: Application path in repo
+                        type: string
+                    project:
+                        default: default
+                        description: Project name
+                        type: string
+                    prune:
+                        default: false
+                        description: Auto-prune
+                        type: boolean
+                    repoUrl:
+                        description: Git repository URL
+                        type: string
+                    revision:
+                        default: HEAD
+                        description: Git revision
+                        type: string
+                    selfHeal:
+                        default: false
+                        description: Self-heal
+                        type: boolean
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    syncPolicy:
+                        description: Sync policy (automated, manual)
+                        type: string
+                required:
+                    - destNamespace
+                    - destServer
+                    - name
+                    - path
+                    - repoUrl
+                    - server
+                type: object
+            name: argocd-app-create
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-delete:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    cascade:
+                        default: true
+                        description: Cascade delete resources
+                        type: boolean
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-delete
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        argocd-app-diff:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Diff
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    revision:
+                        description: Revision to compare
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-diff
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-get:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-get
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-app-history:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App History
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-history
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-app-list:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    project:
+                        description: Filter by project name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - server
+                type: object
+            name: argocd-app-list
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-app-logs:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    container:
+                        description: Container name
+                        type: string
+                    podName:
+                        description: Pod name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    sinceTime:
+                        description: Logs since time
+                        type: string
+                    tailLines:
+                        description: Number of lines to tail
+                        type: integer
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-logs
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-app-refresh:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Refresh
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    hard:
+                        default: false
+                        description: Hard refresh
+                        type: boolean
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-refresh
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-resources:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Resources
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    group:
+                        description: Filter by group
+                        type: string
+                    kind:
+                        description: Filter by kind
+                        type: string
+                    namespace:
+                        description: Filter by namespace
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-resources
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-restart:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Restart
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-restart
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-rollback:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Rollback
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    historyId:
+                        description: History ID to rollback to
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - historyId
+                    - server
+                type: object
+            name: argocd-app-rollback
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-status:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    refresh:
+                        default: true
+                        description: Refresh status before returning
+                        type: boolean
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-status
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-app-sync:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Sync
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appName:
+                        description: Application name
+                        type: string
+                    async:
+                        default: false
+                        description: Async sync
+                        type: boolean
+                    dryRun:
+                        default: false
+                        description: Dry run mode
+                        type: boolean
+                    force:
+                        default: false
+                        description: Force sync
+                        type: boolean
+                    prune:
+                        default: false
+                        description: Prune resources
+                        type: boolean
+                    revision:
+                        default: HEAD
+                        description: Revision to sync to
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    strategy:
+                        description: Sync strategy (apply, hook, replace)
+                        type: string
+                required:
+                    - appName
+                    - server
+                type: object
+            name: argocd-app-sync
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-app-update:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd App Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    destNamespace:
+                        description: New namespace
+                        type: string
+                    name:
+                        description: Application name
+                        type: string
+                    path:
+                        description: New path
+                        type: string
+                    repoUrl:
+                        description: New repository URL
+                        type: string
+                    revision:
+                        description: New revision
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    syncPolicy:
+                        description: New sync policy
+                        type: string
+                required:
+                    - name
+                    - server
+                type: object
+            name: argocd-app-update
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-cluster-create:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Cluster Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Cluster name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    serverUrl:
+                        description: Cluster server URL
+                        type: string
+                required:
+                    - name
+                    - server
+                    - serverUrl
+                type: object
+            name: argocd-cluster-create
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-cluster-list:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Cluster List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - server
+                type: object
+            name: argocd-cluster-list
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-project-create:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Project Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: Project description
+                        type: string
+                    destinations:
+                        description: Allowed destinations
+                        type: string
+                    name:
+                        description: Project name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    sourceRepos:
+                        description: Allowed source repos
+                        type: string
+                required:
+                    - name
+                    - server
+                type: object
+            name: argocd-project-create
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-project-get:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Project Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Project name
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - name
+                    - server
+                type: object
+            name: argocd-project-get
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-project-list:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - server
+                type: object
+            name: argocd-project-list
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-repo-add:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Repo Add
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    insecure:
+                        default: false
+                        description: Skip TLS verification
+                        type: boolean
+                    repoUrl:
+                        description: Repository URL
+                        type: string
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                    username:
+                        description: Username
+                        type: string
+                required:
+                    - repoUrl
+                    - server
+                type: object
+            name: argocd-repo-add
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        argocd-repo-list:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Repo List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - server
+                type: object
+            name: argocd-repo-list
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        argocd-version:
+            credentials:
+                - kind: argocd-credential
+                  name: argocd-credential
+            description: Argocd Version
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    server:
+                        description: ArgoCD server address
+                        type: string
+                required:
+                    - server
+                type: object
+            name: argocd-version
+            permissions:
+                - argocd:read
+                - argocd:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+    category: devops
+    description: ArgoCD GitOps operations for Atlas agents
+    icon: git-branch
+    id: skill-argocd
+    installers:
+        - id: oci
+          kind: oci
+          label: ArgoCD Skill service image
+          package: axiomstudio/skill-argocd:1.0.0
+    name: ArgoCD Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-argocd
+        resolvedVersion: 1.0.0
+    tags:
+        - argocd
+        - cd
+        - deployment
+        - gitops
+        - kubernetes
+    transport:
+        endpoint: skill-argocd
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

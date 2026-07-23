@@ -1,249 +1,297 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-adyen
-  name: Adyen Skill
-  description: Adyen payment platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: finance
-  tags:
-    - adyen
-    - payments
-    - finance
-    - transactions
-  icon: credit-card
-  color: "#0ABF53"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - adyen-payment
-    - adyen-capture
-    - adyen-refund
-    - adyen-cancel
-    - adyen-payment-list
-    - adyen-payment-get
-    - adyen-payout
-    - adyen-3ds-authenticate
-  inputs:
-    adyen-payment:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: amount
-        type: object
-        description: Payment amount (currency, value)
-        required: true
-        source: input
-      - name: reference
-        type: string
-        description: Payment reference
-        required: true
-        source: input
-      - name: paymentMethod
-        type: object
-        description: Payment method details
-        required: true
-        source: input
-      - name: shopperEmail
-        type: string
-        description: Shopper email
-        required: false
-        source: input
-      - name: shopperReference
-        type: string
-        description: Shopper reference
-        required: false
-        source: input
-    adyen-capture:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: pspReference
-        type: string
-        description: Original payment reference
-        required: true
-        source: input
-      - name: amount
-        type: object
-        description: Capture amount
-        required: false
-        source: input
-      - name: reference
-        type: string
-        description: Capture reference
-        required: false
-        source: input
-    adyen-refund:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: pspReference
-        type: string
-        description: Original payment reference
-        required: true
-        source: input
-      - name: amount
-        type: object
-        description: Refund amount
-        required: false
-        source: input
-      - name: reference
-        type: string
-        description: Refund reference
-        required: false
-        source: input
-    adyen-cancel:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: pspReference
-        type: string
-        description: Original payment reference
-        required: true
-        source: input
-      - name: reference
-        type: string
-        description: Cancel reference
-        required: false
-        source: input
-    adyen-payment-list:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum number of payments to return
-        required: false
-        source: input
-        default: 10
-    adyen-payment-get:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: pspReference
-        type: string
-        description: Payment PSP reference
-        required: true
-        source: input
-    adyen-payout:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: amount
-        type: object
-        description: Payout amount (currency, value)
-        required: true
-        source: input
-      - name: reference
-        type: string
-        description: Payout reference
-        required: true
-        source: input
-      - name: shopperEmail
-        type: string
-        description: Shopper email
-        required: false
-        source: input
-      - name: shopperReference
-        type: string
-        description: Shopper reference
-        required: false
-        source: input
-    adyen-3ds-authenticate:
-      - name: apiKey
-        type: string
-        description: Adyen API key
-        required: true
-        source: connection
-        binding: vault://adyen-credentials
-      - name: merchantAccount
-        type: string
-        description: Merchant account name
-        required: true
-        source: input
-      - name: pspReference
-        type: string
-        description: Payment PSP reference
-        required: true
-        source: input
-      - name: md
-        type: string
-        description: 3D Secure MD parameter
-        required: true
-        source: input
-      - name: paResponse
-        type: string
-        description: 3D Secure PaRes parameter
-        required: true
-        source: input
-  grpc:
-    port: 50118
-    docker:
-      image: axiomstudio/skill-adyen:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - adyen:read
-    - adyen:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        adyen-3ds-authenticate:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen 3ds Authenticate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    md:
+                        description: 3D Secure MD parameter
+                        type: string
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    paResponse:
+                        description: 3D Secure PaRes parameter
+                        type: string
+                    pspReference:
+                        description: Payment PSP reference
+                        type: string
+                required:
+                    - md
+                    - merchantAccount
+                    - paResponse
+                    - pspReference
+                type: object
+            name: adyen-3ds-authenticate
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        adyen-cancel:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Cancel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    pspReference:
+                        description: Original payment reference
+                        type: string
+                    reference:
+                        description: Cancel reference
+                        type: string
+                required:
+                    - merchantAccount
+                    - pspReference
+                type: object
+            name: adyen-cancel
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        adyen-capture:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Capture
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Capture amount
+                        type: object
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    pspReference:
+                        description: Original payment reference
+                        type: string
+                    reference:
+                        description: Capture reference
+                        type: string
+                required:
+                    - merchantAccount
+                    - pspReference
+                type: object
+            name: adyen-capture
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        adyen-payment:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Payment
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Payment amount (currency, value)
+                        type: object
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    paymentMethod:
+                        description: Payment method details
+                        type: object
+                    reference:
+                        description: Payment reference
+                        type: string
+                    shopperEmail:
+                        description: Shopper email
+                        type: string
+                    shopperReference:
+                        description: Shopper reference
+                        type: string
+                required:
+                    - amount
+                    - merchantAccount
+                    - paymentMethod
+                    - reference
+                type: object
+            name: adyen-payment
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        adyen-payment-get:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Payment Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    pspReference:
+                        description: Payment PSP reference
+                        type: string
+                required:
+                    - merchantAccount
+                    - pspReference
+                type: object
+            name: adyen-payment-get
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        adyen-payment-list:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Payment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 10
+                        description: Maximum number of payments to return
+                        type: integer
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                required:
+                    - merchantAccount
+                type: object
+            name: adyen-payment-list
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        adyen-payout:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Payout
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Payout amount (currency, value)
+                        type: object
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    reference:
+                        description: Payout reference
+                        type: string
+                    shopperEmail:
+                        description: Shopper email
+                        type: string
+                    shopperReference:
+                        description: Shopper reference
+                        type: string
+                required:
+                    - amount
+                    - merchantAccount
+                    - reference
+                type: object
+            name: adyen-payout
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        adyen-refund:
+            credentials:
+                - kind: adyen-credential
+                  name: adyen-credential
+            description: Adyen Refund
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Refund amount
+                        type: object
+                    merchantAccount:
+                        description: Merchant account name
+                        type: string
+                    pspReference:
+                        description: Original payment reference
+                        type: string
+                    reference:
+                        description: Refund reference
+                        type: string
+                required:
+                    - merchantAccount
+                    - pspReference
+                type: object
+            name: adyen-refund
+            permissions:
+                - adyen:read
+                - adyen:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: finance
+    description: Adyen payment platform operations for Atlas agents
+    icon: credit-card
+    id: skill-adyen
+    installers:
+        - id: oci
+          kind: oci
+          label: Adyen Skill service image
+          package: axiomstudio/skill-adyen:1.0.0
+    name: Adyen Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-adyen
+        resolvedVersion: 1.0.0
+    tags:
+        - adyen
+        - finance
+        - payments
+        - transactions
+    transport:
+        endpoint: skill-adyen
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

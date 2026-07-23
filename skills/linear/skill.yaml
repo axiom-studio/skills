@@ -1,205 +1,230 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-linear
-  name: Linear Skill
-  description: Linear issue tracking operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: project-management
-  tags:
-    - linear
-    - issues
-    - tracking
-    - agile
-  icon: check-square
-  color: "#5E6AD2"
-spec:
-  executorType: grpc
-  credentialType: linear_api
-  nodeTypes:
-    - linear-issue-create
-    - linear-issue-update
-    - linear-issue-search
-    - linear-comment
-    - linear-cycle
-    - linear-project
-  inputs:
-    linear-issue-create:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: teamId
-        type: string
-        description: Team ID
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: Issue title
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Issue description
-        required: false
-        source: input
-      - name: priority
-        type: integer
-        description: Priority (-2=urgent, 0=normal)
-        required: false
-        source: input
-        default: 0
-      - name: assigneeId
-        type: string
-        description: Assignee user ID
-        required: false
-        source: input
-      - name: labelIds
-        items:
-          type: string
-        description: Label IDs
-        required: false
-        source: input
-      - name: projectId
-        type: string
-        description: Project ID
-        required: false
-        source: input
-    linear-issue-update:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: issueId
-        type: string
-        description: Issue ID to update
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: New title
-        required: false
-        source: input
-      - name: description
-        type: string
-        description: New description
-        required: false
-        source: input
-      - name: priority
-        type: integer
-        description: New priority
-        required: false
-        source: input
-      - name: stateId
-        type: string
-        description: New state ID
-        required: false
-        source: input
-      - name: assigneeId
-        type: string
-        description: New assignee ID
-        required: false
-        source: input
-    linear-issue-search:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: query
-        type: string
-        description: Linear search query
-        required: true
-        source: input
-      - name: teamId
-        type: string
-        description: Filter by team ID
-        required: false
-        source: input
-      - name: maxResults
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 50
-    linear-comment:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: issueId
-        type: string
-        description: Issue ID
-        required: true
-        source: input
-      - name: body
-        type: string
-        description: Comment body (Markdown)
-        required: true
-        source: input
-    linear-cycle:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: operation
-        type: string
-        description: Operation (list, get, getIssues)
-        required: true
-        source: input
-      - name: teamId
-        type: string
-        description: Team ID
-        required: false
-        source: input
-      - name: cycleId
-        type: string
-        description: Cycle ID (required for get operations)
-        required: false
-        source: input
-    linear-project:
-      - name: apiToken
-        type: string
-        description: Linear API token
-        required: true
-        source: connection
-        binding: vault://linear-credentials
-      - name: operation
-        type: string
-        description: Operation (list, get, getIssues)
-        required: true
-        source: input
-      - name: teamId
-        type: string
-        description: Team ID
-        required: false
-        source: input
-      - name: projectId
-        type: string
-        description: Project ID (required for get operations)
-        required: false
-        source: input
-  grpc:
-    port: 50054
-    docker:
-      image: axiomstudio/skill-linear:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - linear:read
-    - linear:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        linear-comment:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Comment
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Comment body (Markdown)
+                        type: string
+                    issueId:
+                        description: Issue ID
+                        type: string
+                required:
+                    - body
+                    - issueId
+                type: object
+            name: linear-comment
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        linear-cycle:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Cycle
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    cycleId:
+                        description: Cycle ID (required for get operations)
+                        type: string
+                    operation:
+                        description: Operation (list, get, getIssues)
+                        type: string
+                    teamId:
+                        description: Team ID
+                        type: string
+                required:
+                    - operation
+                type: object
+            name: linear-cycle
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        linear-issue-create:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Issue Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assigneeId:
+                        description: Assignee user ID
+                        type: string
+                    description:
+                        description: Issue description
+                        type: string
+                    labelIds:
+                        description: Label IDs
+                        type: string
+                    priority:
+                        default: 0
+                        description: Priority (-2=urgent, 0=normal)
+                        type: integer
+                    projectId:
+                        description: Project ID
+                        type: string
+                    teamId:
+                        description: Team ID
+                        type: string
+                    title:
+                        description: Issue title
+                        type: string
+                required:
+                    - teamId
+                    - title
+                type: object
+            name: linear-issue-create
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        linear-issue-search:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Issue Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    maxResults:
+                        default: 50
+                        description: Maximum results
+                        type: integer
+                    query:
+                        description: Linear search query
+                        type: string
+                    teamId:
+                        description: Filter by team ID
+                        type: string
+                required:
+                    - query
+                type: object
+            name: linear-issue-search
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        linear-issue-update:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Issue Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assigneeId:
+                        description: New assignee ID
+                        type: string
+                    description:
+                        description: New description
+                        type: string
+                    issueId:
+                        description: Issue ID to update
+                        type: string
+                    priority:
+                        description: New priority
+                        type: integer
+                    stateId:
+                        description: New state ID
+                        type: string
+                    title:
+                        description: New title
+                        type: string
+                required:
+                    - issueId
+                type: object
+            name: linear-issue-update
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        linear-project:
+            credentials:
+                - kind: linear_api
+                  name: linear_api
+            description: Linear Project
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    operation:
+                        description: Operation (list, get, getIssues)
+                        type: string
+                    projectId:
+                        description: Project ID (required for get operations)
+                        type: string
+                    teamId:
+                        description: Team ID
+                        type: string
+                required:
+                    - operation
+                type: object
+            name: linear-project
+            permissions:
+                - linear:read
+                - linear:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: project-management
+    description: Linear issue tracking operations for Atlas agents
+    icon: check-square
+    id: skill-linear
+    installers:
+        - id: oci
+          kind: oci
+          label: Linear Skill service image
+          package: axiomstudio/skill-linear:1.0.0
+    name: Linear Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-linear
+        resolvedVersion: 1.0.0
+    tags:
+        - agile
+        - issues
+        - linear
+        - tracking
+    transport:
+        endpoint: skill-linear
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

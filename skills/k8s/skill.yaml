@@ -1,319 +1,381 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-k8s
-  name: Kubernetes Skill
-  description: Kubernetes operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: infrastructure
-  tags:
-    - kubernetes
-    - k8s
-    - infrastructure
-  icon: kubernetes
-  color: "#326CE5"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - k8s-get
-    - k8s-list
-    - k8s-logs
-    - k8s-events
-    - k8s-restart
-    - k8s-scale
-    - k8s-patch
-    - k8s-delete
-    - k8s-event
-    - k8s-log-monitor
-    - k8s-watch
-  inputs:
-    k8s-get:
-      - name: kind
-        type: string
-        description: Resource kind (Pod, Deployment, Service, etc.)
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-list:
-      - name: kind
-        type: string
-        description: Resource kind
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-      - name: labelSelector
-        type: string
-        description: Label selector filter
-        required: false
-        source: input
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-logs:
-      - name: name
-        type: string
-        description: Pod name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: container
-        type: string
-        description: Container name
-        required: false
-        source: input
-      - name: tail
-        type: integer
-        description: Number of lines from end
-        required: false
-        source: input
-        default: 100
-      - name: follow
-        type: boolean
-        description: Follow log output
-        required: false
-        source: default
-        default: false
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-events:
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: fieldSelector
-        type: string
-        description: Field selector
-        required: false
-        source: input
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-restart:
-      - name: kind
-        type: string
-        description: Resource kind (Deployment, StatefulSet, DaemonSet)
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-scale:
-      - name: kind
-        type: string
-        description: Resource kind (Deployment, StatefulSet, ReplicaSet)
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: replicas
-        type: integer
-        description: Desired replica count
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-patch:
-      - name: kind
-        type: string
-        description: Resource kind
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: patch
-        type: object
-        description: Patch specification
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: patchType
-        type: string
-        description: Patch type (strategic, merge, json)
-        required: false
-        source: input
-        default: "strategic"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-delete:
-      - name: kind
-        type: string
-        description: Resource kind
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-event:
-      - name: kind
-        type: string
-        description: Resource kind
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Resource name
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-log-monitor:
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: labelSelector
-        type: string
-        description: Label selector
-        required: false
-        source: input
-      - name: pattern
-        type: string
-        description: Log pattern to monitor
-        required: false
-        source: input
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-    k8s-watch:
-      - name: kind
-        type: string
-        description: Resource kind
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Kubernetes namespace
-        required: false
-        source: input
-        default: "default"
-      - name: labelSelector
-        type: string
-        description: Label selector
-        required: false
-        source: input
-      - name: kubeconfig
-        type: string
-        description: Kubeconfig path or content
-        required: false
-        source: connection
-        binding: vault://k8s-credentials
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-k8s:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - k8s-client
-  permissions:
-    - k8s:read
-    - k8s:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        k8s-delete:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                    - name
+                type: object
+            name: k8s-delete
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        k8s-event:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Event
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                    - name
+                type: object
+            name: k8s-event
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        k8s-events:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Events
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fieldSelector:
+                        description: Field selector
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                type: object
+            name: k8s-events
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        k8s-get:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind (Pod, Deployment, Service, etc.)
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                    - name
+                type: object
+            name: k8s-get
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        k8s-list:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind
+                        type: string
+                    labelSelector:
+                        description: Label selector filter
+                        type: string
+                    namespace:
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                type: object
+            name: k8s-list
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        k8s-log-monitor:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Log Monitor
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    labelSelector:
+                        description: Label selector
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                    pattern:
+                        description: Log pattern to monitor
+                        type: string
+                type: object
+            name: k8s-log-monitor
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        k8s-logs:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Logs
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    container:
+                        description: Container name
+                        type: string
+                    follow:
+                        default: false
+                        description: Follow log output
+                        type: boolean
+                    name:
+                        description: Pod name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                    tail:
+                        default: 100
+                        description: Number of lines from end
+                        type: integer
+                required:
+                    - name
+                type: object
+            name: k8s-logs
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        k8s-patch:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Patch
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                    patch:
+                        description: Patch specification
+                        type: object
+                    patchType:
+                        default: strategic
+                        description: Patch type (strategic, merge, json)
+                        type: string
+                required:
+                    - kind
+                    - name
+                    - patch
+                type: object
+            name: k8s-patch
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        k8s-restart:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Restart
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind (Deployment, StatefulSet, DaemonSet)
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                    - name
+                type: object
+            name: k8s-restart
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        k8s-scale:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Scale
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind (Deployment, StatefulSet, ReplicaSet)
+                        type: string
+                    name:
+                        description: Resource name
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                    replicas:
+                        description: Desired replica count
+                        type: integer
+                required:
+                    - kind
+                    - name
+                    - replicas
+                type: object
+            name: k8s-scale
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        k8s-watch:
+            credentials:
+                - kind: k8s-credential
+                  name: k8s-credential
+            description: K8s Watch
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    kind:
+                        description: Resource kind
+                        type: string
+                    labelSelector:
+                        description: Label selector
+                        type: string
+                    namespace:
+                        default: default
+                        description: Kubernetes namespace
+                        type: string
+                required:
+                    - kind
+                type: object
+            name: k8s-watch
+            permissions:
+                - k8s:read
+                - k8s:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: infrastructure
+    description: Kubernetes operations for Atlas agents
+    icon: kubernetes
+    id: skill-k8s
+    installers:
+        - id: oci
+          kind: oci
+          label: Kubernetes Skill service image
+          package: axiomstudio/skill-k8s:1.0.0
+    name: Kubernetes Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-k8s
+        resolvedVersion: 1.0.0
+    tags:
+        - infrastructure
+        - k8s
+        - kubernetes
+    transport:
+        endpoint: skill-k8s
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

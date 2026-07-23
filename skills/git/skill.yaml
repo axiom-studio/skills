@@ -1,214 +1,230 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-git
-  name: Git Skill
-  description: Git repository operations for Atlas agents - clone, commit, push, pull, branch, status
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - git
-    - version-control
-    - scm
-    - devops
-  icon: git-branch
-  color: "#F05032"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - git-clone
-    - git-commit
-    - git-push
-    - git-pull
-    - git-branch-list
-    - git-status
-  inputs:
-    git-clone:
-      - name: repositoryUrl
-        type: string
-        description: Git repository URL to clone
-        required: true
-        source: input
-      - name: targetDirectory
-        type: string
-        description: Target directory for cloned repository
-        required: false
-        source: input
-        binding: workflow.input.targetDir
-        default: "./"
-      - name: branch
-        type: string
-        description: "Branch to clone (default: default branch)"
-        required: false
-        source: input
-        default: ""
-      - name: depth
-        type: integer
-        description: Clone depth (shallow clone)
-        required: false
-        source: input
-        default: 0
-      - name: gitCredentials
-        type: object
-        description: Git credentials for private repos
-        required: false
-        source: credential
-        credentialTypes:
-          - http_basic_auth
-          - github_token
-          - gitlab_token
-          - bitbucket_token
-        binding: vault://git-credentials
-    git-commit:
-      - name: repositoryPath
-        type: string
-        description: Path to the git repository
-        required: true
-        source: input
-        binding: previous.output.repositoryPath
-      - name: message
-        type: string
-        description: Commit message
-        required: true
-        source: input
-      - name: files
-        items:
-          type: string
-        description: Files to commit (empty for all)
-        required: false
-        source: input
-        default: []
-      - name: authorName
-        type: string
-        description: Author name for commit
-        required: false
-        source: input
-        binding: workflow.input.authorName
-      - name: authorEmail
-        type: string
-        description: Author email for commit
-        required: false
-        source: input
-        binding: workflow.input.authorEmail
-      - name: amend
-        type: boolean
-        description: Amend previous commit
-        required: false
-        source: input
-        default: false
-    git-push:
-      - name: repositoryPath
-        type: string
-        description: Path to the git repository
-        required: true
-        source: input
-        binding: previous.output.repositoryPath
-      - name: remote
-        type: string
-        description: "Remote name (default: origin)"
-        required: false
-        source: input
-        default: "origin"
-      - name: branch
-        type: string
-        description: Branch to push
-        required: false
-        source: input
-      - name: force
-        type: boolean
-        description: Force push
-        required: false
-        source: input
-        default: false
-      - name: credentials
-        type: object
-        description: Push credentials
-        required: false
-        source: credential
-        credentialTypes:
-          - http_basic_auth
-          - github_token
-          - gitlab_token
-          - bitbucket_token
-        binding: vault://git-push-credentials
-    git-pull:
-      - name: repositoryPath
-        type: string
-        description: Path to the git repository
-        required: true
-        source: input
-        binding: previous.output.repositoryPath
-      - name: remote
-        type: string
-        description: "Remote name (default: origin)"
-        required: false
-        source: input
-        default: "origin"
-      - name: branch
-        type: string
-        description: Branch to pull
-        required: false
-        source: input
-      - name: rebase
-        type: boolean
-        description: Use rebase instead of merge
-        required: false
-        source: input
-        default: false
-    git-branch-list:
-      - name: repositoryPath
-        type: string
-        description: Path to the git repository
-        required: true
-        source: input
-        binding: previous.output.repositoryPath
-      - name: all
-        type: boolean
-        description: Include remote branches
-        required: false
-        source: input
-        default: false
-      - name: remote
-        type: string
-        description: Filter by remote name
-        required: false
-        source: input
-      - name: pattern
-        type: string
-        description: Filter branches by pattern
-        required: false
-        source: input
-    git-status:
-      - name: repositoryPath
-        type: string
-        description: Path to the git repository
-        required: true
-        source: input
-        binding: previous.output.repositoryPath
-      - name: short
-        type: boolean
-        description: Short format output
-        required: false
-        source: input
-        default: true
-      - name: porcelain
-        type: string
-        description: Porcelain format version
-        required: false
-        source: input
-        default: "v1"
-  grpc:
-    port: 50095
-    docker:
-      image: axiomstudio/skill-git:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - git:read
-    - git:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        git-branch-list:
+            description: Git Branch List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    all:
+                        default: false
+                        description: Include remote branches
+                        type: boolean
+                    pattern:
+                        description: Filter branches by pattern
+                        type: string
+                    remote:
+                        description: Filter by remote name
+                        type: string
+                    repositoryPath:
+                        description: Path to the git repository
+                        type: string
+                required:
+                    - repositoryPath
+                type: object
+            name: git-branch-list
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        git-clone:
+            credentials:
+                - kind: git-credential
+                  name: git-credential
+            description: Git Clone
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        default: ""
+                        description: 'Branch to clone (default: default branch)'
+                        type: string
+                    depth:
+                        default: 0
+                        description: Clone depth (shallow clone)
+                        type: integer
+                    repositoryUrl:
+                        description: Git repository URL to clone
+                        type: string
+                    targetDirectory:
+                        default: ./
+                        description: Target directory for cloned repository
+                        type: string
+                required:
+                    - repositoryUrl
+                type: object
+            name: git-clone
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        git-commit:
+            description: Git Commit
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amend:
+                        default: false
+                        description: Amend previous commit
+                        type: boolean
+                    authorEmail:
+                        description: Author email for commit
+                        type: string
+                    authorName:
+                        description: Author name for commit
+                        type: string
+                    files:
+                        default: []
+                        description: Files to commit (empty for all)
+                        type: string
+                    message:
+                        description: Commit message
+                        type: string
+                    repositoryPath:
+                        description: Path to the git repository
+                        type: string
+                required:
+                    - message
+                    - repositoryPath
+                type: object
+            name: git-commit
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        git-pull:
+            description: Git Pull
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch to pull
+                        type: string
+                    rebase:
+                        default: false
+                        description: Use rebase instead of merge
+                        type: boolean
+                    remote:
+                        default: origin
+                        description: 'Remote name (default: origin)'
+                        type: string
+                    repositoryPath:
+                        description: Path to the git repository
+                        type: string
+                required:
+                    - repositoryPath
+                type: object
+            name: git-pull
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        git-push:
+            credentials:
+                - kind: git-credential
+                  name: git-credential
+            description: Git Push
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch to push
+                        type: string
+                    force:
+                        default: false
+                        description: Force push
+                        type: boolean
+                    remote:
+                        default: origin
+                        description: 'Remote name (default: origin)'
+                        type: string
+                    repositoryPath:
+                        description: Path to the git repository
+                        type: string
+                required:
+                    - repositoryPath
+                type: object
+            name: git-push
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        git-status:
+            description: Git Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    porcelain:
+                        default: v1
+                        description: Porcelain format version
+                        type: string
+                    repositoryPath:
+                        description: Path to the git repository
+                        type: string
+                    short:
+                        default: true
+                        description: Short format output
+                        type: boolean
+                required:
+                    - repositoryPath
+                type: object
+            name: git-status
+            permissions:
+                - git:read
+                - git:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: devops
+    description: Git repository operations for Atlas agents - clone, commit, push, pull, branch, status
+    icon: git-branch
+    id: skill-git
+    installers:
+        - id: oci
+          kind: oci
+          label: Git Skill service image
+          package: axiomstudio/skill-git:1.0.0
+    name: Git Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-git
+        resolvedVersion: 1.0.0
+    tags:
+        - devops
+        - git
+        - scm
+        - version-control
+    transport:
+        endpoint: skill-git
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

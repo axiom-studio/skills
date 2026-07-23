@@ -1,298 +1,389 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-digitalocean
-  name: DigitalOcean Skill
-  description: DigitalOcean cloud infrastructure operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: cloud
-  tags:
-    - digitalocean
-    - droplet
-    - kubernetes
-    - spaces
-    - app-platform
-  icon: cloud
-  color: "#0080FF"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - do-droplet-list
-    - do-droplet-create
-    - do-droplet-delete
-    - do-droplet-power
-    - do-kubernetes-list
-    - do-kubernetes-create
-    - do-space-list
-    - do-space-upload
-    - do-space-download
-    - do-app-list
-    - do-app-deploy
-    - do-database-list
-    - do-loadbalancer-list
-  inputs:
-    do-droplet-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: tag
-        type: string
-        description: Filter by tag name
-        required: false
-        source: input
-      - name: region
-        type: string
-        description: Filter by region slug
-        required: false
-        source: input
-    do-droplet-create:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: name
-        type: string
-        description: Droplet hostname
-        required: true
-        source: input
-      - name: region
-        type: string
-        description: Region slug
-        required: true
-        source: input
-      - name: size
-        type: string
-        description: Size slug (e.g., s-1vcpu-1gb)
-        required: true
-        source: input
-      - name: image
-        type: string
-        description: Image slug or ID
-        required: true
-        source: input
-      - name: sshKeys
-        items:
-          type: string
-        description: SSH key IDs or fingerprints
-        required: false
-        source: input
-      - name: userData
-        type: string
-        description: Cloud-init user data script
-        required: false
-        source: input
-      - name: tags
-        items:
-          type: string
-        description: Tags to apply
-        required: false
-        source: input
-      - name: monitoring
-        type: boolean
-        description: Enable monitoring
-        required: false
-        source: default
-        default: true
-      - name: backups
-        type: boolean
-        description: Enable automated backups
-        required: false
-        source: input
-      - name: ipv6
-        type: boolean
-        description: Enable IPv6
-        required: false
-        source: input
-    do-droplet-delete:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: dropletId
-        type: integer
-        description: Droplet ID to delete
-        required: true
-        source: input
-    do-droplet-power:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: dropletId
-        type: integer
-        description: Droplet ID
-        required: true
-        source: input
-      - name: action
-        type: string
-        description: Action (power_on, power_off, reboot, shutdown)
-        required: true
-        source: input
-    do-kubernetes-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-    do-kubernetes-create:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: name
-        type: string
-        description: Cluster name
-        required: true
-        source: input
-      - name: region
-        type: string
-        description: Region slug
-        required: true
-        source: input
-      - name: version
-        type: string
-        description: Kubernetes version
-        required: true
-        source: input
-      - name: nodePools
-        items:
-          type: string
-        description: Node pool configurations
-        required: true
-        source: input
-      - name: autoUpgrade
-        type: boolean
-        description: Enable auto-upgrades
-        required: false
-        source: default
-        default: false
-      - name: ha
-        type: boolean
-        description: Enable high availability
-        required: false
-        source: default
-        default: false
-    do-space-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-    do-space-upload:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: space
-        type: string
-        description: Space name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-        default: "application/octet-stream"
-      - name: acl
-        type: string
-        description: Access control (private, public-read)
-        required: false
-        source: input
-        default: "private"
-    do-space-download:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: space
-        type: string
-        description: Space name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key
-        required: true
-        source: input
-    do-app-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-    do-app-deploy:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-      - name: appId
-        type: string
-        description: App ID
-        required: true
-        source: input
-      - name: forceBuild
-        type: boolean
-        description: Force a new build
-        required: false
-        source: default
-        default: false
-    do-database-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-    do-loadbalancer-list:
-      - name: apiToken
-        type: string
-        description: DigitalOcean API token
-        required: true
-        source: connection
-        binding: vault://digitalocean-credentials
-  grpc:
-    port: 50083
-    docker:
-      image: axiomstudio/skill-digitalocean:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - digitalocean:read
-    - digitalocean:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        do-app-deploy:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do App Deploy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appId:
+                        description: App ID
+                        type: string
+                    forceBuild:
+                        default: false
+                        description: Force a new build
+                        type: boolean
+                required:
+                    - appId
+                type: object
+            name: do-app-deploy
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        do-app-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do App List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: do-app-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-database-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Database List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: do-database-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-droplet-create:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Droplet Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    backups:
+                        description: Enable automated backups
+                        type: boolean
+                    image:
+                        description: Image slug or ID
+                        type: string
+                    ipv6:
+                        description: Enable IPv6
+                        type: boolean
+                    monitoring:
+                        default: true
+                        description: Enable monitoring
+                        type: boolean
+                    name:
+                        description: Droplet hostname
+                        type: string
+                    region:
+                        description: Region slug
+                        type: string
+                    size:
+                        description: Size slug (e.g., s-1vcpu-1gb)
+                        type: string
+                    sshKeys:
+                        description: SSH key IDs or fingerprints
+                        type: string
+                    tags:
+                        description: Tags to apply
+                        type: string
+                    userData:
+                        description: Cloud-init user data script
+                        type: string
+                required:
+                    - image
+                    - name
+                    - region
+                    - size
+                type: object
+            name: do-droplet-create
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        do-droplet-delete:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Droplet Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dropletId:
+                        description: Droplet ID to delete
+                        type: integer
+                required:
+                    - dropletId
+                type: object
+            name: do-droplet-delete
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        do-droplet-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Droplet List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        description: Filter by region slug
+                        type: string
+                    tag:
+                        description: Filter by tag name
+                        type: string
+                type: object
+            name: do-droplet-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-droplet-power:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Droplet Power
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (power_on, power_off, reboot, shutdown)
+                        type: string
+                    dropletId:
+                        description: Droplet ID
+                        type: integer
+                required:
+                    - action
+                    - dropletId
+                type: object
+            name: do-droplet-power
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        do-kubernetes-create:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Kubernetes Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    autoUpgrade:
+                        default: false
+                        description: Enable auto-upgrades
+                        type: boolean
+                    ha:
+                        default: false
+                        description: Enable high availability
+                        type: boolean
+                    name:
+                        description: Cluster name
+                        type: string
+                    nodePools:
+                        description: Node pool configurations
+                        type: string
+                    region:
+                        description: Region slug
+                        type: string
+                    version:
+                        description: Kubernetes version
+                        type: string
+                required:
+                    - name
+                    - nodePools
+                    - region
+                    - version
+                type: object
+            name: do-kubernetes-create
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        do-kubernetes-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Kubernetes List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: do-kubernetes-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-loadbalancer-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Loadbalancer List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: do-loadbalancer-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-space-download:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Space Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    key:
+                        description: Object key
+                        type: string
+                    space:
+                        description: Space name
+                        type: string
+                required:
+                    - key
+                    - space
+                type: object
+            name: do-space-download
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-space-list:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Space List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: do-space-list
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        do-space-upload:
+            credentials:
+                - kind: digitalocean-credential
+                  name: digitalocean-credential
+            description: Do Space Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    acl:
+                        default: private
+                        description: Access control (private, public-read)
+                        type: string
+                    content:
+                        description: File content
+                        type: string
+                    contentType:
+                        default: application/octet-stream
+                        description: Content type
+                        type: string
+                    key:
+                        description: Object key
+                        type: string
+                    space:
+                        description: Space name
+                        type: string
+                required:
+                    - content
+                    - key
+                    - space
+                type: object
+            name: do-space-upload
+            permissions:
+                - digitalocean:read
+                - digitalocean:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+    category: cloud
+    description: DigitalOcean cloud infrastructure operations for Atlas agents
+    icon: cloud
+    id: skill-digitalocean
+    installers:
+        - id: oci
+          kind: oci
+          label: DigitalOcean Skill service image
+          package: axiomstudio/skill-digitalocean:1.0.0
+    name: DigitalOcean Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-digitalocean
+        resolvedVersion: 1.0.0
+    tags:
+        - app-platform
+        - digitalocean
+        - droplet
+        - kubernetes
+        - spaces
+    transport:
+        endpoint: skill-digitalocean
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

@@ -1,193 +1,254 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-google-drive
-  name: Google Drive Skill
-  description: Google Drive file storage operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: storage
-  tags:
-    - google
-    - drive
-    - files
-    - storage
-  icon: hard-drive
-  color: "#4285F4"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - gdrive-list
-    - gdrive-upload
-    - gdrive-download
-    - gdrive-delete
-    - gdrive-share
-    - gdrive-search
-    - gdrive-folder-create
-    - gdrive-permission-list
-  inputs:
-    gdrive-list:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: parentId
-        type: string
-        description: Parent folder ID
-        required: false
-        source: input
-        default: "root"
-      - name: query
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: pageSize
-        type: integer
-        description: Max results
-        required: false
-        source: input
-        default: 100
-    gdrive-upload:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: name
-        type: string
-        description: File name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content (base64)
-        required: true
-        source: input
-      - name: mimeType
-        type: string
-        description: MIME type
-        required: false
-        source: input
-        default: "application/octet-stream"
-      - name: parentId
-        type: string
-        description: Parent folder ID
-        required: false
-        source: input
-    gdrive-download:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: fileId
-        type: string
-        description: File ID
-        required: true
-        source: input
-    gdrive-delete:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: fileId
-        type: string
-        description: File ID
-        required: true
-        source: input
-    gdrive-share:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: fileId
-        type: string
-        description: File ID
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: User email
-        required: true
-        source: input
-      - name: role
-        type: string
-        description: Role (reader, writer, commenter)
-        required: true
-        source: input
-      - name: type
-        type: string
-        description: Type (user, group, domain, anyone)
-        required: false
-        source: input
-        default: "user"
-    gdrive-search:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: query
-        type: string
-        description: Search query
-        required: true
-        source: input
-      - name: pageSize
-        type: integer
-        description: Max results
-        required: false
-        source: input
-        default: 100
-    gdrive-folder-create:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: name
-        type: string
-        description: Folder name
-        required: true
-        source: input
-      - name: parentId
-        type: string
-        description: Parent folder ID
-        required: false
-        source: input
-    gdrive-permission-list:
-      - name: credentials
-        type: string
-        description: Service account JSON
-        required: true
-        source: connection
-        binding: vault://google-drive-credentials
-      - name: fileId
-        type: string
-        description: File ID
-        required: true
-        source: input
-  grpc:
-    port: 50113
-    docker:
-      image: axiomstudio/skill-google-drive:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - googledrive:read
-    - googledrive:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        gdrive-delete:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileId:
+                        description: File ID
+                        type: string
+                required:
+                    - fileId
+                type: object
+            name: gdrive-delete
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        gdrive-download:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileId:
+                        description: File ID
+                        type: string
+                required:
+                    - fileId
+                type: object
+            name: gdrive-download
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gdrive-folder-create:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Folder Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    name:
+                        description: Folder name
+                        type: string
+                    parentId:
+                        description: Parent folder ID
+                        type: string
+                required:
+                    - name
+                type: object
+            name: gdrive-folder-create
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gdrive-list:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pageSize:
+                        default: 100
+                        description: Max results
+                        type: integer
+                    parentId:
+                        default: root
+                        description: Parent folder ID
+                        type: string
+                    query:
+                        description: Search query
+                        type: string
+                type: object
+            name: gdrive-list
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gdrive-permission-list:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Permission List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    fileId:
+                        description: File ID
+                        type: string
+                required:
+                    - fileId
+                type: object
+            name: gdrive-permission-list
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gdrive-search:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    pageSize:
+                        default: 100
+                        description: Max results
+                        type: integer
+                    query:
+                        description: Search query
+                        type: string
+                required:
+                    - query
+                type: object
+            name: gdrive-search
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gdrive-share:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Share
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    email:
+                        description: User email
+                        type: string
+                    fileId:
+                        description: File ID
+                        type: string
+                    role:
+                        description: Role (reader, writer, commenter)
+                        type: string
+                    type:
+                        default: user
+                        description: Type (user, group, domain, anyone)
+                        type: string
+                required:
+                    - email
+                    - fileId
+                    - role
+                type: object
+            name: gdrive-share
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        gdrive-upload:
+            credentials:
+                - kind: google-drive-credential
+                  name: google-drive-credential
+            description: Gdrive Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    content:
+                        description: File content (base64)
+                        type: string
+                    mimeType:
+                        default: application/octet-stream
+                        description: MIME type
+                        type: string
+                    name:
+                        description: File name
+                        type: string
+                    parentId:
+                        description: Parent folder ID
+                        type: string
+                required:
+                    - content
+                    - name
+                type: object
+            name: gdrive-upload
+            permissions:
+                - googledrive:read
+                - googledrive:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: storage
+    description: Google Drive file storage operations for Atlas agents
+    icon: hard-drive
+    id: skill-google-drive
+    installers:
+        - id: oci
+          kind: oci
+          label: Google Drive Skill service image
+          package: axiomstudio/skill-google-drive:1.0.0
+    name: Google Drive Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-google-drive
+        resolvedVersion: 1.0.0
+    tags:
+        - drive
+        - files
+        - google
+        - storage
+    transport:
+        endpoint: skill-google-drive
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

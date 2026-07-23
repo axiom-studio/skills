@@ -1,401 +1,475 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-gcp
-  name: Google Cloud Skill
-  description: Google Cloud Platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: cloud
-  tags:
-    - gcp
-    - google
-    - cloud
-    - gke
-    - compute
-  icon: cloud
-  color: "#4285F4"
-spec:
-  executorType: grpc
-  credentialType: gcp_credentials
-  nodeTypes:
-    - gcp-instance-list
-    - gcp-instance-start
-    - gcp-instance-stop
-    - gcp-gke-list
-    - gcp-gke-get-credentials
-    - gcp-function-list
-    - gcp-function-deploy
-    - gcp-function-invoke
-    - gcp-pubsub-publish
-    - gcp-pubsub-subscribe
-    - gcp-storage-list
-    - gcp-storage-upload
-    - gcp-storage-download
-  inputs:
-    gcp-instance-list:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: zone
-        type: string
-        description: Filter by zone
-        required: false
-        source: input
-      - name: region
-        type: string
-        description: Filter by region
-        required: false
-        source: input
-    gcp-instance-start:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: zone
-        type: string
-        description: Instance zone
-        required: true
-        source: input
-      - name: instanceName
-        type: string
-        description: Instance name
-        required: true
-        source: input
-    gcp-instance-stop:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: zone
-        type: string
-        description: Instance zone
-        required: true
-        source: input
-      - name: instanceName
-        type: string
-        description: Instance name
-        required: true
-        source: input
-    gcp-gke-list:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: region
-        type: string
-        description: Filter by region
-        required: false
-        source: input
-    gcp-gke-get-credentials:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: region
-        type: string
-        description: Cluster region/zone
-        required: true
-        source: input
-      - name: clusterName
-        type: string
-        description: Cluster name
-        required: true
-        source: input
-    gcp-function-list:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: region
-        type: string
-        description: Filter by region
-        required: false
-        source: input
-    gcp-function-deploy:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: region
-        type: string
-        description: Deployment region
-        required: true
-        source: input
-      - name: functionName
-        type: string
-        description: Function name
-        required: true
-        source: input
-      - name: runtime
-        type: string
-        description: Runtime (nodejs18, python311, go121)
-        required: true
-        source: input
-      - name: entryPoint
-        type: string
-        description: Function entry point
-        required: true
-        source: input
-      - name: sourceUrl
-        type: string
-        description: Source archive URL
-        required: false
-        source: input
-      - name: sourceDir
-        type: string
-        description: Local source directory
-        required: false
-        source: input
-      - name: triggerHttp
-        type: boolean
-        description: HTTP trigger
-        required: false
-        source: default
-        default: true
-      - name: timeout
-        type: string
-        description: Function timeout
-        required: false
-        source: input
-        default: "60s"
-      - name: memoryMB
-        type: integer
-        description: Memory allocation
-        required: false
-        source: input
-        default: 256
-      - name: environmentVariables
-        type: object
-        description: Environment variables
-        required: false
-        source: input
-    gcp-function-invoke:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: region
-        type: string
-        description: Function region
-        required: true
-        source: input
-      - name: functionName
-        type: string
-        description: Function name
-        required: true
-        source: input
-      - name: method
-        type: string
-        description: HTTP method
-        required: false
-        source: input
-        default: "POST"
-      - name: body
-        type: object
-        description: Request body
-        required: false
-        source: input
-      - name: headers
-        type: object
-        description: Request headers
-        required: false
-        source: input
-    gcp-pubsub-publish:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: topic
-        type: string
-        description: Topic name
-        required: true
-        source: input
-      - name: message
-        type: string
-        description: Message body
-        required: true
-        source: input
-      - name: attributes
-        type: object
-        description: Message attributes
-        required: false
-        source: input
-      - name: orderingKey
-        type: string
-        description: Ordering key
-        required: false
-        source: input
-    gcp-pubsub-subscribe:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: subscription
-        type: string
-        description: Subscription name
-        required: true
-        source: input
-      - name: maxMessages
-        type: integer
-        description: Max messages to pull
-        required: false
-        source: input
-        default: 10
-      - name: ack
-        type: boolean
-        description: Auto-acknowledge messages
-        required: false
-        source: default
-        default: true
-    gcp-storage-list:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-    gcp-storage-upload:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: objectName
-        type: string
-        description: Destination object name
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content (text or base64)
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-        default: "application/octet-stream"
-    gcp-storage-download:
-      - name: projectId
-        type: string
-        description: GCP project ID
-        required: true
-        source: input
-      - name: credentials
-        type: string
-        description: Service account JSON key
-        required: true
-        source: connection
-        binding: vault://gcp-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: objectName
-        type: string
-        description: Object name to download
-        required: true
-        source: input
-  grpc:
-    port: 50081
-    docker:
-      image: axiomstudio/skill-gcp:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - gcp:read
-    - gcp:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        gcp-function-deploy:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Function Deploy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    entryPoint:
+                        description: Function entry point
+                        type: string
+                    environmentVariables:
+                        description: Environment variables
+                        type: object
+                    functionName:
+                        description: Function name
+                        type: string
+                    memoryMB:
+                        default: 256
+                        description: Memory allocation
+                        type: integer
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Deployment region
+                        type: string
+                    runtime:
+                        description: Runtime (nodejs18, python311, go121)
+                        type: string
+                    sourceDir:
+                        description: Local source directory
+                        type: string
+                    sourceUrl:
+                        description: Source archive URL
+                        type: string
+                    timeout:
+                        default: 60s
+                        description: Function timeout
+                        type: string
+                    triggerHttp:
+                        default: true
+                        description: HTTP trigger
+                        type: boolean
+                required:
+                    - entryPoint
+                    - functionName
+                    - projectId
+                    - region
+                    - runtime
+                type: object
+            name: gcp-function-deploy
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-function-invoke:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Function Invoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Request body
+                        type: object
+                    functionName:
+                        description: Function name
+                        type: string
+                    headers:
+                        description: Request headers
+                        type: object
+                    method:
+                        default: POST
+                        description: HTTP method
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Function region
+                        type: string
+                required:
+                    - functionName
+                    - projectId
+                    - region
+                type: object
+            name: gcp-function-invoke
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-function-list:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Function List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Filter by region
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gcp-function-list
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-gke-get-credentials:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Gke Get Credentials
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    clusterName:
+                        description: Cluster name
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Cluster region/zone
+                        type: string
+                required:
+                    - clusterName
+                    - projectId
+                    - region
+                type: object
+            name: gcp-gke-get-credentials
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-gke-list:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Gke List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Filter by region
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gcp-gke-list
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-instance-list:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Instance List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    region:
+                        description: Filter by region
+                        type: string
+                    zone:
+                        description: Filter by zone
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gcp-instance-list
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-instance-start:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Instance Start
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceName:
+                        description: Instance name
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    zone:
+                        description: Instance zone
+                        type: string
+                required:
+                    - instanceName
+                    - projectId
+                    - zone
+                type: object
+            name: gcp-instance-start
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-instance-stop:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Instance Stop
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    instanceName:
+                        description: Instance name
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    zone:
+                        description: Instance zone
+                        type: string
+                required:
+                    - instanceName
+                    - projectId
+                    - zone
+                type: object
+            name: gcp-instance-stop
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-pubsub-publish:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Pubsub Publish
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    attributes:
+                        description: Message attributes
+                        type: object
+                    message:
+                        description: Message body
+                        type: string
+                    orderingKey:
+                        description: Ordering key
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    topic:
+                        description: Topic name
+                        type: string
+                required:
+                    - message
+                    - projectId
+                    - topic
+                type: object
+            name: gcp-pubsub-publish
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-pubsub-subscribe:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Pubsub Subscribe
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    ack:
+                        default: true
+                        description: Auto-acknowledge messages
+                        type: boolean
+                    maxMessages:
+                        default: 10
+                        description: Max messages to pull
+                        type: integer
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                    subscription:
+                        description: Subscription name
+                        type: string
+                required:
+                    - projectId
+                    - subscription
+                type: object
+            name: gcp-pubsub-subscribe
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        gcp-storage-download:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Storage Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    objectName:
+                        description: Object name to download
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                required:
+                    - bucket
+                    - objectName
+                    - projectId
+                type: object
+            name: gcp-storage-download
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-storage-list:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Storage List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: gcp-storage-list
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        gcp-storage-upload:
+            credentials:
+                - kind: gcp_credentials
+                  name: gcp_credentials
+            description: Gcp Storage Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    content:
+                        description: File content (text or base64)
+                        type: string
+                    contentType:
+                        default: application/octet-stream
+                        description: Content type
+                        type: string
+                    objectName:
+                        description: Destination object name
+                        type: string
+                    projectId:
+                        description: GCP project ID
+                        type: string
+                required:
+                    - bucket
+                    - content
+                    - objectName
+                    - projectId
+                type: object
+            name: gcp-storage-upload
+            permissions:
+                - gcp:read
+                - gcp:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+    category: cloud
+    description: Google Cloud Platform operations for Atlas agents
+    icon: cloud
+    id: skill-gcp
+    installers:
+        - id: oci
+          kind: oci
+          label: Google Cloud Skill service image
+          package: axiomstudio/skill-gcp:1.0.0
+    name: Google Cloud Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-gcp
+        resolvedVersion: 1.0.0
+    tags:
+        - cloud
+        - compute
+        - gcp
+        - gke
+        - google
+    transport:
+        endpoint: skill-gcp
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

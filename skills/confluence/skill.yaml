@@ -1,509 +1,543 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-confluence
-  name: Confluence Skill
-  description: Confluence wiki operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: productivity
-  tags:
-    - confluence
-    - wiki
-    - docs
-    - atlassian
-  icon: book
-  color: "#0052CC"
-spec:
-  executorType: grpc
-  credentialType: confluence_api
-  nodeTypes:
-    - confluence-page-list
-    - confluence-page-get
-    - confluence-page-create
-    - confluence-page-update
-    - confluence-page-delete
-    - confluence-space-list
-    - confluence-space-get
-    - confluence-attachment-upload
-    - confluence-attachment-list
-    - confluence-attachment-delete
-    - confluence-comment-create
-    - confluence-comment-list
-    - confluence-search
-  inputs:
-    confluence-page-list:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email (optional for PAT auth)
-        required: false
-        source: input
-      - name: spaceKey
-        type: string
-        description: Filter by space key
-        required: false
-        source: input
-      - name: parentId
-        type: string
-        description: Get child pages of specific page
-        required: false
-        source: input
-      - name: title
-        type: string
-        description: Filter by page title
-        required: false
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-      - name: start
-        type: integer
-        description: Pagination start index
-        required: false
-        source: input
-        default: 0
-      - name: orderBy
-        type: string
-        description: Order by field
-        required: false
-        source: input
-    confluence-page-get:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: pageId
-        type: string
-        description: Specific page ID
-        required: false
-        source: input
-      - name: spaceKey
-        type: string
-        description: Space key for search
-        required: false
-        source: input
-      - name: title
-        type: string
-        description: Title for search
-        required: false
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: version
-        type: integer
-        description: Specific version to retrieve
-        required: false
-        source: input
-    confluence-page-create:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: spaceKey
-        type: string
-        description: Target space key
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: Page title
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Page content (HTML storage format)
-        required: true
-        source: input
-      - name: parentId
-        type: string
-        description: Parent page ID
-        required: false
-        source: input
-    confluence-page-update:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID to update
-        required: true
-        source: input
-      - name: title
-        type: string
-        description: New title
-        required: false
-        source: input
-      - name: content
-        type: string
-        description: New page content
-        required: true
-        source: input
-      - name: minorEdit
-        type: boolean
-        description: Mark as minor edit
-        required: false
-        source: default
-        default: false
-      - name: message
-        type: string
-        description: Version message
-        required: false
-        source: input
-    confluence-page-delete:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID to delete
-        required: true
-        source: input
-    confluence-space-list:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: spaceType
-        type: string
-        description: Type of spaces (global, personal)
-        required: false
-        source: input
-        default: "global"
-      - name: status
-        type: string
-        description: Space status (current, archived)
-        required: false
-        source: input
-        default: "current"
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-    confluence-space-get:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: spaceKey
-        type: string
-        description: Space key to retrieve
-        required: true
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-    confluence-attachment-upload:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID to attach to
-        required: true
-        source: input
-      - name: fileName
-        type: string
-        description: File name
-        required: true
-        source: input
-      - name: fileContent
-        type: string
-        description: Base64 encoded file content
-        required: true
-        source: input
-      - name: comment
-        type: string
-        description: Attachment comment
-        required: false
-        source: input
-    confluence-attachment-list:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID
-        required: true
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-    confluence-attachment-delete:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: attachmentId
-        type: string
-        description: Attachment ID to delete
-        required: true
-        source: input
-    confluence-comment-create:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: true
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: Comment content (HTML storage format)
-        required: true
-        source: input
-    confluence-comment-list:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: pageId
-        type: string
-        description: Page ID
-        required: true
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-    confluence-search:
-      - name: baseUrl
-        type: string
-        description: Confluence base URL
-        required: true
-        source: input
-      - name: apiToken
-        type: string
-        description: API token
-        required: true
-        source: connection
-        binding: vault://confluence-credentials
-      - name: email
-        type: string
-        description: Account email
-        required: false
-        source: input
-      - name: query
-        type: string
-        description: CQL search query
-        required: true
-        source: input
-      - name: expand
-        type: string
-        description: Fields to expand
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum results
-        required: false
-        source: input
-        default: 25
-      - name: start
-        type: integer
-        description: Starting index
-        required: false
-        source: input
-        default: 0
-      - name: includeArchived
-        type: boolean
-        description: Include archived content
-        required: false
-        source: default
-        default: false
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-confluence:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - confluence:read
-    - confluence:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        confluence-attachment-delete:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Attachment Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    attachmentId:
+                        description: Attachment ID to delete
+                        type: string
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                required:
+                    - attachmentId
+                    - baseUrl
+                    - email
+                type: object
+            name: confluence-attachment-delete
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        confluence-attachment-list:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Attachment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                    pageId:
+                        description: Page ID
+                        type: string
+                required:
+                    - baseUrl
+                    - pageId
+                type: object
+            name: confluence-attachment-list
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-attachment-upload:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Attachment Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    comment:
+                        description: Attachment comment
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    fileContent:
+                        description: Base64 encoded file content
+                        type: string
+                    fileName:
+                        description: File name
+                        type: string
+                    pageId:
+                        description: Page ID to attach to
+                        type: string
+                required:
+                    - baseUrl
+                    - email
+                    - fileContent
+                    - fileName
+                    - pageId
+                type: object
+            name: confluence-attachment-upload
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        confluence-comment-create:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Comment Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    content:
+                        description: Comment content (HTML storage format)
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    pageId:
+                        description: Page ID
+                        type: string
+                required:
+                    - baseUrl
+                    - content
+                    - email
+                    - pageId
+                type: object
+            name: confluence-comment-create
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        confluence-comment-list:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Comment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                    pageId:
+                        description: Page ID
+                        type: string
+                required:
+                    - baseUrl
+                    - pageId
+                type: object
+            name: confluence-comment-list
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-page-create:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Page Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    content:
+                        description: Page content (HTML storage format)
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    parentId:
+                        description: Parent page ID
+                        type: string
+                    spaceKey:
+                        description: Target space key
+                        type: string
+                    title:
+                        description: Page title
+                        type: string
+                required:
+                    - baseUrl
+                    - content
+                    - email
+                    - spaceKey
+                    - title
+                type: object
+            name: confluence-page-create
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        confluence-page-delete:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Page Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    pageId:
+                        description: Page ID to delete
+                        type: string
+                required:
+                    - baseUrl
+                    - email
+                    - pageId
+                type: object
+            name: confluence-page-delete
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        confluence-page-get:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Page Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    pageId:
+                        description: Specific page ID
+                        type: string
+                    spaceKey:
+                        description: Space key for search
+                        type: string
+                    title:
+                        description: Title for search
+                        type: string
+                    version:
+                        description: Specific version to retrieve
+                        type: integer
+                required:
+                    - baseUrl
+                type: object
+            name: confluence-page-get
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-page-list:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Page List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email (optional for PAT auth)
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                    orderBy:
+                        description: Order by field
+                        type: string
+                    parentId:
+                        description: Get child pages of specific page
+                        type: string
+                    spaceKey:
+                        description: Filter by space key
+                        type: string
+                    start:
+                        default: 0
+                        description: Pagination start index
+                        type: integer
+                    title:
+                        description: Filter by page title
+                        type: string
+                required:
+                    - baseUrl
+                type: object
+            name: confluence-page-list
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-page-update:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Page Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    content:
+                        description: New page content
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    message:
+                        description: Version message
+                        type: string
+                    minorEdit:
+                        default: false
+                        description: Mark as minor edit
+                        type: boolean
+                    pageId:
+                        description: Page ID to update
+                        type: string
+                    title:
+                        description: New title
+                        type: string
+                required:
+                    - baseUrl
+                    - content
+                    - email
+                    - pageId
+                type: object
+            name: confluence-page-update
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        confluence-search:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Search
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    includeArchived:
+                        default: false
+                        description: Include archived content
+                        type: boolean
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                    query:
+                        description: CQL search query
+                        type: string
+                    start:
+                        default: 0
+                        description: Starting index
+                        type: integer
+                required:
+                    - baseUrl
+                    - query
+                type: object
+            name: confluence-search
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-space-get:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Space Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    spaceKey:
+                        description: Space key to retrieve
+                        type: string
+                required:
+                    - baseUrl
+                    - spaceKey
+                type: object
+            name: confluence-space-get
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        confluence-space-list:
+            credentials:
+                - kind: confluence_api
+                  name: confluence_api
+            description: Confluence Space List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    baseUrl:
+                        description: Confluence base URL
+                        type: string
+                    email:
+                        description: Account email
+                        type: string
+                    expand:
+                        description: Fields to expand
+                        type: string
+                    limit:
+                        default: 25
+                        description: Maximum results
+                        type: integer
+                    spaceType:
+                        default: global
+                        description: Type of spaces (global, personal)
+                        type: string
+                    status:
+                        default: current
+                        description: Space status (current, archived)
+                        type: string
+                required:
+                    - baseUrl
+                type: object
+            name: confluence-space-list
+            permissions:
+                - confluence:read
+                - confluence:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: productivity
+    description: Confluence wiki operations for Atlas agents
+    icon: book
+    id: skill-confluence
+    installers:
+        - id: oci
+          kind: oci
+          label: Confluence Skill service image
+          package: axiomstudio/skill-confluence:1.0.0
+    name: Confluence Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-confluence
+        resolvedVersion: 1.0.0
+    tags:
+        - atlassian
+        - confluence
+        - docs
+        - wiki
+    transport:
+        endpoint: skill-confluence
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
