@@ -1,28 +1,132 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
+apiVersion: openseal.dev/v1alpha1
+definition:
+  actions:
+    send_email:
+      credentials:
+      - kind: email-delivery
+        name: email-delivery
+      description: Send a reviewed email through the bound delivery identity.
+      emittedEventTypes:
+      - delivery.email.accepted
+      idempotency: required
+      inputSchema:
+        additionalProperties: false
+        properties:
+          artifactRefs:
+            items:
+              additionalProperties: false
+              properties:
+                id:
+                  maxLength: 256
+                  minLength: 1
+                  type: string
+                version:
+                  minimum: 1
+                  type: integer
+              required:
+              - id
+              - version
+              type: object
+            maxItems: 20
+            type: array
+            uniqueItems: true
+          body:
+            maxLength: 500000
+            minLength: 1
+            type: string
+          subject:
+            maxLength: 300
+            minLength: 1
+            type: string
+          to:
+            items:
+              format: email
+              maxLength: 320
+              pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+              type: string
+            maxItems: 20
+            minItems: 1
+            type: array
+            uniqueItems: true
+        required:
+        - to
+        - subject
+        - body
+        type: object
+      name: send_email
+      outputSchema:
+        additionalProperties: false
+        properties:
+          artifactRefs:
+            items:
+              additionalProperties: false
+              properties:
+                id:
+                  maxLength: 256
+                  minLength: 1
+                  type: string
+                version:
+                  minimum: 1
+                  type: integer
+              required:
+              - id
+              - version
+              type: object
+            maxItems: 20
+            type: array
+          deliveredAt:
+            format: date-time
+            type: string
+          receiptId:
+            maxLength: 512
+            minLength: 1
+            type: string
+          recipientCount:
+            maximum: 20
+            minimum: 1
+            type: integer
+          status:
+            enum:
+            - accepted
+            type: string
+        required:
+        - receiptId
+        - status
+        - recipientCount
+        - deliveredAt
+        - artifactRefs
+        type: object
+      permissions:
+      - communications:email:send
+      retry:
+        maxAttempts: 1
+      risk: external
+      semanticArguments:
+        body: body
+        target: to
+      sideEffect: external
+      timeout: 60000000000
+  description: Deliver reviewed messages and durable artifacts through authorized
+    channels.
   id: openseal.delivery
-  name: Governed Email Delivery
-  description: Deliver reviewed messages and durable artifacts through authorized email identities
-  author: OpenSeal Contributors
+  installers:
+  - id: oci
+    kind: oci
+    label: Governed delivery service image
+    package: axiomstudio/skill-openseal-delivery:1.1.0
+  name: Governed delivery
+  prompt:
+    allowedTools:
+    - send_email
+    instructions: Use send_email only for authorized recipients and reviewed outbound
+      communication. Preserve identity and affiliation policy, attach only durable
+      artifact references, and never claim delivery before the governed action returns
+      an accepted receipt.
+    userInvocable: true
+  requirements:
+    alwaysAvailable: true
+  transport:
+    endpoint: openseal.delivery
+    kind: tool
   version: 1.1.0
-  license: Apache-2.0
-  category: communication
-  tags: [email, smtp, delivery, artifact]
-  icon: mail
-spec:
-  executorType: grpc
-  credentialType: email-delivery
-  nodeTypes: [openseal.delivery]
-  inputs:
-    openseal.delivery:
-      - {name: to, type: array, required: true, source: input, items: {type: string}}
-      - {name: subject, type: string, required: true, source: input}
-      - {name: body, type: string, required: true, source: input}
-      - {name: artifactRefs, type: array, required: false, source: input, items: {type: object}}
-      - {name: email-delivery, type: string, required: true, source: connection, binding: credential://email-delivery}
-  grpc:
-    port: 50123
-    docker:
-      image: axiomstudio/skill-openseal-delivery:1.1.0
-  permissions: [communications:email:send, artifact:read]
+kind: SkillDefinition
