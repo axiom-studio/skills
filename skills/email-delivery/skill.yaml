@@ -115,7 +115,7 @@ definition:
   - id: oci
     kind: oci
     label: Governed delivery service image
-    package: axiomstudio/skill-openseal-delivery:1.1.0
+    package: axiomstudio/skill-openseal-delivery:1.2.1
   name: Governed delivery
   prompt:
     allowedTools:
@@ -135,5 +135,5 @@ definition:
   transport:
     endpoint: openseal.delivery
     kind: tool
-  version: 1.2.0
+  version: 1.2.1
 kind: SkillDefinition

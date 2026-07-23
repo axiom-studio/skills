@@ -21,7 +21,7 @@ import (
 
 const (
 	outreachSkillID      = "openseal.outreach"
-	outreachSkillVersion = "1.0.0"
+	outreachSkillVersion = "1.0.2"
 	outreachPostReply    = "post_reply"
 
 	outreachPolicyDecisionTransportKey = "_opensealOutreachPolicyDecision"

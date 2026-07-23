@@ -26,7 +26,7 @@ import (
 
 const (
 	emailDeliverySkillID           = "openseal.delivery"
-	emailDeliverySkillVersion      = "1.1.0"
+	emailDeliverySkillVersion      = "1.2.1"
 	emailDeliveryCredentialName    = "email-delivery"
 	emailDeliveryActionCallIDKey   = "_opensealDeliveryActionCallId"
 	emailDeliveryAttachmentsKey    = "_opensealEmailAttachments"

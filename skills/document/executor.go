@@ -11,7 +11,7 @@ import (
 
 const (
 	documentSkillID      = "openseal.document"
-	documentSkillVersion = "1.0.0"
+	documentSkillVersion = "1.0.2"
 	NodeTypeDocumentPDF  = documentSkillID
 )
 
