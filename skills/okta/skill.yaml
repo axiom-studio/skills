@@ -1,274 +1,355 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-okta
-  name: Okta Skill
-  description: Okta identity management operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: security
-  tags:
-    - okta
-    - identity
-    - sso
-    - authentication
-  icon: lock
-  color: "#007DC1"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - okta-user-list
-    - okta-user-create
-    - okta-user-update
-    - okta-user-deactivate
-    - okta-group-list
-    - okta-group-create
-    - okta-group-add-user
-    - okta-app-list
-    - okta-app-assign-user
-    - okta-mfa-enroll
-    - okta-session-revoke
-  inputs:
-    okta-user-list:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: search
-        type: string
-        description: Search query
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-    okta-user-create:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: login
-        type: string
-        description: User login
-        required: true
-        source: input
-      - name: email
-        type: string
-        description: User email
-        required: true
-        source: input
-      - name: firstName
-        type: string
-        description: First name
-        required: true
-        source: input
-      - name: lastName
-        type: string
-        description: Last name
-        required: true
-        source: input
-      - name: password
-        type: string
-        description: Initial password
-        required: false
-        source: connection
-        binding: vault://okta-credentials
-      - name: groups
-        items:
-          type: string
-        description: Group IDs to add
-        required: false
-        source: input
-    okta-user-update:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-    okta-user-deactivate:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-    okta-group-list:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-    okta-group-create:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: name
-        type: string
-        description: Group name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Group description
-        required: false
-        source: input
-    okta-group-add-user:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: groupId
-        type: string
-        description: Group ID
-        required: true
-        source: input
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-    okta-app-list:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-    okta-app-assign-user:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: appId
-        type: string
-        description: Application ID
-        required: true
-        source: input
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-    okta-mfa-enroll:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-      - name: factorType
-        type: string
-        description: MFA factor type
-        required: true
-        source: input
-    okta-session-revoke:
-      - name: orgUrl
-        type: string
-        description: Okta organization URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Okta API token
-        required: true
-        source: connection
-        binding: vault://okta-credentials
-      - name: userId
-        type: string
-        description: User ID
-        required: true
-        source: input
-  grpc:
-    port: 50093
-    docker:
-      image: axiomstudio/skill-okta:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - okta:read
-    - okta:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        okta-app-assign-user:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta App Assign User
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    appId:
+                        description: Application ID
+                        type: string
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - appId
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-app-assign-user
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        okta-app-list:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta App List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                required:
+                    - orgUrl
+                type: object
+            name: okta-app-list
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        okta-group-add-user:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta Group Add User
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    groupId:
+                        description: Group ID
+                        type: string
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - groupId
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-group-add-user
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        okta-group-create:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta Group Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: Group description
+                        type: string
+                    name:
+                        description: Group name
+                        type: string
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                required:
+                    - name
+                    - orgUrl
+                type: object
+            name: okta-group-create
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        okta-group-list:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta Group List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                required:
+                    - orgUrl
+                type: object
+            name: okta-group-list
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        okta-mfa-enroll:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta Mfa Enroll
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    factorType:
+                        description: MFA factor type
+                        type: string
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - factorType
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-mfa-enroll
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        okta-session-revoke:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta Session Revoke
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-session-revoke
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        okta-user-create:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta User Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    email:
+                        description: User email
+                        type: string
+                    firstName:
+                        description: First name
+                        type: string
+                    groups:
+                        description: Group IDs to add
+                        type: string
+                    lastName:
+                        description: Last name
+                        type: string
+                    login:
+                        description: User login
+                        type: string
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                required:
+                    - email
+                    - firstName
+                    - lastName
+                    - login
+                    - orgUrl
+                type: object
+            name: okta-user-create
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        okta-user-deactivate:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta User Deactivate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-user-deactivate
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        okta-user-list:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta User List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        description: Max results
+                        type: integer
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    search:
+                        description: Search query
+                        type: string
+                required:
+                    - orgUrl
+                type: object
+            name: okta-user-list
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        okta-user-update:
+            credentials:
+                - kind: okta-credential
+                  name: okta-credential
+            description: Okta User Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgUrl:
+                        description: Okta organization URL
+                        type: string
+                    userId:
+                        description: User ID
+                        type: string
+                required:
+                    - orgUrl
+                    - userId
+                type: object
+            name: okta-user-update
+            permissions:
+                - okta:read
+                - okta:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: security
+    description: Okta identity management operations for Atlas agents
+    icon: lock
+    id: skill-okta
+    installers:
+        - id: oci
+          kind: oci
+          label: Okta Skill service image
+          package: axiomstudio/skill-okta:1.0.0
+    name: Okta Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-okta
+        resolvedVersion: 1.0.0
+    tags:
+        - authentication
+        - identity
+        - okta
+        - sso
+    transport:
+        endpoint: skill-okta
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

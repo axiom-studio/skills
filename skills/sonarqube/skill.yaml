@@ -1,212 +1,267 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-sonarqube
-  name: SonarQube Skill
-  description: SonarQube code quality analysis for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: security
-  tags:
-    - sonarqube
-    - code-quality
-    - analysis
-    - security
-  icon: search
-  color: "#4E9BCD"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - sonar-project-list
-    - sonar-scan
-    - sonar-issues-list
-    - sonar-issue-assign
-    - sonar-quality-gate
-    - sonar-measures
-    - sonar-rules-list
-    - sonar-branches-list
-  inputs:
-    sonar-project-list:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: organization
-        type: string
-        description: Organization key
-        required: false
-        source: input
-    sonar-scan:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: projectKey
-        type: string
-        description: Project key
-        required: true
-        source: input
-      - name: branch
-        type: string
-        description: Branch name
-        required: false
-        source: input
-    sonar-issues-list:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: projectKey
-        type: string
-        description: Project key
-        required: true
-        source: input
-      - name: severities
-        items:
-          type: string
-        description: Filter by severities
-        required: false
-        source: input
-      - name: types
-        items:
-          type: string
-        description: Filter by types
-        required: false
-        source: input
-      - name: statuses
-        items:
-          type: string
-        description: Filter by statuses
-        required: false
-        source: input
-    sonar-issue-assign:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: issueKey
-        type: string
-        description: Issue key
-        required: true
-        source: input
-      - name: assignee
-        type: string
-        description: Assignee user
-        required: true
-        source: input
-    sonar-quality-gate:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: projectKey
-        type: string
-        description: Project key
-        required: true
-        source: input
-    sonar-measures:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: projectKey
-        type: string
-        description: Project key
-        required: true
-        source: input
-      - name: metrics
-        items:
-          type: string
-        description: Metrics to retrieve
-        required: false
-        source: input
-    sonar-rules-list:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: repository
-        type: string
-        description: Rules repository
-        required: false
-        source: input
-    sonar-branches-list:
-      - name: url
-        type: string
-        description: SonarQube URL
-        required: true
-        source: input
-      - name: token
-        type: string
-        description: SonarQube token
-        required: true
-        source: connection
-        binding: vault://sonarqube-credentials
-      - name: projectKey
-        type: string
-        description: Project key
-        required: true
-        source: input
-  grpc:
-    port: 50096
-    docker:
-      image: axiomstudio/skill-sonarqube:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - sonarqube:read
-    - sonarqube:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        sonar-branches-list:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Branches List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectKey:
+                        description: Project key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - projectKey
+                    - url
+                type: object
+            name: sonar-branches-list
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sonar-issue-assign:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Issue Assign
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    assignee:
+                        description: Assignee user
+                        type: string
+                    issueKey:
+                        description: Issue key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - assignee
+                    - issueKey
+                    - url
+                type: object
+            name: sonar-issue-assign
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sonar-issues-list:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Issues List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectKey:
+                        description: Project key
+                        type: string
+                    severities:
+                        description: Filter by severities
+                        type: string
+                    statuses:
+                        description: Filter by statuses
+                        type: string
+                    types:
+                        description: Filter by types
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - projectKey
+                    - url
+                type: object
+            name: sonar-issues-list
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sonar-measures:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Measures
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    metrics:
+                        description: Metrics to retrieve
+                        type: string
+                    projectKey:
+                        description: Project key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - projectKey
+                    - url
+                type: object
+            name: sonar-measures
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sonar-project-list:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    organization:
+                        description: Organization key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: sonar-project-list
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sonar-quality-gate:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Quality Gate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectKey:
+                        description: Project key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - projectKey
+                    - url
+                type: object
+            name: sonar-quality-gate
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sonar-rules-list:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Rules List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    repository:
+                        description: Rules repository
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: sonar-rules-list
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sonar-scan:
+            credentials:
+                - kind: sonarqube-credential
+                  name: sonarqube-credential
+            description: Sonar Scan
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    branch:
+                        description: Branch name
+                        type: string
+                    projectKey:
+                        description: Project key
+                        type: string
+                    url:
+                        description: SonarQube URL
+                        type: string
+                required:
+                    - projectKey
+                    - url
+                type: object
+            name: sonar-scan
+            permissions:
+                - sonarqube:read
+                - sonarqube:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: security
+    description: SonarQube code quality analysis for Atlas agents
+    icon: search
+    id: skill-sonarqube
+    installers:
+        - id: oci
+          kind: oci
+          label: SonarQube Skill service image
+          package: axiomstudio/skill-sonarqube:1.0.0
+    name: SonarQube Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-sonarqube
+        resolvedVersion: 1.0.0
+    tags:
+        - analysis
+        - code-quality
+        - security
+        - sonarqube
+    transport:
+        endpoint: skill-sonarqube
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

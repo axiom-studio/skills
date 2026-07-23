@@ -1,299 +1,416 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-slack
-  name: Slack Skill
-  description: Send messages and interact with Slack channels
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: communication
-  tags:
-    - slack
-    - notifications
-    - messaging
-    - chat
-  icon: message-circle
-  color: "#4A154B"
-spec:
-  executorType: grpc
-  credentialType: slack_bot_token
-  nodeTypes:
-    - slack-send-message
-    - slack-read-messages
-    - slack-channel-list
-    - slack-add-reaction
-    - slack-remove-reaction
-    - slack-update-message
-    - slack-delete-message
-    - slack-create-channel
-    - slack-rename-channel
-    - slack-archive-channel
-    - slack-set-channel-topic
-    - slack-set-channel-purpose
-    - slack-send-ephemeral-message
-    - slack-list-users
-  inputs:
-    slack-send-message:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: message
-        type: string
-        description: Message text to send
-        required: true
-        source: input
-      - name: threadTs
-        type: string
-        description: Thread timestamp for replying in a thread
-        required: false
-        source: input
-    slack-read-messages:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: limit
-        type: integer
-        description: Maximum number of messages to retrieve
-        required: false
-        source: input
-        default: 10
-    slack-channel-list:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: types
-        type: string
-        description: Channel types to filter (public_channel, private_channel)
-        required: false
-        source: input
-    slack-add-reaction:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: timestamp
-        type: string
-        description: Message timestamp to react to
-        required: true
-        source: input
-      - name: emoji
-        type: string
-        description: Reaction emoji name
-        required: true
-        source: input
-    slack-remove-reaction:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: timestamp
-        type: string
-        description: Message timestamp to remove reaction from
-        required: true
-        source: input
-      - name: emoji
-        type: string
-        description: Reaction emoji name
-        required: true
-        source: input
-    slack-update-message:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: timestamp
-        type: string
-        description: Message timestamp to update
-        required: true
-        source: input
-      - name: text
-        type: string
-        description: New message text
-        required: true
-        source: input
-    slack-delete-message:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: timestamp
-        type: string
-        description: Message timestamp to delete
-        required: true
-        source: input
-    slack-create-channel:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: name
-        type: string
-        description: New channel name
-        required: true
-        source: input
-      - name: isPrivate
-        type: boolean
-        description: Create as private channel
-        required: false
-        source: input
-        default: false
-    slack-rename-channel:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: New channel name
-        required: true
-        source: input
-    slack-archive-channel:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-    slack-set-channel-topic:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: topic
-        type: string
-        description: New channel topic
-        required: true
-        source: input
-    slack-set-channel-purpose:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: purpose
-        type: string
-        description: New channel purpose
-        required: true
-        source: input
-    slack-send-ephemeral-message:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: channel
-        type: string
-        description: Slack channel ID or name
-        required: true
-        source: input
-      - name: user
-        type: string
-        description: User ID to receive the ephemeral message
-        required: true
-        source: input
-      - name: text
-        type: string
-        description: Message text
-        required: true
-        source: input
-    slack-list-users:
-      - name: token
-        type: string
-        description: Slack Bot User OAuth Token
-        required: true
-        source: connection
-        binding: vault://slack-credentials
-      - name: limit
-        type: integer
-        description: Maximum number of users to return
-        required: false
-        source: input
-        default: 100
-  grpc:
-    port: 50054
-    docker:
-      image: axiomstudio/skill-slack:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - slack:read
-    - slack:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        slack-add-reaction:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Add Reaction
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    emoji:
+                        description: Reaction emoji name
+                        type: string
+                    timestamp:
+                        description: Message timestamp to react to
+                        type: string
+                required:
+                    - channel
+                    - emoji
+                    - timestamp
+                type: object
+            name: slack-add-reaction
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-archive-channel:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Archive Channel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                required:
+                    - channel
+                type: object
+            name: slack-archive-channel
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-channel-list:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Channel List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    types:
+                        description: Channel types to filter (public_channel, private_channel)
+                        type: string
+                type: object
+            name: slack-channel-list
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        slack-create-channel:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Create Channel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    isPrivate:
+                        default: false
+                        description: Create as private channel
+                        type: boolean
+                    name:
+                        description: New channel name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: slack-create-channel
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-delete-message:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Delete Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    timestamp:
+                        description: Message timestamp to delete
+                        type: string
+                required:
+                    - channel
+                    - timestamp
+                type: object
+            name: slack-delete-message
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        slack-list-users:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack List Users
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    limit:
+                        default: 100
+                        description: Maximum number of users to return
+                        type: integer
+                type: object
+            name: slack-list-users
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        slack-read-messages:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Read Messages
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    limit:
+                        default: 10
+                        description: Maximum number of messages to retrieve
+                        type: integer
+                required:
+                    - channel
+                type: object
+            name: slack-read-messages
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        slack-remove-reaction:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Remove Reaction
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    emoji:
+                        description: Reaction emoji name
+                        type: string
+                    timestamp:
+                        description: Message timestamp to remove reaction from
+                        type: string
+                required:
+                    - channel
+                    - emoji
+                    - timestamp
+                type: object
+            name: slack-remove-reaction
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-rename-channel:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Rename Channel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    name:
+                        description: New channel name
+                        type: string
+                required:
+                    - channel
+                    - name
+                type: object
+            name: slack-rename-channel
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-send-ephemeral-message:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Send Ephemeral Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    text:
+                        description: Message text
+                        type: string
+                    user:
+                        description: User ID to receive the ephemeral message
+                        type: string
+                required:
+                    - channel
+                    - text
+                    - user
+                type: object
+            name: slack-send-ephemeral-message
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-send-message:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Send Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    message:
+                        description: Message text to send
+                        type: string
+                    threadTs:
+                        description: Thread timestamp for replying in a thread
+                        type: string
+                required:
+                    - channel
+                    - message
+                type: object
+            name: slack-send-message
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-set-channel-purpose:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Set Channel Purpose
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    purpose:
+                        description: New channel purpose
+                        type: string
+                required:
+                    - channel
+                    - purpose
+                type: object
+            name: slack-set-channel-purpose
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-set-channel-topic:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Set Channel Topic
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    topic:
+                        description: New channel topic
+                        type: string
+                required:
+                    - channel
+                    - topic
+                type: object
+            name: slack-set-channel-topic
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        slack-update-message:
+            credentials:
+                - kind: slack_bot_token
+                  name: slack_bot_token
+            description: Slack Update Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    channel:
+                        description: Slack channel ID or name
+                        type: string
+                    text:
+                        description: New message text
+                        type: string
+                    timestamp:
+                        description: Message timestamp to update
+                        type: string
+                required:
+                    - channel
+                    - text
+                    - timestamp
+                type: object
+            name: slack-update-message
+            permissions:
+                - slack:read
+                - slack:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: communication
+    description: Send messages and interact with Slack channels
+    icon: message-circle
+    id: skill-slack
+    installers:
+        - id: oci
+          kind: oci
+          label: Slack Skill service image
+          package: axiomstudio/skill-slack:1.0.0
+    name: Slack Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-slack
+        resolvedVersion: 1.0.0
+    tags:
+        - chat
+        - messaging
+        - notifications
+        - slack
+    transport:
+        endpoint: skill-slack
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

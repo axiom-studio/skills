@@ -1,257 +1,261 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-paypal
-  name: PayPal Skill
-  description: PayPal payment operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: finance
-  tags:
-    - paypal
-    - payments
-    - finance
-    - transactions
-  icon: credit-card
-  color: "#003087"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - paypal-order-create
-    - paypal-order-capture
-    - paypal-order-get
-    - paypal-payment-list
-    - paypal-refund
-    - paypal-payout
-    - paypal-transaction-list
-    - paypal-invoice-create
-  inputs:
-    paypal-order-create:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: intent
-        type: string
-        description: Order intent (CAPTURE, AUTHORIZE)
-        required: false
-        source: input
-        default: "CAPTURE"
-      - name: amount
-        type: string
-        description: Amount (e.g., "99.99")
-        required: true
-        source: input
-      - name: currency
-        type: string
-        description: Currency code
-        required: false
-        source: input
-        default: "USD"
-      - name: description
-        type: string
-        description: Order description
-        required: false
-        source: input
-    paypal-order-capture:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: orderId
-        type: string
-        description: Order ID
-        required: true
-        source: input
-    paypal-order-get:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: orderId
-        type: string
-        description: Order ID
-        required: true
-        source: input
-    paypal-payment-list:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-    paypal-refund:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: captureId
-        type: string
-        description: Capture ID to refund
-        required: true
-        source: input
-      - name: amount
-        type: string
-        description: Refund amount
-        required: false
-        source: input
-      - name: reason
-        type: string
-        description: Refund reason
-        required: false
-        source: input
-    paypal-payout:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: payouts
-        items:
-          type: string
-        description: Payout items
-        required: true
-        source: input
-    paypal-transaction-list:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-    paypal-invoice-create:
-      - name: clientId
-        type: string
-        description: PayPal client ID
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: clientSecret
-        type: string
-        description: PayPal client secret
-        required: true
-        source: connection
-        binding: vault://paypal-credentials
-      - name: sandbox
-        type: boolean
-        description: Use sandbox environment
-        required: false
-        source: default
-        default: false
-      - name: toEmail
-        type: string
-        description: Recipient email
-        required: true
-        source: input
-      - name: amount
-        type: string
-        description: Invoice amount
-        required: true
-        source: input
-  grpc:
-    port: 50116
-    docker:
-      image: axiomstudio/skill-paypal:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - paypal:read
-    - paypal:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        paypal-invoice-create:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Invoice Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Invoice amount
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                    toEmail:
+                        description: Recipient email
+                        type: string
+                required:
+                    - amount
+                    - toEmail
+                type: object
+            name: paypal-invoice-create
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        paypal-order-capture:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Order Capture
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orderId:
+                        description: Order ID
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                required:
+                    - orderId
+                type: object
+            name: paypal-order-capture
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        paypal-order-create:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Order Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Amount (e.g., "99.99")
+                        type: string
+                    currency:
+                        default: USD
+                        description: Currency code
+                        type: string
+                    description:
+                        description: Order description
+                        type: string
+                    intent:
+                        default: CAPTURE
+                        description: Order intent (CAPTURE, AUTHORIZE)
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                required:
+                    - amount
+                type: object
+            name: paypal-order-create
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        paypal-order-get:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Order Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orderId:
+                        description: Order ID
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                required:
+                    - orderId
+                type: object
+            name: paypal-order-get
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        paypal-payment-list:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Payment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                type: object
+            name: paypal-payment-list
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        paypal-payout:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Payout
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    payouts:
+                        description: Payout items
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                required:
+                    - payouts
+                type: object
+            name: paypal-payout
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        paypal-refund:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Refund
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    amount:
+                        description: Refund amount
+                        type: string
+                    captureId:
+                        description: Capture ID to refund
+                        type: string
+                    reason:
+                        description: Refund reason
+                        type: string
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                required:
+                    - captureId
+                type: object
+            name: paypal-refund
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        paypal-transaction-list:
+            credentials:
+                - kind: paypal-credential
+                  name: paypal-credential
+            description: Paypal Transaction List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    sandbox:
+                        default: false
+                        description: Use sandbox environment
+                        type: boolean
+                type: object
+            name: paypal-transaction-list
+            permissions:
+                - paypal:read
+                - paypal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: finance
+    description: PayPal payment operations for Atlas agents
+    icon: credit-card
+    id: skill-paypal
+    installers:
+        - id: oci
+          kind: oci
+          label: PayPal Skill service image
+          package: axiomstudio/skill-paypal:1.0.0
+    name: PayPal Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-paypal
+        resolvedVersion: 1.0.0
+    tags:
+        - finance
+        - payments
+        - paypal
+        - transactions
+    transport:
+        endpoint: skill-paypal
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

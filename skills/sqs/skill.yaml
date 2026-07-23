@@ -1,313 +1,317 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-sqs
-  name: AWS SQS Skill
-  description: AWS Simple Queue Service operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: messaging
-  tags:
-    - sqs
-    - aws
-    - queue
-    - messaging
-  icon: mail
-  color: "#FF9900"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - sqs-send-message
-    - sqs-receive-message
-    - sqs-delete-message
-    - sqs-queue-create
-    - sqs-queue-list
-    - sqs-queue-delete
-    - sqs-queue-purge
-    - sqs-queue-attributes
-    - sqs-dead-letter-queue
-  inputs:
-    sqs-send-message:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-      - name: messageBody
-        type: string
-        description: Message body
-        required: true
-        source: input
-      - name: delaySeconds
-        type: integer
-        description: Delay in seconds
-        required: false
-        source: input
-      - name: messageAttributes
-        type: object
-        description: Message attributes
-        required: false
-        source: input
-      - name: groupId
-        type: string
-        description: FIFO group ID
-        required: false
-        source: input
-    sqs-receive-message:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-      - name: maxNumberOfMessages
-        type: integer
-        description: Max messages (1-10)
-        required: false
-        source: input
-        default: 1
-      - name: waitTimeSeconds
-        type: integer
-        description: Long polling wait time
-        required: false
-        source: input
-      - name: visibilityTimeout
-        type: integer
-        description: Visibility timeout
-        required: false
-        source: input
-    sqs-delete-message:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-      - name: receiptHandle
-        type: string
-        description: Receipt handle
-        required: true
-        source: input
-    sqs-queue-create:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueName
-        type: string
-        description: Queue name
-        required: true
-        source: input
-      - name: fifo
-        type: boolean
-        description: FIFO queue
-        required: false
-        source: default
-        default: false
-      - name: delaySeconds
-        type: integer
-        description: Default delay
-        required: false
-        source: input
-      - name: visibilityTimeout
-        type: integer
-        description: Default visibility timeout
-        required: false
-        source: input
-    sqs-queue-list:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-    sqs-queue-delete:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-    sqs-queue-purge:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-    sqs-queue-attributes:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-    sqs-dead-letter-queue:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://sqs-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: true
-        source: input
-      - name: queueUrl
-        type: string
-        description: Queue URL
-        required: true
-        source: input
-      - name: dlqUrl
-        type: string
-        description: Dead letter queue URL
-        required: false
-        source: input
-      - name: maxReceiveCount
-        type: integer
-        description: Max receive count
-        required: false
-        source: input
-        default: 10
-  grpc:
-    port: 50092
-    docker:
-      image: axiomstudio/skill-sqs:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - sqs:read
-    - sqs:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        sqs-dead-letter-queue:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Dead Letter Queue
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    dlqUrl:
+                        description: Dead letter queue URL
+                        type: string
+                    maxReceiveCount:
+                        default: 10
+                        description: Max receive count
+                        type: integer
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-dead-letter-queue
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sqs-delete-message:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Delete Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    receiptHandle:
+                        description: Receipt handle
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - queueUrl
+                    - receiptHandle
+                    - region
+                type: object
+            name: sqs-delete-message
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        sqs-queue-attributes:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Queue Attributes
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-queue-attributes
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sqs-queue-create:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Queue Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    delaySeconds:
+                        description: Default delay
+                        type: integer
+                    fifo:
+                        default: false
+                        description: FIFO queue
+                        type: boolean
+                    queueName:
+                        description: Queue name
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                    visibilityTimeout:
+                        description: Default visibility timeout
+                        type: integer
+                required:
+                    - queueName
+                    - region
+                type: object
+            name: sqs-queue-create
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sqs-queue-delete:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Queue Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-queue-delete
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        sqs-queue-list:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Queue List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - region
+                type: object
+            name: sqs-queue-list
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        sqs-queue-purge:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Queue Purge
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-queue-purge
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        sqs-receive-message:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Receive Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    maxNumberOfMessages:
+                        default: 1
+                        description: Max messages (1-10)
+                        type: integer
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                    visibilityTimeout:
+                        description: Visibility timeout
+                        type: integer
+                    waitTimeSeconds:
+                        description: Long polling wait time
+                        type: integer
+                required:
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-receive-message
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        sqs-send-message:
+            credentials:
+                - kind: sqs-credential
+                  name: sqs-credential
+            description: Sqs Send Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    delaySeconds:
+                        description: Delay in seconds
+                        type: integer
+                    groupId:
+                        description: FIFO group ID
+                        type: string
+                    messageAttributes:
+                        description: Message attributes
+                        type: object
+                    messageBody:
+                        description: Message body
+                        type: string
+                    queueUrl:
+                        description: Queue URL
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - messageBody
+                    - queueUrl
+                    - region
+                type: object
+            name: sqs-send-message
+            permissions:
+                - sqs:read
+                - sqs:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: messaging
+    description: AWS Simple Queue Service operations for Atlas agents
+    icon: mail
+    id: skill-sqs
+    installers:
+        - id: oci
+          kind: oci
+          label: AWS SQS Skill service image
+          package: axiomstudio/skill-sqs:1.0.0
+    name: AWS SQS Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-sqs
+        resolvedVersion: 1.0.0
+    tags:
+        - aws
+        - messaging
+        - queue
+        - sqs
+    transport:
+        endpoint: skill-sqs
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

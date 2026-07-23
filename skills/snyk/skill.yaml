@@ -1,158 +1,230 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-snyk
-  name: Snyk Skill
-  description: Snyk security vulnerability scanning for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: security
-  tags:
-    - snyk
-    - security
-    - vulnerability
-    - scanning
-  icon: shield
-  color: "#4C4A73"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - snyk-project-list
-    - snyk-project-scan
-    - snyk-issue-list
-    - snyk-issue-ignore
-    - snyk-test-deps
-    - snyk-monitor
-    - snyk-severity-list
-    - snyk-license-list
-  inputs:
-    snyk-project-list:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: orgId
-        type: string
-        description: Organization ID
-        required: false
-        source: input
-    snyk-project-scan:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    snyk-issue-list:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: severity
-        type: string
-        description: Filter by severity
-        required: false
-        source: input
-    snyk-issue-ignore:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: issueId
-        type: string
-        description: Issue ID
-        required: true
-        source: input
-      - name: reason
-        type: string
-        description: Ignore reason
-        required: true
-        source: input
-      - name: expires
-        type: string
-        description: Expiry date
-        required: false
-        source: input
-    snyk-test-deps:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    snyk-monitor:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    snyk-severity-list:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    snyk-license-list:
-      - name: apiToken
-        type: string
-        description: Snyk API token
-        required: true
-        source: connection
-        binding: vault://snyk-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-  grpc:
-    port: 50095
-    docker:
-      image: axiomstudio/skill-snyk:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - snyk:read
-    - snyk:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        snyk-issue-ignore:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Issue Ignore
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    expires:
+                        description: Expiry date
+                        type: string
+                    issueId:
+                        description: Issue ID
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    reason:
+                        description: Ignore reason
+                        type: string
+                required:
+                    - issueId
+                    - projectId
+                    - reason
+                type: object
+            name: snyk-issue-ignore
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        snyk-issue-list:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Issue List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                    severity:
+                        description: Filter by severity
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-issue-list
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        snyk-license-list:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk License List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-license-list
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        snyk-monitor:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Monitor
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-monitor
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        snyk-project-list:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    orgId:
+                        description: Organization ID
+                        type: string
+                type: object
+            name: snyk-project-list
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        snyk-project-scan:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Project Scan
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-project-scan
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        snyk-severity-list:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Severity List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-severity-list
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        snyk-test-deps:
+            credentials:
+                - kind: snyk-credential
+                  name: snyk-credential
+            description: Snyk Test Deps
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: snyk-test-deps
+            permissions:
+                - snyk:read
+                - snyk:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: security
+    description: Snyk security vulnerability scanning for Atlas agents
+    icon: shield
+    id: skill-snyk
+    installers:
+        - id: oci
+          kind: oci
+          label: Snyk Skill service image
+          package: axiomstudio/skill-snyk:1.0.0
+    name: Snyk Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-snyk
+        resolvedVersion: 1.0.0
+    tags:
+        - scanning
+        - security
+        - snyk
+        - vulnerability
+    transport:
+        endpoint: skill-snyk
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

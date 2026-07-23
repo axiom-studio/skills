@@ -1,402 +1,328 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-temporal
-  name: Temporal Skill
-  description: Temporal workflow orchestration for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - temporal
-    - workflow
-    - orchestration
-    - durable
-  icon: repeat
-  color: "#017CEE"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - temporal-workflow-start
-    - temporal-workflow-list
-    - temporal-workflow-get
-    - temporal-workflow-cancel
-    - temporal-workflow-terminate
-    - temporal-signal-send
-    - temporal-query
-    - temporal-search-attributes
-  inputs:
-    temporal-workflow-start:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-        default: "default"
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: workflowType
-        type: string
-        description: Workflow type name
-        required: true
-        source: input
-      - name: taskQueue
-        type: string
-        description: Task queue name
-        required: true
-        source: input
-      - name: input
-        items:
-          type: string
-        description: Workflow input arguments
-        required: false
-        source: input
-      - name: runTimeout
-        type: string
-        description: Run timeout
-        required: false
-        source: input
-      - name: workflowTimeout
-        type: string
-        description: Workflow timeout
-        required: false
-        source: input
-      - name: taskTimeout
-        type: string
-        description: Task timeout
-        required: false
-        source: input
-      - name: retryPolicy
-        type: object
-        description: Retry policy configuration
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-workflow-list:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: query
-        type: string
-        description: SQL-like query filter
-        required: false
-        source: input
-      - name: pageSize
-        type: integer
-        description: Page size
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-workflow-get:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: runId
-        type: string
-        description: Run ID
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-workflow-cancel:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: runId
-        type: string
-        description: Run ID
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-workflow-terminate:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: runId
-        type: string
-        description: Run ID
-        required: false
-        source: input
-      - name: reason
-        type: string
-        description: Termination reason
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-signal-send:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: runId
-        type: string
-        description: Run ID
-        required: false
-        source: input
-      - name: signalName
-        type: string
-        description: Signal name
-        required: true
-        source: input
-      - name: signalData
-        type: string
-        description: Signal data
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-query:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: workflowId
-        type: string
-        description: Workflow ID
-        required: true
-        source: input
-      - name: runId
-        type: string
-        description: Run ID
-        required: false
-        source: input
-      - name: queryType
-        type: string
-        description: Query type (e.g., __stack_trace)
-        required: true
-        source: input
-      - name: queryArgs
-        items:
-          type: string
-        description: Query arguments
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-    temporal-search-attributes:
-      - name: address
-        type: string
-        description: Temporal server address
-        required: true
-        source: input
-      - name: namespace
-        type: string
-        description: Namespace
-        required: false
-        source: input
-      - name: clientCert
-        type: string
-        description: Client certificate for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: clientKey
-        type: string
-        description: Client key for mTLS
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-      - name: apiKey
-        type: string
-        description: API key
-        required: false
-        source: connection
-        binding: vault://temporal-credentials
-  grpc:
-    port: 50129
-    docker:
-      image: axiomstudio/skill-temporal:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - temporal:read
-    - temporal:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        temporal-query:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Query
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    queryArgs:
+                        description: Query arguments
+                        type: string
+                    queryType:
+                        description: Query type (e.g., __stack_trace)
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - address
+                    - queryType
+                    - workflowId
+                type: object
+            name: temporal-query
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        temporal-search-attributes:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Search Attributes
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                required:
+                    - address
+                type: object
+            name: temporal-search-attributes
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        temporal-signal-send:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Signal Send
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    signalData:
+                        description: Signal data
+                        type: string
+                    signalName:
+                        description: Signal name
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - address
+                    - signalName
+                    - workflowId
+                type: object
+            name: temporal-signal-send
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        temporal-workflow-cancel:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Workflow Cancel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - address
+                    - workflowId
+                type: object
+            name: temporal-workflow-cancel
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        temporal-workflow-get:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Workflow Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - address
+                    - workflowId
+                type: object
+            name: temporal-workflow-get
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        temporal-workflow-list:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Workflow List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    pageSize:
+                        description: Page size
+                        type: integer
+                    query:
+                        description: SQL-like query filter
+                        type: string
+                required:
+                    - address
+                type: object
+            name: temporal-workflow-list
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        temporal-workflow-start:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Workflow Start
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    input:
+                        description: Workflow input arguments
+                        type: string
+                    namespace:
+                        default: default
+                        description: Namespace
+                        type: string
+                    retryPolicy:
+                        description: Retry policy configuration
+                        type: object
+                    runTimeout:
+                        description: Run timeout
+                        type: string
+                    taskQueue:
+                        description: Task queue name
+                        type: string
+                    taskTimeout:
+                        description: Task timeout
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                    workflowTimeout:
+                        description: Workflow timeout
+                        type: string
+                    workflowType:
+                        description: Workflow type name
+                        type: string
+                required:
+                    - address
+                    - taskQueue
+                    - workflowId
+                    - workflowType
+                type: object
+            name: temporal-workflow-start
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        temporal-workflow-terminate:
+            credentials:
+                - kind: temporal-credential
+                  name: temporal-credential
+            description: Temporal Workflow Terminate
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    address:
+                        description: Temporal server address
+                        type: string
+                    namespace:
+                        description: Namespace
+                        type: string
+                    reason:
+                        description: Termination reason
+                        type: string
+                    runId:
+                        description: Run ID
+                        type: string
+                    workflowId:
+                        description: Workflow ID
+                        type: string
+                required:
+                    - address
+                    - workflowId
+                type: object
+            name: temporal-workflow-terminate
+            permissions:
+                - temporal:read
+                - temporal:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+    category: devops
+    description: Temporal workflow orchestration for Atlas agents
+    icon: repeat
+    id: skill-temporal
+    installers:
+        - id: oci
+          kind: oci
+          label: Temporal Skill service image
+          package: axiomstudio/skill-temporal:1.0.0
+    name: Temporal Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-temporal
+        resolvedVersion: 1.0.0
+    tags:
+        - durable
+        - orchestration
+        - temporal
+        - workflow
+    transport:
+        endpoint: skill-temporal
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

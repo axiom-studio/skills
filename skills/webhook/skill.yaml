@@ -1,150 +1,167 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-webhook
-  name: Webhook Skill
-  description: Webhook triggers and actions for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: integration
-  tags:
-    - webhook
-    - http
-    - api
-    - trigger
-  icon: link
-  color: "#10B981"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - webhook-trigger
-    - webhook-send
-    - webhook-parse
-    - webhook-signature
-  inputs:
-    webhook-trigger:
-      - name: endpoint
-        type: string
-        description: Webhook endpoint path
-        required: true
-        source: input
-      - name: method
-        type: string
-        description: HTTP method
-        required: false
-        source: input
-        default: "POST"
-      - name: headers
-        type: object
-        description: Expected headers
-        required: false
-        source: input
-      - name: timeout
-        type: string
-        description: Request timeout
-        required: false
-        source: input
-        default: "30s"
-    webhook-send:
-      - name: url
-        type: string
-        description: Target webhook URL
-        required: true
-        source: input
-      - name: method
-        type: string
-        description: HTTP method
-        required: false
-        source: input
-        default: "POST"
-      - name: headers
-        type: object
-        description: Custom headers
-        required: false
-        source: input
-      - name: body
-        type: object
-        description: Request body
-        required: false
-        source: input
-      - name: timeout
-        type: string
-        description: Request timeout
-        required: false
-        source: input
-      - name: retryCount
-        type: integer
-        description: Number of retries
-        required: false
-        source: input
-        default: 0
-      - name: authToken
-        type: string
-        description: Authentication token for target
-        required: false
-        source: connection
-        binding: vault://webhook-credentials
-    webhook-parse:
-      - name: payload
-        type: string
-        description: JSON payload to parse
-        required: true
-        source: input
-      - name: schema
-        type: object
-        description: JSON schema for validation
-        required: false
-        source: input
-      - name: extractFields
-        items:
-          type: string
-        description: Fields to extract from payload
-        required: false
-        source: input
-    webhook-signature:
-      - name: signature
-        type: string
-        description: Signature from headers
-        required: true
-        source: input
-      - name: secret
-        type: string
-        description: Shared secret for verification
-        required: true
-        source: connection
-        binding: vault://webhook-credentials
-      - name: algorithm
-        type: string
-        description: Hash algorithm
-        required: false
-        source: input
-        default: "sha256"
-      - name: headerName
-        type: string
-        description: Header containing signature
-        required: false
-        source: input
-      - name: timestampHeader
-        type: string
-        description: Header containing timestamp
-        required: false
-        source: input
-      - name: timestampTolerance
-        type: string
-        description: Allowed timestamp drift
-        required: false
-        source: input
-  grpc:
-    port: 50053
-    docker:
-      image: axiomstudio/skill-webhook:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - http:send
-    - webhook:receive
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        webhook-parse:
+            description: Webhook Parse
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    extractFields:
+                        description: Fields to extract from payload
+                        type: string
+                    payload:
+                        description: JSON payload to parse
+                        type: string
+                    schema:
+                        description: JSON schema for validation
+                        type: object
+                required:
+                    - payload
+                type: object
+            name: webhook-parse
+            permissions:
+                - http:send
+                - webhook:receive
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        webhook-send:
+            credentials:
+                - kind: webhook-credential
+                  name: webhook-credential
+            description: Webhook Send
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    body:
+                        description: Request body
+                        type: object
+                    headers:
+                        description: Custom headers
+                        type: object
+                    method:
+                        default: POST
+                        description: HTTP method
+                        type: string
+                    retryCount:
+                        default: 0
+                        description: Number of retries
+                        type: integer
+                    timeout:
+                        description: Request timeout
+                        type: string
+                    url:
+                        description: Target webhook URL
+                        type: string
+                required:
+                    - url
+                type: object
+            name: webhook-send
+            permissions:
+                - http:send
+                - webhook:receive
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        webhook-signature:
+            credentials:
+                - kind: webhook-credential
+                  name: webhook-credential
+            description: Webhook Signature
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    algorithm:
+                        default: sha256
+                        description: Hash algorithm
+                        type: string
+                    headerName:
+                        description: Header containing signature
+                        type: string
+                    signature:
+                        description: Signature from headers
+                        type: string
+                    timestampHeader:
+                        description: Header containing timestamp
+                        type: string
+                    timestampTolerance:
+                        description: Allowed timestamp drift
+                        type: string
+                required:
+                    - signature
+                type: object
+            name: webhook-signature
+            permissions:
+                - http:send
+                - webhook:receive
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        webhook-trigger:
+            description: Webhook Trigger
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    endpoint:
+                        description: Webhook endpoint path
+                        type: string
+                    headers:
+                        description: Expected headers
+                        type: object
+                    method:
+                        default: POST
+                        description: HTTP method
+                        type: string
+                    timeout:
+                        default: 30s
+                        description: Request timeout
+                        type: string
+                required:
+                    - endpoint
+                type: object
+            name: webhook-trigger
+            permissions:
+                - http:send
+                - webhook:receive
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: integration
+    description: Webhook triggers and actions for Atlas agents
+    icon: link
+    id: skill-webhook
+    installers:
+        - id: oci
+          kind: oci
+          label: Webhook Skill service image
+          package: axiomstudio/skill-webhook:1.0.0
+    name: Webhook Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-webhook
+        resolvedVersion: 1.0.0
+    tags:
+        - api
+        - http
+        - trigger
+        - webhook
+    transport:
+        endpoint: skill-webhook
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

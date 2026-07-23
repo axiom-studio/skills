@@ -1,230 +1,215 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-shopify
-  name: Shopify Skill
-  description: Shopify e-commerce operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ecommerce
-  tags:
-    - shopify
-    - ecommerce
-    - orders
-    - products
-  icon: shopping-bag
-  color: "#5E8E3E"
-spec:
-  executorType: grpc
-  credentialType: shopify_api
-  nodeTypes:
-    - shopify-product
-    - shopify-order
-    - shopify-customer
-    - shopify-inventory
-    - shopify-fulfillment
-  inputs:
-    shopify-product:
-      - name: storeUrl
-        type: string
-        description: Shopify store URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Shopify API key
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: apiSecret
-        type: string
-        description: Shopify API access token
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: action
-        type: string
-        description: Action (list, get, create, update, delete)
-        required: true
-        source: input
-      - name: productId
-        type: string
-        description: Product ID
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-    shopify-order:
-      - name: storeUrl
-        type: string
-        description: Shopify store URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Shopify API key
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: apiSecret
-        type: string
-        description: Shopify API access token
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: action
-        type: string
-        description: Action (list, get, update, fulfill)
-        required: true
-        source: input
-      - name: orderId
-        type: string
-        description: Order ID
-        required: false
-        source: input
-      - name: status
-        type: string
-        description: Status filter
-        required: false
-        source: input
-      - name: limit
-        type: integer
-        description: Max results
-        required: false
-        source: input
-    shopify-customer:
-      - name: storeUrl
-        type: string
-        description: Shopify store URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Shopify API key
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: apiSecret
-        type: string
-        description: Shopify API access token
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: action
-        type: string
-        description: Action (list, get, create, update, delete)
-        required: true
-        source: input
-      - name: customerId
-        type: string
-        description: Customer ID
-        required: false
-        source: input
-      - name: email
-        type: string
-        description: Customer email
-        required: false
-        source: input
-    shopify-inventory:
-      - name: storeUrl
-        type: string
-        description: Shopify store URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Shopify API key
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: apiSecret
-        type: string
-        description: Shopify API access token
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: action
-        type: string
-        description: Action (list, get, set, adjust)
-        required: true
-        source: input
-      - name: inventoryItemId
-        type: string
-        description: Inventory item ID
-        required: false
-        source: input
-      - name: locationId
-        type: string
-        description: Location ID
-        required: false
-        source: input
-      - name: quantity
-        type: integer
-        description: Quantity
-        required: false
-        source: input
-    shopify-fulfillment:
-      - name: storeUrl
-        type: string
-        description: Shopify store URL
-        required: true
-        source: input
-      - name: apiKey
-        type: string
-        description: Shopify API key
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: apiSecret
-        type: string
-        description: Shopify API access token
-        required: true
-        source: connection
-        binding: vault://shopify-credentials
-      - name: action
-        type: string
-        description: Action (list, get, create, update, track)
-        required: true
-        source: input
-      - name: orderId
-        type: string
-        description: Order ID
-        required: false
-        source: input
-      - name: fulfillmentId
-        type: string
-        description: Fulfillment ID
-        required: false
-        source: input
-      - name: notifyCustomer
-        type: boolean
-        description: Notify customer
-        required: false
-        source: default
-        default: true
-      - name: trackingCompany
-        type: string
-        description: Tracking company
-        required: false
-        source: input
-      - name: trackingNumber
-        type: string
-        description: Tracking number
-        required: false
-        source: input
-  grpc:
-    port: 50052
-    docker:
-      image: axiomstudio/skill-shopify:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - shopify:read
-    - shopify:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        shopify-customer:
+            credentials:
+                - kind: shopify_api
+                  name: shopify_api
+            description: Shopify Customer
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, get, create, update, delete)
+                        type: string
+                    customerId:
+                        description: Customer ID
+                        type: string
+                    email:
+                        description: Customer email
+                        type: string
+                    storeUrl:
+                        description: Shopify store URL
+                        type: string
+                required:
+                    - action
+                    - storeUrl
+                type: object
+            name: shopify-customer
+            permissions:
+                - shopify:read
+                - shopify:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        shopify-fulfillment:
+            credentials:
+                - kind: shopify_api
+                  name: shopify_api
+            description: Shopify Fulfillment
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, get, create, update, track)
+                        type: string
+                    fulfillmentId:
+                        description: Fulfillment ID
+                        type: string
+                    notifyCustomer:
+                        default: true
+                        description: Notify customer
+                        type: boolean
+                    orderId:
+                        description: Order ID
+                        type: string
+                    storeUrl:
+                        description: Shopify store URL
+                        type: string
+                    trackingCompany:
+                        description: Tracking company
+                        type: string
+                    trackingNumber:
+                        description: Tracking number
+                        type: string
+                required:
+                    - action
+                    - storeUrl
+                type: object
+            name: shopify-fulfillment
+            permissions:
+                - shopify:read
+                - shopify:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        shopify-inventory:
+            credentials:
+                - kind: shopify_api
+                  name: shopify_api
+            description: Shopify Inventory
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, get, set, adjust)
+                        type: string
+                    inventoryItemId:
+                        description: Inventory item ID
+                        type: string
+                    locationId:
+                        description: Location ID
+                        type: string
+                    quantity:
+                        description: Quantity
+                        type: integer
+                    storeUrl:
+                        description: Shopify store URL
+                        type: string
+                required:
+                    - action
+                    - storeUrl
+                type: object
+            name: shopify-inventory
+            permissions:
+                - shopify:read
+                - shopify:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        shopify-order:
+            credentials:
+                - kind: shopify_api
+                  name: shopify_api
+            description: Shopify Order
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, get, update, fulfill)
+                        type: string
+                    limit:
+                        description: Max results
+                        type: integer
+                    orderId:
+                        description: Order ID
+                        type: string
+                    status:
+                        description: Status filter
+                        type: string
+                    storeUrl:
+                        description: Shopify store URL
+                        type: string
+                required:
+                    - action
+                    - storeUrl
+                type: object
+            name: shopify-order
+            permissions:
+                - shopify:read
+                - shopify:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        shopify-product:
+            credentials:
+                - kind: shopify_api
+                  name: shopify_api
+            description: Shopify Product
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    action:
+                        description: Action (list, get, create, update, delete)
+                        type: string
+                    limit:
+                        description: Max results
+                        type: integer
+                    productId:
+                        description: Product ID
+                        type: string
+                    storeUrl:
+                        description: Shopify store URL
+                        type: string
+                required:
+                    - action
+                    - storeUrl
+                type: object
+            name: shopify-product
+            permissions:
+                - shopify:read
+                - shopify:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: ecommerce
+    description: Shopify e-commerce operations for Atlas agents
+    icon: shopping-bag
+    id: skill-shopify
+    installers:
+        - id: oci
+          kind: oci
+          label: Shopify Skill service image
+          package: axiomstudio/skill-shopify:1.0.0
+    name: Shopify Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-shopify
+        resolvedVersion: 1.0.0
+    tags:
+        - ecommerce
+        - orders
+        - products
+        - shopify
+    transport:
+        endpoint: skill-shopify
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

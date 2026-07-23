@@ -1,182 +1,237 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-whatsapp
-  name: WhatsApp Skill
-  description: WhatsApp Business API operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: communication
-  tags:
-    - whatsapp
-    - messaging
-    - business
-    - chat
-  icon: message-circle
-  color: "#25D366"
-spec:
-  executorType: grpc
-  credentialType: whatsapp_api
-  nodeTypes:
-    - whatsapp-send-message
-    - whatsapp-send-template
-    - whatsapp-send-media
-    - whatsapp-mark-read
-    - whatsapp-contact-list
-    - whatsapp-phone-number-list
-    - whatsapp-business-profile
-  inputs:
-    whatsapp-send-message:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-      - name: to
-        type: string
-        description: Recipient phone number
-        required: true
-        source: input
-      - name: message
-        type: string
-        description: Message text
-        required: true
-        source: input
-    whatsapp-send-template:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-      - name: to
-        type: string
-        description: Recipient phone number
-        required: true
-        source: input
-      - name: templateName
-        type: string
-        description: Template name
-        required: true
-        source: input
-      - name: language
-        type: string
-        description: Language code
-        required: false
-        source: input
-        default: "en_US"
-      - name: components
-        items:
-          type: string
-        description: Template components
-        required: false
-        source: input
-    whatsapp-send-media:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-      - name: to
-        type: string
-        description: Recipient phone number
-        required: true
-        source: input
-      - name: mediaType
-        type: string
-        description: Media type (image, video, document, audio)
-        required: true
-        source: input
-      - name: mediaUrl
-        type: string
-        description: Media URL
-        required: true
-        source: input
-      - name: caption
-        type: string
-        description: Media caption
-        required: false
-        source: input
-    whatsapp-mark-read:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-      - name: messageId
-        type: string
-        description: Message ID to mark as read
-        required: true
-        source: input
-    whatsapp-contact-list:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-    whatsapp-phone-number-list:
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-      - name: businessAccountId
-        type: string
-        description: Business account ID
-        required: true
-        source: input
-    whatsapp-business-profile:
-      - name: phoneNumberId
-        type: string
-        description: WhatsApp phone number ID
-        required: true
-        source: input
-      - name: accessToken
-        type: string
-        description: Meta access token
-        required: true
-        source: connection
-        binding: vault://whatsapp-credentials
-  grpc:
-    port: 50110
-    docker:
-      image: axiomstudio/skill-whatsapp:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - whatsapp:read
-    - whatsapp:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        whatsapp-business-profile:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Business Profile
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                required:
+                    - phoneNumberId
+                type: object
+            name: whatsapp-business-profile
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        whatsapp-contact-list:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Contact List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                required:
+                    - phoneNumberId
+                type: object
+            name: whatsapp-contact-list
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        whatsapp-mark-read:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Mark Read
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    messageId:
+                        description: Message ID to mark as read
+                        type: string
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                required:
+                    - messageId
+                    - phoneNumberId
+                type: object
+            name: whatsapp-mark-read
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        whatsapp-phone-number-list:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Phone Number List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    businessAccountId:
+                        description: Business account ID
+                        type: string
+                required:
+                    - businessAccountId
+                type: object
+            name: whatsapp-phone-number-list
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        whatsapp-send-media:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Send Media
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    caption:
+                        description: Media caption
+                        type: string
+                    mediaType:
+                        description: Media type (image, video, document, audio)
+                        type: string
+                    mediaUrl:
+                        description: Media URL
+                        type: string
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                    to:
+                        description: Recipient phone number
+                        type: string
+                required:
+                    - mediaType
+                    - mediaUrl
+                    - phoneNumberId
+                    - to
+                type: object
+            name: whatsapp-send-media
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        whatsapp-send-message:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Send Message
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    message:
+                        description: Message text
+                        type: string
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                    to:
+                        description: Recipient phone number
+                        type: string
+                required:
+                    - message
+                    - phoneNumberId
+                    - to
+                type: object
+            name: whatsapp-send-message
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        whatsapp-send-template:
+            credentials:
+                - kind: whatsapp_api
+                  name: whatsapp_api
+            description: Whatsapp Send Template
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    components:
+                        description: Template components
+                        type: string
+                    language:
+                        default: en_US
+                        description: Language code
+                        type: string
+                    phoneNumberId:
+                        description: WhatsApp phone number ID
+                        type: string
+                    templateName:
+                        description: Template name
+                        type: string
+                    to:
+                        description: Recipient phone number
+                        type: string
+                required:
+                    - phoneNumberId
+                    - templateName
+                    - to
+                type: object
+            name: whatsapp-send-template
+            permissions:
+                - whatsapp:read
+                - whatsapp:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: communication
+    description: WhatsApp Business API operations for Atlas agents
+    icon: message-circle
+    id: skill-whatsapp
+    installers:
+        - id: oci
+          kind: oci
+          label: WhatsApp Skill service image
+          package: axiomstudio/skill-whatsapp:1.0.0
+    name: WhatsApp Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-whatsapp
+        resolvedVersion: 1.0.0
+    tags:
+        - business
+        - chat
+        - messaging
+        - whatsapp
+    transport:
+        endpoint: skill-whatsapp
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

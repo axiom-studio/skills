@@ -1,266 +1,279 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-trello
-  name: Trello Skill
-  description: Trello board management operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: project-management
-  tags:
-    - trello
-    - kanban
-    - board
-    - cards
-  icon: columns
-  color: "#0052CC"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - trello-board-list
-    - trello-board-get
-    - trello-card-list
-    - trello-card-create
-    - trello-card-update
-    - trello-card-move
-    - trello-list-list
-    - trello-label-add
-    - trello-member-add
-  inputs:
-    trello-board-list:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: filter
-        type: string
-        description: Filter (members, all)
-        required: false
-        source: input
-    trello-board-get:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: boardId
-        type: string
-        description: Board ID
-        required: true
-        source: input
-    trello-card-list:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: boardId
-        type: string
-        description: Board ID
-        required: true
-        source: input
-      - name: listId
-        type: string
-        description: Filter by list
-        required: false
-        source: input
-    trello-card-create:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: listId
-        type: string
-        description: List ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Card name
-        required: true
-        source: input
-      - name: description
-        type: string
-        description: Card description
-        required: false
-        source: input
-      - name: dueDate
-        type: string
-        description: Due date
-        required: false
-        source: input
-      - name: labels
-        items:
-          type: string
-        description: Label IDs
-        required: false
-        source: input
-    trello-card-update:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: cardId
-        type: string
-        description: Card ID
-        required: true
-        source: input
-      - name: name
-        type: string
-        description: Card name
-        required: false
-        source: input
-      - name: description
-        type: string
-        description: Card description
-        required: false
-        source: input
-      - name: dueDate
-        type: string
-        description: Due date
-        required: false
-        source: input
-    trello-card-move:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: cardId
-        type: string
-        description: Card ID
-        required: true
-        source: input
-      - name: listId
-        type: string
-        description: Target list ID
-        required: true
-        source: input
-      - name: position
-        type: integer
-        description: Position in list
-        required: false
-        source: input
-    trello-list-list:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: boardId
-        type: string
-        description: Board ID
-        required: true
-        source: input
-    trello-label-add:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: cardId
-        type: string
-        description: Card ID
-        required: true
-        source: input
-      - name: labelId
-        type: string
-        description: Label ID
-        required: true
-        source: input
-    trello-member-add:
-      - name: apiKey
-        type: string
-        description: Trello API key
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: token
-        type: string
-        description: Trello token
-        required: true
-        source: connection
-        binding: vault://trello-credentials
-      - name: boardId
-        type: string
-        description: Board ID
-        required: true
-        source: input
-      - name: memberId
-        type: string
-        description: Member ID or email
-        required: true
-        source: input
-  grpc:
-    port: 50106
-    docker:
-      image: axiomstudio/skill-trello:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - trello:read
-    - trello:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        trello-board-get:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Board Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: string
+                required:
+                    - boardId
+                type: object
+            name: trello-board-get
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        trello-board-list:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Board List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    filter:
+                        description: Filter (members, all)
+                        type: string
+                type: object
+            name: trello-board-list
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        trello-card-create:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Card Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    description:
+                        description: Card description
+                        type: string
+                    dueDate:
+                        description: Due date
+                        type: string
+                    labels:
+                        description: Label IDs
+                        type: string
+                    listId:
+                        description: List ID
+                        type: string
+                    name:
+                        description: Card name
+                        type: string
+                required:
+                    - listId
+                    - name
+                type: object
+            name: trello-card-create
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        trello-card-list:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Card List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: string
+                    listId:
+                        description: Filter by list
+                        type: string
+                required:
+                    - boardId
+                type: object
+            name: trello-card-list
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        trello-card-move:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Card Move
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    cardId:
+                        description: Card ID
+                        type: string
+                    listId:
+                        description: Target list ID
+                        type: string
+                    position:
+                        description: Position in list
+                        type: integer
+                required:
+                    - cardId
+                    - listId
+                type: object
+            name: trello-card-move
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        trello-card-update:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Card Update
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    cardId:
+                        description: Card ID
+                        type: string
+                    description:
+                        description: Card description
+                        type: string
+                    dueDate:
+                        description: Due date
+                        type: string
+                    name:
+                        description: Card name
+                        type: string
+                required:
+                    - cardId
+                type: object
+            name: trello-card-update
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        trello-label-add:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Label Add
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    cardId:
+                        description: Card ID
+                        type: string
+                    labelId:
+                        description: Label ID
+                        type: string
+                required:
+                    - cardId
+                    - labelId
+                type: object
+            name: trello-label-add
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        trello-list-list:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello List List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: string
+                required:
+                    - boardId
+                type: object
+            name: trello-list-list
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        trello-member-add:
+            credentials:
+                - kind: trello-credential
+                  name: trello-credential
+            description: Trello Member Add
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    boardId:
+                        description: Board ID
+                        type: string
+                    memberId:
+                        description: Member ID or email
+                        type: string
+                required:
+                    - boardId
+                    - memberId
+                type: object
+            name: trello-member-add
+            permissions:
+                - trello:read
+                - trello:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: project-management
+    description: Trello board management operations for Atlas agents
+    icon: columns
+    id: skill-trello
+    installers:
+        - id: oci
+          kind: oci
+          label: Trello Skill service image
+          package: axiomstudio/skill-trello:1.0.0
+    name: Trello Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-trello
+        resolvedVersion: 1.0.0
+    tags:
+        - board
+        - cards
+        - kanban
+        - trello
+    transport:
+        endpoint: skill-trello
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

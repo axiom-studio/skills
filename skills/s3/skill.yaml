@@ -1,292 +1,299 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-s3
-  name: AWS S3 Skill
-  description: AWS S3 object storage operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: storage
-  tags:
-    - s3
-    - aws
-    - storage
-    - objects
-  icon: hard-drive
-  color: "#569A31"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - s3-list-buckets
-    - s3-list-objects
-    - s3-upload
-    - s3-download
-    - s3-delete
-    - s3-presign
-    - s3-bucket-create
-    - s3-bucket-delete
-    - s3-copy-object
-  inputs:
-    s3-list-buckets:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-    s3-list-objects:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: prefix
-        type: string
-        description: Key prefix filter
-        required: false
-        source: input
-      - name: delimiter
-        type: string
-        description: Delimiter for grouping
-        required: false
-        source: input
-      - name: maxKeys
-        type: integer
-        description: Max keys to return
-        required: false
-        source: input
-    s3-upload:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key
-        required: true
-        source: input
-      - name: content
-        type: string
-        description: File content (text or base64)
-        required: true
-        source: input
-      - name: contentType
-        type: string
-        description: Content type
-        required: false
-        source: input
-      - name: metadata
-        type: object
-        description: User metadata
-        required: false
-        source: input
-      - name: acl
-        type: string
-        description: ACL (private, public-read, etc.)
-        required: false
-        source: input
-    s3-download:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key
-        required: true
-        source: input
-    s3-delete:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key (omit for bucket deletion)
-        required: false
-        source: input
-    s3-presign:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Object key
-        required: true
-        source: input
-      - name: operation
-        type: string
-        description: get/put object
-        required: false
-        source: input
-        default: "get"
-      - name: expiresIn
-        type: integer
-        description: URL expiry seconds
-        required: false
-        source: input
-        default: 3600
-    s3-bucket-create:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-      - name: region
-        type: string
-        description: AWS region
-        required: false
-        source: input
-    s3-bucket-delete:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: bucket
-        type: string
-        description: Bucket name
-        required: true
-        source: input
-    s3-copy-object:
-      - name: accessKeyId
-        type: string
-        description: AWS access key ID
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: secretAccessKey
-        type: string
-        description: AWS secret access key
-        required: true
-        source: connection
-        binding: vault://s3-credentials
-      - name: sourceBucket
-        type: string
-        description: Source bucket name
-        required: true
-        source: input
-      - name: sourceKey
-        type: string
-        description: Source object key
-        required: true
-        source: input
-      - name: destinationBucket
-        type: string
-        description: Destination bucket name
-        required: true
-        source: input
-      - name: destinationKey
-        type: string
-        description: Destination object key
-        required: true
-        source: input
-  grpc:
-    port: 50114
-    docker:
-      image: axiomstudio/skill-s3:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - s3:read
-    - s3:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        s3-bucket-create:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Bucket Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    region:
+                        description: AWS region
+                        type: string
+                required:
+                    - bucket
+                type: object
+            name: s3-bucket-create
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        s3-bucket-delete:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Bucket Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                required:
+                    - bucket
+                type: object
+            name: s3-bucket-delete
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        s3-copy-object:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Copy Object
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    destinationBucket:
+                        description: Destination bucket name
+                        type: string
+                    destinationKey:
+                        description: Destination object key
+                        type: string
+                    sourceBucket:
+                        description: Source bucket name
+                        type: string
+                    sourceKey:
+                        description: Source object key
+                        type: string
+                required:
+                    - destinationBucket
+                    - destinationKey
+                    - sourceBucket
+                    - sourceKey
+                type: object
+            name: s3-copy-object
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        s3-delete:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Delete
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    key:
+                        description: Object key (omit for bucket deletion)
+                        type: string
+                required:
+                    - bucket
+                type: object
+            name: s3-delete
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: destructive
+            sideEffect: destructive
+        s3-download:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Download
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    key:
+                        description: Object key
+                        type: string
+                required:
+                    - bucket
+                    - key
+                type: object
+            name: s3-download
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        s3-list-buckets:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 List Buckets
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    region:
+                        description: AWS region
+                        type: string
+                type: object
+            name: s3-list-buckets
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        s3-list-objects:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 List Objects
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    delimiter:
+                        description: Delimiter for grouping
+                        type: string
+                    maxKeys:
+                        description: Max keys to return
+                        type: integer
+                    prefix:
+                        description: Key prefix filter
+                        type: string
+                required:
+                    - bucket
+                type: object
+            name: s3-list-objects
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        s3-presign:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Presign
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    expiresIn:
+                        default: 3600
+                        description: URL expiry seconds
+                        type: integer
+                    key:
+                        description: Object key
+                        type: string
+                    operation:
+                        default: get
+                        description: get/put object
+                        type: string
+                required:
+                    - bucket
+                    - key
+                type: object
+            name: s3-presign
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        s3-upload:
+            credentials:
+                - kind: s3-credential
+                  name: s3-credential
+            description: S3 Upload
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    acl:
+                        description: ACL (private, public-read, etc.)
+                        type: string
+                    bucket:
+                        description: Bucket name
+                        type: string
+                    content:
+                        description: File content (text or base64)
+                        type: string
+                    contentType:
+                        description: Content type
+                        type: string
+                    key:
+                        description: Object key
+                        type: string
+                    metadata:
+                        description: User metadata
+                        type: object
+                required:
+                    - bucket
+                    - content
+                    - key
+                type: object
+            name: s3-upload
+            permissions:
+                - s3:read
+                - s3:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+    category: storage
+    description: AWS S3 object storage operations for Atlas agents
+    icon: hard-drive
+    id: skill-s3
+    installers:
+        - id: oci
+          kind: oci
+          label: AWS S3 Skill service image
+          package: axiomstudio/skill-s3:1.0.0
+    name: AWS S3 Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-s3
+        resolvedVersion: 1.0.0
+    tags:
+        - aws
+        - objects
+        - s3
+        - storage
+    transport:
+        endpoint: skill-s3
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

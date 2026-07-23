@@ -1,211 +1,271 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-vercel
-  name: Vercel Skill
-  description: Vercel deployment platform operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: devops
-  tags:
-    - vercel
-    - deployment
-    - serverless
-    - frontend
-  icon: cloud
-  color: "#000000"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - vercel-deploy
-    - vercel-deployment-list
-    - vercel-deployment-get
-    - vercel-project-list
-    - vercel-project-create
-    - vercel-domain-add
-    - vercel-domain-list
-    - vercel-env-set
-    - vercel-env-list
-  inputs:
-    vercel-deploy:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: false
-        source: input
-      - name: name
-        type: string
-        description: Deployment name
-        required: false
-        source: input
-      - name: files
-        items:
-          type: string
-        description: Files to deploy
-        required: true
-        source: input
-      - name: target
-        type: string
-        description: Target (production, preview)
-        required: false
-        source: input
-        default: "preview"
-      - name: ref
-        type: string
-        description: Git ref (branch/tag)
-        required: false
-        source: input
-    vercel-deployment-list:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: false
-        source: input
-    vercel-deployment-get:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: deploymentId
-        type: string
-        description: Deployment ID
-        required: true
-        source: input
-      - name: projectId
-        type: string
-        description: Project ID
-        required: false
-        source: input
-    vercel-project-list:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-    vercel-project-create:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: name
-        type: string
-        description: Project name
-        required: true
-        source: input
-      - name: framework
-        type: string
-        description: Framework preset
-        required: false
-        source: input
-      - name: gitRepository
-        type: object
-        description: Git repository config
-        required: false
-        source: input
-    vercel-domain-add:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: domain
-        type: string
-        description: Domain name
-        required: true
-        source: input
-    vercel-domain-list:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-    vercel-env-set:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-      - name: key
-        type: string
-        description: Variable key
-        required: true
-        source: input
-      - name: value
-        type: string
-        description: Variable value
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: target
-        items:
-          type: string
-        description: Target environments
-        required: false
-        source: input
-      - name: type
-        type: string
-        description: Variable type (plain, encrypted, secret)
-        required: false
-        source: input
-        default: "plain"
-    vercel-env-list:
-      - name: apiToken
-        type: string
-        description: Vercel API token
-        required: true
-        source: connection
-        binding: vault://vercel-credentials
-      - name: projectId
-        type: string
-        description: Project ID
-        required: true
-        source: input
-  grpc:
-    port: 50126
-    docker:
-      image: axiomstudio/skill-vercel:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - vercel:read
-    - vercel:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        vercel-deploy:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Deploy
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    files:
+                        description: Files to deploy
+                        type: string
+                    name:
+                        description: Deployment name
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    ref:
+                        description: Git ref (branch/tag)
+                        type: string
+                    target:
+                        default: preview
+                        description: Target (production, preview)
+                        type: string
+                required:
+                    - files
+                type: object
+            name: vercel-deploy
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        vercel-deployment-get:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Deployment Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    deploymentId:
+                        description: Deployment ID
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - deploymentId
+                type: object
+            name: vercel-deployment-get
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vercel-deployment-list:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Deployment List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                type: object
+            name: vercel-deployment-list
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vercel-domain-add:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Domain Add
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    domain:
+                        description: Domain name
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - domain
+                    - projectId
+                type: object
+            name: vercel-domain-add
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        vercel-domain-list:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Domain List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: vercel-domain-list
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vercel-env-list:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Env List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    projectId:
+                        description: Project ID
+                        type: string
+                required:
+                    - projectId
+                type: object
+            name: vercel-env-list
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        vercel-env-set:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Env Set
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    key:
+                        description: Variable key
+                        type: string
+                    projectId:
+                        description: Project ID
+                        type: string
+                    target:
+                        description: Target environments
+                        type: string
+                    type:
+                        default: plain
+                        description: Variable type (plain, encrypted, secret)
+                        type: string
+                required:
+                    - key
+                    - projectId
+                type: object
+            name: vercel-env-set
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        vercel-project-create:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Project Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    framework:
+                        description: Framework preset
+                        type: string
+                    gitRepository:
+                        description: Git repository config
+                        type: object
+                    name:
+                        description: Project name
+                        type: string
+                required:
+                    - name
+                type: object
+            name: vercel-project-create
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: production
+            sideEffect: external
+        vercel-project-list:
+            credentials:
+                - kind: vercel-credential
+                  name: vercel-credential
+            description: Vercel Project List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: vercel-project-list
+            permissions:
+                - vercel:read
+                - vercel:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: devops
+    description: Vercel deployment platform operations for Atlas agents
+    icon: cloud
+    id: skill-vercel
+    installers:
+        - id: oci
+          kind: oci
+          label: Vercel Skill service image
+          package: axiomstudio/skill-vercel:1.0.0
+    name: Vercel Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-vercel
+        resolvedVersion: 1.0.0
+    tags:
+        - deployment
+        - frontend
+        - serverless
+        - vercel
+    transport:
+        endpoint: skill-vercel
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition

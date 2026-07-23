@@ -1,146 +1,209 @@
-apiVersion: skills.axiom.dev/v1
-kind: Skill
-metadata:
-  id: skill-replicate
-  name: Replicate Skill
-  description: Replicate ML model hosting operations for Atlas agents
-  author: Axiom Studio
-  authorEmail: engineering@axiomstudio.ai
-  version: 1.0.0
-  license: MIT
-  category: ai
-  tags:
-    - replicate
-    - ml
-    - models
-    - inference
-  icon: cpu
-  color: "#000000"
-spec:
-  executorType: grpc
-  credentialType: generic
-  nodeTypes:
-    - replicate-run
-    - replicate-prediction-status
-    - replicate-prediction-cancel
-    - replicate-model-list
-    - replicate-model-get
-    - replicate-training-create
-    - replicate-training-status
-  inputs:
-    replicate-run:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: model
-        type: string
-        description: Model name (owner/name)
-        required: true
-        source: input
-      - name: version
-        type: string
-        description: Model version
-        required: false
-        source: input
-      - name: input
-        type: object
-        description: Model input parameters
-        required: true
-        source: input
-      - name: wait
-        type: boolean
-        description: Wait for completion
-        required: false
-        source: default
-        default: false
-    replicate-prediction-status:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: predictionId
-        type: string
-        description: Prediction ID
-        required: true
-        source: input
-    replicate-prediction-cancel:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: predictionId
-        type: string
-        description: Prediction ID
-        required: true
-        source: input
-    replicate-model-list:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-    replicate-model-get:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: model
-        type: string
-        description: Model name (owner/name)
-        required: true
-        source: input
-    replicate-training-create:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: model
-        type: string
-        description: Model name (owner/name)
-        required: true
-        source: input
-      - name: destination
-        type: string
-        description: Destination model
-        required: true
-        source: input
-      - name: input
-        type: object
-        description: Training input parameters
-        required: true
-        source: input
-    replicate-training-status:
-      - name: apiToken
-        type: string
-        description: Replicate API token
-        required: true
-        source: connection
-        binding: vault://replicate-credentials
-      - name: trainingId
-        type: string
-        description: Training ID
-        required: true
-        source: input
-  grpc:
-    port: 50099
-    docker:
-      image: axiomstudio/skill-replicate:1.0.0
-  dependencies:
-    standard:
-      - logger
-      - secrets
-  permissions:
-    - replicate:read
-    - replicate:write
+apiVersion: openseal.dev/v1alpha1
+definition:
+    actions:
+        replicate-model-get:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Model Get
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    model:
+                        description: Model name (owner/name)
+                        type: string
+                required:
+                    - model
+                type: object
+            name: replicate-model-get
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        replicate-model-list:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Model List
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties: {}
+                type: object
+            name: replicate-model-list
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        replicate-prediction-cancel:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Prediction Cancel
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    predictionId:
+                        description: Prediction ID
+                        type: string
+                required:
+                    - predictionId
+                type: object
+            name: replicate-prediction-cancel
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        replicate-prediction-status:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Prediction Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    predictionId:
+                        description: Prediction ID
+                        type: string
+                required:
+                    - predictionId
+                type: object
+            name: replicate-prediction-status
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+        replicate-run:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Run
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    input:
+                        description: Model input parameters
+                        type: object
+                    model:
+                        description: Model name (owner/name)
+                        type: string
+                    version:
+                        description: Model version
+                        type: string
+                    wait:
+                        default: false
+                        description: Wait for completion
+                        type: boolean
+                required:
+                    - input
+                    - model
+                type: object
+            name: replicate-run
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        replicate-training-create:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Training Create
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    destination:
+                        description: Destination model
+                        type: string
+                    input:
+                        description: Training input parameters
+                        type: object
+                    model:
+                        description: Model name (owner/name)
+                        type: string
+                required:
+                    - destination
+                    - input
+                    - model
+                type: object
+            name: replicate-training-create
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: external
+            sideEffect: external
+        replicate-training-status:
+            credentials:
+                - kind: replicate-credential
+                  name: replicate-credential
+            description: Replicate Training Status
+            idempotency: supported
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    trainingId:
+                        description: Training ID
+                        type: string
+                required:
+                    - trainingId
+                type: object
+            name: replicate-training-status
+            permissions:
+                - replicate:read
+                - replicate:write
+            retry:
+                maxAttempts: 1
+            risk: read
+            sideEffect: read
+    category: ai
+    description: Replicate ML model hosting operations for Atlas agents
+    icon: cpu
+    id: skill-replicate
+    installers:
+        - id: oci
+          kind: oci
+          label: Replicate Skill service image
+          package: axiomstudio/skill-replicate:1.0.0
+    name: Replicate Skill
+    source:
+        format: axiom.skill/v1
+        homepage: ""
+        license: MIT
+        publisher: Axiom Studio
+        reference: skill-replicate
+        resolvedVersion: 1.0.0
+    tags:
+        - inference
+        - ml
+        - models
+        - replicate
+    transport:
+        endpoint: skill-replicate
+        kind: tool
+    version: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
+      severity: info
+kind: SkillDefinition
