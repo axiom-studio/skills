@@ -19,7 +19,7 @@ import (
 
 const (
 	sourceFeedSkillID       = "openseal.source"
-	sourceFeedSkillVersion  = "1.0.2"
+	sourceFeedSkillVersion  = "1.0.4"
 	NodeTypeSourceFeed      = sourceFeedSkillID
 	sourcePolicyDecisionKey = "_opensealSourcePolicyDecision"
 	sourceCursorKey         = "_opensealSourceCursor"
