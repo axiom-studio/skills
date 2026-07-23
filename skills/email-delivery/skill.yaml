@@ -106,8 +106,10 @@ definition:
         target: to
       sideEffect: external
       timeout: 60000000000
+  category: communication
   description: Deliver reviewed messages and durable artifacts through authorized
     channels.
+  icon: mail
   id: openseal.delivery
   installers:
   - id: oci
@@ -125,8 +127,13 @@ definition:
     userInvocable: true
   requirements:
     alwaysAvailable: true
+  tags:
+  - email
+  - smtp
+  - delivery
+  - artifact
   transport:
     endpoint: openseal.delivery
     kind: tool
-  version: 1.1.0
+  version: 1.2.0
 kind: SkillDefinition

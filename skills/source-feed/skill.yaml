@@ -62,7 +62,9 @@ definition:
       risk: read
       sideEffect: read
       timeout: 30000000000
+  category: research
   description: Observe permitted RSS or Atom sources and emit provenance-linked evidence.
+  icon: rss
   id: openseal.source
   installers:
   - id: oci
@@ -79,8 +81,13 @@ definition:
     userInvocable: true
   requirements:
     alwaysAvailable: true
+  tags:
+  - rss
+  - atom
+  - monitoring
+  - evidence
   transport:
     endpoint: openseal.source
     kind: tool
-  version: 1.0.2
+  version: 1.0.3
 kind: SkillDefinition
