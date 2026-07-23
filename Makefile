@@ -22,16 +22,15 @@ docker-build: ## Build Docker images for all skills
 	@echo "Building $(words $(SKILL_NAMES)) skill images..."
 	@echo ""
 	@for skill in $(SKILL_NAMES); do \
-		port=$$(awk '/grpc:/{f=1} f&&/port:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
-		version=$$(awk '/^  version:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
-		id=$$(awk '/^  id:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
-		echo "  Building $(REGISTRY)/$$id:$$version..."; \
+		port=50051; \
+		image=$$(awk '/^[[:space:]]+installers:/{f=1} f&&/^[[:space:]]+package:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		echo "  Building $$image..."; \
 		dockerfile="$(SKILLS_DIR)/$$skill/Dockerfile"; \
 		[ -f "$$dockerfile" ] || dockerfile="Dockerfile"; \
 		docker build -f $$dockerfile \
 			--build-arg SKILL_NAME=$$skill \
 			--build-arg SKILL_PORT=$$port \
-			-t $(REGISTRY)/$$id:$$version \
+			-t $$image \
 			. && \
 		echo "    ✓ $$skill" || \
 		echo "    ✗ $$skill FAILED"; \
@@ -43,10 +42,9 @@ docker-push: ## Push Docker images to registry
 	@echo "Pushing images..."
 	@echo ""
 	@for skill in $(SKILL_NAMES); do \
-		version=$$(awk '/^  version:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
-		id=$$(awk '/^  id:/{print $$2}' $(SKILLS_DIR)/$$skill/skill.yaml); \
-		echo "  Pushing $(REGISTRY)/$$id:$$version..."; \
-		docker push $(REGISTRY)/$$id:$$version && \
+		image=$$(awk '/^[[:space:]]+installers:/{f=1} f&&/^[[:space:]]+package:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		echo "  Pushing $$image..."; \
+		docker push $$image && \
 		echo "    ✓ $$skill" || \
 		echo "    ✗ $$skill FAILED"; \
 	done
