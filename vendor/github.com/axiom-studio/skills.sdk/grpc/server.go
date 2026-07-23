@@ -99,10 +99,14 @@ func (s *SkillServer) Execute(ctx context.Context, req *skillpb.ExecuteRequest) 
 	}
 
 	// Create resolver using the shared implementation
+	runContext, selfContext, variables := resolverContext(req.GetContext())
 	res := resolver.New(resolver.Config{
-		Bindings: bindings,
-		Nodes:    map[string]interface{}{"prev": input},
-		Prev:     input,
+		Bindings:  bindings,
+		Nodes:     map[string]interface{}{"prev": input},
+		Prev:      input,
+		Variables: variables,
+		Run:       runContext,
+		Self:      selfContext,
 	})
 
 	// Execute
@@ -127,6 +131,34 @@ func (s *SkillServer) Execute(ctx context.Context, req *skillpb.ExecuteRequest) 
 		Output:   output,
 		NextStep: result.NextStep,
 	}, nil
+}
+
+func resolverContext(execution *skillpb.ExecutionContext) (
+	map[string]interface{},
+	map[string]interface{},
+	map[string]interface{},
+) {
+	run := make(map[string]interface{})
+	self := make(map[string]interface{})
+	variables := make(map[string]interface{})
+	if execution == nil {
+		return run, self, variables
+	}
+	if execution.RunId != "" {
+		run["id"] = execution.RunId
+	}
+	if execution.AgentId != "" {
+		run["agentId"] = execution.AgentId
+		self["id"] = execution.AgentId
+	}
+	if execution.Namespace != "" {
+		run["namespace"] = execution.Namespace
+		self["namespace"] = execution.Namespace
+	}
+	for key, value := range execution.Variables {
+		variables[key] = value
+	}
+	return run, self, variables
 }
 
 // GetNodeTypes implements skillpb.SkillServer
