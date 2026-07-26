@@ -472,6 +472,7 @@ definition:
               mountPath: /var/lib/openseal-browser
               name: browser-profile
               retention: retain
+              writableGroup: 1001
     source:
         format: axiom.skill/v1
         homepage: https://github.com/vercel-labs/agent-browser
