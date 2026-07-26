@@ -384,7 +384,7 @@ func TestSecretRedactionAndCredentialFill(t *testing.T) {
 	engine.secret = secret
 	service := testService(t, engine, time.Minute)
 	openFixture(t, service, "secret")
-	r := &testResolver{bindings: map[string]interface{}{"browser-secret": map[string]interface{}{"password": secret}}}
+	r := &testResolver{bindings: map[string]interface{}{"username": "fixture-user", "password": secret}}
 	snapshot, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "secret"}, r)
 	if err != nil {
 		t.Fatal(err)
@@ -397,11 +397,11 @@ func TestSecretRedactionAndCredentialFill(t *testing.T) {
 	if _, err := execute(t, service, "browser-fill", map[string]interface{}{
 		"sessionId": "secret", "target": commentRef, "value": secret,
 		"intent": "Unsafe literal credential", "writeAuthorized": true, "idempotencyKey": "secret-literal-0001",
-	}, r); err == nil || !strings.Contains(err.Error(), "credentialField") {
+	}, r); err == nil || !strings.Contains(err.Error(), "browser-fill-secret") {
 		t.Fatalf("bound secret was accepted as a literal: %v", err)
 	}
 	passwordRef := findReference(t, snapshot, "Password")
-	if _, err := execute(t, service, "browser-fill", map[string]interface{}{
+	if _, err := execute(t, service, "browser-fill-secret", map[string]interface{}{
 		"sessionId": "secret", "target": passwordRef, "credentialField": "password",
 		"intent": "Fill the approved login credential", "writeAuthorized": true, "idempotencyKey": "secret-fill-0001",
 	}, r); err != nil {
@@ -474,7 +474,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	text := string(encoded)
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.0.2", "version: 1.0.2", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.0", "version: 1.1.0", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
@@ -482,7 +482,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 		}
 	}
 	expected := []string{
-		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill",
+		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill", "browser-fill-secret",
 		"browser-type", "browser-select", "browser-wait", "browser-screenshot", "browser-session-status", "browser-close",
 	}
 	if len(actionSchemas) != len(expected) {
