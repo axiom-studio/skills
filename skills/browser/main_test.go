@@ -496,6 +496,9 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	if strings.Contains(text, "javascript") || strings.Contains(text, "executablePath") || strings.Contains(text, "launchArgs") {
 		t.Fatal("manifest exposes an unrestricted browser control")
 	}
+	if strings.Contains(text, "\n        executables:") {
+		t.Fatal("managed Browser service incorrectly requires its private executables on the turn host")
+	}
 }
 
 func TestAgentBrowserLocalFixture(t *testing.T) {
