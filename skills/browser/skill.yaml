@@ -71,19 +71,11 @@ definition:
             risk: write
             sideEffect: none
         browser-fill:
-            credentials:
-                - kind: browser-secret
-                  name: browser-secret
-                  optional: true
-            description: Clear and fill one exact form control, optionally from a bound secret
+            description: Clear and fill one exact non-secret form control
             idempotency: required
             inputSchema:
                 additionalProperties: false
                 properties:
-                    credentialField:
-                        description: Field name within the bound browser-secret credential; never provide the secret value here
-                        pattern: ^[A-Za-z][A-Za-z0-9_-]{0,63}$
-                        type: string
                     idempotencyKey:
                         description: Unique key preventing duplicate execution of this exact action
                         maxLength: 128
@@ -108,7 +100,7 @@ definition:
                         minimum: 1
                         type: integer
                     value:
-                        description: Non-secret literal value; passwords, tokens, cookies, and authorization values must use credentialField
+                        description: Non-secret literal value; passwords, tokens, cookies, and authorization values must use browser-fill-secret
                         maxLength: 20000
                         type: string
                     writeAuthorized:
@@ -120,8 +112,70 @@ definition:
                     - intent
                     - writeAuthorized
                     - idempotencyKey
+                    - value
                 type: object
             name: browser-fill
+            permissions:
+                - browser:interact
+            retry:
+                maxAttempts: 1
+            risk: external
+            semanticArguments:
+                body: value
+                target: target
+            sideEffect: external
+        browser-fill-secret:
+            credentials:
+                - kind: http_basic_auth
+                  name: username
+                - kind: http_basic_auth
+                  name: password
+            description: Fill one exact login control from an authorized HTTP basic authentication credential without exposing its value
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    credentialField:
+                        description: Exact field from the authorized credential; the secret value is resolved only for execution
+                        enum:
+                            - username
+                            - password
+                        type: string
+                    idempotencyKey:
+                        description: Unique key preventing duplicate execution of this exact action
+                        maxLength: 128
+                        minLength: 8
+                        type: string
+                    intent:
+                        description: Exact purpose and expected effect of filling this control
+                        maxLength: 500
+                        minLength: 3
+                        type: string
+                    sessionId:
+                        description: Isolated browser session identifier
+                        pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
+                        type: string
+                    target:
+                        description: Exact stable reference returned by the latest snapshot
+                        pattern: ^s[1-9][0-9]*:e[1-9][0-9]*$
+                        type: string
+                    timeoutSeconds:
+                        default: 25
+                        maximum: 30
+                        minimum: 1
+                        type: integer
+                    writeAuthorized:
+                        description: Explicit authorization to use the bound login credential for this exact destination
+                        type: boolean
+                required:
+                    - sessionId
+                    - target
+                    - credentialField
+                    - intent
+                    - writeAuthorized
+                    - idempotencyKey
+                type: object
+            name: browser-fill-secret
             permissions:
                 - browser:interact
                 - credential:use
@@ -129,7 +183,6 @@ definition:
                 maxAttempts: 1
             risk: external
             semanticArguments:
-                body: value
                 target: target
             sideEffect: external
         browser-health:
@@ -451,7 +504,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with pinned agent-browser and Chromium
-          package: axiomstudio/skill-browser:1.0.2
+          package: axiomstudio/skill-browser:1.1.0
     name: Browser Skill
     requirements:
         compute:
@@ -479,7 +532,7 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 1.0.2
+        resolvedVersion: 1.1.0
     tags:
         - accessibility
         - automation
@@ -489,7 +542,7 @@ definition:
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 1.0.2
+    version: 1.1.0
 diagnostics:
     - code: governed_agent_browser
       message: agent-browser is wrapped behind narrow actions and a dial-time SSRF proxy; unrestricted CLI, JavaScript, CDP, storage, cookie, header, executable, and launch-flag controls are not exposed.
