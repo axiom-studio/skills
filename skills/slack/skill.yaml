@@ -64,14 +64,49 @@ definition:
             inputSchema:
                 additionalProperties: false
                 properties:
+                    cursor:
+                        description: Opaque cursor returned by the previous page
+                        type: string
+                    limit:
+                        default: 100
+                        description: Maximum channels to request from Slack
+                        maximum: 200
+                        minimum: 1
+                        type: integer
+                    query:
+                        description: Optional case-insensitive channel name filter
+                        type: string
                     types:
                         description: Channel types to filter (public_channel, private_channel)
                         type: string
                 type: object
             name: slack-channel-list
+            outputSchema:
+                additionalProperties: false
+                properties:
+                    channels:
+                        items:
+                            additionalProperties: true
+                            properties:
+                                description:
+                                    type: string
+                                id:
+                                    type: string
+                                name:
+                                    type: string
+                            required: [id, name]
+                            type: object
+                        type: array
+                    count:
+                        type: integer
+                    nextCursor:
+                        type: string
+                    success:
+                        type: boolean
+                required: [success, channels, count, nextCursor]
+                type: object
             permissions:
                 - slack:read
-                - slack:write
             retry:
                 maxAttempts: 1
             risk: read
@@ -383,6 +418,47 @@ definition:
                 maxAttempts: 1
             risk: external
             sideEffect: external
+    conversationAdapters:
+        conversations:
+            protocolVersion: openseal.conversation.adapter/v1
+            name: Slack conversations
+            description: Verify Slack Events API requests and deliver durable replies through Slack Web API.
+            provider: slack
+            endpointModes: [channel, direct]
+            inboundEventTypes: [conversation.message.received]
+            features: [mentions, threads]
+            credentials:
+                - name: slack_bot_token
+                  kind: slack_bot_token
+                  oauth2:
+                    provider: slack
+                    subject: installation
+                    scopes: [app_mentions:read, channels:history, chat:write, groups:history, im:history, mpim:history]
+                - name: slack_signing_secret
+                  kind: slack_signing_secret
+            destinationDiscovery:
+                - action: slack-channel-list
+                  mode: channel
+                  itemsPath: channels
+                  idPath: id
+                  displayNamePath: name
+                  descriptionPath: description
+                  cursorArgument: cursor
+                  limitArgument: limit
+                  queryArgument: query
+                  nextCursorPath: nextCursor
+            delivery:
+                operations: [message.send]
+                ordering: thread
+                idempotency: required
+                supportsAcknowledgementLookup: true
+                supportsRetryAfter: true
+            transport:
+                kind: plugin
+                ingressEndpoint: slack.conversation.ingress
+                deliveryEndpoint: slack.conversation.deliver
+                ingressCredentials: [slack_signing_secret]
+                deliveryCredentials: [slack_bot_token]
     category: communication
     description: Send messages and interact with Slack channels
     icon: message-circle
@@ -391,15 +467,17 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:1.0.0
+          package: axiomstudio/skill-slack:2.0.0
     name: Slack Skill
     source:
         format: axiom.skill/v1
         homepage: ""
+        identity: https://github.com/axiom-studio/skills::skill-slack
         license: MIT
         publisher: Axiom Studio
+        registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 1.0.0
+        resolvedVersion: 2.0.0
     tags:
         - chat
         - messaging
@@ -408,7 +486,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 1.0.0
+    version: 2.0.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
