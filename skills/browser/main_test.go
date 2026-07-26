@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
+	"gopkg.in/yaml.v3"
 )
 
 type testResolver struct {
@@ -472,6 +473,10 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(encoded)
+	var manifest map[string]interface{}
+	if err := yaml.Unmarshal(encoded, &manifest); err != nil {
+		t.Fatalf("manifest is not valid YAML: %v", err)
+	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
 		"package: axiomstudio/skill-browser:1.1.1", "version: 1.1.1", "durability: persistent",
