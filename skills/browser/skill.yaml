@@ -444,30 +444,41 @@ definition:
             risk: read
             sideEffect: read
     category: browser-automation
-    description: Governed durable Chromium navigation and interaction for Atlas agents
+    description: Governed durable Chromium navigation and interaction for autonomous agents
     icon: globe
     id: skill-browser
     installers:
         - id: oci
           kind: oci
           label: Browser Skill service image with pinned agent-browser and Chromium
-          package: axiomstudio/skill-browser:1.0.0
+          package: axiomstudio/skill-browser:1.0.1
     name: Browser Skill
     requirements:
-        configuration:
-            - BROWSER_WORKSPACE
+        compute:
+            limits:
+                cpu: 1000m
+                memory: 1Gi
+            requests:
+                cpu: 100m
+                memory: 256Mi
         executables:
             - agent-browser
             - chromium
         operatingSystems:
             - linux
+        storage:
+            - durability: persistent
+              minimumCapacity: 1Gi
+              mountPath: /var/lib/openseal-browser
+              name: browser-profile
+              retention: retain
     source:
         format: axiom.skill/v1
         homepage: https://github.com/vercel-labs/agent-browser
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.0.1
     tags:
         - accessibility
         - automation
@@ -477,7 +488,7 @@ definition:
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 1.0.0
+    version: 1.0.1
 diagnostics:
     - code: governed_agent_browser
       message: agent-browser is wrapped behind narrow actions and a dial-time SSRF proxy; unrestricted CLI, JavaScript, CDP, storage, cookie, header, executable, and launch-flag controls are not exposed.
