@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.0.2"
+	skillVersion        = "1.1.0"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -871,24 +871,10 @@ func bindingSecrets(r executor.TemplateResolver) map[string]string {
 	if !ok {
 		return nil
 	}
-	raw := bindings.GetBinding("browser-secret")
 	result := map[string]string{}
-	switch values := raw.(type) {
-	case map[string]interface{}:
-		for key, value := range values {
-			if text, ok := value.(string); ok && text != "" {
-				result[key] = text
-			}
-		}
-	case map[string]string:
-		for key, value := range values {
-			if value != "" {
-				result[key] = value
-			}
-		}
-	case string:
-		if values != "" {
-			result["value"] = values
+	for _, field := range []string{"username", "password"} {
+		if value, ok := bindings.GetBinding(field).(string); ok && value != "" {
+			result[field] = value
 		}
 	}
 	return result
@@ -1119,31 +1105,30 @@ func (s *browserService) mutate(ctx context.Context, action string, config map[s
 	credentialField := stringValue(config, "credentialField")
 	secrets := bindingSecrets(r)
 	isSecret := false
-	if action == "fill" {
-		if value != "" && credentialField != "" {
-			return nil, errors.New("provide either value or credentialField, never both")
+	if action == "fill-secret" {
+		if value != "" || (credentialField != "username" && credentialField != "password") {
+			return nil, errors.New("browser-fill-secret requires credentialField username or password and never accepts a literal value")
 		}
+		var ok bool
+		value, ok = secrets[credentialField]
+		if !ok || value == "" {
+			return nil, fmt.Errorf("bound HTTP basic authentication credential does not contain field %q", credentialField)
+		}
+		isSecret = true
+	} else if action == "fill" {
 		if credentialField != "" {
-			if !safeNameRE.MatchString(credentialField) {
-				return nil, errors.New("credentialField has an invalid name")
-			}
-			var ok bool
-			value, ok = secrets[credentialField]
-			if !ok || value == "" {
-				return nil, fmt.Errorf("bound browser-secret does not contain field %q", credentialField)
-			}
-			isSecret = true
+			return nil, errors.New("browser-fill does not accept credentialField; use browser-fill-secret")
 		}
 		if value == "" {
-			return nil, errors.New("value or credentialField is required")
+			return nil, errors.New("value is required")
 		}
 	} else if secretNameRE.MatchString(value) {
-		return nil, errors.New("browser-type and browser-select do not accept secret-like values; use browser-fill with credentialField")
+		return nil, errors.New("browser-type and browser-select do not accept secret-like values; use browser-fill-secret")
 	}
 	if !isSecret {
 		for _, boundSecret := range secrets {
 			if value != "" && value == boundSecret {
-				return nil, errors.New("bound credential values must be supplied through browser-fill credentialField")
+				return nil, errors.New("bound credential values must be supplied through browser-fill-secret")
 			}
 		}
 	}
@@ -1160,8 +1145,8 @@ func (s *browserService) mutate(ctx context.Context, action string, config map[s
 	if err != nil {
 		return nil, err
 	}
-	if action == "fill" && secretNameRE.MatchString(fmt.Sprint(ref["name"])) && !isSecret {
-		return nil, errors.New("secret-like controls must be filled through credentialField")
+	if action == "fill" && secretNameRE.MatchString(fmt.Sprint(ref["name"])) {
+		return nil, errors.New("secret-like controls must be filled through browser-fill-secret")
 	}
 	timeout := intValue(config, "timeoutSeconds", 25)
 	commandCtx, cancel, err := commandContext(ctx, timeout)
@@ -1169,8 +1154,9 @@ func (s *browserService) mutate(ctx context.Context, action string, config map[s
 		return nil, err
 	}
 	defer cancel()
-	command := []string{action, rawRef}
-	if action != "click" {
+	engineAction := strings.TrimSuffix(action, "-secret")
+	command := []string{engineAction, rawRef}
+	if engineAction != "click" {
 		command = append(command, value)
 	}
 	// Batch input keeps all entered text, including credential material, out of process argv.
@@ -1385,6 +1371,8 @@ func (e *actionExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		output, err = e.service.mutate(ctx, "click", config, r)
 	case "browser-fill":
 		output, err = e.service.mutate(ctx, "fill", config, r)
+	case "browser-fill-secret":
+		output, err = e.service.mutate(ctx, "fill-secret", config, r)
 	case "browser-type":
 		output, err = e.service.mutate(ctx, "type", config, r)
 	case "browser-select":
@@ -1421,7 +1409,8 @@ var actionSchemas = map[string]*resolver.NodeSchema{
 	"browser-snapshot":       schema("browser-snapshot", "Snapshot Browser Page", "Capture stable accessible element references"),
 	"browser-read":           schema("browser-read", "Read Browser Page", "Read bounded rendered page text"),
 	"browser-click":          schema("browser-click", "Click Browser Element", "Click an exact authorized snapshot reference"),
-	"browser-fill":           schema("browser-fill", "Fill Browser Control", "Fill an exact control with literal or bound-secret input"),
+	"browser-fill":           schema("browser-fill", "Fill Browser Control", "Fill an exact non-secret form control"),
+	"browser-fill-secret":    schema("browser-fill-secret", "Fill Browser Login", "Fill an exact login control from an authorized credential"),
 	"browser-type":           schema("browser-type", "Type in Browser Control", "Type non-secret text into an exact control"),
 	"browser-select":         schema("browser-select", "Select Browser Option", "Select an exact option in a control"),
 	"browser-wait":           schema("browser-wait", "Wait in Browser", "Wait for a bounded page condition"),
@@ -1480,7 +1469,7 @@ func main() {
 	}
 	server := skillgrpc.NewSkillServer(skillID, skillVersion)
 	for _, action := range []string{
-		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill",
+		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill", "browser-fill-secret",
 		"browser-type", "browser-select", "browser-wait", "browser-screenshot", "browser-session-status", "browser-close",
 	} {
 		server.RegisterExecutorWithSchema(action, &actionExecutor{action: action, service: service}, actionSchemas[action])
