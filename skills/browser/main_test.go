@@ -474,7 +474,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	text := string(encoded)
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.0", "version: 1.1.0", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.1", "version: 1.1.1", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
