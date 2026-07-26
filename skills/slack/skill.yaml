@@ -59,6 +59,10 @@ definition:
             credentials:
                 - kind: slack_bot_token
                   name: slack_bot_token
+                  oauth2:
+                    provider: slack
+                    subject: installation
+                    scopes: [app_mentions:read, channels:history, chat:write, groups:history, im:history, mpim:history]
             description: Slack Channel List
             idempotency: supported
             inputSchema:
