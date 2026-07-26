@@ -18,12 +18,16 @@ import (
 )
 
 const (
-	iconSlack     = "message-circle"
-	slackBaseURL  = "https://slack.com/api"
-	slackHTTPPort = "50054"
+	iconSlack               = "message-circle"
+	slackBaseURL            = "https://slack.com/api"
+	slackHTTPPort           = "50054"
+	slackSkillID            = "skill-slack"
+	slackSkillVersion       = "2.0.0"
+	slackBotTokenCredential = "slack_bot_token"
 )
 
 var slackHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var slackBaseURLOverride string
 
 func main() {
 	port := os.Getenv("SKILL_PORT")
@@ -31,7 +35,7 @@ func main() {
 		port = slackHTTPPort
 	}
 
-	server := grpc.NewSkillServer("skill-slack", "1.0.0")
+	server := grpc.NewSkillServer(slackSkillID, slackSkillVersion)
 	server.RegisterExecutorWithSchema("slack-send-message", &SlackSendMessageExecutor{}, SlackSendMessageSchema)
 	server.RegisterExecutorWithSchema("slack-read-messages", &SlackReadMessagesExecutor{}, SlackReadMessagesSchema)
 	server.RegisterExecutorWithSchema("slack-channel-list", &SlackChannelListExecutor{}, SlackChannelListSchema)
@@ -46,6 +50,9 @@ func main() {
 	server.RegisterExecutorWithSchema("slack-set-channel-purpose", &SlackSetChannelPurposeExecutor{}, SlackSetChannelPurposeSchema)
 	server.RegisterExecutorWithSchema("slack-send-ephemeral-message", &SlackSendEphemeralMessageExecutor{}, SlackSendEphemeralMessageSchema)
 	server.RegisterExecutorWithSchema("slack-list-users", &SlackListUsersExecutor{}, SlackListUsersSchema)
+	conversationAdapter := newSlackAdapter("", os.Getenv("SLACK_API_BASE_URL"), nil)
+	server.RegisterExecutor(slackIngressNodeType, &slackIngressExecutor{adapter: conversationAdapter})
+	server.RegisterExecutor(slackDeliveryNodeType, &slackDeliveryExecutor{adapter: conversationAdapter})
 
 	fmt.Printf("Starting skill-slack gRPC server on port %s\n", port)
 	if err := server.Serve(port); err != nil {
@@ -88,11 +95,14 @@ type SlackMessage struct {
 }
 
 type SlackMessagesResponse struct {
-	OK       bool           `json:"ok"`
-	Error    string         `json:"error"`
-	Channels []SlackChannel `json:"channels"`
-	Messages []SlackMessage `json:"messages"`
-	HasMore  bool           `json:"has_more"`
+	OK               bool           `json:"ok"`
+	Error            string         `json:"error"`
+	Channels         []SlackChannel `json:"channels"`
+	Messages         []SlackMessage `json:"messages"`
+	HasMore          bool           `json:"has_more"`
+	ResponseMetadata struct {
+		NextCursor string `json:"next_cursor"`
+	} `json:"response_metadata"`
 }
 
 type slackMutationResponse struct {
@@ -141,7 +151,7 @@ func (e *SlackSendMessageExecutor) Type() string { return "slack-send-message" }
 
 func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	text := getString(config, "message")
 	if text == "" {
@@ -150,7 +160,7 @@ func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.S
 	threadTs := getString(config, "threadTs")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -206,12 +216,12 @@ func (e *SlackReadMessagesExecutor) Type() string { return "slack-read-messages"
 
 func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	limit := getInt(config, "limit", 10)
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -276,20 +286,29 @@ func (e *SlackChannelListExecutor) Type() string { return "slack-channel-list" }
 
 func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	types := strings.TrimSpace(getString(config, "types"))
 	if types == "" {
 		types = "public_channel,private_channel"
 	}
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
+	limit := getInt(config, "limit", 100)
+	if limit < 1 || limit > 200 {
+		return nil, fmt.Errorf("limit must be between 1 and 200")
+	}
+	cursor := strings.TrimSpace(getString(config, "cursor"))
+	query := strings.ToLower(strings.TrimSpace(getString(config, "query")))
 
 	params := url.Values{}
 	params.Set("exclude_archived", "true")
 	params.Set("types", types)
-	params.Set("limit", "1000")
+	params.Set("limit", strconv.Itoa(limit))
+	if cursor != "" {
+		params.Set("cursor", cursor)
+	}
 
 	resp, err := doSlackRequest(ctx, token, "GET", "/conversations.list", params)
 	if err != nil {
@@ -303,9 +322,13 @@ func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.S
 
 	channels := make([]map[string]interface{}, 0, len(result.Channels))
 	for _, ch := range result.Channels {
+		if query != "" && !strings.Contains(strings.ToLower(ch.Name), query) {
+			continue
+		}
 		channels = append(channels, map[string]interface{}{
 			"id":          ch.ID,
 			"name":        ch.Name,
+			"description": slackDescription(ch.Purpose, ch.Topic),
 			"isArchived":  ch.IsArchived,
 			"isPrivate":   ch.IsPrivate,
 			"isIm":        ch.IsIM,
@@ -324,11 +347,25 @@ func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.S
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"success":  true,
-			"channels": channels,
-			"count":    len(channels),
+			"success":    true,
+			"channels":   channels,
+			"count":      len(channels),
+			"nextCursor": strings.TrimSpace(result.ResponseMetadata.NextCursor),
 		},
 	}, nil
+}
+
+func slackDescription(values ...interface{}) string {
+	for _, value := range values {
+		object, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if text, ok := object["value"].(string); ok && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------
@@ -342,13 +379,13 @@ func (e *SlackAddReactionExecutor) Type() string { return "slack-add-reaction" }
 
 func (e *SlackAddReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	emoji := strings.Trim(getString(config, "emoji"), ":")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -402,13 +439,13 @@ func (e *SlackRemoveReactionExecutor) Type() string { return "slack-remove-react
 
 func (e *SlackRemoveReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	emoji := strings.Trim(getString(config, "emoji"), ":")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -462,13 +499,13 @@ func (e *SlackUpdateMessageExecutor) Type() string { return "slack-update-messag
 
 func (e *SlackUpdateMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	text := getString(config, "text")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -521,12 +558,12 @@ func (e *SlackDeleteMessageExecutor) Type() string { return "slack-delete-messag
 
 func (e *SlackDeleteMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -574,12 +611,12 @@ func (e *SlackCreateChannelExecutor) Type() string { return "slack-create-channe
 
 func (e *SlackCreateChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	name := strings.TrimSpace(getString(config, "name"))
 	isPrivate := getBool(config, "isPrivate", false)
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -629,12 +666,12 @@ func (e *SlackRenameChannelExecutor) Type() string { return "slack-rename-channe
 
 func (e *SlackRenameChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	name := strings.TrimSpace(getString(config, "name"))
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -689,11 +726,11 @@ func (e *SlackArchiveChannelExecutor) Type() string { return "slack-archive-chan
 
 func (e *SlackArchiveChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -735,12 +772,12 @@ func (e *SlackSetChannelTopicExecutor) Type() string { return "slack-set-channel
 
 func (e *SlackSetChannelTopicExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	topic := strings.TrimSpace(getString(config, "topic"))
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -787,12 +824,12 @@ func (e *SlackSetChannelPurposeExecutor) Type() string { return "slack-set-chann
 
 func (e *SlackSetChannelPurposeExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	purpose := strings.TrimSpace(getString(config, "purpose"))
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -839,13 +876,13 @@ func (e *SlackSendEphemeralMessageExecutor) Type() string { return "slack-send-e
 
 func (e *SlackSendEphemeralMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	channel := getString(config, "channel")
 	user := getString(config, "user")
 	text := getString(config, "text")
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if channel == "" {
 		return nil, fmt.Errorf("channel is required")
@@ -898,11 +935,11 @@ func (e *SlackListUsersExecutor) Type() string { return "slack-list-users" }
 
 func (e *SlackListUsersExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, "token")
+	token := getString(config, slackBotTokenCredential)
 	limit := getInt(config, "limit", 100)
 
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("Slack connection is required")
 	}
 	if limit <= 0 {
 		limit = 100
@@ -948,7 +985,11 @@ func (e *SlackListUsersExecutor) Execute(ctx context.Context, step *executor.Ste
 // ---------------------------------------------------------------------------
 
 func doSlackRequest(ctx context.Context, token, method, endpoint string, queryParams url.Values) ([]byte, error) {
-	requestURL := slackBaseURL + endpoint
+	baseURL := slackBaseURL
+	if strings.TrimSpace(slackBaseURLOverride) != "" {
+		baseURL = strings.TrimRight(slackBaseURLOverride, "/")
+	}
+	requestURL := baseURL + endpoint
 	var req *http.Request
 	var err error
 
@@ -1092,13 +1133,6 @@ var SlackSendMessageSchema = resolver.NewSchemaBuilder("slack-send-message").
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Send a message to a Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddTextareaField("message", "Message Text", resolver.WithRequired()).
@@ -1110,13 +1144,6 @@ var SlackReadMessagesSchema = resolver.NewSchemaBuilder("slack-read-messages").
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Read recent messages from a Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Filters").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddNumberField("limit", "Limit",
@@ -1131,13 +1158,6 @@ var SlackChannelListSchema = resolver.NewSchemaBuilder("slack-channel-list").
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("List available Slack channels").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Filters").
 	AddTextField("types", "Channel Types", resolver.WithPlaceholder("public_channel,private_channel")).
 	EndSection().
@@ -1148,13 +1168,6 @@ var SlackAddReactionSchema = resolver.NewSchemaBuilder("slack-add-reaction").
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Add an emoji reaction to a message").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddExpressionField("timestamp", "Message Timestamp", resolver.WithRequired(), resolver.WithPlaceholder("173...")).
@@ -1167,13 +1180,6 @@ var SlackRemoveReactionSchema = resolver.NewSchemaBuilder("slack-remove-reaction
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Remove an emoji reaction from a message").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddExpressionField("timestamp", "Message Timestamp", resolver.WithRequired(), resolver.WithPlaceholder("173...")).
@@ -1186,13 +1192,6 @@ var SlackUpdateMessageSchema = resolver.NewSchemaBuilder("slack-update-message")
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Update text of an existing message").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddExpressionField("timestamp", "Message Timestamp", resolver.WithRequired(), resolver.WithPlaceholder("173...")).
@@ -1205,13 +1204,6 @@ var SlackDeleteMessageSchema = resolver.NewSchemaBuilder("slack-delete-message")
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Delete a message from a channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddExpressionField("timestamp", "Message Timestamp", resolver.WithRequired(), resolver.WithPlaceholder("173...")).
@@ -1223,13 +1215,6 @@ var SlackCreateChannelSchema = resolver.NewSchemaBuilder("slack-create-channel")
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Create a new Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Channel").
 	AddTextField("name", "Channel Name", resolver.WithRequired(), resolver.WithPlaceholder("dev-updates")).
 	AddToggleField("isPrivate", "Private Channel", resolver.WithDefault(false), resolver.WithHint("Create as private channel")).
@@ -1241,13 +1226,6 @@ var SlackRenameChannelSchema = resolver.NewSchemaBuilder("slack-rename-channel")
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Rename an existing Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Channel").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddTextField("name", "New Name", resolver.WithRequired(), resolver.WithPlaceholder("new-channel-name")).
@@ -1259,13 +1237,6 @@ var SlackArchiveChannelSchema = resolver.NewSchemaBuilder("slack-archive-channel
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Archive a Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Channel").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	EndSection().
@@ -1276,13 +1247,6 @@ var SlackSetChannelTopicSchema = resolver.NewSchemaBuilder("slack-set-channel-to
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Set the topic for a Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddTextareaField("topic", "Topic", resolver.WithRequired(), resolver.WithPlaceholder("Quarterly planning updates")).
@@ -1294,13 +1258,6 @@ var SlackSetChannelPurposeSchema = resolver.NewSchemaBuilder("slack-set-channel-
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Set the purpose for a Slack channel").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddTextareaField("purpose", "Purpose", resolver.WithRequired(), resolver.WithPlaceholder("Channel usage details")).
@@ -1312,13 +1269,6 @@ var SlackSendEphemeralMessageSchema = resolver.NewSchemaBuilder("slack-send-ephe
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("Send an ephemeral message visible only to one user").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Message").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
 	AddExpressionField("user", "User", resolver.WithRequired(), resolver.WithPlaceholder("U123...")).
@@ -1331,13 +1281,6 @@ var SlackListUsersSchema = resolver.NewSchemaBuilder("slack-list-users").
 	WithCategory("action").
 	WithIcon(iconSlack).
 	WithDescription("List users in your Slack workspace").
-	AddSection("Connection").
-	AddExpressionField("token", "Bot Token",
-		resolver.WithRequired(),
-		resolver.WithPlaceholder("xoxb-your-bot-token"),
-		resolver.WithHint("Slack Bot User OAuth Token"),
-	).
-	EndSection().
 	AddSection("Options").
 	AddNumberField("limit", "Limit", resolver.WithDefault(100), resolver.WithMinMax(1, 1000)).
 	EndSection().

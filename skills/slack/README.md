@@ -1,12 +1,18 @@
 # Slack Skill
 
-Integration with Slack for messaging and channel operations.
+First-class Slack integration for governed Agent and Team conversations,
+messaging, and channel operations.
+
+The Skill owns request verification, event normalization, durable reply
+delivery, acknowledgement lookup, and paginated channel discovery. Hosts use
+the portable OpenSeal conversation-adapter contract; no Slack-specific logic
+is required in the kernel or product UI.
 
 ## Node Types
 
 - **slack-send-message** — Send messages to channels or threads
 - **slack-read-messages** — Read recent messages from a channel
-- **slack-channel-list** — List available channels
+- **slack-channel-list** — Search and page through authorized channels
 - **slack-add-reaction** — Add a reaction to a message
 - **slack-remove-reaction** — Remove a reaction from a message
 - **slack-update-message** — Update a message by timestamp
@@ -21,7 +27,12 @@ Integration with Slack for messaging and channel operations.
 
 ## Setup
 
-1. Create a Slack app and install it to your workspace
-2. Copy the Bot User OAuth Token
-3. Add the token to your agent's vault as key `token` in a `slack_bot_token` credential
-4. Use the skill nodes in your agent workflows
+1. Create a Slack app with the scopes declared in `skill.yaml` and install it
+   to the workspace.
+2. Connect the installation through the host's authorized OAuth flow. The bot
+   token is bound opaquely as `slack_bot_token`; it is never an action input.
+3. Configure `slack_signing_secret` through the host credential surface for
+   inbound Events API verification.
+4. Select an authorized channel by name during Agent or Team authoring. The
+   Skill persists the exact channel ID and continues pagination using Slack's
+   opaque cursor.
