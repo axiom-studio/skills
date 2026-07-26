@@ -15,6 +15,9 @@ FROM mcr.microsoft.com/playwright:v1.61.0-noble
 ARG AGENT_BROWSER_VERSION=0.27.2
 USER root
 RUN npm install --global --omit=dev "agent-browser@${AGENT_BROWSER_VERSION}" \
+    && agent_browser_path="$(command -v agent-browser)" \
+    && test -n "${agent_browser_path}" \
+    && ln -s "${agent_browser_path}" /usr/local/bin/agent-browser \
     && apt-get update \
     && apt-get install --yes --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/* \
