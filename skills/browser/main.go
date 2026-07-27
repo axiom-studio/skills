@@ -928,16 +928,22 @@ func (s *browserService) open(ctx context.Context, config map[string]interface{}
 	if width < 320 || width > 1920 || height < 320 || height > 1080 {
 		return nil, errors.New("viewport must be between 320x320 and 1920x1080")
 	}
-	commandCtx, cancel, err := commandContext(ctx, intValue(config, "timeoutSeconds", 30))
+	timeoutSeconds := intValue(config, "timeoutSeconds", 30)
+	commandCtx, cancel, err := commandContext(ctx, timeoutSeconds)
+	if err != nil {
+		return nil, err
+	}
+	cancel()
+	args := []string{"open", parsed.String()}
+	data, err := s.openEnginePageLocked(ctx, session, args, timeoutSeconds)
+	if err != nil {
+		return nil, err
+	}
+	commandCtx, cancel, err = commandContext(ctx, timeoutSeconds)
 	if err != nil {
 		return nil, err
 	}
 	defer cancel()
-	args := []string{"open", parsed.String()}
-	data, err := s.openEnginePageLocked(commandCtx, session, args)
-	if err != nil {
-		return nil, err
-	}
 	if _, err := s.engine.Run(commandCtx, session, "set", "viewport", strconv.Itoa(width), strconv.Itoa(height)); err != nil {
 		_ = s.engine.Close(context.Background(), session)
 		return nil, err
@@ -974,13 +980,19 @@ func recoverableBrowserDisconnect(err error) bool {
 	}
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "cdp response channel closed") ||
-		strings.Contains(message, "target page, context or browser has been closed")
+		strings.Contains(message, "target page, context or browser has been closed") ||
+		strings.Contains(message, "operation timed out")
 }
 
-func (s *browserService) openEnginePageLocked(ctx context.Context, session *browserSession, args []string) (map[string]interface{}, error) {
+func (s *browserService) openEnginePageLocked(ctx context.Context, session *browserSession, args []string, timeoutSeconds int) (map[string]interface{}, error) {
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		data, err := s.engine.Run(ctx, session, args...)
+	for attempt := 0; attempt < 2; attempt++ {
+		attemptCtx, cancel, err := commandContext(ctx, timeoutSeconds)
+		if err != nil {
+			return nil, err
+		}
+		data, err := s.engine.Run(attemptCtx, session, args...)
+		cancel()
 		if err == nil {
 			return data, nil
 		}
@@ -1000,7 +1012,7 @@ func (s *browserService) recoverPageLocked(ctx context.Context, session *browser
 	}
 	args := []string{"open", parsed.String()}
 	_ = s.engine.Close(context.Background(), session)
-	data, err := s.openEnginePageLocked(ctx, session, args)
+	data, err := s.openEnginePageLocked(ctx, session, args, 30)
 	if err != nil {
 		return fmt.Errorf("recover browser session: %w", err)
 	}
