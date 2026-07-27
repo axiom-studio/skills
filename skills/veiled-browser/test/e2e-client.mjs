@@ -24,7 +24,7 @@ try {
   assert.deepEqual(challenged.challenges, ["synthetic"], JSON.stringify(challenged));
   const target = challenged.elements.find((element) => element.name === "Authorized test challenge");
   assert.ok(target, "real Chromium snapshot did not expose the configured challenge");
-  const solved = await execute("veiled-browser-solve-synthetic", { sessionId: "chrome-e2e", challengeId: "checkbox", target: target.ref, attestation: "authorized-platform-test" });
+  const solved = await execute("veiled-browser-solve-synthetic", { sessionId: "chrome-e2e", challengeId: "checkbox", target: target.ref, attestation: "authorized-platform-test", idempotencyKey: "synthetic-chrome-e2e" });
   assert.equal(solved.solved, true);
   const accepted = await execute("veiled-browser-snapshot", { sessionId: "chrome-e2e" });
   assert.equal(accepted.text.includes("Assessment accepted"), true);

@@ -194,11 +194,19 @@ export class VeiledBrowserRuntime {
     if (!challenge || challenge.targetId !== session.targetId) throw new Error("synthetic challenge is unavailable for this target");
     if (session.target.mode !== "owned-assessment") throw new Error("synthetic challenges are restricted to platform-owned targets");
     if (config.attestation !== "authorized-platform-test") throw new Error("authorized platform-test attestation is required");
+    if (typeof config.idempotencyKey !== "string" || config.idempotencyKey.length < 8) throw new Error("idempotencyKey is required");
+    const receiptKey = `synthetic:${config.idempotencyKey}`;
+    const fingerprint = digest(config.challengeId, config.target, config.attestation);
+    if (session.receipts.has(receiptKey)) {
+      if (session.receipts.get(receiptKey) !== fingerprint) throw new Error("idempotency key was reused with different arguments");
+      return { sessionId: session.id, challengeId: config.challengeId, kind: "synthetic", solved: true, duplicate: true, receipt: config.idempotencyKey };
+    }
     const engineRef = session.refs.get(config.target);
     if (!engineRef || session.refNames.get(config.target) !== challenge.accessibleName) throw new Error("synthetic challenge target is stale or does not match configured fixture");
     await session.page.click(engineRef);
+    session.receipts.set(receiptKey, fingerprint);
     session.refs.clear(); session.refNames.clear(); session.mutations += 1;
-    return { sessionId: session.id, challengeId: config.challengeId, kind: "synthetic", solved: true };
+    return { sessionId: session.id, challengeId: config.challengeId, kind: "synthetic", solved: true, duplicate: false, receipt: config.idempotencyKey };
   }
 
   report(config) {
