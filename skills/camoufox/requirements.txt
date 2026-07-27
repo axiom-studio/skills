@@ -1,0 +1,5 @@
+camoufox[geoip]==0.4.11
+grpcio==1.76.0
+grpcio-tools==1.76.0
+protobuf==6.33.0
+PyYAML==6.0.3

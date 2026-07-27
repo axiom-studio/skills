@@ -21,3 +21,9 @@ skills/*/git
 # Build output
 dist/
 build/
+
+# Python Skill caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
