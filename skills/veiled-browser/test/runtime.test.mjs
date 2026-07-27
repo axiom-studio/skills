@@ -75,8 +75,10 @@ test("owned assessment uses configured identity and solves only its synthetic fi
   assert.equal(state.launch.proxy, "http://proxy.internal:8080");
   const snapshot = await service.execute("veiled-browser-snapshot", { sessionId: "owned-1" });
   assert.deepEqual(snapshot.challenges, ["captcha", "synthetic"]);
-  const solved = await service.execute("veiled-browser-solve-synthetic", { sessionId: "owned-1", challengeId: "checkbox", target: snapshot.elements[0].ref, attestation: "authorized-platform-test" });
+  const solveRequest = { sessionId: "owned-1", challengeId: "checkbox", target: snapshot.elements[0].ref, attestation: "authorized-platform-test", idempotencyKey: "synthetic-owned-1" };
+  const solved = await service.execute("veiled-browser-solve-synthetic", solveRequest);
   assert.equal(solved.solved, true);
+  assert.equal((await service.execute("veiled-browser-solve-synthetic", solveRequest)).duplicate, true);
   await service.execute("veiled-browser-snapshot", { sessionId: "owned-1" });
   assert.equal((await service.execute("veiled-browser-report", { sessionId: "owned-1" })).outcome, "accepted");
 });
@@ -87,7 +89,7 @@ test("third-party automation cannot select assessment identity, egress, or synth
   await assert.rejects(service.execute("veiled-browser-start", { sessionId: "bad-proxy", targetId: "forum", path: "/community", profileId: "standard", proxyPoolId: "rotating" }), /assessment-only/);
   await service.execute("veiled-browser-start", { sessionId: "forum-1", targetId: "forum", path: "/community", profileId: "standard", proxyPoolId: "direct" });
   assert.equal((await service.execute("veiled-browser-health")).status, "ready");
-  await assert.rejects(service.execute("veiled-browser-solve-synthetic", { sessionId: "forum-1", challengeId: "checkbox", target: "s1:e1", attestation: "authorized-platform-test" }), /unavailable/);
+  await assert.rejects(service.execute("veiled-browser-solve-synthetic", { sessionId: "forum-1", challengeId: "checkbox", target: "s1:e1", attestation: "authorized-platform-test", idempotencyKey: "synthetic-forum-1" }), /unavailable/);
 });
 
 test("third-party challenge creates human checkpoint and blocks interaction", async () => {

@@ -17,6 +17,23 @@ func TestManifestMatchesNativeJavaScriptRuntime(t *testing.T) {
 	if err := yaml.Unmarshal(encoded, &manifest); err != nil {
 		t.Fatalf("manifest is invalid YAML: %v", err)
 	}
+	definition, ok := manifest["definition"].(map[string]interface{})
+	if !ok {
+		t.Fatal("manifest definition is missing")
+	}
+	actions, ok := definition["actions"].(map[string]interface{})
+	if !ok {
+		t.Fatal("manifest actions are missing")
+	}
+	for name, raw := range actions {
+		action, ok := raw.(map[string]interface{})
+		if !ok {
+			t.Fatalf("action %s is invalid", name)
+		}
+		if mode, _ := action["idempotency"].(string); mode != "" && mode != "supported" && mode != "required" {
+			t.Fatalf("action %s has non-canonical idempotency %q", name, mode)
+		}
+	}
 	text := string(encoded)
 	for _, expected := range []string{
 		"id: skill-veiled-browser", "version: 1.0.0", "package: axiomstudio/skill-veiled-browser:1.0.0",
