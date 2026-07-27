@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Anti-bot assessment fixture</title></head>
+<body>
+  <main>
+    <h1>Platform-owned anti-bot fixture</h1>
+    <section id="challenge">
+      <p>Synthetic CAPTCHA for authorized platform testing.</p>
+      <label><input id="authorized" type="checkbox"> Authorized test challenge</label>
+    </section>
+    <button id="accepted" type="button" hidden disabled>Assessment accepted</button>
+  </main>
+  <script>
+    document.querySelector('#authorized').addEventListener('change', () => {
+      document.querySelector('#challenge').hidden = true;
+      document.querySelector('#accepted').hidden = false;
+    });
+  </script>
+</body>
+</html>
