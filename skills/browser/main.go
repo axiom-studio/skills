@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.9"
+	skillVersion        = "1.1.10"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -1075,6 +1075,49 @@ func editableControlRole(role string) bool {
 	}
 }
 
+// hydrateEditableOccupancy asks the live browser for control values because
+// accessibility snapshots do not consistently include them. The values stay
+// inside this process just long enough to derive a boolean and are never
+// returned, persisted, or placed in command arguments.
+func (s *browserService) hydrateEditableOccupancy(ctx context.Context, session *browserSession, refs map[string]interface{}) error {
+	keys := make([]string, 0, len(refs))
+	for raw, value := range refs {
+		entry, _ := value.(map[string]interface{})
+		if editableControlRole(fmt.Sprint(entry["role"])) {
+			keys = append(keys, strings.TrimPrefix(raw, "@"))
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	commands := make([][]string, 0, len(keys))
+	for _, key := range keys {
+		commands = append(commands, []string{"get", "value", "@" + key})
+	}
+	results, err := s.engine.RunBatch(ctx, session, commands)
+	if err != nil {
+		return fmt.Errorf("inspect editable control occupancy: %w", err)
+	}
+	if len(results) != len(keys) {
+		return errors.New("inspect editable control occupancy: browser returned an incomplete result")
+	}
+	for index, key := range keys {
+		value, present := results[index]["value"]
+		if !present {
+			return errors.New("inspect editable control occupancy: browser omitted a control value")
+		}
+		entry, _ := refs[key].(map[string]interface{})
+		if entry == nil {
+			entry, _ = refs["@"+key].(map[string]interface{})
+		}
+		if entry != nil {
+			entry["value"] = strings.TrimSpace(fmt.Sprint(value)) != ""
+		}
+	}
+	return nil
+}
+
 func (s *browserService) snapshot(ctx context.Context, config map[string]interface{}, secrets []string) (map[string]interface{}, error) {
 	session, err := s.session(stringValue(config, "sessionId"))
 	if err != nil {
@@ -1105,6 +1148,9 @@ func (s *browserService) snapshot(ctx context.Context, config map[string]interfa
 	}
 	rawSnapshot, _ := data["snapshot"].(string)
 	rawRefs, _ := data["refs"].(map[string]interface{})
+	if err := s.hydrateEditableOccupancy(ctx, session, rawRefs); err != nil {
+		return nil, err
+	}
 	session.meta.Generation++
 	rawSnapshot = redact(rawSnapshot, secrets)
 	text, truncated := boundedString(rawSnapshot, maxSnapshotBytes)
