@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.10"
+	skillVersion        = "1.1.11"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -1112,7 +1112,10 @@ func (s *browserService) hydrateEditableOccupancy(ctx context.Context, session *
 			entry, _ = refs["@"+key].(map[string]interface{})
 		}
 		if entry != nil {
-			entry["value"] = strings.TrimSpace(fmt.Sprint(value)) != ""
+			entry["value"] = ""
+			if strings.TrimSpace(fmt.Sprint(value)) != "" {
+				entry["value"] = "occupied"
+			}
 		}
 	}
 	return nil

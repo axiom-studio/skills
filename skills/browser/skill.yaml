@@ -504,7 +504,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with pinned agent-browser and Chromium
-          package: axiomstudio/skill-browser:1.1.10
+          package: axiomstudio/skill-browser:1.1.11
     name: Browser Skill
     requirements:
         compute:
@@ -529,7 +529,7 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 1.1.10
+        resolvedVersion: 1.1.11
     tags:
         - accessibility
         - automation
@@ -539,7 +539,7 @@ definition:
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 1.1.10
+    version: 1.1.11
 diagnostics:
     - code: governed_agent_browser
       message: agent-browser is wrapped behind narrow actions and a dial-time SSRF proxy; unrestricted CLI, JavaScript, CDP, storage, cookie, header, executable, and launch-flag controls are not exposed.
