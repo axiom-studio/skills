@@ -18,9 +18,9 @@ run_health_checks() {
         local skill_name
         skill_name="$(basename "$skill_dir")"
 
-        # Only check skills with main.go (potential gRPC services)
-        if [ ! -f "$skill_dir/main.go" ]; then
-            log_warn "Skipping $skill_name - no main.go found"
+        # Only check executable Go and Python Skill services.
+        if [ ! -f "$skill_dir/main.go" ] && [ ! -f "$skill_dir/pyproject.toml" ]; then
+            log_warn "Skipping $skill_name - no supported service entrypoint found"
             SKIPPED=$((SKIPPED + 1))
             TOTAL=$((TOTAL + 1))
             continue

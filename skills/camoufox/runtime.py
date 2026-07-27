@@ -1,0 +1,552 @@
+"""Governed Camoufox browser runtime.
+
+Stdlib-only at import time so unit tests run without Camoufox, Playwright, or
+grpc installed. The real engine is imported lazily inside the default browser
+factory, which always executes on a dedicated worker thread because the
+Playwright sync API is bound to the thread that created it.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+import queue
+import re
+import threading
+from datetime import datetime, timezone
+from urllib.parse import urljoin, urlparse
+
+ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+SECRET_CONTROL = re.compile(
+    r"(password|passcode|secret|token|api.?key|authorization|cookie|private.?key)", re.I
+)
+CHALLENGES = {
+    "captcha": re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I),
+    "mfa": re.compile(r"\b(multi[ -]?factor|two[ -]?factor|2fa|authenticator|verification code)\b", re.I),
+    "anti_bot": re.compile(r"\b(access denied|unusual traffic|bot detection|security check|cloudflare|js_challenge)\b", re.I),
+}
+
+MODES = ("owned-assessment", "permitted-automation")
+OS_VALUES = {"windows", "macos", "linux"}
+PROFILE_KEYS = {"os", "geoip", "humanize", "seed", "window", "block_webrtc", "block_images"}
+PROXY_SCHEMES = ("http", "https", "socks5")
+MAX_ELEMENTS = 500
+MAX_TEXT = 200 * 1024
+MAX_SCREENSHOT = 5 * 1024 * 1024
+
+SNAPSHOT_JS = """
+() => {
+  const sel = 'a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="textbox"],[role="combobox"],[role="tab"],[role="menuitem"],[contenteditable="true"]';
+  const els = [...document.querySelectorAll(sel)].filter((e) => {
+    const r = e.getBoundingClientRect();
+    const s = getComputedStyle(e);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+  }).slice(0, %d);
+  const name = (e) => (e.getAttribute('aria-label') || e.innerText || e.getAttribute('value') || e.getAttribute('placeholder') || e.getAttribute('name') || '').trim().slice(0, 200);
+  els.forEach((e, i) => e.setAttribute('data-camoufox-ref', String(i + 1)));
+  return {
+    url: location.href,
+    title: document.title,
+    text: (document.body ? document.body.innerText : '').slice(0, %d),
+    elements: els.map((e, i) => ({ ref: i + 1, role: e.getAttribute('role') || e.tagName.toLowerCase(), name: name(e) })),
+  };
+}
+""" % (MAX_ELEMENTS, MAX_TEXT)
+
+
+def _configured_map(env, name, required=True):
+    raw = (env.get(name) or "").strip()
+    if not raw:
+        if required:
+            raise ValueError(f"{name} is required")
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        raise ValueError(f"{name} is invalid") from None
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be an object")
+    return value
+
+
+def _validate_profile(pid, profile):
+    if not ID.match(pid) or not isinstance(profile, dict):
+        raise ValueError(f"profile {pid} is invalid")
+    unknown = set(profile) - PROFILE_KEYS - {"assessmentOnly"}
+    if unknown:
+        raise ValueError(f"profile {pid} sets unsupported keys: {sorted(unknown)}")
+    os_value = profile.get("os")
+    if isinstance(os_value, str):
+        os_value = [os_value]
+    if os_value is not None and (
+        not isinstance(os_value, list)
+        or not os_value
+        or any(v not in OS_VALUES for v in os_value)
+    ):
+        raise ValueError(f"profile {pid} os must be one or more of {sorted(OS_VALUES)}")
+    if profile.get("seed") is not None and (not isinstance(profile["seed"], int) or profile["seed"] < 0):
+        raise ValueError(f"profile {pid} seed is invalid")
+    window = profile.get("window")
+    if window is not None and (
+        not isinstance(window, list) or len(window) != 2 or any(not isinstance(v, int) or v <= 0 for v in window)
+    ):
+        raise ValueError(f"profile {pid} window must be [width, height]")
+
+
+def proxy_urls(proxy):
+    if isinstance(proxy.get("urls"), list):
+        return proxy["urls"]
+    if proxy.get("url"):
+        return [proxy["url"]]
+    return []
+
+
+def load_inventory(env=None):
+    env = env if env is not None else os.environ
+    required = ("CAMOUFOX_TARGETS", "CAMOUFOX_PROFILES", "CAMOUFOX_PROXY_POOLS")
+    if all(not (env.get(name) or "").strip() for name in required):
+        return None
+    inventory = {
+        "targets": _configured_map(env, "CAMOUFOX_TARGETS"),
+        "profiles": _configured_map(env, "CAMOUFOX_PROFILES"),
+        "proxy_pools": _configured_map(env, "CAMOUFOX_PROXY_POOLS"),
+    }
+    for tid, target in inventory["targets"].items():
+        parsed = urlparse(target.get("baseUrl", ""))
+        if (
+            not ID.match(tid)
+            or parsed.scheme not in ("http", "https")
+            or parsed.username
+            or parsed.password
+        ):
+            raise ValueError(f"target {tid} is invalid")
+        prefixes = target.get("pathPrefixes")
+        if (
+            not isinstance(prefixes, list)
+            or not prefixes
+            or any(not isinstance(p, str) or not p.startswith("/") for p in prefixes)
+        ):
+            raise ValueError(f"target {tid} requires pathPrefixes")
+        if target.get("mode") not in MODES:
+            raise ValueError(f"target {tid} requires an explicit mode")
+    for pid, profile in inventory["profiles"].items():
+        _validate_profile(pid, profile)
+    for gid, proxy in inventory["proxy_pools"].items():
+        if not ID.match(gid) or not isinstance(proxy, dict):
+            raise ValueError(f"proxy pool {gid} is invalid")
+        if proxy.get("url") and proxy.get("urls"):
+            raise ValueError(f"proxy pool {gid} cannot set url and urls")
+        if "urls" in proxy and (not isinstance(proxy["urls"], list) or not proxy["urls"]):
+            raise ValueError(f"proxy pool {gid} requires non-empty urls")
+        for endpoint in proxy_urls(proxy):
+            parsed = urlparse(endpoint)
+            if parsed.scheme not in PROXY_SCHEMES or not parsed.netloc:
+                raise ValueError(f"proxy pool {gid} is invalid")
+    if not inventory["targets"] or not inventory["profiles"] or not inventory["proxy_pools"]:
+        raise ValueError("automation inventory must include a target, profile, and proxy pool")
+    return inventory
+
+
+def exact_path(target, requested="/"):
+    if not isinstance(requested, str) or not requested.startswith("/"):
+        raise ValueError("path must be relative to the authorized origin")
+    base = target["baseUrl"].rstrip("/") + "/"
+    destination = urljoin(base, requested)
+    parsed_base, parsed_dest = urlparse(base), urlparse(destination)
+    if (parsed_base.scheme, parsed_base.netloc) != (parsed_dest.scheme, parsed_dest.netloc) or not any(
+        parsed_dest.path.startswith(prefix) for prefix in target["pathPrefixes"]
+    ):
+        raise ValueError("path is outside the authorized target scope")
+    return destination
+
+
+def detect_challenges(text):
+    return [kind for kind, pattern in CHALLENGES.items() if pattern.search(text or "")]
+
+
+def digest(*parts):
+    return "sha256:" + hashlib.sha256("\0".join(str(p) for p in parts).encode()).hexdigest()
+
+
+def stable_seed(value):
+    return int.from_bytes(hashlib.sha256(str(value).encode()).digest()[:4], "big")
+
+
+def resolve_proxy(proxy, pool_id, session_id):
+    endpoints = proxy_urls(proxy)
+    if not endpoints:
+        return None
+    if len(endpoints) == 1:
+        return endpoints[0]
+    return endpoints[stable_seed(f"{pool_id}:{session_id}") % len(endpoints)]
+
+
+def profile_options(profile):
+    return {key: profile[key] for key in PROFILE_KEYS if key in profile}
+
+
+class BrowserWorker(threading.Thread):
+    """Single dedicated thread for Playwright-sync engine calls."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._jobs = queue.Queue()
+        self.start()
+
+    def run(self):
+        while True:
+            job = self._jobs.get()
+            if job is None:
+                return
+            fn, args, kwargs, result = job
+            try:
+                result["value"] = fn(*args, **kwargs)
+            except BaseException as exc:  # surfaced to the caller thread
+                result["error"] = exc
+            finally:
+                result["done"].set()
+
+    def call(self, fn, *args, **kwargs):
+        result = {"done": threading.Event(), "value": None, "error": None}
+        self._jobs.put((fn, args, kwargs, result))
+        result["done"].wait()
+        if result["error"] is not None:
+            raise result["error"]
+        return result["value"]
+
+    def stop(self):
+        self._jobs.put(None)
+        self.join(timeout=10)
+
+
+class CamoufoxHandle:
+    """Real engine handle; every method runs on the worker thread."""
+
+    def __init__(self, options):
+        self._worker = BrowserWorker()
+        try:
+            self._worker.call(self._launch, options)
+        except Exception:
+            self._worker.stop()
+            raise
+
+    def _launch(self, options):
+        from camoufox.sync_api import Camoufox
+
+        kwargs = dict(options.get("profile_options") or {})
+        if options.get("proxy"):
+            kwargs["proxy"] = {"server": options["proxy"]}
+        self._ctx = Camoufox(
+            headless=options.get("headless", "virtual"),
+            user_data_dir=options["user_data_dir"],
+            persistent_context=True,
+            **kwargs,
+        )
+        self._browser = self._ctx.__enter__()
+        self._page = self._browser.new_page()
+
+    def goto(self, url, timeout_ms=30000):
+        def _goto():
+            response = self._page.goto(url, timeout=timeout_ms, wait_until="networkidle")
+            return {"url": self._page.url, "status": response.status if response else 0}
+
+        return self._worker.call(_goto)
+
+    def snapshot(self):
+        return self._worker.call(lambda: self._page.evaluate(SNAPSHOT_JS))
+
+    def click(self, marker):
+        self._worker.call(lambda: self._page.locator(f'[data-camoufox-ref="{marker}"]').first.click())
+
+    def fill(self, marker, value):
+        def _fill():
+            field = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
+            field.click()
+            field.press_sequentially(value, delay=25)
+
+        self._worker.call(_fill)
+
+    def select(self, marker, value):
+        def _select():
+            field = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
+            try:
+                return field.select_option(value=value)
+            except Exception:
+                return field.select_option(label=value)
+
+        return self._worker.call(_select)
+
+    def scroll(self, dx, dy):
+        self._worker.call(lambda: self._page.mouse.wheel(dx, dy))
+
+    def screenshot(self, full_page=False):
+        return self._worker.call(lambda: self._page.screenshot(full_page=full_page, type="png"))
+
+    def close(self):
+        try:
+            self._worker.call(lambda: self._ctx.__exit__(None, None, None))
+        finally:
+            self._worker.stop()
+
+
+def default_browser_factory(options):
+    return CamoufoxHandle(options)
+
+
+class CamoufoxRuntime:
+    def __init__(self, inventory, workspace, browser_factory=None, now=None):
+        self.inventory = inventory
+        self.workspace = workspace
+        self.browser_factory = browser_factory or default_browser_factory
+        self.now = now or (lambda: datetime.now(timezone.utc))
+        self.sessions = {}
+
+    def execute(self, action, config=None, bindings=None):
+        config = config or {}
+        bindings = bindings or {}
+        handlers = {
+            "camoufox-health": lambda: self.health(),
+            "camoufox-start": lambda: self.start(config),
+            "camoufox-snapshot": lambda: self.snapshot(config, bindings),
+            "camoufox-click": lambda: self.mutate("click", config),
+            "camoufox-commit": lambda: self.mutate("click", config),
+            "camoufox-fill": lambda: self.mutate("fill", config),
+            "camoufox-fill-secret": lambda: self.fill_secret(config, bindings),
+            "camoufox-select": lambda: self.mutate("select", config),
+            "camoufox-scroll": lambda: self.scroll(config),
+            "camoufox-screenshot": lambda: self.screenshot(config),
+            "camoufox-report": lambda: self.report(config),
+            "camoufox-close": lambda: self.close(config),
+        }
+        if action not in handlers:
+            raise ValueError(f"unsupported Camoufox action {action}")
+        return handlers[action]()
+
+    def health(self):
+        if not self.inventory:
+            return {
+                "status": "needs_configuration",
+                "skillId": "skill-camoufox",
+                "version": "1.0.0",
+                "authorizedTargets": 0,
+                "profiles": 0,
+                "proxyPools": 0,
+            }
+        return {
+            "status": "ready",
+            "skillId": "skill-camoufox",
+            "version": "1.0.0",
+            "authorizedTargets": len(self.inventory["targets"]),
+            "profiles": len(self.inventory["profiles"]),
+            "proxyPools": len(self.inventory["proxy_pools"]),
+        }
+
+    def session(self, session_id):
+        if not ID.match(session_id or ""):
+            raise ValueError("sessionId is invalid")
+        session = self.sessions.get(session_id)
+        if not session:
+            raise ValueError("automation session not found")
+        return session
+
+    def start(self, config):
+        if not self.inventory:
+            raise ValueError("Camoufox inventory is not configured")
+        session_id = config.get("sessionId")
+        target_id, profile_id, pool_id = config.get("targetId"), config.get("profileId"), config.get("proxyPoolId")
+        if not ID.match(session_id or ""):
+            raise ValueError("sessionId is invalid")
+        if session_id in self.sessions:
+            raise ValueError("automation session already exists")
+        target = self.inventory["targets"].get(target_id)
+        profile = self.inventory["profiles"].get(profile_id)
+        proxy = self.inventory["proxy_pools"].get(pool_id)
+        if not target:
+            raise ValueError("authorized target is unavailable")
+        if not profile:
+            raise ValueError("browser profile is unavailable")
+        if proxy is None:
+            raise ValueError("proxy pool is unavailable")
+        if target["mode"] == "permitted-automation" and (profile.get("assessmentOnly") or proxy.get("assessmentOnly")):
+            raise ValueError("assessment-only identity or egress cannot be used with a third-party automation target")
+        destination = exact_path(target, config.get("path", "/"))
+        user_data_dir = os.path.join(self.workspace, "profiles", profile_id, session_id)
+        os.makedirs(user_data_dir, mode=0o700, exist_ok=True)
+        handle = self.browser_factory(
+            {
+                "headless": "virtual",
+                "user_data_dir": user_data_dir,
+                "proxy": resolve_proxy(proxy, pool_id, session_id),
+                "profile_options": profile_options(profile),
+            }
+        )
+        try:
+            navigation = handle.goto(destination, timeout_ms=30000)
+        except Exception:
+            try:
+                handle.close()
+            except Exception:
+                pass
+            raise
+        self.sessions[session_id] = {
+            "id": session_id,
+            "target_id": target_id,
+            "profile_id": profile_id,
+            "proxy_pool_id": pool_id,
+            "target": target,
+            "handle": handle,
+            "current_url": navigation.get("url") or destination,
+            "status_code": navigation.get("status") or 0,
+            "generation": 0,
+            "refs": {},
+            "ref_names": {},
+            "challenges": [],
+            "snapshot_text": "",
+            "mutations": 0,
+            "receipts": {},
+            "secrets": set(),
+            "started_at": self.now(),
+        }
+        return {
+            "sessionId": session_id,
+            "targetId": target_id,
+            "profileId": profile_id,
+            "proxyPoolId": pool_id,
+            "url": destination,
+            "status": "active",
+        }
+
+    def snapshot(self, config, bindings=None):
+        session = self.session(config.get("sessionId"))
+        raw = session["handle"].snapshot()
+        secret_values = [s for s in session["secrets"]] + [
+            v for v in (bindings or {}).values() if isinstance(v, str) and len(v) >= 3
+        ]
+
+        def redact(value):
+            text = str(value if value is not None else "")
+            for secret in secret_values:
+                text = text.replace(secret, "[REDACTED]")
+            return text
+
+        text = redact(raw.get("text", ""))[:MAX_TEXT]
+        session["generation"] += 1
+        session["refs"].clear()
+        session["ref_names"].clear()
+        elements = []
+        for index, element in enumerate((raw.get("elements") or [])[:MAX_ELEMENTS]):
+            ref = f"s{session['generation']}:e{index + 1}"
+            session["refs"][ref] = element["ref"]
+            session["ref_names"][ref] = element.get("name", "")
+            elements.append({"ref": ref, "role": element.get("role", ""), "name": redact(element.get("name", ""))})
+        session["current_url"] = raw.get("url", session["current_url"])
+        session["snapshot_text"] = text
+        session["challenges"] = detect_challenges(text)
+        return {
+            "sessionId": session["id"],
+            "generation": session["generation"],
+            "url": raw.get("url", ""),
+            "title": raw.get("title", ""),
+            "text": text,
+            "elements": elements,
+            "challenges": session["challenges"],
+            "requiresHuman": session["target"]["mode"] == "permitted-automation" and bool(session["challenges"]),
+        }
+
+    def mutate(self, operation, config, secret_value=None):
+        session = self.session(config.get("sessionId"))
+        if session["target"]["mode"] == "permitted-automation" and session["challenges"]:
+            raise ValueError("the destination presented an access challenge; human completion is required")
+        if config.get("writeAuthorized") is not True:
+            raise ValueError("writeAuthorized must be true")
+        key = config.get("idempotencyKey")
+        if not isinstance(key, str) or len(key) < 8:
+            raise ValueError("idempotencyKey is required")
+        value = secret_value if secret_value is not None else config.get("value", "")
+        fingerprint = digest(operation, config.get("target"), value)
+        receipt_key = f"{operation}:{key}"
+        if receipt_key in session["receipts"]:
+            if session["receipts"][receipt_key] != fingerprint:
+                raise ValueError("idempotency key was reused with different arguments")
+            return {"sessionId": session["id"], "duplicate": True, "receipt": key}
+        target_ref = config.get("target")
+        marker = session["refs"].get(target_ref)
+        if marker is None:
+            raise ValueError("target is stale or unknown; take a new snapshot")
+        if (
+            operation == "fill"
+            and secret_value is None
+            and SECRET_CONTROL.search(session["ref_names"].get(target_ref, ""))
+        ):
+            raise ValueError("literal values cannot fill a secret-like control; use an authorized credential binding")
+        if operation == "click":
+            session["handle"].click(marker)
+        elif operation == "select":
+            session["handle"].select(marker, value)
+        else:
+            session["handle"].fill(marker, value)
+        session["receipts"][receipt_key] = fingerprint
+        session["refs"].clear()
+        session["ref_names"].clear()
+        session["mutations"] += 1
+        return {"sessionId": session["id"], "success": True, "duplicate": False, "receipt": key}
+
+    def fill_secret(self, config, bindings):
+        field = config.get("credentialField")
+        secret = bindings.get(field) if isinstance(field, str) else None
+        if not isinstance(secret, str) or not secret:
+            raise ValueError("authorized credential field is unavailable")
+        result = self.mutate("fill", config, secret)
+        self.session(config.get("sessionId"))["secrets"].add(secret)
+        return result
+
+    def scroll(self, config):
+        session = self.session(config.get("sessionId"))
+        dx, dy = config.get("dx", 0), config.get("dy", 0)
+        if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
+            raise ValueError("dx and dy must be numbers")
+        if abs(dx) > 10000 or abs(dy) > 10000:
+            raise ValueError("scroll delta is out of range")
+        session["handle"].scroll(dx, dy)
+        return {"sessionId": session["id"], "scrolled": True, "dx": dx, "dy": dy}
+
+    def screenshot(self, config):
+        session = self.session(config.get("sessionId"))
+        png = session["handle"].screenshot(full_page=bool(config.get("fullPage")))
+        if len(png) > MAX_SCREENSHOT:
+            raise ValueError("screenshot exceeds the 5MiB evidence limit")
+        return {
+            "sessionId": session["id"],
+            "url": session["current_url"],
+            "mediaType": "image/png",
+            "bytes": len(png),
+            "contentBase64": base64.b64encode(png).decode(),
+        }
+
+    def report(self, config):
+        session = self.session(config.get("sessionId"))
+        outcome = "accepted"
+        if session["status_code"] in (401, 403, 429):
+            outcome = "blocked"
+        elif session["challenges"]:
+            outcome = "challenged"
+        return {
+            "sessionId": session["id"],
+            "targetId": session["target_id"],
+            "profileId": session["profile_id"],
+            "proxyPoolId": session["proxy_pool_id"],
+            "outcome": outcome,
+            "httpStatus": session["status_code"],
+            "challenges": session["challenges"],
+            "mutationCount": session["mutations"],
+            "startedAt": session["started_at"].isoformat(),
+            "evidence": {"snapshotDigest": digest(session["current_url"], session["snapshot_text"])},
+        }
+
+    def close(self, config):
+        session = self.session(config.get("sessionId"))
+        session["handle"].close()
+        del self.sessions[session["id"]]
+        return {"sessionId": session["id"], "closed": True, "profilePreserved": True}

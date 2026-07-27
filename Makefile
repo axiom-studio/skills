@@ -11,9 +11,9 @@ REGISTRY := axiomstudio
 # mongodb: has go.mod but no Go source files (incomplete)
 SKIP_SKILLS := mcp mongodb
 
-# Discover all buildable skills (those with main.go, excluding skipped)
+# Discover all buildable skills (Go via main.go, Python via pyproject.toml, excluding skipped)
 ALL_SKILL_DIRS := $(filter-out $(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS)),\
-                   $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go))))
+                   $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go) $(wildcard $(SKILLS_DIR)/*/pyproject.toml))))
 SKILL_NAMES := $(notdir $(patsubst %/,%,$(ALL_SKILL_DIRS)))
 
 .PHONY: docker-build docker-push clean help
