@@ -30,7 +30,7 @@ func TestManifestMatchesNativeJavaScriptRuntime(t *testing.T) {
 		if !ok {
 			t.Fatalf("action %s is invalid", name)
 		}
-		if mode, _ := action["idempotency"].(string); mode != "" && mode != "supported" && mode != "required" {
+		if mode, _ := action["idempotency"].(string); mode != "none" && mode != "supported" && mode != "required" {
 			t.Fatalf("action %s has non-canonical idempotency %q", name, mode)
 		}
 	}
