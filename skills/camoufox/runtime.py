@@ -74,7 +74,11 @@ SNAPSHOT_JS = r"""
     const label = name(parent);
     return label ? `${kind}: ${label}`.slice(0, 240) : kind;
   };
+  for (const e of (globalThis.__opensealCamoufoxRefs || [])) {
+    e.removeAttribute?.('data-camoufox-ref');
+  }
   const els = [...new Set(candidates)].filter((e) => visible(e) && inViewport(e)).slice(0, %d);
+  globalThis.__opensealCamoufoxRefs = els;
   els.forEach((e, i) => e.setAttribute('data-camoufox-ref', String(i + 1)));
   const lines = [];
   const seen = new Set();
@@ -484,7 +488,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.10",
+                "version": "1.0.11",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -492,7 +496,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.10",
+            "version": "1.0.11",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
