@@ -491,16 +491,16 @@ class CamoufoxRuntime:
         if not self.inventory:
             return {
                 "status": "needs_configuration",
-                "skillId": "skill-camoufox",
-                "version": "1.0.12",
+                "skillId": "skill-browser",
+                "version": "2.0.0",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
             }
         return {
             "status": "ready",
-            "skillId": "skill-camoufox",
-            "version": "1.0.12",
+            "skillId": "skill-browser",
+            "version": "2.0.0",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),

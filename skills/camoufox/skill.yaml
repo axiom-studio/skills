@@ -223,13 +223,13 @@ definition:
     category: security
     description: Governed Camoufox stealth browser automation using opaque authorized targets, OS-level fingerprint profiles, and rotating egress identities.
     icon: shield
-    id: skill-camoufox
+    id: skill-browser
     installers:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.12
-    name: Camoufox Skill
+          package: axiomstudio/skill-browser:2.0.0
+    name: Browser Skill
     prompt:
         allowedTools:
             - camoufox-health
@@ -264,11 +264,11 @@ definition:
         homepage: https://github.com/daijro/camoufox
         license: MIT
         publisher: Axiom Studio
-        reference: skill-camoufox
-        resolvedVersion: 1.0.12
+        reference: skill-browser
+        resolvedVersion: 2.0.0
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
-        endpoint: skill-camoufox
+        endpoint: skill-browser
         kind: tool
-    version: 1.0.12
+    version: 2.0.0
 kind: SkillDefinition
