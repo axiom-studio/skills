@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.2"
+	skillVersion        = "1.1.3"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -871,18 +871,24 @@ func redact(value string, secrets []string) string {
 	return value
 }
 
-func bindingSecrets(r executor.TemplateResolver) map[string]string {
-	bindings, ok := r.(executor.BindingResolver)
-	if !ok {
-		return nil
-	}
+func bindingSecrets(config map[string]interface{}, r executor.TemplateResolver) (map[string]string, error) {
 	result := map[string]string{}
+	bindings, hasBindings := r.(executor.BindingResolver)
 	for _, field := range []string{"username", "password"} {
-		if value, ok := bindings.GetBinding(field).(string); ok && value != "" {
+		if hasBindings {
+			if value, ok := bindings.GetBinding(field).(string); ok && value != "" {
+				result[field] = value
+			}
+		}
+		if value, ok := config[field].(string); ok && value != "" {
+			if existing := result[field]; existing != "" && existing != value {
+				return nil, fmt.Errorf("conflicting bound credential field %q", field)
+			}
 			result[field] = value
 		}
+		delete(config, field)
 	}
-	return result
+	return result, nil
 }
 
 func secretValues(values map[string]string) []string {
@@ -1090,7 +1096,7 @@ func validateMutation(config map[string]interface{}) error {
 	return nil
 }
 
-func (s *browserService) mutate(ctx context.Context, action string, config map[string]interface{}, r executor.TemplateResolver) (map[string]interface{}, error) {
+func (s *browserService) mutate(ctx context.Context, action string, config map[string]interface{}, secrets map[string]string) (map[string]interface{}, error) {
 	if err := validateMutation(config); err != nil {
 		return nil, err
 	}
@@ -1108,7 +1114,6 @@ func (s *browserService) mutate(ctx context.Context, action string, config map[s
 	}
 	value := stringValue(config, "value")
 	credentialField := stringValue(config, "credentialField")
-	secrets := bindingSecrets(r)
 	isSecret := false
 	if action == "fill-secret" {
 		if value != "" || (credentialField != "username" && credentialField != "password") {
@@ -1341,7 +1346,7 @@ func (e *actionExecutor) Type() string { return e.action }
 
 func (e *actionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, r executor.TemplateResolver) (result *executor.StepResult, err error) {
 	config := configMap(step, r)
-	secrets := bindingSecrets(r)
+	secrets, secretErr := bindingSecrets(config, r)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = errors.New("browser action failed safely")
@@ -1350,6 +1355,9 @@ func (e *actionExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 			err = errors.New(redact(err.Error(), secretValues(secrets)))
 		}
 	}()
+	if secretErr != nil {
+		return nil, secretErr
+	}
 	var output map[string]interface{}
 	switch e.action {
 	case "browser-health":
@@ -1373,15 +1381,15 @@ func (e *actionExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	case "browser-read":
 		output, err = e.service.read(ctx, config, secretValues(secrets))
 	case "browser-click":
-		output, err = e.service.mutate(ctx, "click", config, r)
+		output, err = e.service.mutate(ctx, "click", config, secrets)
 	case "browser-fill":
-		output, err = e.service.mutate(ctx, "fill", config, r)
+		output, err = e.service.mutate(ctx, "fill", config, secrets)
 	case "browser-fill-secret":
-		output, err = e.service.mutate(ctx, "fill-secret", config, r)
+		output, err = e.service.mutate(ctx, "fill-secret", config, secrets)
 	case "browser-type":
-		output, err = e.service.mutate(ctx, "type", config, r)
+		output, err = e.service.mutate(ctx, "type", config, secrets)
 	case "browser-select":
-		output, err = e.service.mutate(ctx, "select", config, r)
+		output, err = e.service.mutate(ctx, "select", config, secrets)
 	case "browser-wait":
 		output, err = e.service.wait(ctx, config)
 	case "browser-screenshot":

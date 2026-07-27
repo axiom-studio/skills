@@ -434,6 +434,39 @@ func TestSecretRedactionAndCredentialFill(t *testing.T) {
 	}
 }
 
+func TestManagedCredentialFieldsAreConsumedEphemerally(t *testing.T) {
+	const secret = "managed-secret-never-persist"
+	engine := newFakeEngine()
+	service := testService(t, engine, time.Minute)
+	openFixture(t, service, "managed-secret")
+	snapshot, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "managed-secret"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := map[string]interface{}{
+		"sessionId": "managed-secret", "target": findReference(t, snapshot, "Password"), "credentialField": "password",
+		"intent": "Fill the approved managed credential", "writeAuthorized": true, "idempotencyKey": "managed-secret-fill-0001",
+		"username": "fixture-user", "password": secret,
+	}
+	output, err := execute(t, service, "browser-fill-secret", config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if engine.pages["managed-secret"].values["e3"] != secret {
+		t.Fatal("managed credential was not delivered to the engine")
+	}
+	if _, exists := config["username"]; exists {
+		t.Fatal("managed username remained in execution config")
+	}
+	if _, exists := config["password"]; exists {
+		t.Fatal("managed password remained in execution config")
+	}
+	encoded, _ := json.Marshal(output)
+	if strings.Contains(string(encoded), secret) {
+		t.Fatalf("managed credential leaked in output: %s", encoded)
+	}
+}
+
 func TestTimeoutAndIdleCleanup(t *testing.T) {
 	engine := newFakeEngine()
 	service := testService(t, engine, 50*time.Millisecond)
@@ -497,7 +530,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.2", "version: 1.1.2", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.3", "version: 1.1.3", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
