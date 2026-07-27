@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.4"
+	skillVersion        = "1.1.5"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -195,6 +195,8 @@ type sessionMetadata struct {
 	ProfileName    string                       `json:"profileName,omitempty"`
 	CurrentURL     string                       `json:"currentUrl,omitempty"`
 	Title          string                       `json:"title,omitempty"`
+	ViewportWidth  int                          `json:"viewportWidth,omitempty"`
+	ViewportHeight int                          `json:"viewportHeight,omitempty"`
 	Generation     int                          `json:"generation"`
 	SnapshotValid  bool                         `json:"snapshotValid"`
 	SecretTainted  bool                         `json:"secretTainted"`
@@ -926,7 +928,7 @@ func (s *browserService) open(ctx context.Context, config map[string]interface{}
 		args = append(args, "--profile", session.profileDir)
 	}
 	args = append(args, "open", parsed.String())
-	data, err := s.engine.Run(commandCtx, session, args...)
+	data, err := s.openEnginePageLocked(commandCtx, session, args)
 	if err != nil {
 		return nil, err
 	}
@@ -936,6 +938,8 @@ func (s *browserService) open(ctx context.Context, config map[string]interface{}
 	}
 	session.meta.CurrentURL, _ = data["url"].(string)
 	session.meta.Title, _ = data["title"].(string)
+	session.meta.ViewportWidth = width
+	session.meta.ViewportHeight = height
 	if session.meta.CurrentURL == "" {
 		s.refreshPageState(commandCtx, session)
 	}
@@ -956,6 +960,73 @@ func (s *browserService) open(ctx context.Context, config map[string]interface{}
 		"profileName": profile, "viewport": map[string]interface{}{"width": width, "height": height},
 		"challenges": session.meta.LastChallenges, "requiresHuman": blockedChallenge(session.meta.LastChallenges),
 	}, nil
+}
+
+func recoverableBrowserDisconnect(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "cdp response channel closed") ||
+		strings.Contains(message, "target page, context or browser has been closed")
+}
+
+func (s *browserService) openEnginePageLocked(ctx context.Context, session *browserSession, args []string) (map[string]interface{}, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		data, err := s.engine.Run(ctx, session, args...)
+		if err == nil {
+			return data, nil
+		}
+		lastErr = err
+		if !recoverableBrowserDisconnect(err) {
+			return nil, err
+		}
+		_ = s.engine.Close(context.Background(), session)
+	}
+	return nil, lastErr
+}
+
+func (s *browserService) recoverPageLocked(ctx context.Context, session *browserSession) error {
+	parsed, err := s.policy.validateURL(ctx, session.meta.CurrentURL)
+	if err != nil {
+		return fmt.Errorf("recover browser session destination: %w", err)
+	}
+	args := []string{}
+	if session.profileDir != "" {
+		args = append(args, "--profile", session.profileDir)
+	}
+	args = append(args, "open", parsed.String())
+	_ = s.engine.Close(context.Background(), session)
+	data, err := s.openEnginePageLocked(ctx, session, args)
+	if err != nil {
+		return fmt.Errorf("recover browser session: %w", err)
+	}
+	width, height := session.meta.ViewportWidth, session.meta.ViewportHeight
+	if width == 0 {
+		width = 1440
+	}
+	if height == 0 {
+		height = 900
+	}
+	if _, err = s.engine.Run(ctx, session, "set", "viewport", strconv.Itoa(width), strconv.Itoa(height)); err != nil {
+		return fmt.Errorf("recover browser session viewport: %w", err)
+	}
+	if current, ok := data["url"].(string); ok && current != "" {
+		session.meta.CurrentURL = current
+	}
+	if title, ok := data["title"].(string); ok {
+		session.meta.Title = title
+	}
+	if _, err = s.policy.validateURL(ctx, session.meta.CurrentURL); err != nil {
+		_ = s.engine.Close(context.Background(), session)
+		return fmt.Errorf("recovered browser navigation reached a blocked destination: %w", err)
+	}
+	session.meta.Generation++
+	session.meta.SnapshotValid = false
+	session.meta.SecretTainted = false
+	session.touch()
+	return session.persist()
 }
 
 func stableSnapshot(generation int, snapshot string, refs map[string]interface{}) (string, map[string]map[string]interface{}) {
@@ -1016,6 +1087,12 @@ func (s *browserService) snapshot(ctx context.Context, config map[string]interfa
 		args = append(args, "-i")
 	}
 	data, err := s.engine.Run(ctx, session, args...)
+	if recoverableBrowserDisconnect(err) {
+		if recoverErr := s.recoverPageLocked(ctx, session); recoverErr != nil {
+			return nil, recoverErr
+		}
+		data, err = s.engine.Run(ctx, session, args...)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1064,6 +1141,12 @@ func (s *browserService) read(ctx context.Context, config map[string]interface{}
 		return nil, errors.New("maxCharacters must be between 1 and 100000")
 	}
 	data, err := s.engine.Run(ctx, session, "get", "text", "body")
+	if recoverableBrowserDisconnect(err) {
+		if recoverErr := s.recoverPageLocked(ctx, session); recoverErr != nil {
+			return nil, recoverErr
+		}
+		data, err = s.engine.Run(ctx, session, "get", "text", "body")
+	}
 	if err != nil {
 		return nil, err
 	}
