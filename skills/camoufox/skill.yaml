@@ -31,12 +31,13 @@ definition:
             timeout: 45000000000
         camoufox-snapshot:
             name: camoufox-snapshot
-            description: Capture a bounded element snapshot and typed access challenges from the current page.
-            inputSchema: &session_input
+            description: Capture a compact viewport-focused semantic snapshot and typed access challenges from the current page. Optionally attach a bounded screenshot for a vision-capable model.
+            inputSchema:
                 type: object
                 additionalProperties: false
                 properties:
                     sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    includeScreenshot: {type: boolean, default: false}
                 required: [sessionId]
             permissions: [browser:observe]
             idempotency: supported
@@ -178,7 +179,12 @@ definition:
         camoufox-report:
             name: camoufox-report
             description: Return accepted, challenged, or blocked outcome evidence without revealing profile, proxy, cookie, or credential values.
-            inputSchema: *session_input
+            inputSchema: &session_input
+                type: object
+                additionalProperties: false
+                properties:
+                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                required: [sessionId]
             permissions: [browser:observe, security:report]
             idempotency: supported
             retry: {maxAttempts: 1}
@@ -201,7 +207,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.4
+          package: axiomstudio/skill-camoufox:1.0.5
     name: Camoufox Skill
     prompt:
         allowedTools:
@@ -237,10 +243,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-camoufox
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.0.5
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-camoufox
         kind: tool
-    version: 1.0.4
+    version: 1.0.5
 kind: SkillDefinition

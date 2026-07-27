@@ -34,7 +34,7 @@ class FakeHandle:
         self.state["url"] = url
         return {"url": url, "status": self.state.get("status", 200)}
 
-    def snapshot(self):
+    def snapshot(self, include_model_media=False):
         if self.state.get("solved"):
             return {"url": self.state["url"], "title": "Accepted", "text": "Assessment accepted", "elements": []}
         result = {
@@ -42,11 +42,11 @@ class FakeHandle:
             "title": "Page",
             "text": self.state.get("text", "Welcome"),
             "viewport": {"width": 1280, "height": 720},
-            "elements": [
+            "elements": self.state.get("elements") or [
                 {"ref": 1, "role": self.state.get("element_role", "textbox"), "name": self.state.get("element_name", "Comment")}
             ],
         }
-        if self.state.get("model_media"):
+        if include_model_media and self.state.get("model_media"):
             result["model_media"] = self.state["model_media"]
         return result
 
@@ -227,7 +227,7 @@ class RuntimeTest(unittest.TestCase):
             "camoufox-start",
             {"sessionId": "visual-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
         )
-        snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-1"})
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-1", "includeScreenshot": True})
         self.assertEqual(base64.b64decode(snapshot["modelMedia"]["contentBase64"]), b"jpeg-screen")
         self.assertEqual(snapshot["modelMedia"]["width"], 1280)
         result = service.execute(
@@ -240,6 +240,29 @@ class RuntimeTest(unittest.TestCase):
         )
         self.assertTrue(result["success"])
         self.assertEqual(state["click_point"], (640, 360))
+
+    def test_snapshot_is_text_only_by_default_and_preserves_semantic_target_context(self):
+        service, _ = make_runtime({
+            "model_media": b"jpeg-screen",
+            "elements": [{
+                "ref": 1,
+                "role": "button",
+                "name": "Continue",
+                "context": "form: Sign in",
+                "inViewport": True,
+                "bounds": {"x": 10, "y": 20, "width": 100, "height": 40},
+                "state": {"expanded": "false"},
+            }],
+        })
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "text-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "text-1"})
+        self.assertNotIn("modelMedia", snapshot)
+        self.assertEqual(snapshot["elements"][0]["context"], "form: Sign in")
+        self.assertTrue(snapshot["elements"][0]["inViewport"])
+        self.assertEqual(snapshot["elements"][0]["state"], {"expanded": "false"})
 
     def test_coordinate_click_rejects_stale_generation_and_out_of_bounds_point(self):
         service, _ = make_runtime()

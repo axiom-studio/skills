@@ -32,12 +32,12 @@ MODES = ("owned-assessment", "permitted-automation")
 OS_VALUES = {"windows", "macos", "linux"}
 PROFILE_KEYS = {"os", "geoip", "humanize", "seed", "window", "block_webrtc", "block_images"}
 PROXY_SCHEMES = ("http", "https", "socks5")
-MAX_ELEMENTS = 500
-MAX_TEXT = 200 * 1024
+MAX_ELEMENTS = 180
+MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
 
-SNAPSHOT_JS = """
+SNAPSHOT_JS = r"""
 () => {
   const sel = 'a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="textbox"],[role="combobox"],[role="tab"],[role="menuitem"],[contenteditable="true"]';
   const candidates = [];
@@ -48,21 +48,98 @@ SNAPSHOT_JS = """
     }
   };
   visit(document);
-  const els = candidates.filter((e) => {
+  const visible = (e) => {
     const r = e.getBoundingClientRect();
     const s = getComputedStyle(e);
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
-  }).slice(0, %d);
-  const name = (e) => (e.getAttribute('aria-label') || e.innerText || e.getAttribute('value') || e.getAttribute('placeholder') || e.getAttribute('name') || e.getAttribute('autocomplete') || e.getAttribute('type') || '').trim().slice(0, 200);
+  };
+  const inViewport = (e) => {
+    const r = e.getBoundingClientRect();
+    return r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  };
+  const labelledBy = (e) => (e.getAttribute('aria-labelledby') || '').split(/\s+/)
+    .map((id) => e.getRootNode().getElementById?.(id)?.innerText || '').filter(Boolean).join(' ');
+  const name = (e) => (e.getAttribute('aria-label') || labelledBy(e) || e.innerText ||
+    e.getAttribute('alt') || e.getAttribute('title') || e.getAttribute('placeholder') ||
+    e.getAttribute('name') || e.getAttribute('autocomplete') || e.getAttribute('type') || '')
+    .replace(/\s+/g, ' ').trim().slice(0, 240);
+  const role = (e) => e.getAttribute('role') || ({A: 'link', BUTTON: 'button', TEXTAREA: 'textbox',
+    SELECT: 'combobox', SUMMARY: 'button'}[e.tagName]) ||
+    (e.tagName === 'INPUT' ? ({checkbox: 'checkbox', radio: 'radio'}[e.type] || 'textbox') :
+      (e.isContentEditable ? 'textbox' : e.tagName.toLowerCase()));
+  const landmark = (e) => {
+    const parent = e.closest('dialog,[role="dialog"],form,article,nav,main,aside,header,footer,section');
+    if (!parent) return '';
+    const kind = parent.getAttribute('role') || parent.tagName.toLowerCase();
+    const label = name(parent);
+    return label ? `${kind}: ${label}`.slice(0, 240) : kind;
+  };
+  const els = [...new Set(candidates)].filter((e) => visible(e) && inViewport(e)).slice(0, %d);
   els.forEach((e, i) => e.setAttribute('data-camoufox-ref', String(i + 1)));
+  const lines = [];
+  const seen = new Set();
+  let textLength = 0;
+  const collectText = (root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    while (walker.nextNode() && textLength < %d) {
+      const node = walker.currentNode;
+      if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) collectText(node.shadowRoot);
+      if (node.nodeType !== Node.TEXT_NODE) continue;
+      const parent = node.parentElement;
+      if (!parent || !visible(parent) || !inViewport(parent)) continue;
+      const line = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!line || seen.has(line)) continue;
+      seen.add(line);
+      lines.push(line);
+      textLength += line.length + 1;
+    }
+  };
+  collectText(document.body || document.documentElement);
   return {
     url: location.href,
     title: document.title,
-    text: (document.body ? document.body.innerText : '').slice(0, %d),
-    elements: els.map((e, i) => ({ ref: i + 1, role: e.getAttribute('role') || e.tagName.toLowerCase(), name: name(e) })),
+    text: lines.join('\n').slice(0, %d),
+    elements: els.map((e, i) => {
+      const r = e.getBoundingClientRect();
+      const state = {};
+      for (const key of ['disabled', 'checked', 'selected', 'required', 'readOnly']) {
+        if (key in e && e[key] === true) state[key === 'readOnly' ? 'readonly' : key] = true;
+      }
+      for (const attr of ['aria-expanded', 'aria-pressed', 'aria-current', 'autocomplete', 'type']) {
+        const value = e.getAttribute(attr);
+        if (value) state[attr.replace('aria-', '')] = value;
+      }
+      return {ref: i + 1, role: role(e), name: name(e), context: landmark(e), inViewport: inViewport(e),
+        bounds: {x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)}, state};
+    }),
   };
 }
-""" % (MAX_ELEMENTS, MAX_TEXT)
+""" % (MAX_ELEMENTS, MAX_TEXT, MAX_TEXT)
+
+SETTLE_JS = r"""
+() => new Promise((resolve) => {
+  let done = false;
+  let quietTimer;
+  let hardTimer;
+  let observer;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (observer) observer.disconnect();
+    clearTimeout(quietTimer);
+    clearTimeout(hardTimer);
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  };
+  if (!document.documentElement) return finish();
+  quietTimer = setTimeout(finish, 180);
+  hardTimer = setTimeout(finish, 1400);
+  observer = new MutationObserver(() => {
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(finish, 180);
+  });
+  observer.observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
+})
+"""
 
 
 def _configured_map(env, name, required=True):
@@ -263,17 +340,23 @@ class CamoufoxHandle:
 
         return self._worker.call(_goto)
 
-    def snapshot(self):
+    def snapshot(self, include_model_media=False):
         def _snapshot():
+            try:
+                self._page.wait_for_load_state("domcontentloaded", timeout=3000)
+            except Exception:
+                pass
+            self._page.evaluate(SETTLE_JS)
             result = self._page.evaluate(SNAPSHOT_JS)
-            screenshot = self._page.screenshot(type="jpeg", quality=45, full_page=False, scale="css")
-            if len(screenshot) > MAX_MODEL_SCREENSHOT:
-                screenshot = self._page.screenshot(type="jpeg", quality=25, full_page=False, scale="css")
-            if len(screenshot) > MAX_MODEL_SCREENSHOT:
-                raise ValueError("model screenshot exceeds the 1MiB visual context limit")
             viewport = self._page.evaluate("() => ({width: innerWidth, height: innerHeight})")
-            result["model_media"] = screenshot
             result["viewport"] = viewport
+            if include_model_media:
+                screenshot = self._page.screenshot(type="jpeg", quality=45, full_page=False, scale="css")
+                if len(screenshot) > MAX_MODEL_SCREENSHOT:
+                    screenshot = self._page.screenshot(type="jpeg", quality=25, full_page=False, scale="css")
+                if len(screenshot) > MAX_MODEL_SCREENSHOT:
+                    raise ValueError("model screenshot exceeds the 1MiB visual context limit")
+                result["model_media"] = screenshot
             return result
 
         return self._worker.call(_snapshot)
@@ -460,7 +543,7 @@ class CamoufoxRuntime:
 
     def snapshot(self, config, bindings=None):
         session = self.session(config.get("sessionId"))
-        raw = session["handle"].snapshot()
+        raw = session["handle"].snapshot(include_model_media=bool(config.get("includeScreenshot")))
         secret_values = [s for s in session["secrets"]] + [
             v for v in (bindings or {}).values() if isinstance(v, str) and len(v) >= 3
         ]
@@ -480,7 +563,15 @@ class CamoufoxRuntime:
             ref = f"s{session['generation']}:e{index + 1}"
             session["refs"][ref] = element["ref"]
             session["ref_names"][ref] = element.get("name", "")
-            elements.append({"ref": ref, "role": element.get("role", ""), "name": redact(element.get("name", ""))})
+            elements.append({
+                "ref": ref,
+                "role": element.get("role", ""),
+                "name": redact(element.get("name", "")),
+                "context": redact(element.get("context", "")),
+                "inViewport": bool(element.get("inViewport")),
+                "bounds": element.get("bounds") or {},
+                "state": element.get("state") or {},
+            })
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
         session["viewport"] = raw.get("viewport") or {}
