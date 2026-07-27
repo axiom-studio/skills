@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from runtime import CamoufoxHandle, CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
+from runtime import SNAPSHOT_JS, CamoufoxHandle, CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
 
 
 def inventory():
@@ -146,6 +146,12 @@ class ProxyRotationTest(unittest.TestCase):
 
 
 class BrowserNavigationTest(unittest.TestCase):
+    def test_snapshot_clears_previous_dom_markers_before_assigning_current_refs(self):
+        clear = "e.removeAttribute?.('data-camoufox-ref')"
+        assign = "e.setAttribute('data-camoufox-ref', String(i + 1))"
+        self.assertIn(clear, SNAPSHOT_JS)
+        self.assertLess(SNAPSHOT_JS.index(clear), SNAPSHOT_JS.index(assign))
+
     def test_goto_uses_dom_readiness_instead_of_network_quiescence(self):
         calls = []
 
