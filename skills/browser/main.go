@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.5"
+	skillVersion        = "1.1.6"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -79,7 +79,7 @@ func (e *agentBrowserEngine) environment(s *browserSession) []string {
 	if idleTimeout <= 0 {
 		idleTimeout = defaultIdleTimeout
 	}
-	return append(os.Environ(),
+	environment := append(os.Environ(),
 		"HOME="+s.runtimeDir,
 		"XDG_CONFIG_HOME="+filepath.Join(s.runtimeDir, ".config"),
 		"XDG_CACHE_HOME="+filepath.Join(s.runtimeDir, ".cache"),
@@ -90,6 +90,10 @@ func (e *agentBrowserEngine) environment(s *browserSession) []string {
 		"AGENT_BROWSER_IDLE_TIMEOUT="+strconv.FormatInt(idleTimeout.Milliseconds(), 10),
 		"AGENT_BROWSER_NO_XVFB=1",
 	)
+	if s.profileDir != "" {
+		environment = append(environment, "AGENT_BROWSER_PROFILE="+s.profileDir)
+	}
+	return environment
 }
 
 func (e *agentBrowserEngine) command(ctx context.Context, s *browserSession, stdin io.Reader, args ...string) ([]byte, error) {
@@ -923,11 +927,7 @@ func (s *browserService) open(ctx context.Context, config map[string]interface{}
 		return nil, err
 	}
 	defer cancel()
-	args := []string{}
-	if session.profileDir != "" {
-		args = append(args, "--profile", session.profileDir)
-	}
-	args = append(args, "open", parsed.String())
+	args := []string{"open", parsed.String()}
 	data, err := s.openEnginePageLocked(commandCtx, session, args)
 	if err != nil {
 		return nil, err
@@ -992,11 +992,7 @@ func (s *browserService) recoverPageLocked(ctx context.Context, session *browser
 	if err != nil {
 		return fmt.Errorf("recover browser session destination: %w", err)
 	}
-	args := []string{}
-	if session.profileDir != "" {
-		args = append(args, "--profile", session.profileDir)
-	}
-	args = append(args, "open", parsed.String())
+	args := []string{"open", parsed.String()}
 	_ = s.engine.Close(context.Background(), session)
 	data, err := s.openEnginePageLocked(ctx, session, args)
 	if err != nil {
