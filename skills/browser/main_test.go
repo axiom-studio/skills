@@ -49,6 +49,7 @@ type fakeEngine struct {
 	blockWait           bool
 	secret              string
 	openCalls           int
+	openFailures        []error
 	disconnectSnapshots int
 }
 
@@ -85,8 +86,13 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 		}
 		return map[string]interface{}{"url": page.url, "title": page.title}, nil
 	case "open":
-		page.url = args[1]
 		e.openCalls++
+		if len(e.openFailures) > 0 {
+			err := e.openFailures[0]
+			e.openFailures = e.openFailures[1:]
+			return nil, err
+		}
+		page.url = args[1]
 		page.title = "Fixture"
 		page.text = "New posts and comments"
 		if e.redirectURL != "" {
@@ -150,6 +156,29 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 		return map[string]interface{}{"closed": true}, nil
 	}
 	return nil, fmt.Errorf("unsupported fake command: %v", args)
+}
+
+func TestOpenRecoversTimedOutStaleDaemonOnce(t *testing.T) {
+	engine := newFakeEngine()
+	engine.openFailures = []error{errors.New("browser engine command failed: Operation timed out. The page may still be loading")}
+	service := testService(t, engine, time.Minute)
+
+	result, err := execute(t, service, "browser-open", map[string]interface{}{
+		"sessionId": "recover-open", "profileName": "agent-profile", "url": "https://example.com/r/vibecoding/new",
+	}, nil)
+	if err != nil || result["success"] != true {
+		t.Fatalf("open=%#v error=%v", result, err)
+	}
+	if engine.openCalls != 2 || engine.closeCalls != 1 {
+		t.Fatalf("open calls=%d close calls=%d", engine.openCalls, engine.closeCalls)
+	}
+	session, err := service.session("recover-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.meta.ProfileName != "agent-profile" || session.meta.ClosedAt != nil {
+		t.Fatalf("recovered metadata=%#v", session.meta)
+	}
 }
 
 func (e *fakeEngine) RunBatch(_ context.Context, s *browserSession, commands [][]string) ([]map[string]interface{}, error) {
