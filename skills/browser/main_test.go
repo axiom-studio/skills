@@ -570,6 +570,16 @@ func TestManagedCredentialFieldsAreConsumedEphemerally(t *testing.T) {
 	}
 }
 
+func TestStableSnapshotTreatsMissingEditableValueAsEmpty(t *testing.T) {
+	_, refs := stableSnapshot(1, `- textbox "Username" [ref=e1]`, map[string]interface{}{
+		"e1": map[string]interface{}{"role": "textbox", "name": "Username"},
+	})
+	element := refs["s1:e1"]
+	if element["filled"] != false || element["value"] != nil {
+		t.Fatalf("missing editable value occupancy = %#v", element)
+	}
+}
+
 func TestTimeoutAndIdleCleanup(t *testing.T) {
 	engine := newFakeEngine()
 	service := testService(t, engine, 50*time.Millisecond)
@@ -633,7 +643,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.8", "version: 1.1.8", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.9", "version: 1.1.9", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
