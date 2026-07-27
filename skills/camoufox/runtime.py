@@ -421,8 +421,12 @@ class CamoufoxHandle:
     def fill(self, marker, value):
         def _fill():
             field = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
-            field.click()
-            field.press_sequentially(value, delay=25)
+            # Filling a form control does not need pointer stability. Requiring
+            # a preliminary click makes dynamic legacy forms wait indefinitely
+            # even when the exact current textarea is visible and editable.
+            # Playwright's fill action focuses the resolved control, replaces
+            # its value, and dispatches the normal input events.
+            field.fill(value, timeout=5000)
 
         self._worker.call(_fill)
 
@@ -488,7 +492,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.11",
+                "version": "1.0.12",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -496,7 +500,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.11",
+            "version": "1.0.12",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
