@@ -392,12 +392,27 @@ class CamoufoxHandle:
             except Exception:
                 # Playwright's trusted locator click is still pointer input and
                 # remains a safe fallback for controls with transient bounds.
-                locator.click(timeout=5000)
+                try:
+                    locator.click(timeout=5000)
+                except Exception:
+                    # Legacy applications sometimes expose exact, current
+                    # script-backed controls that Playwright can locate but
+                    # cannot prove stable. Activate only that already-reviewed
+                    # semantic reference; arbitrary script input is never
+                    # accepted from the caller.
+                    locator.evaluate("element => element.click()", timeout=5000)
 
         self._worker.call(_click)
 
     def click_point(self, x, y):
-        self._worker.call(lambda: (self._page.mouse.move(x, y), self._page.mouse.click(x, y)))
+        # Coordinate input is a last-resort visual fallback. Resolve it once in
+        # the current document instead of allowing a patched mouse trajectory
+        # to block the single browser worker indefinitely.
+        self._worker.call(lambda: self._page.evaluate(
+            "([x, y]) => { const element = document.elementFromPoint(x, y); "
+            "if (!element) throw new Error('no element at coordinates'); element.click(); }",
+            [x, y],
+        ))
 
     def fill(self, marker, value):
         def _fill():
@@ -469,7 +484,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.9",
+                "version": "1.0.10",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -477,7 +492,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.9",
+            "version": "1.0.10",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
