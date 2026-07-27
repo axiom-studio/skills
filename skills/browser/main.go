@@ -1552,7 +1552,7 @@ func (e *actionExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 		output, err = e.service.snapshot(ctx, config, secretValues(secrets))
 	case "browser-read":
 		output, err = e.service.read(ctx, config, secretValues(secrets))
-	case "browser-click":
+	case "browser-click", "browser-commit":
 		output, err = e.service.mutate(ctx, "click", config, secrets)
 	case "browser-fill":
 		output, err = e.service.mutate(ctx, "fill", config, secrets)
@@ -1594,6 +1594,7 @@ var actionSchemas = map[string]*resolver.NodeSchema{
 	"browser-snapshot":       schema("browser-snapshot", "Snapshot Browser Page", "Capture stable accessible element references"),
 	"browser-read":           schema("browser-read", "Read Browser Page", "Read bounded rendered page text"),
 	"browser-click":          schema("browser-click", "Click Browser Element", "Click an exact authorized snapshot reference"),
+	"browser-commit":         schema("browser-commit", "Commit Browser Operation", "Click the final control that commits one stable external business operation"),
 	"browser-fill":           schema("browser-fill", "Fill Browser Control", "Fill an exact non-secret form control"),
 	"browser-fill-secret":    schema("browser-fill-secret", "Fill Browser Login", "Fill an exact login control from an authorized credential"),
 	"browser-type":           schema("browser-type", "Type in Browser Control", "Type non-secret text into an exact control"),
@@ -1655,7 +1656,7 @@ func main() {
 	}
 	server := skillgrpc.NewSkillServer(skillID, skillVersion)
 	for _, action := range []string{
-		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill", "browser-fill-secret",
+		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-commit", "browser-fill", "browser-fill-secret",
 		"browser-type", "browser-select", "browser-wait", "browser-screenshot", "browser-session-status", "browser-close",
 	} {
 		server.RegisterExecutorWithSchema(action, &actionExecutor{action: action, service: service}, actionSchemas[action])

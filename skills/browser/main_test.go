@@ -721,7 +721,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 		}
 	}
 	expected := []string{
-		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-fill", "browser-fill-secret",
+		"browser-health", "browser-open", "browser-snapshot", "browser-read", "browser-click", "browser-commit", "browser-fill", "browser-fill-secret",
 		"browser-type", "browser-select", "browser-wait", "browser-screenshot", "browser-session-status", "browser-close",
 	}
 	if len(actionSchemas) != len(expected) {
