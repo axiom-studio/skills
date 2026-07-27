@@ -4,6 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "axiomstudio-skill-camoufox"
-version = "1.0.8"
+version = "1.0.9"
 description = "Governed Camoufox stealth browser automation skill"
 requires-python = ">=3.11"

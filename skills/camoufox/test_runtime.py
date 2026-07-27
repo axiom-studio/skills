@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from runtime import CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
+from runtime import CamoufoxHandle, CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
 
 
 def inventory():
@@ -143,6 +143,34 @@ class ProxyRotationTest(unittest.TestCase):
         chosen = {resolve_proxy(pool, "pool", f"s-{i}") for i in range(12)}
         self.assertGreater(len(chosen), 1)
         self.assertTrue(chosen <= set(pool["urls"]))
+
+
+class BrowserNavigationTest(unittest.TestCase):
+    def test_goto_uses_dom_readiness_instead_of_network_quiescence(self):
+        calls = []
+
+        class Page:
+            url = "https://forum.example/community"
+
+            def goto(self, url, timeout, wait_until):
+                calls.append({"url": url, "timeout": timeout, "wait_until": wait_until})
+                return type("Response", (), {"status": 200})()
+
+        class Worker:
+            @staticmethod
+            def call(operation):
+                return operation()
+
+        handle = CamoufoxHandle.__new__(CamoufoxHandle)
+        handle._worker = Worker()
+        handle._page = Page()
+
+        self.assertEqual(handle.goto("https://forum.example/community", 1234)["status"], 200)
+        self.assertEqual(calls, [{
+            "url": "https://forum.example/community",
+            "timeout": 1234,
+            "wait_until": "domcontentloaded",
+        }])
 
 
 class RuntimeTest(unittest.TestCase):
