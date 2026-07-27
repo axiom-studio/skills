@@ -39,12 +39,20 @@ MAX_SCREENSHOT = 5 * 1024 * 1024
 SNAPSHOT_JS = """
 () => {
   const sel = 'a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="textbox"],[role="combobox"],[role="tab"],[role="menuitem"],[contenteditable="true"]';
-  const els = [...document.querySelectorAll(sel)].filter((e) => {
+  const candidates = [];
+  const visit = (root) => {
+    for (const element of root.querySelectorAll('*')) {
+      if (element.matches(sel)) candidates.push(element);
+      if (element.shadowRoot) visit(element.shadowRoot);
+    }
+  };
+  visit(document);
+  const els = candidates.filter((e) => {
     const r = e.getBoundingClientRect();
     const s = getComputedStyle(e);
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
   }).slice(0, %d);
-  const name = (e) => (e.getAttribute('aria-label') || e.innerText || e.getAttribute('value') || e.getAttribute('placeholder') || e.getAttribute('name') || '').trim().slice(0, 200);
+  const name = (e) => (e.getAttribute('aria-label') || e.innerText || e.getAttribute('value') || e.getAttribute('placeholder') || e.getAttribute('name') || e.getAttribute('autocomplete') || e.getAttribute('type') || '').trim().slice(0, 200);
   els.forEach((e, i) => e.setAttribute('data-camoufox-ref', String(i + 1)));
   return {
     url: location.href,
@@ -343,7 +351,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.2",
+                "version": "1.0.3",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -351,7 +359,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.2",
+            "version": "1.0.3",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
