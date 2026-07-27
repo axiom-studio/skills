@@ -217,6 +217,39 @@ class BrowserNavigationTest(unittest.TestCase):
         self.assertEqual(calls[1], ("trusted", 5000))
         self.assertEqual(calls[2], ("exact-dom", "element => element.click()", 5000))
 
+    def test_fill_replaces_exact_control_without_pointer_stability_gate(self):
+        calls = []
+
+        class Locator:
+            first = None
+
+            def __init__(self):
+                self.first = self
+
+            def fill(self, value, timeout):
+                calls.append(("fill", value, timeout))
+
+        class Page:
+            @staticmethod
+            def locator(selector):
+                calls.append(("locator", selector))
+                return Locator()
+
+        class Worker:
+            @staticmethod
+            def call(operation):
+                return operation()
+
+        handle = CamoufoxHandle.__new__(CamoufoxHandle)
+        handle._worker = Worker()
+        handle._page = Page()
+        handle.fill(70, "replacement")
+
+        self.assertEqual(calls, [
+            ("locator", '[data-camoufox-ref="70"]'),
+            ("fill", "replacement", 5000),
+        ])
+
 
 class RuntimeTest(unittest.TestCase):
     def test_health_reports_configuration_state(self):
