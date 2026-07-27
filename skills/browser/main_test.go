@@ -40,13 +40,15 @@ type fakePage struct {
 }
 
 type fakeEngine struct {
-	mu          sync.Mutex
-	pages       map[string]*fakePage
-	batchCalls  int
-	closeCalls  int
-	redirectURL string
-	blockWait   bool
-	secret      string
+	mu                  sync.Mutex
+	pages               map[string]*fakePage
+	batchCalls          int
+	closeCalls          int
+	redirectURL         string
+	blockWait           bool
+	secret              string
+	openCalls           int
+	disconnectSnapshots int
 }
 
 func newFakeEngine() *fakeEngine {
@@ -75,6 +77,7 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 			return nil, errors.New("bad profile command")
 		}
 		page.url = args[3]
+		e.openCalls++
 		page.title = "Fixture"
 		if e.redirectURL != "" {
 			page.url = e.redirectURL
@@ -82,6 +85,7 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 		return map[string]interface{}{"url": page.url, "title": page.title}, nil
 	case "open":
 		page.url = args[1]
+		e.openCalls++
 		page.title = "Fixture"
 		page.text = "New posts and comments"
 		if e.redirectURL != "" {
@@ -104,6 +108,10 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 			return map[string]interface{}{"text": text}, nil
 		}
 	case "snapshot":
+		if e.disconnectSnapshots > 0 {
+			e.disconnectSnapshots--
+			return nil, errors.New("browser engine command failed: CDP response channel closed")
+		}
 		passwordValue := page.values["e3"]
 		if passwordValue == "" {
 			passwordValue = e.secret
@@ -189,6 +197,32 @@ func TestAgentBrowserEnvironmentSeparatesCommandAndSessionTimeouts(t *testing.T)
 	}
 	if got, want := values["AGENT_BROWSER_IDLE_TIMEOUT"], "1020000"; got != want {
 		t.Fatalf("session idle timeout=%q want %q", got, want)
+	}
+}
+
+func TestSnapshotRecoversDeadDaemonWithPersistentProfile(t *testing.T) {
+	engine := newFakeEngine()
+	service := testService(t, engine, time.Minute)
+	_, err := execute(t, service, "browser-open", map[string]interface{}{
+		"sessionId": "recover", "profileName": "reddit-auth", "url": "https://example.com/r/vibecoding/new",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine.disconnectSnapshots = 1
+	result, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "recover"}, nil)
+	if err != nil || result["success"] != true {
+		t.Fatalf("snapshot=%#v error=%v", result, err)
+	}
+	if engine.openCalls != 2 || engine.closeCalls != 1 {
+		t.Fatalf("open calls=%d close calls=%d", engine.openCalls, engine.closeCalls)
+	}
+	session, err := service.session("recover")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.meta.ProfileName != "reddit-auth" || session.meta.ViewportWidth != 1440 || session.meta.ViewportHeight != 900 {
+		t.Fatalf("recovered metadata=%#v", session.meta)
 	}
 }
 
@@ -542,7 +576,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.4", "version: 1.1.4", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.5", "version: 1.1.5", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
