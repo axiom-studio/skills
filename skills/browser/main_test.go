@@ -43,6 +43,7 @@ type fakeEngine struct {
 	mu                  sync.Mutex
 	pages               map[string]*fakePage
 	batchCalls          int
+	mutationCalls       int
 	closeCalls          int
 	redirectURL         string
 	blockWait           bool
@@ -156,23 +157,35 @@ func (e *fakeEngine) RunBatch(_ context.Context, s *browserSession, commands [][
 	defer e.mu.Unlock()
 	e.batchCalls++
 	page := e.page(s)
-	command := commands[0]
-	switch command[0] {
-	case "fill":
-		page.values[strings.TrimPrefix(command[1], "@")] = command[2]
-	case "type":
-		ref := strings.TrimPrefix(command[1], "@")
-		page.values[ref] += command[2]
-	case "select":
-		page.values[strings.TrimPrefix(command[1], "@")] = command[2]
-	case "click":
-		if command[1] == "@e2" {
-			page.text = "Comment posted: " + page.values["e1"]
+	results := make([]map[string]interface{}, 0, len(commands))
+	for _, command := range commands {
+		switch command[0] {
+		case "fill":
+			e.mutationCalls++
+			page.values[strings.TrimPrefix(command[1], "@")] = command[2]
+			results = append(results, map[string]interface{}{"ok": true})
+		case "type":
+			e.mutationCalls++
+			ref := strings.TrimPrefix(command[1], "@")
+			page.values[ref] += command[2]
+			results = append(results, map[string]interface{}{"ok": true})
+		case "select":
+			e.mutationCalls++
+			page.values[strings.TrimPrefix(command[1], "@")] = command[2]
+			results = append(results, map[string]interface{}{"ok": true})
+		case "click":
+			e.mutationCalls++
+			if command[1] == "@e2" {
+				page.text = "Comment posted: " + page.values["e1"]
+			}
+			results = append(results, map[string]interface{}{"ok": true})
+		case "get":
+			results = append(results, map[string]interface{}{"value": page.values[strings.TrimPrefix(command[2], "@")]})
+		default:
+			return nil, errors.New("unsupported mutation")
 		}
-	default:
-		return nil, errors.New("unsupported mutation")
 	}
-	return []map[string]interface{}{{"ok": true}}, nil
+	return results, nil
 }
 
 func (e *fakeEngine) Close(ctx context.Context, s *browserSession) error {
@@ -351,8 +364,8 @@ func TestFormFillSubmitOnceAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if duplicate["duplicate"] != true || engine.batchCalls != 1 {
-		t.Fatalf("fill was not deduplicated: %#v calls=%d", duplicate, engine.batchCalls)
+	if duplicate["duplicate"] != true || engine.mutationCalls != 1 {
+		t.Fatalf("fill was not deduplicated: %#v calls=%d", duplicate, engine.mutationCalls)
 	}
 	snapshot, _ = execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "poster"}, nil)
 	submitRef := findReference(t, snapshot, "Submit comment")
@@ -367,8 +380,8 @@ func TestFormFillSubmitOnceAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if duplicate["duplicate"] != true || engine.batchCalls != 2 {
-		t.Fatalf("submit was not deduplicated: %#v calls=%d", duplicate, engine.batchCalls)
+	if duplicate["duplicate"] != true || engine.mutationCalls != 2 {
+		t.Fatalf("submit was not deduplicated: %#v calls=%d", duplicate, engine.mutationCalls)
 	}
 	read, _ := execute(t, service, "browser-read", map[string]interface{}{"sessionId": "poster"}, nil)
 	if !strings.Contains(read["text"].(string), comment) {
@@ -643,7 +656,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.9", "version: 1.1.9", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.10", "version: 1.1.10", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
@@ -748,6 +761,16 @@ func TestAgentBrowserLocalFixture(t *testing.T) {
 	snapshot, err = execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "e2e"}, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	var commentElement map[string]interface{}
+	for _, element := range snapshot["elements"].([]map[string]interface{}) {
+		if element["name"] == "Comment" {
+			commentElement = element
+			break
+		}
+	}
+	if commentElement == nil || commentElement["filled"] != true {
+		t.Fatalf("real browser did not report filled control occupancy: %#v", commentElement)
 	}
 	submitRef := findReference(t, snapshot, "Submit comment")
 	click := map[string]interface{}{
