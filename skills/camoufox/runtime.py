@@ -348,7 +348,11 @@ class CamoufoxHandle:
 
     def goto(self, url, timeout_ms=30000):
         def _goto():
-            response = self._page.goto(url, timeout=timeout_ms, wait_until="networkidle")
+            # Long-lived applications commonly keep analytics, streaming, or
+            # notification requests open. DOM readiness is the stable browser
+            # navigation boundary; snapshot() performs the bounded visual
+            # settling needed before an Agent inspects or interacts.
+            response = self._page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
             return {"url": self._page.url, "status": response.status if response else 0}
 
         return self._worker.call(_goto)
@@ -465,7 +469,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.8",
+                "version": "1.0.9",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -473,7 +477,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.8",
+            "version": "1.0.9",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
