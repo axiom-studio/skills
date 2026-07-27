@@ -228,7 +228,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.11
+          package: axiomstudio/skill-camoufox:1.0.12
     name: Camoufox Skill
     prompt:
         allowedTools:
@@ -265,10 +265,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-camoufox
-        resolvedVersion: 1.0.11
+        resolvedVersion: 1.0.12
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-camoufox
         kind: tool
-    version: 1.0.11
+    version: 1.0.12
 kind: SkillDefinition
