@@ -53,12 +53,19 @@ test("inventory validation fails closed", () => {
     VEILED_BROWSER_PROXY_POOLS: JSON.stringify({ direct: {} }),
   };
   assert.equal(Object.keys(loadInventory(base).targets).length, 1);
+  assert.equal(loadInventory({}), null);
   for (const env of [
-    {},
+    { VEILED_BROWSER_TARGETS: base.VEILED_BROWSER_TARGETS },
     { ...base, VEILED_BROWSER_TARGETS: JSON.stringify({ bad: { baseUrl: "file:///etc/passwd", pathPrefixes: ["/"], mode: "owned-assessment" } }) },
     { ...base, VEILED_BROWSER_TARGETS: JSON.stringify({ bad: { baseUrl: "https://example.com", pathPrefixes: ["/"], mode: "unknown" } }) },
     { ...base, VEILED_BROWSER_CHALLENGES: JSON.stringify({ bad: { targetId: "fixture", kind: "captcha-solver", accessibleName: "captcha" } }) },
   ]) assert.throws(() => loadInventory(env));
+});
+
+test("an installed service reports configuration readiness without crashing", async () => {
+  const service = new VeiledBrowserRuntime({ inventory: null, workspace: await mkdtemp(path.join(os.tmpdir(), "veiled-browser-")), browserFactory: fakeFactory() });
+  assert.equal((await service.execute("veiled-browser-health")).status, "needs_configuration");
+  await assert.rejects(service.execute("veiled-browser-start", { sessionId: "unconfigured" }), /not configured/);
 });
 
 test("target scope cannot escape configured origin or path", () => {

@@ -24,6 +24,8 @@ function configuredMap(env, name, required = true) {
 }
 
 export function loadInventory(env = process.env) {
+  const requiredNames = ["VEILED_BROWSER_TARGETS", "VEILED_BROWSER_PROFILES", "VEILED_BROWSER_PROXY_POOLS"];
+  if (requiredNames.every((name) => !env[name]?.trim())) return null;
   const inventory = {
     targets: configuredMap(env, "VEILED_BROWSER_TARGETS"),
     profiles: configuredMap(env, "VEILED_BROWSER_PROFILES"),
@@ -94,6 +96,7 @@ export class VeiledBrowserRuntime {
   }
 
   health() {
+    if (!this.inventory) return { status: "needs_configuration", skillId: "skill-veiled-browser", version: "1.0.0", authorizedTargets: 0, profiles: 0, proxyPools: 0 };
     return { status: "ready", skillId: "skill-veiled-browser", version: "1.0.0", authorizedTargets: Object.keys(this.inventory.targets).length, profiles: Object.keys(this.inventory.profiles).length, proxyPools: Object.keys(this.inventory.proxyPools).length };
   }
 
@@ -105,6 +108,7 @@ export class VeiledBrowserRuntime {
   }
 
   async start(config) {
+    if (!this.inventory) throw new Error("Veiled Browser inventory is not configured");
     const { sessionId, targetId, profileId, proxyPoolId } = config;
     if (!ID.test(sessionId ?? "")) throw new Error("sessionId is invalid");
     if (this.sessions.has(sessionId)) throw new Error("assessment session already exists");
