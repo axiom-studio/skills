@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ARG SKILL_NAME=camoufox
 ARG SKILL_PORT=50051
 ENV PYTHONUNBUFFERED=1 \
+    XDG_CACHE_HOME=/opt/camoufox-cache \
     CAMOUFOX_WORKSPACE=/var/lib/openseal-camoufox \
     SKILL_PORT=${SKILL_PORT}
 
@@ -19,8 +20,8 @@ RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. skill.pro
     && python -m camoufox fetch \
     && chmod -R a+rX /usr/local/lib/python3.12/site-packages/camoufox \
     && useradd -r -m -u 1000 skill \
-    && mkdir -p /var/lib/openseal-camoufox \
-    && chown -R skill:skill /var/lib/openseal-camoufox /opt/skill
+    && mkdir -p /var/lib/openseal-camoufox /opt/camoufox-cache \
+    && chown -R skill:skill /var/lib/openseal-camoufox /opt/camoufox-cache /opt/skill
 
 USER skill
 

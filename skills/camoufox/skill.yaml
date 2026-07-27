@@ -195,7 +195,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.0
+          package: axiomstudio/skill-camoufox:1.0.1
     name: Camoufox Skill
     prompt:
         allowedTools:
@@ -236,5 +236,5 @@ definition:
     transport:
         endpoint: skill-camoufox
         kind: tool
-    version: 1.0.0
+    version: 1.0.1
 kind: SkillDefinition
