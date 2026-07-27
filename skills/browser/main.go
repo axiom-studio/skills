@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.7"
+	skillVersion        = "1.1.8"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -1049,6 +1049,10 @@ func stableSnapshot(generation int, snapshot string, refs map[string]interface{}
 		}
 		copied["reference"] = key
 		if editableControlRole(fmt.Sprint(copied["role"])) {
+			// Preserve only occupancy, never the editable value. Agents need
+			// this boolean to advance safely after a mutation invalidates old
+			// references and forces a fresh snapshot.
+			copied["filled"] = strings.TrimSpace(fmt.Sprint(copied["value"])) != ""
 			delete(copied, "value")
 			valuePattern := regexp.MustCompile(`(\[ref=` + regexp.QuoteMeta(ref) + `\])(?::[^\r\n]*)`)
 			snapshot = valuePattern.ReplaceAllString(snapshot, `$1`)

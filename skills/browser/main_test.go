@@ -555,6 +555,19 @@ func TestManagedCredentialFieldsAreConsumedEphemerally(t *testing.T) {
 	if strings.Contains(string(encoded), secret) {
 		t.Fatalf("later snapshot leaked a previously filled credential: %s", encoded)
 	}
+	var passwordElement map[string]interface{}
+	for _, element := range followUp["elements"].([]map[string]interface{}) {
+		if element["name"] == "Password" {
+			passwordElement = element
+			break
+		}
+	}
+	if passwordElement == nil || passwordElement["filled"] != true {
+		t.Fatalf("filled credential occupancy was not preserved: %#v", passwordElement)
+	}
+	if _, exists := passwordElement["value"]; exists {
+		t.Fatalf("filled credential value was exposed: %#v", passwordElement)
+	}
 }
 
 func TestTimeoutAndIdleCleanup(t *testing.T) {
@@ -620,7 +633,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.7", "version: 1.1.7", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.8", "version: 1.1.8", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
