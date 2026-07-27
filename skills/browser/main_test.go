@@ -104,18 +104,22 @@ func (e *fakeEngine) Run(ctx context.Context, s *browserSession, args ...string)
 			return map[string]interface{}{"text": text}, nil
 		}
 	case "snapshot":
+		passwordValue := page.values["e3"]
+		if passwordValue == "" {
+			passwordValue = e.secret
+		}
 		snapshot := `- textbox "Comment" [ref=e1]
 - button "Submit comment" [ref=e2]
 - textbox "Password" [ref=e3]`
-		if e.secret != "" {
-			snapshot += "\n- text \"" + e.secret + "\""
+		if passwordValue != "" {
+			snapshot += ": " + passwordValue
 		}
 		return map[string]interface{}{
 			"snapshot": snapshot,
 			"refs": map[string]interface{}{
 				"e1": map[string]interface{}{"role": "textbox", "name": "Comment", "value": page.values["e1"]},
 				"e2": map[string]interface{}{"role": "button", "name": "Submit comment"},
-				"e3": map[string]interface{}{"role": "textbox", "name": "Password", "value": e.secret},
+				"e3": map[string]interface{}{"role": "textbox", "name": "Password", "value": passwordValue},
 			},
 		}, nil
 	case "wait":
@@ -465,6 +469,14 @@ func TestManagedCredentialFieldsAreConsumedEphemerally(t *testing.T) {
 	if strings.Contains(string(encoded), secret) {
 		t.Fatalf("managed credential leaked in output: %s", encoded)
 	}
+	followUp, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "managed-secret"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ = json.Marshal(followUp)
+	if strings.Contains(string(encoded), secret) {
+		t.Fatalf("later snapshot leaked a previously filled credential: %s", encoded)
+	}
 }
 
 func TestTimeoutAndIdleCleanup(t *testing.T) {
@@ -530,7 +542,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.3", "version: 1.1.3", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.4", "version: 1.1.4", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
