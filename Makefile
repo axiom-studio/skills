@@ -11,9 +11,13 @@ REGISTRY := axiomstudio
 # mongodb: has go.mod but no Go source files (incomplete)
 SKIP_SKILLS := mcp mongodb
 
-# Discover all buildable skills (those with main.go, excluding skipped)
-ALL_SKILL_DIRS := $(filter-out $(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS)),\
-                   $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go))))
+# Discover all buildable skills. The Skill transport is language agnostic;
+# every implementation supplies its own Dockerfile when the root Go image is
+# not applicable.
+GO_SKILL_DIRS := $(dir $(wildcard $(SKILLS_DIR)/*/main.go))
+JS_SKILL_DIRS := $(dir $(wildcard $(SKILLS_DIR)/*/package.json))
+ALL_SKILL_DIRS := $(filter-out $(addsuffix /,$(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS))),\
+                   $(sort $(GO_SKILL_DIRS) $(JS_SKILL_DIRS)))
 SKILL_NAMES := $(notdir $(patsubst %/,%,$(ALL_SKILL_DIRS)))
 
 .PHONY: docker-build docker-push clean help
