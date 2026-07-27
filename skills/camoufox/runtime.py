@@ -252,6 +252,15 @@ def exact_path(target, requested="/"):
     return destination
 
 
+def navigation_url(value):
+    if not isinstance(value, str) or len(value) > 2048:
+        raise ValueError("navigation URL is invalid")
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("navigation URL must be an HTTP(S) URL without embedded credentials")
+    return value
+
+
 def detect_challenges(text):
     return [kind for kind, pattern in CHALLENGES.items() if pattern.search(text or "")]
 
@@ -435,6 +444,7 @@ class CamoufoxRuntime:
         handlers = {
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config),
+            "camoufox-navigate": lambda: self.navigate(config),
             "camoufox-snapshot": lambda: self.snapshot(config, bindings),
             "camoufox-click": lambda: self.mutate("click", config),
             "camoufox-commit": lambda: self.mutate("click", config),
@@ -455,7 +465,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.4",
+                "version": "1.0.8",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -463,7 +473,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.4",
+            "version": "1.0.8",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -543,6 +553,42 @@ class CamoufoxRuntime:
             "proxyPoolId": pool_id,
             "url": destination,
             "status": "active",
+        }
+
+    def navigate(self, config):
+        if not self.inventory:
+            raise ValueError("Camoufox inventory is not configured")
+        session = self.session(config.get("sessionId"))
+        target_id = config.get("targetId")
+        if target_id:
+            target = self.inventory["targets"].get(target_id)
+            if not target:
+                raise ValueError("authorized target is unavailable")
+            destination = exact_path(target, config.get("path", "/"))
+        else:
+            target = {"mode": "permitted-automation"}
+            destination = navigation_url(config.get("url"))
+        profile = self.inventory["profiles"].get(session["profile_id"])
+        proxy = self.inventory["proxy_pools"].get(session["proxy_pool_id"])
+        if not profile or proxy is None:
+            raise ValueError("session identity configuration is unavailable")
+        if target["mode"] == "permitted-automation" and (profile.get("assessmentOnly") or proxy.get("assessmentOnly")):
+            raise ValueError("assessment-only identity or egress cannot be used with a third-party automation target")
+        navigation = session["handle"].goto(destination, timeout_ms=30000)
+        session["target_id"] = target_id or "unrestricted"
+        session["target"] = target
+        session["current_url"] = navigation.get("url") or destination
+        session["status_code"] = navigation.get("status") or 0
+        session["refs"].clear()
+        session["ref_names"].clear()
+        session["challenges"] = []
+        session["snapshot_text"] = ""
+        session["viewport"] = {}
+        return {
+            "sessionId": session["id"],
+            "targetId": session["target_id"],
+            "url": session["current_url"],
+            "statusCode": session["status_code"],
         }
 
     def snapshot(self, config, bindings=None):

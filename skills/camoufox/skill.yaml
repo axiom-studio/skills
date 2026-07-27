@@ -29,6 +29,27 @@ definition:
             risk: read
             sideEffect: read
             timeout: 45000000000
+        camoufox-navigate:
+            name: camoufox-navigate
+            description: Navigate an active session to an HTTP(S) URL while preserving its browser context and cookies; optionally opt into a configured target/path guard.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                properties:
+                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    url: {type: string, pattern: '^https?://', maxLength: 2048}
+                    targetId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    path: {type: string, pattern: '^/', maxLength: 2048, default: /}
+                required: [sessionId]
+                oneOf:
+                    - required: [url]
+                    - required: [targetId]
+            permissions: [browser:session, network:http]
+            idempotency: supported
+            retry: {maxAttempts: 1}
+            risk: read
+            sideEffect: read
+            timeout: 45000000000
         camoufox-snapshot:
             name: camoufox-snapshot
             description: Capture a compact viewport-focused semantic snapshot and typed access challenges from the current page. Optionally attach a bounded screenshot for a vision-capable model.
@@ -207,12 +228,13 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.7
+          package: axiomstudio/skill-camoufox:1.0.8
     name: Camoufox Skill
     prompt:
         allowedTools:
             - camoufox-health
             - camoufox-start
+            - camoufox-navigate
             - camoufox-snapshot
             - camoufox-click
             - camoufox-commit
@@ -223,7 +245,7 @@ definition:
             - camoufox-screenshot
             - camoufox-report
             - camoufox-close
-        instructions: Use only configured target, profile, and proxy-pool identifiers. Take a new snapshot after every interaction. Use camoufox-commit only for the final approved external operation. A third-party access challenge requires human completion; pause automation when one is reported.
+        instructions: Use configured target, profile, and proxy-pool identifiers to start sessions. Use camoufox-navigate with an HTTP(S) URL to move an active session without losing its browser context; provide targetId instead when strict configured origin/path scope is desired. Take a new snapshot after every interaction or navigation. Use camoufox-commit only for the final approved external operation. A third-party access challenge requires human completion; pause automation when one is reported.
         userInvocable: true
     requirements:
         compute:
@@ -243,10 +265,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-camoufox
-        resolvedVersion: 1.0.7
+        resolvedVersion: 1.0.8
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-camoufox
         kind: tool
-    version: 1.0.7
+    version: 1.0.8
 kind: SkillDefinition

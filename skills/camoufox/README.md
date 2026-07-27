@@ -45,6 +45,12 @@ external-operation checkpoint. Credential fields are supplied through Skill
 bindings and never returned. Public actions do not expose JavaScript, CDP,
 cookies, headers, files, launch arguments, or literal proxy/profile values.
 
+An active session can move to another HTTP(S) URL with `camoufox-navigate` while
+reusing the existing browser context, so normal same-site cookies remain
+available. Strict origin/path authorization is opt-in: provide `targetId` and a
+relative `path` instead of `url`. Non-HTTP(S) URLs and URLs containing embedded
+credentials are always rejected.
+
 Run unit tests (stdlib only — no browser download):
 
 ```bash
@@ -54,5 +60,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-camoufox:1.0.7 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-camoufox:1.0.8 .
 ```

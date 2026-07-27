@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from runtime import CamoufoxRuntime, exact_path, load_inventory, resolve_proxy
+from runtime import CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
 
 
 def inventory():
@@ -12,6 +12,7 @@ def inventory():
         "targets": {
             "owned": {"baseUrl": "http://fixture.internal:8080", "pathPrefixes": ["/assessment"], "mode": "owned-assessment"},
             "forum": {"baseUrl": "https://forum.example", "pathPrefixes": ["/community"], "mode": "permitted-automation"},
+            "forum-old": {"baseUrl": "https://old.forum.example", "pathPrefixes": ["/community"], "mode": "permitted-automation"},
         },
         "profiles": {
             "standard": {"os": ["windows", "macos"], "humanize": True, "geoip": True},
@@ -153,7 +154,7 @@ class RuntimeTest(unittest.TestCase):
         ready, _ = make_runtime()
         health = ready.execute("camoufox-health")
         self.assertEqual(health["status"], "ready")
-        self.assertEqual(health["authorizedTargets"], 2)
+        self.assertEqual(health["authorizedTargets"], 3)
 
     def test_target_scope_cannot_escape_origin_or_path(self):
         target = inventory()["targets"]["owned"]
@@ -172,6 +173,61 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(launch["proxy"], resolve_proxy(inventory()["proxy_pools"]["pool"], "pool", "pool-1"))
         self.assertEqual(launch["profile_options"], {"os": ["windows", "macos"], "humanize": True, "geoip": True})
         self.assertEqual(launch["headless"], "virtual")
+
+    def test_navigate_reuses_active_session_for_direct_https_url(self):
+        service, state = make_runtime()
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "forum-nav", "targetId": "forum", "path": "/community/start", "profileId": "standard", "proxyPoolId": "direct"},
+        )
+        handle = service.sessions["forum-nav"]["handle"]
+        result = service.execute(
+            "camoufox-navigate",
+            {"sessionId": "forum-nav", "url": "https://old.forum.example/community/thread/1"},
+        )
+        self.assertIs(service.sessions["forum-nav"]["handle"], handle)
+        self.assertEqual(state["url"], "https://old.forum.example/community/thread/1")
+        self.assertEqual(result["url"], state["url"])
+        self.assertEqual(result["targetId"], "unrestricted")
+        self.assertEqual(service.sessions["forum-nav"]["target_id"], "unrestricted")
+
+    def test_navigate_target_guard_is_opt_in_and_fails_closed(self):
+        service, state = make_runtime()
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "forum-nav-deny", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
+        )
+        original = state["url"]
+        with self.assertRaisesRegex(ValueError, "authorized target"):
+            service.execute(
+                "camoufox-navigate",
+                {"sessionId": "forum-nav-deny", "targetId": "missing", "path": "/community"},
+            )
+        with self.assertRaisesRegex(ValueError, "outside"):
+            service.execute(
+                "camoufox-navigate",
+                {"sessionId": "forum-nav-deny", "targetId": "forum-old", "path": "/account/settings"},
+            )
+        self.assertEqual(state["url"], original)
+        self.assertEqual(service.sessions["forum-nav-deny"]["target_id"], "forum")
+
+    def test_direct_navigation_rejects_unsafe_url_forms(self):
+        self.assertEqual(navigation_url("https://old.forum.example/community"), "https://old.forum.example/community")
+        for value in ["file:///etc/passwd", "javascript:alert(1)", "https://user:password@example.com/", "//example.com/path", None]:
+            with self.assertRaises(ValueError, msg=value):
+                navigation_url(value)
+
+    def test_direct_navigation_cannot_export_assessment_identity(self):
+        service, _ = make_runtime()
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "assessment-nav", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        with self.assertRaisesRegex(ValueError, "assessment-only"):
+            service.execute(
+                "camoufox-navigate",
+                {"sessionId": "assessment-nav", "url": "https://old.forum.example/community"},
+            )
 
     def test_assessment_only_identity_blocked_on_third_party(self):
         service, _ = make_runtime()
