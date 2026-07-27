@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.3"
+	skillVersion        = "1.1.4"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -975,13 +975,26 @@ func stableSnapshot(generation int, snapshot string, refs map[string]interface{}
 			copied = map[string]interface{}{}
 		}
 		copied["reference"] = key
-		if secretNameRE.MatchString(fmt.Sprint(copied["name"])) {
+		if editableControlRole(fmt.Sprint(copied["role"])) {
+			delete(copied, "value")
+			valuePattern := regexp.MustCompile(`(\[ref=` + regexp.QuoteMeta(ref) + `\])(?::[^\r\n]*)`)
+			snapshot = valuePattern.ReplaceAllString(snapshot, `$1`)
+		} else if secretNameRE.MatchString(fmt.Sprint(copied["name"])) {
 			delete(copied, "value")
 		}
 		stable[key] = copied
 		snapshot = strings.ReplaceAll(snapshot, "ref="+ref, "ref="+key)
 	}
 	return snapshot, stable
+}
+
+func editableControlRole(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "textbox", "searchbox", "combobox", "spinbutton", "slider":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *browserService) snapshot(ctx context.Context, config map[string]interface{}, secrets []string) (map[string]interface{}, error) {
