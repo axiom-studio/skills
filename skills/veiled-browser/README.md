@@ -24,10 +24,12 @@ VEILED_BROWSER_TARGETS={
 }
 VEILED_BROWSER_PROFILES={
   "standard": {},
+  "seeded-desktop": {"seed":42},
   "windows-assessment": {"preset":"windows-chrome","assessmentOnly":true}
 }
 VEILED_BROWSER_PROXY_POOLS={
   "direct": {},
+  "rotating-egress": {"urls":["http://proxy-a.internal:8080","socks5://proxy-b.internal:1080"]},
   "assessment-egress-a": {"url":"http://proxy.internal:8080","assessmentOnly":true}
 }
 VEILED_BROWSER_CHALLENGES={
@@ -38,6 +40,11 @@ VEILED_BROWSER_CHALLENGES={
   }
 }
 ```
+
+Every launch applies a coherent VeilBrowser fingerprint from the selected
+profile: named `preset`, integer `seed`, or a stable default derived from the
+profile id. A proxy pool with `urls` rotates deterministically across sessions
+(single `url` pools stay fixed). Agents never see either payload.
 
 Two target modes are explicit:
 
