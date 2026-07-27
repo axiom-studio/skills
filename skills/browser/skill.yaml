@@ -3,6 +3,7 @@ definition:
     actions:
         browser-click:
             description: Click one exact element from the latest browser snapshot
+            externalOperationPolicy: forbidden
             idempotency: required
             inputSchema:
                 additionalProperties: false
@@ -50,6 +51,56 @@ definition:
             semanticArguments:
                 target: target
             sideEffect: external
+        browser-commit:
+            description: Click the final control that commits one stable externally observable business operation; requires a durable cross-Run receipt identity
+            externalOperationPolicy: required
+            idempotency: required
+            inputSchema:
+                additionalProperties: false
+                properties:
+                    idempotencyKey:
+                        description: Unique key preventing duplicate execution of this exact action
+                        maxLength: 128
+                        minLength: 8
+                        type: string
+                    intent:
+                        description: Exact externally visible business operation authorized by the caller
+                        maxLength: 500
+                        minLength: 3
+                        type: string
+                    sessionId:
+                        description: Isolated browser session identifier
+                        pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
+                        type: string
+                    target:
+                        description: Exact stable reference returned by the latest snapshot
+                        pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'
+                        type: string
+                    timeoutSeconds:
+                        default: 25
+                        maximum: 30
+                        minimum: 1
+                        type: integer
+                    writeAuthorized:
+                        description: Explicit authorization for this consequential browser mutation
+                        type: boolean
+                required:
+                    - sessionId
+                    - target
+                    - intent
+                    - writeAuthorized
+                    - idempotencyKey
+                type: object
+            name: browser-commit
+            permissions:
+                - browser:interact
+                - network:http
+            retry:
+                maxAttempts: 1
+            risk: external
+            semanticArguments:
+                target: target
+            sideEffect: external
         browser-close:
             description: Explicitly close one browser session and its child processes
             idempotency: supported
@@ -72,6 +123,7 @@ definition:
             sideEffect: none
         browser-fill:
             description: Clear and fill one exact non-secret form control
+            externalOperationPolicy: forbidden
             idempotency: required
             inputSchema:
                 additionalProperties: false
@@ -131,6 +183,7 @@ definition:
                 - kind: http_basic_auth
                   name: password
             description: Fill one exact login control from an authorized HTTP basic authentication credential without exposing its value
+            externalOperationPolicy: forbidden
             idempotency: required
             inputSchema:
                 additionalProperties: false
@@ -293,6 +346,7 @@ definition:
             sideEffect: read
         browser-select:
             description: Select one exact non-secret option in a control from the latest snapshot
+            externalOperationPolicy: forbidden
             idempotency: required
             inputSchema:
                 additionalProperties: false
@@ -395,6 +449,7 @@ definition:
             sideEffect: read
         browser-type:
             description: Type a non-secret literal into one exact control from the latest snapshot
+            externalOperationPolicy: forbidden
             idempotency: required
             inputSchema:
                 additionalProperties: false
