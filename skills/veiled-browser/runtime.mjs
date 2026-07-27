@@ -43,11 +43,15 @@ export function loadInventory(env = process.env) {
   for (const [id, profile] of Object.entries(inventory.profiles)) {
     if (!ID.test(id) || !profile || typeof profile !== "object") throw new Error(`profile ${id} is invalid`);
     if (profile.preset && !Fingerprint.presets[profile.preset]) throw new Error(`profile ${id} uses an unknown preset`);
-    if (profile.preset && profile.seed) throw new Error(`profile ${id} cannot set preset and seed`);
+    if (profile.seed != null && (!Number.isInteger(profile.seed) || profile.seed < 0)) throw new Error(`profile ${id} seed is invalid`);
+    if (profile.preset && profile.seed != null) throw new Error(`profile ${id} cannot set preset and seed`);
   }
   for (const [id, proxy] of Object.entries(inventory.proxyPools)) {
     if (!ID.test(id) || !proxy || typeof proxy !== "object") throw new Error(`proxy pool ${id} is invalid`);
-    if (proxy.url) { let parsed; try { parsed = new URL(proxy.url); } catch { throw new Error(`proxy pool ${id} is invalid`); } if (!["http:", "https:", "socks5:"].includes(parsed.protocol)) throw new Error(`proxy pool ${id} is invalid`); }
+    const endpoints = proxyUrls(proxy);
+    if (proxy.url && proxy.urls) throw new Error(`proxy pool ${id} cannot set url and urls`);
+    if (proxy.urls && (!Array.isArray(proxy.urls) || proxy.urls.length === 0)) throw new Error(`proxy pool ${id} requires non-empty urls`);
+    for (const endpoint of endpoints) { let parsed; try { parsed = new URL(endpoint); } catch { throw new Error(`proxy pool ${id} is invalid`); } if (!["http:", "https:", "socks5:"].includes(parsed.protocol)) throw new Error(`proxy pool ${id} is invalid`); }
   }
   for (const [id, challenge] of Object.entries(inventory.challenges)) {
     if (!ID.test(id) || challenge.kind !== "synthetic" || !inventory.targets[challenge.targetId] || inventory.targets[challenge.targetId].mode !== "owned-assessment" || typeof challenge.accessibleName !== "string" || !challenge.accessibleName) throw new Error(`challenge ${id} is invalid`);
@@ -69,6 +73,36 @@ function detectChallenges(text) {
 }
 
 function digest(...parts) { return `sha256:${createHash("sha256").update(parts.join("\0")).digest("hex")}`; }
+
+function stableSeed(value) {
+  const hex = createHash("sha256").update(String(value)).digest("hex").slice(0, 8);
+  return Number.parseInt(hex, 16) >>> 0;
+}
+
+function proxyUrls(proxy) {
+  if (Array.isArray(proxy?.urls)) return proxy.urls;
+  if (proxy?.url) return [proxy.url];
+  return [];
+}
+
+/** Resolve a coherent VeilBrowser fingerprint from an opaque profile inventory entry. */
+export function resolveFingerprint(profile, profileId) {
+  if (profile?.preset) {
+    const fingerprint = Fingerprint.presets[profile.preset];
+    if (!fingerprint) throw new Error("browser profile is unavailable");
+    return fingerprint;
+  }
+  if (profile?.seed != null) return Fingerprint.random(profile.seed);
+  return Fingerprint.random(stableSeed(profileId ?? "default"));
+}
+
+/** Rotate a proxy pool deterministically across sessions. */
+export function resolveProxy(proxy, proxyPoolId, sessionId) {
+  const endpoints = proxyUrls(proxy);
+  if (!endpoints.length) return undefined;
+  if (endpoints.length === 1) return endpoints[0];
+  return endpoints[stableSeed(`${proxyPoolId}:${sessionId}`) % endpoints.length];
+}
 
 export class VeiledBrowserRuntime {
   constructor({ inventory, workspace, browserFactory = (options) => Browser.launch(options), now = () => new Date() }) {
@@ -122,10 +156,9 @@ export class VeiledBrowserRuntime {
     const destination = exactPath(target, config.path);
     const userDataDir = path.join(this.workspace, "profiles", profileId, sessionId);
     await mkdir(userDataDir, { recursive: true, mode: 0o700 });
-    const fingerprint = target.mode === "owned-assessment"
-      ? profile.preset ? Fingerprint.presets[profile.preset] : profile.seed ? Fingerprint.random(profile.seed) : undefined
-      : undefined;
-    const browser = await this.browserFactory({ headless: false, xvfb: true, userDataDir, proxy: proxy.url || undefined, fingerprint, blockPrivateNetwork: !target.allowPrivateSubresources });
+    const fingerprint = resolveFingerprint(profile, profileId);
+    const egress = resolveProxy(proxy, proxyPoolId, sessionId);
+    const browser = await this.browserFactory({ headless: false, xvfb: true, userDataDir, proxy: egress, fingerprint, blockPrivateNetwork: !target.allowPrivateSubresources });
     const page = await browser.newPage();
     let navigation;
     try { navigation = await page.goto(destination, { timeout: 30_000, waitUntil: "networkidle" }); }
