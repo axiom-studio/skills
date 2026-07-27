@@ -656,7 +656,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.10", "version: 1.1.10", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.11", "version: 1.1.11", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
@@ -750,6 +750,16 @@ func TestAgentBrowserLocalFixture(t *testing.T) {
 		gets := submitted.gets
 		submitted.Unlock()
 		t.Fatalf("real browser fixture rendered no elements (fixture GETs=%d): %#v", gets, snapshot)
+	}
+	var initialCommentElement map[string]interface{}
+	for _, element := range snapshot["elements"].([]map[string]interface{}) {
+		if element["name"] == "Comment" {
+			initialCommentElement = element
+			break
+		}
+	}
+	if initialCommentElement == nil || initialCommentElement["filled"] != false {
+		t.Fatalf("real browser did not report empty control occupancy: %#v", initialCommentElement)
 	}
 	commentRef := findReference(t, snapshot, "Comment")
 	if _, err := execute(t, service, "browser-fill", map[string]interface{}{
