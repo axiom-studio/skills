@@ -1,6 +1,7 @@
-# Camoufox Skill
+# Browser Skill
 
-`skill-camoufox` is a Python implementation of the canonical Skill gRPC
+`skill-browser` is the canonical governed browser Skill. Its Python runtime
+implements the Skill gRPC
 transport wrapping [Camoufox](https://github.com/daijro/camoufox) — a
 C++-patched Firefox with OS-level anti-detection. Fingerprint coherence (OS,
 canvas, WebGL, fonts, screen, timezone) is enforced by the engine itself, not
@@ -60,5 +61,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-camoufox:1.0.12 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.0 .
 ```
