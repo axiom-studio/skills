@@ -128,7 +128,11 @@ SETTLE_JS = r"""
     if (observer) observer.disconnect();
     clearTimeout(quietTimer);
     clearTimeout(hardTimer);
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
+    const fallback = setTimeout(resolve, 100);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      clearTimeout(fallback);
+      resolve();
+    }));
   };
   if (!document.documentElement) return finish();
   quietTimer = setTimeout(finish, 180);
