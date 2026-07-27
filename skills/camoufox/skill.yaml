@@ -55,14 +55,14 @@ definition:
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     generation: {type: integer, minimum: 1}
                     x: {type: number, minimum: 0, maximum: 10000}
-                    y: {type: number, minimum: 0, maximum: 10000}
+                    'y': {type: number, minimum: 0, maximum: 10000}
                     intent: {type: string, minLength: 3, maxLength: 500}
                     writeAuthorized: {type: boolean}
                     idempotencyKey: {type: string, minLength: 8, maxLength: 128}
                 required: [sessionId, intent, writeAuthorized, idempotencyKey]
                 oneOf:
                     - required: [target]
-                    - required: [generation, x, y]
+                    - required: [generation, x, 'y']
             permissions: [browser:interact, network:http]
             externalOperationPolicy: forbidden
             idempotency: required
@@ -207,7 +207,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-camoufox:1.0.5
+          package: axiomstudio/skill-camoufox:1.0.6
     name: Camoufox Skill
     prompt:
         allowedTools:
@@ -243,10 +243,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-camoufox
-        resolvedVersion: 1.0.5
+        resolvedVersion: 1.0.6
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-camoufox
         kind: tool
-    version: 1.0.5
+    version: 1.0.6
 kind: SkillDefinition
