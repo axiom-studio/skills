@@ -170,6 +170,24 @@ func (e *fakeEngine) Close(ctx context.Context, s *browserSession) error {
 
 func (*fakeEngine) Ready(context.Context) error { return nil }
 
+func TestAgentBrowserEnvironmentSeparatesCommandAndSessionTimeouts(t *testing.T) {
+	engine := &agentBrowserEngine{idleTimeout: 17 * time.Minute}
+	session := &browserSession{runtimeDir: t.TempDir()}
+	values := map[string]string{}
+	for _, entry := range engine.environment(session) {
+		name, value, ok := strings.Cut(entry, "=")
+		if ok {
+			values[name] = value
+		}
+	}
+	if got, want := values["AGENT_BROWSER_DEFAULT_TIMEOUT"], "30000"; got != want {
+		t.Fatalf("command timeout=%q want %q", got, want)
+	}
+	if got, want := values["AGENT_BROWSER_IDLE_TIMEOUT"], "1020000"; got != want {
+		t.Fatalf("session idle timeout=%q want %q", got, want)
+	}
+}
+
 func testService(t *testing.T, engine *fakeEngine, idle time.Duration) *browserService {
 	t.Helper()
 	service, err := newBrowserService(t.TempDir(), newDestinationPolicy("", true), idle, engine)
@@ -479,7 +497,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.1", "version: 1.1.1", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.2", "version: 1.1.2", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {

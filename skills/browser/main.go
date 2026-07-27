@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.1"
+	skillVersion        = "1.1.2"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -67,13 +67,18 @@ type browserEngine interface {
 }
 
 type agentBrowserEngine struct {
-	binary     string
-	executable string
-	proxyURL   string
+	binary      string
+	executable  string
+	proxyURL    string
+	idleTimeout time.Duration
 }
 
 func (e *agentBrowserEngine) environment(s *browserSession) []string {
-	timeout := strconv.Itoa(int(maxCommandTimeout.Milliseconds() - 5000))
+	commandTimeout := strconv.Itoa(int(maxCommandTimeout.Milliseconds() - 5000))
+	idleTimeout := e.idleTimeout
+	if idleTimeout <= 0 {
+		idleTimeout = defaultIdleTimeout
+	}
 	return append(os.Environ(),
 		"HOME="+s.runtimeDir,
 		"XDG_CONFIG_HOME="+filepath.Join(s.runtimeDir, ".config"),
@@ -81,8 +86,8 @@ func (e *agentBrowserEngine) environment(s *browserSession) []string {
 		"AGENT_BROWSER_EXECUTABLE_PATH="+e.executable,
 		"AGENT_BROWSER_PROXY="+e.proxyURL,
 		"AGENT_BROWSER_PROXY_BYPASS=<-loopback>",
-		"AGENT_BROWSER_DEFAULT_TIMEOUT="+timeout,
-		"AGENT_BROWSER_IDLE_TIMEOUT="+timeout,
+		"AGENT_BROWSER_DEFAULT_TIMEOUT="+commandTimeout,
+		"AGENT_BROWSER_IDLE_TIMEOUT="+strconv.FormatInt(idleTimeout.Milliseconds(), 10),
 		"AGENT_BROWSER_NO_XVFB=1",
 	)
 }
@@ -1430,6 +1435,7 @@ func envDuration(name string, fallback time.Duration) time.Duration {
 
 func newProductionService() (*browserService, error) {
 	workspace := strings.TrimSpace(os.Getenv("BROWSER_WORKSPACE"))
+	idleTimeout := envDuration("BROWSER_IDLE_TIMEOUT", defaultIdleTimeout)
 	policy := newDestinationPolicy(os.Getenv("BROWSER_ALLOWED_HOSTS"), strings.EqualFold(os.Getenv("BROWSER_ALLOW_PRIVATE_NETWORKS"), "true"))
 	if err := policy.addAllowedPorts(os.Getenv("BROWSER_ALLOWED_PORTS")); err != nil {
 		return nil, err
@@ -1439,7 +1445,7 @@ func newProductionService() (*browserService, error) {
 		return nil, fmt.Errorf("start browser network guard: %w", err)
 	}
 	engine := &agentBrowserEngine{
-		binary: strings.TrimSpace(os.Getenv("AGENT_BROWSER_BINARY")), executable: strings.TrimSpace(os.Getenv("CHROMIUM_EXECUTABLE")), proxyURL: proxy.URL(),
+		binary: strings.TrimSpace(os.Getenv("AGENT_BROWSER_BINARY")), executable: strings.TrimSpace(os.Getenv("CHROMIUM_EXECUTABLE")), proxyURL: proxy.URL(), idleTimeout: idleTimeout,
 	}
 	if engine.binary == "" {
 		engine.binary = "agent-browser"
@@ -1447,7 +1453,7 @@ func newProductionService() (*browserService, error) {
 	if engine.executable == "" {
 		engine.executable = "/usr/bin/chromium"
 	}
-	service, err := newBrowserService(workspace, policy, envDuration("BROWSER_IDLE_TIMEOUT", defaultIdleTimeout), engine)
+	service, err := newBrowserService(workspace, policy, idleTimeout, engine)
 	if err != nil {
 		_ = proxy.Close(context.Background())
 		return nil, err
