@@ -22,13 +22,17 @@ WORKDIR /opt/skill
 COPY skills/${SKILL_NAME}/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY skills/${SKILL_NAME}/ ./
+COPY skills/${SKILL_NAME}/skill.proto ./
 RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. skill.proto \
     && python -m camoufox fetch \
     && chmod -R a+rX /usr/local/lib/python3.12/site-packages/camoufox \
     && useradd -r -m -u 1000 skill \
     && mkdir -p /var/lib/openseal-camoufox /opt/camoufox-cache \
     && chown -R skill:skill /var/lib/openseal-camoufox /opt/camoufox-cache /opt/skill
+
+# Keep frequently edited Skill code above the heavyweight, deterministic
+# browser-install layer so revisions do not re-upload the browser runtime.
+COPY --chown=skill:skill skills/${SKILL_NAME}/ ./
 
 USER skill
 
