@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.6"
+	skillVersion        = "1.1.7"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -644,7 +644,13 @@ func (s *browserService) Shutdown(ctx context.Context) {
 	for _, session := range list {
 		session.mu.Lock()
 		if session.meta.ClosedAt == nil {
-			_ = s.closeLocked(ctx, session)
+			// Process shutdown is not a user lifecycle command. Stop the
+			// ephemeral browser daemon, but keep the durable session open so a
+			// replacement worker can reconstruct it from metadata and profile.
+			_ = s.engine.Close(ctx, session)
+			session.meta.SnapshotValid = false
+			session.refs = map[string]map[string]interface{}{}
+			_ = session.persist()
 		}
 		session.mu.Unlock()
 	}

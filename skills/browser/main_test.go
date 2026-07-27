@@ -229,6 +229,47 @@ func TestSnapshotRecoversDeadDaemonWithPersistentProfile(t *testing.T) {
 	}
 }
 
+func TestShutdownPreservesDurableSessionForReplacementWorker(t *testing.T) {
+	workspace := t.TempDir()
+	firstEngine := newFakeEngine()
+	first, err := newBrowserService(workspace, newDestinationPolicy("", true), time.Minute, firstEngine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = execute(t, first, "browser-open", map[string]interface{}{
+		"sessionId": "replacement", "profileName": "reddit-auth", "url": "https://example.com/r/vibecoding/new",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Shutdown(context.Background())
+	if firstEngine.closeCalls != 1 {
+		t.Fatalf("shutdown engine closes = %d", firstEngine.closeCalls)
+	}
+
+	secondEngine := newFakeEngine()
+	second, err := newBrowserService(workspace, newDestinationPolicy("", true), time.Minute, secondEngine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { second.Shutdown(context.Background()) })
+	session, err := second.session("replacement")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.meta.ClosedAt != nil {
+		t.Fatal("replacement worker loaded process shutdown as an explicit session close")
+	}
+	secondEngine.disconnectSnapshots = 1
+	result, err := execute(t, second, "browser-snapshot", map[string]interface{}{"sessionId": "replacement"}, nil)
+	if err != nil || result["success"] != true {
+		t.Fatalf("replacement snapshot=%#v error=%v", result, err)
+	}
+	if secondEngine.openCalls != 1 {
+		t.Fatalf("replacement recovery opens = %d", secondEngine.openCalls)
+	}
+}
+
 func testService(t *testing.T, engine *fakeEngine, idle time.Duration) *browserService {
 	t.Helper()
 	service, err := newBrowserService(t.TempDir(), newDestinationPolicy("", true), idle, engine)
@@ -579,7 +620,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.6", "version: 1.1.6", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.7", "version: 1.1.7", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
