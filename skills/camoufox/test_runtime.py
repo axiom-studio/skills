@@ -37,17 +37,25 @@ class FakeHandle:
     def snapshot(self):
         if self.state.get("solved"):
             return {"url": self.state["url"], "title": "Accepted", "text": "Assessment accepted", "elements": []}
-        return {
+        result = {
             "url": self.state["url"],
             "title": "Page",
             "text": self.state.get("text", "Welcome"),
+            "viewport": {"width": 1280, "height": 720},
             "elements": [
                 {"ref": 1, "role": self.state.get("element_role", "textbox"), "name": self.state.get("element_name", "Comment")}
             ],
         }
+        if self.state.get("model_media"):
+            result["model_media"] = self.state["model_media"]
+        return result
 
     def click(self, marker):
         self.state["click"] = marker
+        self.state["solved"] = True
+
+    def click_point(self, x, y):
+        self.state["click_point"] = (x, y)
         self.state["solved"] = True
 
     def fill(self, marker, value):
@@ -212,6 +220,42 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(service.execute("camoufox-click", request)["duplicate"])
         with self.assertRaisesRegex(ValueError, "stale"):
             service.execute("camoufox-click", {**request, "idempotencyKey": "click-owned-2"})
+
+    def test_snapshot_attaches_bounded_model_media_and_supports_current_coordinates(self):
+        service, state = make_runtime({"model_media": b"jpeg-screen"})
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "visual-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-1"})
+        self.assertEqual(base64.b64decode(snapshot["modelMedia"]["contentBase64"]), b"jpeg-screen")
+        self.assertEqual(snapshot["modelMedia"]["width"], 1280)
+        result = service.execute(
+            "camoufox-click",
+            {
+                "sessionId": "visual-1", "generation": snapshot["generation"], "x": 640, "y": 360,
+                "intent": "Activate the visually identified control", "writeAuthorized": True,
+                "idempotencyKey": "visual-click-1",
+            },
+        )
+        self.assertTrue(result["success"])
+        self.assertEqual(state["click_point"], (640, 360))
+
+    def test_coordinate_click_rejects_stale_generation_and_out_of_bounds_point(self):
+        service, _ = make_runtime()
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "visual-stale", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-stale"})
+        base = {
+            "sessionId": "visual-stale", "generation": snapshot["generation"], "x": 10, "y": 10,
+            "intent": "Activate the visually identified control", "writeAuthorized": True,
+        }
+        with self.assertRaisesRegex(ValueError, "stale"):
+            service.execute("camoufox-click", {**base, "generation": 99, "idempotencyKey": "visual-stale-1"})
+        with self.assertRaisesRegex(ValueError, "outside"):
+            service.execute("camoufox-click", {**base, "x": 5000, "idempotencyKey": "visual-stale-2"})
 
     def test_select_and_scroll(self):
         service, state = make_runtime()
