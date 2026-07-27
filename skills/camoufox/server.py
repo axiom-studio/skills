@@ -12,7 +12,7 @@ import skill_pb2_grpc
 from runtime import CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-camoufox"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 ACTIONS = [
     "camoufox-health",
     "camoufox-start",
