@@ -35,6 +35,7 @@ PROXY_SCHEMES = ("http", "https", "socks5")
 MAX_ELEMENTS = 500
 MAX_TEXT = 200 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
+MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
 
 SNAPSHOT_JS = """
 () => {
@@ -263,24 +264,40 @@ class CamoufoxHandle:
         return self._worker.call(_goto)
 
     def snapshot(self):
-        return self._worker.call(lambda: self._page.evaluate(SNAPSHOT_JS))
+        def _snapshot():
+            result = self._page.evaluate(SNAPSHOT_JS)
+            screenshot = self._page.screenshot(type="jpeg", quality=45, full_page=False, scale="css")
+            if len(screenshot) > MAX_MODEL_SCREENSHOT:
+                screenshot = self._page.screenshot(type="jpeg", quality=25, full_page=False, scale="css")
+            if len(screenshot) > MAX_MODEL_SCREENSHOT:
+                raise ValueError("model screenshot exceeds the 1MiB visual context limit")
+            viewport = self._page.evaluate("() => ({width: innerWidth, height: innerHeight})")
+            result["model_media"] = screenshot
+            result["viewport"] = viewport
+            return result
+
+        return self._worker.call(_snapshot)
 
     def click(self, marker):
         def _click():
             locator = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
             try:
-                # Dynamic headers can continuously shift while a page hydrates.
-                # Keep the ordinary trusted click fast, then use the element's
-                # native DOM activation instead of waiting thirty seconds for
-                # Playwright's stability heuristic.
+                locator.scroll_into_view_if_needed(timeout=5000)
+                box = locator.bounding_box()
+                if not box:
+                    raise ValueError("target has no visible mouse bounds")
+                x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+                self._page.mouse.move(x, y)
+                self._page.mouse.click(x, y)
+            except Exception:
+                # Playwright's trusted locator click is still pointer input and
+                # remains a safe fallback for controls with transient bounds.
                 locator.click(timeout=5000)
-            except Exception as click_error:
-                try:
-                    locator.evaluate("element => element.click()")
-                except Exception:
-                    raise click_error
 
         self._worker.call(_click)
+
+    def click_point(self, x, y):
+        self._worker.call(lambda: (self._page.mouse.move(x, y), self._page.mouse.click(x, y)))
 
     def fill(self, marker, value):
         def _fill():
@@ -351,7 +368,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.3",
+                "version": "1.0.4",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -359,7 +376,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.3",
+            "version": "1.0.4",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -426,6 +443,7 @@ class CamoufoxRuntime:
             "ref_names": {},
             "challenges": [],
             "snapshot_text": "",
+            "viewport": {},
             "mutations": 0,
             "receipts": {},
             "secrets": set(),
@@ -465,8 +483,9 @@ class CamoufoxRuntime:
             elements.append({"ref": ref, "role": element.get("role", ""), "name": redact(element.get("name", ""))})
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
+        session["viewport"] = raw.get("viewport") or {}
         session["challenges"] = detect_challenges(text)
-        return {
+        result = {
             "sessionId": session["id"],
             "generation": session["generation"],
             "url": raw.get("url", ""),
@@ -476,6 +495,16 @@ class CamoufoxRuntime:
             "challenges": session["challenges"],
             "requiresHuman": session["target"]["mode"] == "permitted-automation" and bool(session["challenges"]),
         }
+        media = raw.get("model_media")
+        if isinstance(media, (bytes, bytearray)):
+            result["modelMedia"] = {
+                "mediaType": "image/jpeg",
+                "contentBase64": base64.b64encode(media).decode(),
+                "detail": "low",
+                "width": session["viewport"].get("width"),
+                "height": session["viewport"].get("height"),
+            }
+        return result
 
     def mutate(self, operation, config, secret_value=None):
         session = self.session(config.get("sessionId"))
@@ -487,16 +516,26 @@ class CamoufoxRuntime:
         if not isinstance(key, str) or len(key) < 8:
             raise ValueError("idempotencyKey is required")
         value = secret_value if secret_value is not None else config.get("value", "")
-        fingerprint = digest(operation, config.get("target"), value)
+        fingerprint = digest(operation, config.get("target"), config.get("generation"), config.get("x"), config.get("y"), value)
         receipt_key = f"{operation}:{key}"
         if receipt_key in session["receipts"]:
             if session["receipts"][receipt_key] != fingerprint:
                 raise ValueError("idempotency key was reused with different arguments")
             return {"sessionId": session["id"], "duplicate": True, "receipt": key}
         target_ref = config.get("target")
-        marker = session["refs"].get(target_ref)
-        if marker is None:
+        marker = session["refs"].get(target_ref) if target_ref else None
+        point = target_ref is None and operation == "click"
+        if marker is None and not point:
             raise ValueError("target is stale or unknown; take a new snapshot")
+        if point:
+            generation, x, y = config.get("generation"), config.get("x"), config.get("y")
+            viewport = session.get("viewport") or {}
+            if generation != session["generation"]:
+                raise ValueError("screenshot generation is stale; take a new snapshot")
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                raise ValueError("screenshot coordinates must be numbers")
+            if x < 0 or y < 0 or x >= viewport.get("width", 0) or y >= viewport.get("height", 0):
+                raise ValueError("screenshot coordinates are outside the current viewport")
         if (
             operation == "fill"
             and secret_value is None
@@ -504,7 +543,10 @@ class CamoufoxRuntime:
         ):
             raise ValueError("literal values cannot fill a secret-like control; use an authorized credential binding")
         if operation == "click":
-            session["handle"].click(marker)
+            if point:
+                session["handle"].click_point(x, y)
+            else:
+                session["handle"].click(marker)
         elif operation == "select":
             session["handle"].select(marker, value)
         else:
