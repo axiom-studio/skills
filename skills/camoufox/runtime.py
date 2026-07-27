@@ -258,7 +258,21 @@ class CamoufoxHandle:
         return self._worker.call(lambda: self._page.evaluate(SNAPSHOT_JS))
 
     def click(self, marker):
-        self._worker.call(lambda: self._page.locator(f'[data-camoufox-ref="{marker}"]').first.click())
+        def _click():
+            locator = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
+            try:
+                # Dynamic headers can continuously shift while a page hydrates.
+                # Keep the ordinary trusted click fast, then use the element's
+                # native DOM activation instead of waiting thirty seconds for
+                # Playwright's stability heuristic.
+                locator.click(timeout=5000)
+            except Exception as click_error:
+                try:
+                    locator.evaluate("element => element.click()")
+                except Exception:
+                    raise click_error
+
+        self._worker.call(_click)
 
     def fill(self, marker, value):
         def _fill():
@@ -329,7 +343,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-camoufox",
-                "version": "1.0.0",
+                "version": "1.0.2",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -337,7 +351,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-camoufox",
-            "version": "1.0.0",
+            "version": "1.0.2",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),

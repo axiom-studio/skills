@@ -8,7 +8,14 @@ ENV PYTHONUNBUFFERED=1 \
     SKILL_PORT=${SKILL_PORT}
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends xvfb \
+    && apt-get install -y --no-install-recommends \
+        fonts-liberation \
+        libasound2 \
+        libdbus-glib-1-2 \
+        libgtk-3-0 \
+        libx11-xcb1 \
+        libxt6 \
+        xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/skill
