@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { VeiledBrowserRuntime, loadInventory, test as helpers } from "../runtime.mjs";
+import { VeiledBrowserRuntime, loadInventory, resolveFingerprint, resolveProxy, test as helpers } from "../runtime.mjs";
 
 function inventory() {
   return {
@@ -14,10 +14,12 @@ function inventory() {
     profiles: {
       standard: {},
       varied: { preset: "windows-chrome", assessmentOnly: true },
+      seeded: { seed: 42 },
     },
     proxyPools: {
       direct: {},
       rotating: { url: "http://proxy.internal:8080", assessmentOnly: true },
+      pool: { urls: ["http://proxy-a.internal:8080", "socks5://proxy-b.internal:1080", "http://proxy-c.internal:8080"] },
     },
     challenges: {
       checkbox: { targetId: "owned", kind: "synthetic", accessibleName: "Authorized test challenge" },
@@ -59,7 +61,13 @@ test("inventory validation fails closed", () => {
     { ...base, VEILED_BROWSER_TARGETS: JSON.stringify({ bad: { baseUrl: "file:///etc/passwd", pathPrefixes: ["/"], mode: "owned-assessment" } }) },
     { ...base, VEILED_BROWSER_TARGETS: JSON.stringify({ bad: { baseUrl: "https://example.com", pathPrefixes: ["/"], mode: "unknown" } }) },
     { ...base, VEILED_BROWSER_CHALLENGES: JSON.stringify({ bad: { targetId: "fixture", kind: "captcha-solver", accessibleName: "captcha" } }) },
+    { ...base, VEILED_BROWSER_PROXY_POOLS: JSON.stringify({ bad: { url: "http://a:1", urls: ["http://b:2"] } }) },
+    { ...base, VEILED_BROWSER_PROXY_POOLS: JSON.stringify({ bad: { urls: [] } }) },
+    { ...base, VEILED_BROWSER_PROXY_POOLS: JSON.stringify({ bad: { urls: ["file:///etc/passwd"] } }) },
+    { ...base, VEILED_BROWSER_PROFILES: JSON.stringify({ bad: { preset: "windows-chrome", seed: 1 } }) },
+    { ...base, VEILED_BROWSER_PROFILES: JSON.stringify({ bad: { seed: -1 } }) },
   ]) assert.throws(() => loadInventory(env));
+  assert.equal(Object.keys(loadInventory({ ...base, VEILED_BROWSER_PROXY_POOLS: JSON.stringify({ pool: { urls: ["http://proxy-a.internal:8080", "socks5://proxy-b.internal:1080"] } }) }).proxyPools).length, 1);
 });
 
 test("an installed service reports configuration readiness without crashing", async () => {
@@ -72,6 +80,41 @@ test("target scope cannot escape configured origin or path", () => {
   const target = inventory().targets.owned;
   assert.equal(helpers.exactPath(target, "/assessment/start"), "http://fixture.internal:8080/assessment/start");
   for (const value of ["https://other.example/assessment", "//other.example/assessment", "/admin", "relative"]) assert.throws(() => helpers.exactPath(target, value));
+});
+
+test("resolveFingerprint applies preset, seed, and stable default identity", () => {
+  assert.equal(resolveFingerprint({ preset: "windows-chrome" }, "varied").platform, "Win32");
+  assert.deepEqual(resolveFingerprint({ seed: 42 }, "seeded"), resolveFingerprint({ seed: 42 }, "other"));
+  assert.notDeepEqual(resolveFingerprint({}, "standard"), resolveFingerprint({}, "other"));
+  assert.deepEqual(resolveFingerprint({}, "standard"), resolveFingerprint({}, "standard"));
+});
+
+test("resolveProxy rotates pool endpoints deterministically per session", () => {
+  const pool = { urls: ["http://a:1", "http://b:2", "http://c:3"] };
+  assert.equal(resolveProxy({ url: "http://one:1" }, "single", "s1"), "http://one:1");
+  assert.equal(resolveProxy({}, "direct", "s1"), undefined);
+  const first = resolveProxy(pool, "pool", "session-a");
+  assert.ok(pool.urls.includes(first));
+  assert.equal(resolveProxy(pool, "pool", "session-a"), first);
+  const others = new Set(["one", "two", "three", "four", "five", "six"].map((id) => resolveProxy(pool, "pool", id)));
+  assert.ok(others.size > 1);
+  for (const value of others) assert.ok(pool.urls.includes(value));
+});
+
+test("pooled proxy selection drives launch egress", async () => {
+  const state = {};
+  const service = await runtime(state);
+  await service.execute("veiled-browser-start", { sessionId: "pool-1", targetId: "forum", path: "/community", profileId: "standard", proxyPoolId: "pool" });
+  assert.equal(state.launch.proxy, resolveProxy(inventory().proxyPools.pool, "pool", "pool-1"));
+  await service.execute("veiled-browser-start", { sessionId: "pool-2", targetId: "forum", path: "/community", profileId: "seeded", proxyPoolId: "pool" });
+  assert.equal(state.launch.proxy, resolveProxy(inventory().proxyPools.pool, "pool", "pool-2"));
+});
+
+test("seeded profiles spoof a deterministic fingerprint on permitted automation", async () => {
+  const state = {};
+  const service = await runtime(state);
+  await service.execute("veiled-browser-start", { sessionId: "seed-1", targetId: "forum", path: "/community", profileId: "seeded", proxyPoolId: "direct" });
+  assert.deepEqual(state.launch.fingerprint, resolveFingerprint({ seed: 42 }, "seeded"));
 });
 
 test("owned assessment uses configured identity and solves only its synthetic fixture", async () => {
@@ -91,10 +134,12 @@ test("owned assessment uses configured identity and solves only its synthetic fi
 });
 
 test("third-party automation cannot select assessment identity, egress, or synthetic solver", async () => {
-  const service = await runtime({ text: "Community" });
+  const state = {};
+  const service = await runtime(state);
   await assert.rejects(service.execute("veiled-browser-start", { sessionId: "bad-profile", targetId: "forum", path: "/community", profileId: "varied", proxyPoolId: "direct" }), /assessment-only/);
   await assert.rejects(service.execute("veiled-browser-start", { sessionId: "bad-proxy", targetId: "forum", path: "/community", profileId: "standard", proxyPoolId: "rotating" }), /assessment-only/);
   await service.execute("veiled-browser-start", { sessionId: "forum-1", targetId: "forum", path: "/community", profileId: "standard", proxyPoolId: "direct" });
+  assert.ok(state.launch.fingerprint?.platform);
   assert.equal((await service.execute("veiled-browser-health")).status, "ready");
   await assert.rejects(service.execute("veiled-browser-solve-synthetic", { sessionId: "forum-1", challengeId: "checkbox", target: "s1:e1", attestation: "authorized-platform-test", idempotencyKey: "synthetic-forum-1" }), /unavailable/);
 });
