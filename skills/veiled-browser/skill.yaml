@@ -24,7 +24,6 @@ definition:
           proxyPoolId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
         required: [sessionId, targetId, profileId, proxyPoolId]
       permissions: [browser:session, network:http]
-      idempotency: forbidden
       retry: {maxAttempts: 1}
       risk: read
       sideEffect: read
@@ -128,10 +127,11 @@ definition:
           challengeId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
           target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
           attestation: {type: string, enum: [authorized-platform-test]}
-        required: [sessionId, challengeId, target, attestation]
+          idempotencyKey: {type: string, minLength: 8, maxLength: 128}
+        required: [sessionId, challengeId, target, attestation, idempotencyKey]
       permissions: [browser:interact, security:test]
       externalOperationPolicy: forbidden
-      idempotency: forbidden
+      idempotency: required
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: external
