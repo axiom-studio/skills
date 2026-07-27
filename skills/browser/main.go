@@ -29,7 +29,7 @@ import (
 
 const (
 	skillID             = "skill-browser"
-	skillVersion        = "1.1.11"
+	skillVersion        = "1.1.12"
 	defaultPort         = "50112"
 	defaultIdleTimeout  = 15 * time.Minute
 	maxCommandTimeout   = 35 * time.Second
@@ -1331,11 +1331,19 @@ func (s *browserService) mutate(ctx context.Context, action string, config map[s
 		session.meta.SecretTainted = true
 	}
 	s.refreshPageState(commandCtx, session)
+	session.meta.LastChallenges = challenges(session.meta.Title + " " + session.meta.CurrentURL)
+	requiresHuman := blockedChallenge(session.meta.LastChallenges)
 	output := map[string]interface{}{
 		"success": true, "duplicate": false, "sessionId": session.id, "action": "browser-" + action,
 		"target": stringValue(config, "target"), "intent": stringValue(config, "intent"),
 		"currentUrl": session.meta.CurrentURL, "title": session.meta.Title,
-		"verificationRequired": true, "nextStep": "Take a new snapshot or read the page to verify the exact intended outcome.",
+		"challenges": session.meta.LastChallenges, "requiresHuman": requiresHuman,
+		"verificationRequired": !requiresHuman,
+	}
+	if requiresHuman {
+		output["nextStep"] = "Pause automation and request human intervention for the detected challenge."
+	} else {
+		output["nextStep"] = "Take a new snapshot or read the page to verify the exact intended outcome."
 	}
 	session.remember(action, key, fp, output)
 	if err := session.persist(); err != nil {
