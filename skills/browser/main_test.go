@@ -184,7 +184,7 @@ func (*fakeEngine) Ready(context.Context) error { return nil }
 
 func TestAgentBrowserEnvironmentSeparatesCommandAndSessionTimeouts(t *testing.T) {
 	engine := &agentBrowserEngine{idleTimeout: 17 * time.Minute}
-	session := &browserSession{runtimeDir: t.TempDir()}
+	session := &browserSession{runtimeDir: t.TempDir(), profileDir: filepath.Join(t.TempDir(), "profile")}
 	values := map[string]string{}
 	for _, entry := range engine.environment(session) {
 		name, value, ok := strings.Cut(entry, "=")
@@ -197,6 +197,9 @@ func TestAgentBrowserEnvironmentSeparatesCommandAndSessionTimeouts(t *testing.T)
 	}
 	if got, want := values["AGENT_BROWSER_IDLE_TIMEOUT"], "1020000"; got != want {
 		t.Fatalf("session idle timeout=%q want %q", got, want)
+	}
+	if got := values["AGENT_BROWSER_PROFILE"]; got != session.profileDir {
+		t.Fatalf("profile=%q want %q", got, session.profileDir)
 	}
 }
 
@@ -576,7 +579,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.5", "version: 1.1.5", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.6", "version: 1.1.6", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
@@ -656,7 +659,9 @@ func TestAgentBrowserLocalFixture(t *testing.T) {
 	}
 	service.proxy = proxy
 	t.Cleanup(func() { service.Shutdown(context.Background()) })
-	if _, err := execute(t, service, "browser-open", map[string]interface{}{"sessionId": "e2e", "url": fixture.URL}, nil); err != nil {
+	if _, err := execute(t, service, "browser-open", map[string]interface{}{
+		"sessionId": "e2e", "profileName": "e2e-profile", "url": fixture.URL,
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "e2e"}, nil)
