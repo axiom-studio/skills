@@ -389,6 +389,34 @@ func TestFormFillSubmitOnceAndVerify(t *testing.T) {
 	}
 }
 
+func TestMutationReportsChallengeAsTypedHumanIntervention(t *testing.T) {
+	engine := newFakeEngine()
+	service := testService(t, engine, time.Minute)
+	openFixture(t, service, "challenge")
+	snapshot, err := execute(t, service, "browser-snapshot", map[string]interface{}{"sessionId": "challenge"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine.mu.Lock()
+	engine.pages["challenge"].title = "Verify you are human - CAPTCHA"
+	engine.mu.Unlock()
+	output, err := execute(t, service, "browser-click", map[string]interface{}{
+		"sessionId": "challenge", "target": findReference(t, snapshot, "Submit comment"),
+		"intent": "Continue to the exact approved destination", "writeAuthorized": true,
+		"idempotencyKey": "challenge-click-0001",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output["requiresHuman"] != true || output["verificationRequired"] != false {
+		t.Fatalf("challenge outcome = %#v", output)
+	}
+	values, ok := output["challenges"].([]string)
+	if !ok || len(values) != 1 || values[0] != "captcha" {
+		t.Fatalf("challenge types = %#v", output["challenges"])
+	}
+}
+
 func TestStaleReferencesAndWriteAuthorization(t *testing.T) {
 	service := testService(t, newFakeEngine(), time.Minute)
 	openFixture(t, service, "stale")
@@ -656,7 +684,7 @@ func TestManifestAndSchemasDeclareAllActions(t *testing.T) {
 	}
 	for _, header := range []string{
 		"apiVersion: openseal.dev/v1alpha1", "kind: SkillDefinition", "kind: oci",
-		"package: axiomstudio/skill-browser:1.1.11", "version: 1.1.11", "durability: persistent",
+		"package: axiomstudio/skill-browser:1.1.12", "version: 1.1.12", "durability: persistent",
 		"mountPath: /var/lib/openseal-browser", "minimumCapacity: 1Gi", "retention: retain", "writableGroup: 1001",
 	} {
 		if !strings.Contains(text, header) {
