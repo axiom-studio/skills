@@ -172,6 +172,45 @@ class BrowserNavigationTest(unittest.TestCase):
             "wait_until": "domcontentloaded",
         }])
 
+    def test_exact_script_backed_control_uses_bounded_dom_fallback(self):
+        calls = []
+
+        class Locator:
+            first = None
+
+            def __init__(self):
+                self.first = self
+
+            def scroll_into_view_if_needed(self, timeout):
+                raise TimeoutError("not stable")
+
+            def click(self, timeout):
+                calls.append(("trusted", timeout))
+                raise TimeoutError("not stable")
+
+            def evaluate(self, expression, timeout):
+                calls.append(("exact-dom", expression, timeout))
+
+        class Page:
+            @staticmethod
+            def locator(selector):
+                calls.append(("locator", selector))
+                return Locator()
+
+        class Worker:
+            @staticmethod
+            def call(operation):
+                return operation()
+
+        handle = CamoufoxHandle.__new__(CamoufoxHandle)
+        handle._worker = Worker()
+        handle._page = Page()
+        handle.click(74)
+
+        self.assertEqual(calls[0], ("locator", '[data-camoufox-ref="74"]'))
+        self.assertEqual(calls[1], ("trusted", 5000))
+        self.assertEqual(calls[2], ("exact-dom", "element => element.click()", 5000))
+
 
 class RuntimeTest(unittest.TestCase):
     def test_health_reports_configuration_state(self):
