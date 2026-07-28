@@ -36,6 +36,21 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
+WORKER_TIMEOUT_SECONDS = {
+    "launch": 45,
+    "navigate": 40,
+    "snapshot": 20,
+    "click": 20,
+    "fill": 10,
+    "select": 10,
+    "scroll": 10,
+    "screenshot": 30,
+    "close": 10,
+}
+
+
+class BrowserOperationTimeout(TimeoutError):
+    """A browser-engine call exceeded its local action boundary."""
 
 SNAPSHOT_JS = r"""
 () => {
@@ -296,6 +311,7 @@ class BrowserWorker(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self._jobs = queue.Queue()
+        self._poisoned = False
         self.start()
 
     def run(self):
@@ -311,10 +327,18 @@ class BrowserWorker(threading.Thread):
             finally:
                 result["done"].set()
 
-    def call(self, fn, *args, **kwargs):
+    def call(self, fn, *args, timeout, operation, **kwargs):
+        if self._poisoned:
+            raise BrowserOperationTimeout(
+                "browser worker is unavailable after a timed-out operation; start a new session"
+            )
         result = {"done": threading.Event(), "value": None, "error": None}
         self._jobs.put((fn, args, kwargs, result))
-        result["done"].wait()
+        if not result["done"].wait(timeout=timeout):
+            self._poisoned = True
+            raise BrowserOperationTimeout(
+                f"browser {operation} exceeded its {timeout}-second action timeout; start a new session"
+            )
         if result["error"] is not None:
             raise result["error"]
         return result["value"]
@@ -330,7 +354,9 @@ class CamoufoxHandle:
     def __init__(self, options):
         self._worker = BrowserWorker()
         try:
-            self._worker.call(self._launch, options)
+            self._worker.call(
+                self._launch, options, timeout=WORKER_TIMEOUT_SECONDS["launch"], operation="launch"
+            )
         except Exception:
             self._worker.stop()
             raise
@@ -359,7 +385,11 @@ class CamoufoxHandle:
             response = self._page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
             return {"url": self._page.url, "status": response.status if response else 0}
 
-        return self._worker.call(_goto)
+        return self._worker.call(
+            _goto,
+            timeout=max(WORKER_TIMEOUT_SECONDS["navigate"], timeout_ms / 1000 + 5),
+            operation="navigation",
+        )
 
     def snapshot(self, include_model_media=False):
         def _snapshot():
@@ -380,7 +410,9 @@ class CamoufoxHandle:
                 result["model_media"] = screenshot
             return result
 
-        return self._worker.call(_snapshot)
+        return self._worker.call(
+            _snapshot, timeout=WORKER_TIMEOUT_SECONDS["snapshot"], operation="snapshot"
+        )
 
     def click(self, marker):
         def _click():
@@ -406,17 +438,21 @@ class CamoufoxHandle:
                     # accepted from the caller.
                     locator.evaluate("element => element.click()", timeout=5000)
 
-        self._worker.call(_click)
+        self._worker.call(_click, timeout=WORKER_TIMEOUT_SECONDS["click"], operation="click")
 
     def click_point(self, x, y):
         # Coordinate input is a last-resort visual fallback. Resolve it once in
         # the current document instead of allowing a patched mouse trajectory
         # to block the single browser worker indefinitely.
-        self._worker.call(lambda: self._page.evaluate(
-            "([x, y]) => { const element = document.elementFromPoint(x, y); "
-            "if (!element) throw new Error('no element at coordinates'); element.click(); }",
-            [x, y],
-        ))
+        self._worker.call(
+            lambda: self._page.evaluate(
+                "([x, y]) => { const element = document.elementFromPoint(x, y); "
+                "if (!element) throw new Error('no element at coordinates'); element.click(); }",
+                [x, y],
+            ),
+            timeout=WORKER_TIMEOUT_SECONDS["click"],
+            operation="coordinate click",
+        )
 
     def fill(self, marker, value):
         def _fill():
@@ -428,7 +464,7 @@ class CamoufoxHandle:
             # its value, and dispatches the normal input events.
             field.fill(value, timeout=5000)
 
-        self._worker.call(_fill)
+        self._worker.call(_fill, timeout=WORKER_TIMEOUT_SECONDS["fill"], operation="fill")
 
     def select(self, marker, value):
         def _select():
@@ -438,17 +474,34 @@ class CamoufoxHandle:
             except Exception:
                 return field.select_option(label=value)
 
-        return self._worker.call(_select)
+        return self._worker.call(
+            _select, timeout=WORKER_TIMEOUT_SECONDS["select"], operation="select"
+        )
 
     def scroll(self, dx, dy):
-        self._worker.call(lambda: self._page.mouse.wheel(dx, dy))
+        # Camoufox's humanized pointer patch can keep mouse.wheel() pending on
+        # dynamic pages. Scrolling is observational, so use the browser's
+        # synchronous viewport primitive and still enforce the worker bound.
+        self._worker.call(
+            lambda: self._page.evaluate("([dx, dy]) => window.scrollBy(dx, dy)", [dx, dy]),
+            timeout=WORKER_TIMEOUT_SECONDS["scroll"],
+            operation="scroll",
+        )
 
     def screenshot(self, full_page=False):
-        return self._worker.call(lambda: self._page.screenshot(full_page=full_page, type="png"))
+        return self._worker.call(
+            lambda: self._page.screenshot(full_page=full_page, type="png"),
+            timeout=WORKER_TIMEOUT_SECONDS["screenshot"],
+            operation="screenshot",
+        )
 
     def close(self):
         try:
-            self._worker.call(lambda: self._ctx.__exit__(None, None, None))
+            self._worker.call(
+                lambda: self._ctx.__exit__(None, None, None),
+                timeout=WORKER_TIMEOUT_SECONDS["close"],
+                operation="close",
+            )
         finally:
             self._worker.stop()
 
@@ -485,14 +538,21 @@ class CamoufoxRuntime:
         }
         if action not in handlers:
             raise ValueError(f"unsupported Camoufox action {action}")
-        return handlers[action]()
+        try:
+            return handlers[action]()
+        except BrowserOperationTimeout as exc:
+            session_id = config.get("sessionId")
+            session = self.sessions.get(session_id) if isinstance(session_id, str) else None
+            if session is not None:
+                session["terminal_error"] = str(exc)
+            raise
 
     def health(self):
         if not self.inventory:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.0",
+                "version": "2.0.1",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -500,7 +560,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.0",
+            "version": "2.0.1",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -512,6 +572,10 @@ class CamoufoxRuntime:
         session = self.sessions.get(session_id)
         if not session:
             raise ValueError("automation session not found")
+        if session.get("terminal_error"):
+            raise ValueError(
+                f"automation session is unavailable: {session['terminal_error']}"
+            )
         return session
 
     def start(self, config):

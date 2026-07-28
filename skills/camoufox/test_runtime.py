@@ -1,10 +1,21 @@
 import base64
 import os
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timezone
 
-from runtime import SNAPSHOT_JS, CamoufoxHandle, CamoufoxRuntime, exact_path, load_inventory, navigation_url, resolve_proxy
+from runtime import (
+    SNAPSHOT_JS,
+    BrowserOperationTimeout,
+    BrowserWorker,
+    CamoufoxHandle,
+    CamoufoxRuntime,
+    exact_path,
+    load_inventory,
+    navigation_url,
+    resolve_proxy,
+)
 
 
 def inventory():
@@ -69,6 +80,8 @@ class FakeHandle:
         return [value]
 
     def scroll(self, dx, dy):
+        if self.state.get("timeout_scroll"):
+            raise BrowserOperationTimeout("browser scroll exceeded its action timeout; start a new session")
         self.state["scroll"] = (dx, dy)
 
     def screenshot(self, full_page=False):
@@ -130,6 +143,20 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(len(load_inventory(good)["proxy_pools"]), 1)
 
 
+class BrowserWorkerTest(unittest.TestCase):
+    def test_timeout_poisoned_worker_fails_future_calls_without_waiting(self):
+        worker = BrowserWorker()
+        release = threading.Event()
+        try:
+            with self.assertRaisesRegex(BrowserOperationTimeout, "test operation exceeded"):
+                worker.call(lambda: release.wait(10), timeout=0.01, operation="test operation")
+            with self.assertRaisesRegex(BrowserOperationTimeout, "worker is unavailable"):
+                worker.call(lambda: None, timeout=1, operation="later operation")
+        finally:
+            release.set()
+            worker.stop()
+
+
 class ProxyRotationTest(unittest.TestCase):
     def test_single_and_direct_pools(self):
         self.assertEqual(resolve_proxy({"url": "http://one:1"}, "single", "s1"), "http://one:1")
@@ -164,8 +191,8 @@ class BrowserNavigationTest(unittest.TestCase):
 
         class Worker:
             @staticmethod
-            def call(operation):
-                return operation()
+            def call(fn, **_kwargs):
+                return fn()
 
         handle = CamoufoxHandle.__new__(CamoufoxHandle)
         handle._worker = Worker()
@@ -205,8 +232,8 @@ class BrowserNavigationTest(unittest.TestCase):
 
         class Worker:
             @staticmethod
-            def call(operation):
-                return operation()
+            def call(fn, **_kwargs):
+                return fn()
 
         handle = CamoufoxHandle.__new__(CamoufoxHandle)
         handle._worker = Worker()
@@ -237,8 +264,8 @@ class BrowserNavigationTest(unittest.TestCase):
 
         class Worker:
             @staticmethod
-            def call(operation):
-                return operation()
+            def call(fn, **_kwargs):
+                return fn()
 
         handle = CamoufoxHandle.__new__(CamoufoxHandle)
         handle._worker = Worker()
@@ -465,6 +492,27 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(state["scroll"], (0, 600))
         with self.assertRaisesRegex(ValueError, "out of range"):
             service.execute("camoufox-scroll", {"sessionId": "sel-1", "dy": 50000})
+
+    def test_timed_out_action_invalidates_only_its_session(self):
+        service, state = make_runtime({"timeout_scroll": True})
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "stuck-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        with self.assertRaisesRegex(BrowserOperationTimeout, "scroll exceeded"):
+            service.execute("camoufox-scroll", {"sessionId": "stuck-1", "dy": 600})
+        with self.assertRaisesRegex(ValueError, "session is unavailable"):
+            service.execute("camoufox-snapshot", {"sessionId": "stuck-1"})
+
+        state["timeout_scroll"] = False
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "fresh-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
+        )
+        self.assertEqual(
+            service.execute("camoufox-scroll", {"sessionId": "fresh-1", "dy": 300})["scrolled"],
+            True,
+        )
 
     def test_screenshot_returns_bounded_png_evidence(self):
         service, state = make_runtime()
