@@ -49,6 +49,8 @@ external operation uses `camoufox-commit`, whose manifest requires a governed
 external-operation checkpoint. Credential fields are supplied through Skill
 bindings and never returned. Public actions do not expose JavaScript, CDP,
 cookies, headers, files, launch arguments, or literal proxy/profile values.
+Editable controls expose only a `state.filled` boolean so an Agent can progress
+through multi-field forms without observing or persisting the entered value.
 
 An active session can move to another HTTP(S) URL with `camoufox-navigate` while
 reusing the existing browser context, so normal same-site cookies remain
@@ -72,5 +74,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.4 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.5 .
 ```
