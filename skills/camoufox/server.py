@@ -12,7 +12,7 @@ import skill_pb2_grpc
 from runtime import CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-browser"
-VERSION = "2.0.4"
+VERSION = "2.0.6"
 ACTIONS = [
     "camoufox-health",
     "camoufox-start",
@@ -81,8 +81,13 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
 
     def Execute(self, request, _context):
         bindings = decode(request.bindings)
+        execution_context = {
+            "runId": request.context.run_id,
+            "agentId": request.context.agent_id,
+            "namespace": request.context.namespace,
+        }
         try:
-            result = self.runtime.execute(request.node_type, decode(request.config), bindings)
+            result = self.runtime.execute(request.node_type, decode(request.config), bindings, execution_context)
             return skill_pb2.ExecuteResponse(output=encode_output(result))
         except Exception as exc:
             error_type = "validation" if isinstance(exc, (TypeError, ValueError)) else "execution"
