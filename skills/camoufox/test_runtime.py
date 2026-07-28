@@ -35,6 +35,7 @@ def inventory():
             "rotating": {"url": "http://proxy.internal:8080", "assessmentOnly": True},
             "pool": {"urls": ["http://proxy-a.internal:8080", "socks5://proxy-b.internal:1080", "http://proxy-c.internal:8080"]},
         },
+        "defaults": {},
     }
 
 
@@ -111,6 +112,19 @@ def make_runtime(state=None, inv=_UNSET):
     ), state
 
 
+def start_session(service, run_id, *, target, profile, proxy_pool, path="/"):
+    service.inventory["defaults"] = {
+        "targetId": target,
+        "profileId": profile,
+        "proxyPoolId": proxy_pool,
+    }
+    return service.execute(
+        "camoufox-start",
+        {"path": path},
+        context={"runId": run_id},
+    )
+
+
 class InventoryTest(unittest.TestCase):
     def base_env(self):
         return {
@@ -122,6 +136,26 @@ class InventoryTest(unittest.TestCase):
     def test_valid_inventory_loads(self):
         self.assertEqual(len(load_inventory(self.base_env())["targets"]), 1)
         self.assertIsNone(load_inventory({}))
+
+    def test_governed_defaults_select_only_authorized_inventory(self):
+        base = self.base_env()
+        configured = load_inventory({
+            **base,
+            "CAMOUFOX_DEFAULTS": '{"targetId":"fixture","profileId":"standard","proxyPoolId":"direct"}',
+        })
+        self.assertEqual(configured["defaults"], {
+            "targetId": "fixture",
+            "profileId": "standard",
+            "proxyPoolId": "direct",
+        })
+        for defaults in [
+            '{"targetId":"missing"}',
+            '{"profileId":"missing"}',
+            '{"proxyPoolId":"missing"}',
+            '{"javascript":"alert(1)"}',
+        ]:
+            with self.assertRaisesRegex(ValueError, "CAMOUFOX_DEFAULTS"):
+                load_inventory({**base, "CAMOUFOX_DEFAULTS": defaults})
 
     def test_validation_fails_closed(self):
         base = self.base_env()
@@ -284,7 +318,7 @@ class RuntimeTest(unittest.TestCase):
         service, _ = make_runtime(inv=None)
         self.assertEqual(service.execute("camoufox-health")["status"], "needs_configuration")
         with self.assertRaisesRegex(ValueError, "not configured"):
-            service.execute("camoufox-start", {"sessionId": "unconfigured"})
+            service.execute("camoufox-start", {}, context={"runId": "unconfigured"})
         ready, _ = make_runtime()
         health = ready.execute("camoufox-health")
         self.assertEqual(health["status"], "ready")
@@ -299,10 +333,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_start_applies_profile_options_and_rotated_proxy(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "pool-1", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "pool"},
-        )
+        start_session(service, "pool-1", target="forum", path="/community", profile="standard", proxy_pool="pool")
         launch = state["launch"]
         self.assertEqual(launch["proxy"], resolve_proxy(inventory()["proxy_pools"]["pool"], "pool", "pool-1"))
         self.assertEqual(launch["profile_options"], {"os": ["windows", "macos"], "humanize": True, "geoip": True})
@@ -314,26 +345,59 @@ class RuntimeTest(unittest.TestCase):
         configured["profiles"]["default"] = configured["profiles"]["standard"]
         configured["proxy_pools"]["default"] = configured["proxy_pools"]["direct"]
         service, _ = make_runtime(inv=configured)
-        result = service.execute("camoufox-start", {"sessionId": "run-123", "path": "/community"})
+        result = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "run-123"})
         self.assertEqual(result["sessionId"], "run-123")
-        self.assertEqual(result["targetId"], "reddit")
-        self.assertEqual(result["profileId"], "default")
-        self.assertEqual(result["proxyPoolId"], "default")
+        self.assertNotIn("targetId", result)
+        self.assertNotIn("profileId", result)
+        self.assertNotIn("proxyPoolId", result)
 
-        repeated = service.execute("camoufox-start", {"sessionId": "run-123", "path": "/community"})
+        repeated = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "run-123"})
         self.assertEqual(repeated, result)
+
+    def test_start_derives_isolated_handle_from_durable_run_context(self):
+        configured = inventory()
+        configured["defaults"] = {
+            "targetId": "forum",
+            "profileId": "standard",
+            "proxyPoolId": "direct",
+        }
+        service, _ = make_runtime(inv=configured)
+        long_run_id = "tenant/workforce/" + "r" * 160
+        first = service.execute("camoufox-start", {"path": "/community"}, context={"runId": long_run_id})
+        self.assertRegex(first["sessionId"], r"^run-[0-9a-f]{32}$")
+        self.assertEqual(
+            service.execute("camoufox-start", {"path": "/community"}, context={"runId": long_run_id}),
+            first,
+        )
+        second = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "another-run"})
+        self.assertNotEqual(second["sessionId"], first["sessionId"])
+        self.assertEqual(
+            service.execute("camoufox-snapshot", {"sessionId": first["sessionId"]})["sessionId"],
+            first["sessionId"],
+        )
+        for field in ["sessionId", "targetId", "profileId", "proxyPoolId"]:
+            with self.assertRaisesRegex(ValueError, "host-owned"):
+                service.execute("camoufox-start", {field: "caller-choice"}, context={"runId": "third-run"})
+
+    def test_start_requires_durable_run_context(self):
+        configured = inventory()
+        configured["defaults"] = {
+            "targetId": "forum",
+            "profileId": "standard",
+            "proxyPoolId": "direct",
+        }
+        service, _ = make_runtime(inv=configured)
+        with self.assertRaisesRegex(ValueError, "durable Run context"):
+            service.execute("camoufox-start", {"path": "/community"})
 
     def test_start_requires_explicit_choice_when_inventory_is_ambiguous(self):
         service, _ = make_runtime()
         with self.assertRaisesRegex(ValueError, "target must be selected"):
-            service.execute("camoufox-start", {"sessionId": "run-123"})
+            service.execute("camoufox-start", {}, context={"runId": "run-123"})
 
     def test_navigate_reuses_active_session_for_direct_https_url(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "forum-nav", "targetId": "forum", "path": "/community/start", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "forum-nav", target="forum", path="/community/start", profile="standard", proxy_pool="direct")
         handle = service.sessions["forum-nav"]["handle"]
         result = service.execute(
             "camoufox-navigate",
@@ -342,7 +406,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertIs(service.sessions["forum-nav"]["handle"], handle)
         self.assertEqual(state["url"], "https://old.forum.example/community/thread/1")
         self.assertEqual(result["url"], state["url"])
-        self.assertEqual(result["targetId"], "unrestricted")
+        self.assertNotIn("targetId", result)
         self.assertEqual(service.sessions["forum-nav"]["target_id"], "unrestricted")
 
     def test_follow_link_navigates_current_anchor_without_write_authority(self):
@@ -350,10 +414,7 @@ class RuntimeTest(unittest.TestCase):
             {"ref": 1, "role": "link", "name": "Next discussion", "href": "https://forum.example/community/thread/2"},
             {"ref": 2, "role": "button", "name": "Publish"},
         ]})
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "forum-follow", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "forum-follow", target="forum", path="/community", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow"})
         result = service.execute(
             "camoufox-follow-link",
@@ -374,10 +435,7 @@ class RuntimeTest(unittest.TestCase):
             {"ref": 2, "role": "link", "name": "Account", "href": "https://forum.example/account/settings"},
             {"ref": 3, "role": "link", "name": "External", "href": "https://outside.example/community"},
         ]})
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "forum-follow-deny", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "forum-follow-deny", target="forum", path="/community", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow-deny"})
         for index, message in [(0, "current navigable link"), (1, "authorized target scope"), (2, "authorized target scope")]:
             with self.assertRaisesRegex(ValueError, message):
@@ -388,10 +446,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_navigate_target_guard_is_opt_in_and_fails_closed(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "forum-nav-deny", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "forum-nav-deny", target="forum", path="/community", profile="standard", proxy_pool="direct")
         original = state["url"]
         with self.assertRaisesRegex(ValueError, "authorized target"):
             service.execute(
@@ -414,10 +469,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_direct_navigation_cannot_export_assessment_identity(self):
         service, _ = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "assessment-nav", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "assessment-nav", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         with self.assertRaisesRegex(ValueError, "assessment-only"):
             service.execute(
                 "camoufox-navigate",
@@ -427,22 +479,13 @@ class RuntimeTest(unittest.TestCase):
     def test_assessment_only_identity_blocked_on_third_party(self):
         service, _ = make_runtime()
         with self.assertRaisesRegex(ValueError, "assessment-only"):
-            service.execute(
-                "camoufox-start",
-                {"sessionId": "bad-profile", "targetId": "forum", "path": "/community", "profileId": "seeded", "proxyPoolId": "direct"},
-            )
+            start_session(service, "bad-profile", target="forum", path="/community", profile="seeded", proxy_pool="direct")
         with self.assertRaisesRegex(ValueError, "assessment-only"):
-            service.execute(
-                "camoufox-start",
-                {"sessionId": "bad-proxy", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "rotating"},
-            )
+            start_session(service, "bad-proxy", target="forum", path="/community", profile="standard", proxy_pool="rotating")
 
     def test_challenge_requires_human_and_blocks_interaction(self):
         service, _ = make_runtime({"text": "Security check: verify you are human with CAPTCHA"})
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "forum-1", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "forum-1", target="forum", path="/community", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-1"})
         self.assertTrue(snapshot["requiresHuman"])
         self.assertIn("captcha", snapshot["challenges"])
@@ -455,10 +498,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_click_is_idempotent_and_refs_go_stale(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "owned-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "owned-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         self.assertEqual(state["launch"]["proxy"], "http://proxy.internal:8080")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "owned-1"})
         request = {
@@ -474,10 +514,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_snapshot_attaches_bounded_model_media_and_supports_current_coordinates(self):
         service, state = make_runtime({"model_media": b"jpeg-screen"})
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "visual-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "visual-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-1", "includeScreenshot": True})
         self.assertEqual(base64.b64decode(snapshot["modelMedia"]["contentBase64"]), b"jpeg-screen")
         self.assertEqual(snapshot["modelMedia"]["width"], 1280)
@@ -505,10 +542,7 @@ class RuntimeTest(unittest.TestCase):
                 "state": {"expanded": "false"},
             }],
         })
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "text-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "text-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "text-1"})
         self.assertNotIn("modelMedia", snapshot)
         self.assertEqual(snapshot["elements"][0]["context"], "form: Sign in")
@@ -517,10 +551,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_coordinate_click_rejects_stale_generation_and_out_of_bounds_point(self):
         service, _ = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "visual-stale", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "visual-stale", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-stale"})
         base = {
             "sessionId": "visual-stale", "generation": snapshot["generation"], "x": 10, "y": 10,
@@ -533,10 +564,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_select_and_scroll(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "sel-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "sel-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "sel-1"})
         result = service.execute(
             "camoufox-select",
@@ -557,20 +585,14 @@ class RuntimeTest(unittest.TestCase):
 
     def test_timed_out_action_invalidates_only_its_session(self):
         service, state = make_runtime({"timeout_scroll": True})
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "stuck-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "stuck-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         with self.assertRaisesRegex(BrowserOperationTimeout, "scroll exceeded"):
             service.execute("camoufox-scroll", {"sessionId": "stuck-1", "dy": 600})
         with self.assertRaisesRegex(ValueError, "session is unavailable"):
             service.execute("camoufox-snapshot", {"sessionId": "stuck-1"})
 
         state["timeout_scroll"] = False
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "fresh-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "fresh-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         self.assertEqual(
             service.execute("camoufox-scroll", {"sessionId": "fresh-1", "dy": 300})["scrolled"],
             True,
@@ -578,10 +600,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_screenshot_returns_bounded_png_evidence(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "shot-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "shot-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         result = service.execute("camoufox-screenshot", {"sessionId": "shot-1", "fullPage": True})
         self.assertEqual(result["mediaType"], "image/png")
         self.assertTrue(state["screenshot_full_page"])
@@ -599,10 +618,7 @@ class RuntimeTest(unittest.TestCase):
             }],
             "reflect_fill": True,
         })
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "login-1", "targetId": "forum", "path": "/community/login", "profileId": "standard", "proxyPoolId": "direct"},
-        )
+        start_session(service, "login-1", target="forum", path="/community/login", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "login-1"})
         self.assertEqual(snapshot["elements"][0]["state"], {"filled": False})
         request = {
@@ -638,10 +654,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_close_preserves_profile_and_removes_session(self):
         service, state = make_runtime()
-        service.execute(
-            "camoufox-start",
-            {"sessionId": "close-1", "targetId": "owned", "path": "/assessment", "profileId": "seeded", "proxyPoolId": "rotating"},
-        )
+        start_session(service, "close-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         result = service.execute("camoufox-close", {"sessionId": "close-1"})
         self.assertTrue(result["closed"])
         self.assertTrue(state["closed"])

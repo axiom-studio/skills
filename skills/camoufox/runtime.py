@@ -32,6 +32,11 @@ MODES = ("owned-assessment", "permitted-automation")
 OS_VALUES = {"windows", "macos", "linux"}
 PROFILE_KEYS = {"os", "geoip", "humanize", "seed", "window", "block_webrtc", "block_images"}
 PROXY_SCHEMES = ("http", "https", "socks5")
+DEFAULT_KEYS = {
+    "targetId": "targets",
+    "profileId": "profiles",
+    "proxyPoolId": "proxy_pools",
+}
 MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
@@ -231,6 +236,7 @@ def load_inventory(env=None):
         "targets": _configured_map(env, "CAMOUFOX_TARGETS"),
         "profiles": _configured_map(env, "CAMOUFOX_PROFILES"),
         "proxy_pools": _configured_map(env, "CAMOUFOX_PROXY_POOLS"),
+        "defaults": _configured_map(env, "CAMOUFOX_DEFAULTS", required=False),
     }
     for tid, target in inventory["targets"].items():
         parsed = urlparse(target.get("baseUrl", ""))
@@ -265,6 +271,13 @@ def load_inventory(env=None):
                 raise ValueError(f"proxy pool {gid} is invalid")
     if not inventory["targets"] or not inventory["profiles"] or not inventory["proxy_pools"]:
         raise ValueError("automation inventory must include a target, profile, and proxy pool")
+    unknown_defaults = set(inventory["defaults"]) - set(DEFAULT_KEYS)
+    if unknown_defaults:
+        raise ValueError(f"CAMOUFOX_DEFAULTS sets unsupported keys: {sorted(unknown_defaults)}")
+    for key, category in DEFAULT_KEYS.items():
+        selected = inventory["defaults"].get(key)
+        if selected is not None and (not isinstance(selected, str) or selected not in inventory[category]):
+            raise ValueError(f"CAMOUFOX_DEFAULTS {key} is unavailable")
     return inventory
 
 
@@ -293,6 +306,16 @@ def configured_choice(options, requested, label):
     if len(options) == 1:
         return next(iter(options))
     raise ValueError(f"{label} must be selected from the authorized inventory")
+
+
+def run_session_id(context):
+    run_id = context.get("runId") if isinstance(context, dict) else None
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("durable Run context is required to start a browser session")
+    run_id = run_id.strip()
+    if ID.fullmatch(run_id):
+        return run_id
+    return "run-" + hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:32]
 
 
 def navigation_url(value):
@@ -568,12 +591,12 @@ class CamoufoxRuntime:
         self.now = now or (lambda: datetime.now(timezone.utc))
         self.sessions = {}
 
-    def execute(self, action, config=None, bindings=None):
+    def execute(self, action, config=None, bindings=None, context=None):
         config = config or {}
         bindings = bindings or {}
         handlers = {
             "camoufox-health": lambda: self.health(),
-            "camoufox-start": lambda: self.start(config),
+            "camoufox-start": lambda: self.start(config, context),
             "camoufox-navigate": lambda: self.navigate(config),
             "camoufox-snapshot": lambda: self.snapshot(config, bindings),
             "camoufox-follow-link": lambda: self.follow_link(config),
@@ -603,7 +626,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.4",
+                "version": "2.0.6",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -611,7 +634,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.4",
+            "version": "2.0.6",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -629,15 +652,17 @@ class CamoufoxRuntime:
             )
         return session
 
-    def start(self, config):
+    def start(self, config, context=None):
         if not self.inventory:
             raise ValueError("Camoufox inventory is not configured")
-        session_id = config.get("sessionId")
-        target_id = configured_choice(self.inventory["targets"], config.get("targetId"), "target")
-        profile_id = configured_choice(self.inventory["profiles"], config.get("profileId"), "browser profile")
-        pool_id = configured_choice(self.inventory["proxy_pools"], config.get("proxyPoolId"), "proxy pool")
-        if not ID.match(session_id or ""):
-            raise ValueError("sessionId is invalid")
+        forbidden = set(config) & (set(DEFAULT_KEYS) | {"sessionId"})
+        if forbidden:
+            raise ValueError(f"browser infrastructure fields are host-owned: {sorted(forbidden)}")
+        session_id = run_session_id(context)
+        defaults = self.inventory.get("defaults") or {}
+        target_id = configured_choice(self.inventory["targets"], defaults.get("targetId"), "target")
+        profile_id = configured_choice(self.inventory["profiles"], defaults.get("profileId"), "browser profile")
+        pool_id = configured_choice(self.inventory["proxy_pools"], defaults.get("proxyPoolId"), "proxy pool")
         if session_id in self.sessions:
             session = self.sessions[session_id]
             if (
@@ -648,9 +673,6 @@ class CamoufoxRuntime:
                 raise ValueError("automation session identity conflicts with the existing session")
             return {
                 "sessionId": session_id,
-                "targetId": target_id,
-                "profileId": profile_id,
-                "proxyPoolId": pool_id,
                 "url": session["current_url"],
                 "status": "active",
             }
@@ -707,9 +729,6 @@ class CamoufoxRuntime:
         }
         return {
             "sessionId": session_id,
-            "targetId": target_id,
-            "profileId": profile_id,
-            "proxyPoolId": pool_id,
             "url": destination,
             "status": "active",
         }
@@ -746,7 +765,6 @@ class CamoufoxRuntime:
         session["viewport"] = {}
         return {
             "sessionId": session["id"],
-            "targetId": session["target_id"],
             "url": session["current_url"],
             "statusCode": session["status_code"],
         }
@@ -937,9 +955,6 @@ class CamoufoxRuntime:
             outcome = "challenged"
         return {
             "sessionId": session["id"],
-            "targetId": session["target_id"],
-            "profileId": session["profile_id"],
-            "proxyPoolId": session["proxy_pool_id"],
             "outcome": outcome,
             "httpStatus": session["status_code"],
             "challenges": session["challenges"],

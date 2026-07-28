@@ -7,12 +7,13 @@ C++-patched Firefox with OS-level anti-detection. Fingerprint coherence (OS,
 canvas, WebGL, fonts, screen, timezone) is enforced by the engine itself, not
 by injected scripts, and `humanize` drives real input cadence.
 
-A deployment supplies opaque inventories; agent actions select identifiers and
-never receive raw target policy, proxy credentials, or profile values.
-When an inventory category contains one item, or an item named `default`, the
-start action resolves it without placing infrastructure configuration in the
-Runbook. Each Runbook supplies its durable Run id as `sessionId`, so concurrent
-and retried Objective Runs keep isolated, stable browser session identities.
+A deployment supplies opaque inventories and optional governed defaults;
+agent actions never receive target policy, proxy credentials, profile values,
+or infrastructure identifiers. `camoufox-start` derives an isolated stable
+session identity from the transport's durable Run context and returns the
+handle for explicit dataflow through later actions. Concurrent Runs therefore
+cannot accidentally share a live browser session, while a retry of the same
+Run remains idempotent.
 
 ```json
 CAMOUFOX_TARGETS={
@@ -31,6 +32,7 @@ CAMOUFOX_PROXY_POOLS={
   "rotating-egress": {"urls":["http://proxy-a.internal:8080","socks5://proxy-b.internal:1080"]},
   "assessment-egress-a": {"url":"http://proxy.internal:8080","assessmentOnly":true}
 }
+CAMOUFOX_DEFAULTS={"targetId":"approved-community","profileId":"desktop-mix","proxyPoolId":"direct"}
 ```
 
 Every launch applies the selected profile's Camoufox identity (`os`, `geoip`,
@@ -74,5 +76,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.5 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.6 .
 ```
