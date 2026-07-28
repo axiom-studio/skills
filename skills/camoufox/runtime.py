@@ -272,6 +272,20 @@ def exact_path(target, requested="/"):
     return destination
 
 
+def configured_choice(options, requested, label):
+    if requested is not None:
+        if not isinstance(requested, str) or not ID.match(requested):
+            raise ValueError(f"{label} identifier is invalid")
+        if requested not in options:
+            raise ValueError(f"authorized {label} is unavailable")
+        return requested
+    if "default" in options:
+        return "default"
+    if len(options) == 1:
+        return next(iter(options))
+    raise ValueError(f"{label} must be selected from the authorized inventory")
+
+
 def navigation_url(value):
     if not isinstance(value, str) or len(value) > 2048:
         raise ValueError("navigation URL is invalid")
@@ -564,7 +578,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.3",
+                "version": "2.0.4",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -572,7 +586,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.3",
+            "version": "2.0.4",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -594,11 +608,27 @@ class CamoufoxRuntime:
         if not self.inventory:
             raise ValueError("Camoufox inventory is not configured")
         session_id = config.get("sessionId")
-        target_id, profile_id, pool_id = config.get("targetId"), config.get("profileId"), config.get("proxyPoolId")
+        target_id = configured_choice(self.inventory["targets"], config.get("targetId"), "target")
+        profile_id = configured_choice(self.inventory["profiles"], config.get("profileId"), "browser profile")
+        pool_id = configured_choice(self.inventory["proxy_pools"], config.get("proxyPoolId"), "proxy pool")
         if not ID.match(session_id or ""):
             raise ValueError("sessionId is invalid")
         if session_id in self.sessions:
-            raise ValueError("automation session already exists")
+            session = self.sessions[session_id]
+            if (
+                session["target_id"] != target_id
+                or session["profile_id"] != profile_id
+                or session["proxy_pool_id"] != pool_id
+            ):
+                raise ValueError("automation session identity conflicts with the existing session")
+            return {
+                "sessionId": session_id,
+                "targetId": target_id,
+                "profileId": profile_id,
+                "proxyPoolId": pool_id,
+                "url": session["current_url"],
+                "status": "active",
+            }
         target = self.inventory["targets"].get(target_id)
         profile = self.inventory["profiles"].get(profile_id)
         proxy = self.inventory["proxy_pools"].get(pool_id)

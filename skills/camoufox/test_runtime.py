@@ -307,6 +307,26 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(launch["profile_options"], {"os": ["windows", "macos"], "humanize": True, "geoip": True})
         self.assertEqual(launch["headless"], "virtual")
 
+    def test_start_resolves_single_target_and_named_defaults(self):
+        configured = inventory()
+        configured["targets"] = {"reddit": configured["targets"]["forum"]}
+        configured["profiles"]["default"] = configured["profiles"]["standard"]
+        configured["proxy_pools"]["default"] = configured["proxy_pools"]["direct"]
+        service, _ = make_runtime(inv=configured)
+        result = service.execute("camoufox-start", {"sessionId": "run-123", "path": "/community"})
+        self.assertEqual(result["sessionId"], "run-123")
+        self.assertEqual(result["targetId"], "reddit")
+        self.assertEqual(result["profileId"], "default")
+        self.assertEqual(result["proxyPoolId"], "default")
+
+        repeated = service.execute("camoufox-start", {"sessionId": "run-123", "path": "/community"})
+        self.assertEqual(repeated, result)
+
+    def test_start_requires_explicit_choice_when_inventory_is_ambiguous(self):
+        service, _ = make_runtime()
+        with self.assertRaisesRegex(ValueError, "target must be selected"):
+            service.execute("camoufox-start", {"sessionId": "run-123"})
+
     def test_navigate_reuses_active_session_for_direct_https_url(self):
         service, state = make_runtime()
         service.execute(
