@@ -15,6 +15,7 @@ from runtime import (
     load_inventory,
     navigation_url,
     resolve_proxy,
+    snapshot_element_state,
 )
 
 
@@ -588,12 +589,22 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(base64.b64decode(result["contentBase64"])[:8], b"\x89PNG\r\n\x1a\n")
 
     def test_credential_values_stay_out_of_outputs(self):
-        service, state = make_runtime({"text": "Login form", "element_name": "Password", "reflect_fill": True})
+        service, state = make_runtime({
+            "text": "Login form",
+            "elements": [{
+                "ref": 1,
+                "role": "textbox",
+                "name": "Password",
+                "state": {"filled": False, "value": "must-never-project"},
+            }],
+            "reflect_fill": True,
+        })
         service.execute(
             "camoufox-start",
             {"sessionId": "login-1", "targetId": "forum", "path": "/community/login", "profileId": "standard", "proxyPoolId": "direct"},
         )
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "login-1"})
+        self.assertEqual(snapshot["elements"][0]["state"], {"filled": False})
         request = {
             "sessionId": "login-1",
             "target": snapshot["elements"][0]["ref"],
@@ -611,7 +622,19 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(duplicate["duplicate"])
         redacted = service.execute("camoufox-snapshot", {"sessionId": "login-1"})
         self.assertEqual(redacted["text"], "Echo [REDACTED]")
+        self.assertNotIn("value", redacted["elements"][0]["state"])
         self.assertNotIn("correct horse", json.dumps(service.execute("camoufox-report", {"sessionId": "login-1"})))
+
+    def test_snapshot_element_state_exposes_only_boolean_occupancy(self):
+        projected = snapshot_element_state({"state": {
+            "filled": True,
+            "required": True,
+            "type": "password",
+            "value": "correct horse battery staple",
+            "textContent": "correct horse battery staple",
+        }})
+        self.assertEqual(projected, {"required": True, "filled": True, "type": "password"})
+        self.assertNotIn("correct horse", str(projected))
 
     def test_close_preserves_profile_and_removes_session(self):
         service, state = make_runtime()

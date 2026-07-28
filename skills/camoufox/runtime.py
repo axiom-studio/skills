@@ -128,8 +128,17 @@ SNAPSHOT_JS = r"""
         const value = e.getAttribute(attr);
         if (value) state[attr.replace('aria-', '')] = value;
       }
+      const elementRole = role(e);
+      const inputType = String(e.getAttribute('type') || '').toLowerCase();
+      const editable = e.tagName === 'TEXTAREA' || e.tagName === 'SELECT' || e.isContentEditable ||
+        elementRole === 'textbox' || elementRole === 'searchbox' || elementRole === 'combobox' ||
+        (e.tagName === 'INPUT' && !['button','checkbox','file','hidden','image','radio','reset','submit'].includes(inputType));
+      if (editable) {
+        const current = e.isContentEditable ? e.textContent : e.value;
+        state.filled = String(current || '').length > 0;
+      }
       const href = e.tagName === 'A' && e.href ? e.href : '';
-      return {ref: i + 1, role: role(e), name: name(e), context: landmark(e), href, inViewport: inViewport(e),
+      return {ref: i + 1, role: elementRole, name: name(e), context: landmark(e), href, inViewport: inViewport(e),
         bounds: {x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)}, state};
     }),
   };
@@ -293,6 +302,22 @@ def navigation_url(value):
     if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("navigation URL must be an HTTP(S) URL without embedded credentials")
     return value
+
+
+def snapshot_element_state(element):
+    """Project only non-secret control state from the browser boundary."""
+    raw = element.get("state")
+    if not isinstance(raw, dict):
+        return {}
+    result = {}
+    for key in ("disabled", "checked", "selected", "required", "readonly", "filled"):
+        if isinstance(raw.get(key), bool):
+            result[key] = raw[key]
+    for key in ("expanded", "pressed", "current", "autocomplete", "type"):
+        value = raw.get(key)
+        if isinstance(value, str) and value:
+            result[key] = value[:128]
+    return result
 
 
 def target_allows_url(target, value):
@@ -759,7 +784,7 @@ class CamoufoxRuntime:
                 "context": redact(element.get("context", "")),
                 "inViewport": bool(element.get("inViewport")),
                 "bounds": element.get("bounds") or {},
-                "state": element.get("state") or {},
+                "state": snapshot_element_state(element),
             })
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
