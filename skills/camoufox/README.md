@@ -9,6 +9,10 @@ by injected scripts, and `humanize` drives real input cadence.
 
 A deployment supplies opaque inventories; agent actions select identifiers and
 never receive raw target policy, proxy credentials, or profile values.
+When an inventory category contains one item, or an item named `default`, the
+start action resolves it without placing infrastructure configuration in the
+Runbook. Each Runbook supplies its durable Run id as `sessionId`, so concurrent
+and retried Objective Runs keep isolated, stable browser session identities.
 
 ```json
 CAMOUFOX_TARGETS={
@@ -68,5 +72,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.3 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.4 .
 ```

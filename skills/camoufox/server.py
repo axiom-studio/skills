@@ -12,7 +12,7 @@ import skill_pb2_grpc
 from runtime import CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-browser"
-VERSION = "2.0.3"
+VERSION = "2.0.4"
 ACTIONS = [
     "camoufox-health",
     "camoufox-start",
