@@ -168,7 +168,7 @@ definition:
             semanticArguments: {target: target}
         camoufox-scroll:
             name: camoufox-scroll
-            description: Scroll the page by a bounded pixel delta via a real mouse-wheel event to reveal lazy content.
+            description: Scroll the current viewport by a bounded pixel delta to reveal lazy content without risking an unbounded pointer operation.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -228,7 +228,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.0
+          package: axiomstudio/skill-browser:2.0.1
     name: Browser Skill
     prompt:
         allowedTools:
@@ -265,10 +265,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.0
+        resolvedVersion: 2.0.1
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.0
+    version: 2.0.1
 kind: SkillDefinition
