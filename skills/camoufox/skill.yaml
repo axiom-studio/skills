@@ -213,12 +213,12 @@ definition:
             sideEffect: read
         camoufox-close:
             name: camoufox-close
-            description: Close an isolated automation session while preserving its configured browser profile.
+            description: Release an isolated local automation session while preserving its configured browser profile; this does not change the remote site.
             inputSchema: *session_input
             permissions: [browser:session]
             idempotency: supported
             retry: {maxAttempts: 1}
-            risk: write
+            risk: read
             sideEffect: none
     category: security
     description: Governed Camoufox stealth browser automation using opaque authorized targets, OS-level fingerprint profiles, and rotating egress identities.
@@ -228,7 +228,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.1
+          package: axiomstudio/skill-browser:2.0.2
     name: Browser Skill
     prompt:
         allowedTools:
@@ -265,10 +265,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.1
+        resolvedVersion: 2.0.2
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.1
+    version: 2.0.2
 kind: SkillDefinition
