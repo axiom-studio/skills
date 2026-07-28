@@ -52,6 +52,13 @@ available. Strict origin/path authorization is opt-in: provide `targetId` and a
 relative `path` instead of `url`. Non-HTTP(S) URLs and URLs containing embedded
 credentials are always rejected.
 
+Ordinary links discovered in the current semantic snapshot use
+`camoufox-follow-link`. The runtime resolves the exact anchor internally and
+navigates without clicking it, permits only the active target's configured
+origin/path scope, and invalidates the old snapshot references. This read-only
+path never accepts coordinates, form controls, write authorization, or a final
+external-operation receipt.
+
 Run unit tests (stdlib only — no browser download):
 
 ```bash
@@ -61,5 +68,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.2 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.3 .
 ```

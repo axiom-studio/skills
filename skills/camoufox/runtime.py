@@ -128,7 +128,8 @@ SNAPSHOT_JS = r"""
         const value = e.getAttribute(attr);
         if (value) state[attr.replace('aria-', '')] = value;
       }
-      return {ref: i + 1, role: role(e), name: name(e), context: landmark(e), inViewport: inViewport(e),
+      const href = e.tagName === 'A' && e.href ? e.href : '';
+      return {ref: i + 1, role: role(e), name: name(e), context: landmark(e), href, inViewport: inViewport(e),
         bounds: {x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)}, state};
     }),
   };
@@ -278,6 +279,16 @@ def navigation_url(value):
     if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("navigation URL must be an HTTP(S) URL without embedded credentials")
     return value
+
+
+def target_allows_url(target, value):
+    destination = navigation_url(value)
+    base = urlparse(target.get("baseUrl", ""))
+    parsed = urlparse(destination)
+    return (
+        (parsed.scheme, parsed.netloc) == (base.scheme, base.netloc)
+        and any(parsed.path.startswith(prefix) for prefix in target.get("pathPrefixes", []))
+    )
 
 
 def detect_challenges(text):
@@ -526,6 +537,7 @@ class CamoufoxRuntime:
             "camoufox-start": lambda: self.start(config),
             "camoufox-navigate": lambda: self.navigate(config),
             "camoufox-snapshot": lambda: self.snapshot(config, bindings),
+            "camoufox-follow-link": lambda: self.follow_link(config),
             "camoufox-click": lambda: self.mutate("click", config),
             "camoufox-commit": lambda: self.mutate("click", config),
             "camoufox-fill": lambda: self.mutate("fill", config),
@@ -552,7 +564,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.2",
+                "version": "2.0.3",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -560,7 +572,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.2",
+            "version": "2.0.3",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -629,6 +641,7 @@ class CamoufoxRuntime:
             "generation": 0,
             "refs": {},
             "ref_names": {},
+            "ref_links": {},
             "challenges": [],
             "snapshot_text": "",
             "viewport": {},
@@ -672,6 +685,7 @@ class CamoufoxRuntime:
         session["status_code"] = navigation.get("status") or 0
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_links"].clear()
         session["challenges"] = []
         session["snapshot_text"] = ""
         session["viewport"] = {}
@@ -699,11 +713,15 @@ class CamoufoxRuntime:
         session["generation"] += 1
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_links"].clear()
         elements = []
         for index, element in enumerate((raw.get("elements") or [])[:MAX_ELEMENTS]):
             ref = f"s{session['generation']}:e{index + 1}"
             session["refs"][ref] = element["ref"]
             session["ref_names"][ref] = element.get("name", "")
+            href = element.get("href", "")
+            if element.get("role") == "link" and isinstance(href, str) and href:
+                session["ref_links"][ref] = href
             elements.append({
                 "ref": ref,
                 "role": element.get("role", ""),
@@ -737,6 +755,39 @@ class CamoufoxRuntime:
                 "height": session["viewport"].get("height"),
             }
         return result
+
+    def follow_link(self, config):
+        session = self.session(config.get("sessionId"))
+        if session["target"]["mode"] == "permitted-automation" and session["challenges"]:
+            raise ValueError("the destination presented an access challenge; human completion is required")
+        target_ref = config.get("target")
+        destination = session["ref_links"].get(target_ref)
+        if not destination:
+            raise ValueError("target is not a current navigable link; take a new snapshot")
+        destination = navigation_url(destination)
+        target = session["target"]
+        if session["target_id"] == "unrestricted":
+            current = urlparse(session["current_url"])
+            parsed = urlparse(destination)
+            if (parsed.scheme, parsed.netloc) != (current.scheme, current.netloc):
+                raise ValueError("link destination is outside the active navigation origin")
+        elif not target_allows_url(target, destination):
+            raise ValueError("link destination is outside the authorized target scope")
+        navigation = session["handle"].goto(destination, timeout_ms=30000)
+        session["current_url"] = navigation.get("url") or destination
+        session["status_code"] = navigation.get("status") or 0
+        session["refs"].clear()
+        session["ref_names"].clear()
+        session["ref_links"].clear()
+        session["challenges"] = []
+        session["snapshot_text"] = ""
+        session["viewport"] = {}
+        return {
+            "sessionId": session["id"],
+            "targetId": session["target_id"],
+            "url": session["current_url"],
+            "statusCode": session["status_code"],
+        }
 
     def mutate(self, operation, config, secret_value=None):
         session = self.session(config.get("sessionId"))
@@ -786,6 +837,7 @@ class CamoufoxRuntime:
         session["receipts"][receipt_key] = fingerprint
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_links"].clear()
         session["mutations"] += 1
         return {"sessionId": session["id"], "success": True, "duplicate": False, "receipt": key}
 
