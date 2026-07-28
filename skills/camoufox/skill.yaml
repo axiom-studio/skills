@@ -63,6 +63,47 @@ definition:
                     sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
                     includeScreenshot: {type: boolean, default: false}
                 required: [sessionId]
+            outputSchema:
+                type: object
+                additionalProperties: false
+                properties:
+                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    generation: {type: integer, minimum: 1}
+                    url: {type: string, maxLength: 2048}
+                    title: {type: string}
+                    text: {type: string, maxLength: 49152}
+                    elements:
+                        type: array
+                        maxItems: 180
+                        items:
+                            type: object
+                            additionalProperties: false
+                            properties:
+                                ref: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
+                                role: {type: string}
+                                name: {type: string}
+                                context: {type: string}
+                                inViewport: {type: boolean}
+                                bounds: {type: object}
+                                state: {type: object}
+                            required: [ref, role, name, context, inViewport, bounds, state]
+                    challenges:
+                        type: array
+                        maxItems: 4
+                        uniqueItems: true
+                        items: {type: string, enum: [captcha, mfa, anti_bot]}
+                    requiresHuman: {type: boolean}
+                    modelMedia:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                            mediaType: {type: string, const: image/jpeg}
+                            contentBase64: {type: string}
+                            detail: {type: string, const: low}
+                            width: {type: [number, 'null']}
+                            height: {type: [number, 'null']}
+                        required: [mediaType, contentBase64, detail, width, height]
+                required: [sessionId, generation, url, title, text, elements, challenges, requiresHuman]
             permissions: [browser:observe]
             idempotency: supported
             retry: {maxAttempts: 1}
@@ -248,7 +289,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.6
+          package: axiomstudio/skill-browser:2.0.7
     name: Browser Skill
     prompt:
         allowedTools:
@@ -286,10 +327,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.6
+        resolvedVersion: 2.0.7
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.6
+    version: 2.0.7
 kind: SkillDefinition

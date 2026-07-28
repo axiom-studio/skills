@@ -353,8 +353,9 @@ def target_allows_url(target, value):
     )
 
 
-def detect_challenges(text):
-    return [kind for kind, pattern in CHALLENGES.items() if pattern.search(text or "")]
+def detect_challenges(*evidence):
+    bounded = "\n".join(value[:4096] for value in evidence if isinstance(value, str))
+    return [kind for kind, pattern in CHALLENGES.items() if pattern.search(bounded)]
 
 
 def digest(*parts):
@@ -626,7 +627,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.6",
+                "version": "2.0.7",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -634,7 +635,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.6",
+            "version": "2.0.7",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -807,7 +808,7 @@ class CamoufoxRuntime:
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
         session["viewport"] = raw.get("viewport") or {}
-        session["challenges"] = detect_challenges(text)
+        session["challenges"] = detect_challenges(text, raw.get("url", ""), raw.get("title", ""))
         result = {
             "sessionId": session["id"],
             "generation": session["generation"],

@@ -496,6 +496,14 @@ class RuntimeTest(unittest.TestCase):
             )
         self.assertEqual(service.execute("camoufox-report", {"sessionId": "forum-1"})["outcome"], "challenged")
 
+    def test_reddit_js_challenge_is_typed_at_snapshot_boundary(self):
+        service, state = make_runtime({"text": "File a ticket"})
+        start_session(service, "reddit-challenge", target="forum", path="/community", profile="standard", proxy_pool="direct")
+        state["url"] = "https://www.reddit.com/r/test/js_challenge"
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "reddit-challenge"})
+        self.assertEqual(snapshot["challenges"], ["anti_bot"])
+        self.assertTrue(snapshot["requiresHuman"])
+
     def test_click_is_idempotent_and_refs_go_stale(self):
         service, state = make_runtime()
         start_session(service, "owned-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
