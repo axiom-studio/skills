@@ -324,6 +324,47 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(result["targetId"], "unrestricted")
         self.assertEqual(service.sessions["forum-nav"]["target_id"], "unrestricted")
 
+    def test_follow_link_navigates_current_anchor_without_write_authority(self):
+        service, state = make_runtime({"elements": [
+            {"ref": 1, "role": "link", "name": "Next discussion", "href": "https://forum.example/community/thread/2"},
+            {"ref": 2, "role": "button", "name": "Publish"},
+        ]})
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "forum-follow", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow"})
+        result = service.execute(
+            "camoufox-follow-link",
+            {"sessionId": "forum-follow", "target": snapshot["elements"][0]["ref"], "intent": "Read the next discussion"},
+        )
+        self.assertEqual(result["url"], "https://forum.example/community/thread/2")
+        self.assertEqual(state["url"], result["url"])
+        self.assertNotIn("click", state)
+        with self.assertRaisesRegex(ValueError, "current navigable link"):
+            service.execute(
+                "camoufox-follow-link",
+                {"sessionId": "forum-follow", "target": snapshot["elements"][0]["ref"], "intent": "Reuse a stale link"},
+            )
+
+    def test_follow_link_rejects_controls_and_destinations_outside_active_scope(self):
+        service, _ = make_runtime({"elements": [
+            {"ref": 1, "role": "button", "name": "Continue"},
+            {"ref": 2, "role": "link", "name": "Account", "href": "https://forum.example/account/settings"},
+            {"ref": 3, "role": "link", "name": "External", "href": "https://outside.example/community"},
+        ]})
+        service.execute(
+            "camoufox-start",
+            {"sessionId": "forum-follow-deny", "targetId": "forum", "path": "/community", "profileId": "standard", "proxyPoolId": "direct"},
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow-deny"})
+        for index, message in [(0, "current navigable link"), (1, "authorized target scope"), (2, "authorized target scope")]:
+            with self.assertRaisesRegex(ValueError, message):
+                service.execute(
+                    "camoufox-follow-link",
+                    {"sessionId": "forum-follow-deny", "target": snapshot["elements"][index]["ref"], "intent": "Inspect this destination"},
+                )
+
     def test_navigate_target_guard_is_opt_in_and_fails_closed(self):
         service, state = make_runtime()
         service.execute(
