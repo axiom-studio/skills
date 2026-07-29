@@ -43,7 +43,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.9"
+VERSION = "2.0.10"
 WORKER_TIMEOUT_SECONDS = {
     "launch": 45,
     "navigate": 40,
@@ -430,6 +430,34 @@ def detect_challenges(*evidence):
 
 def digest(*parts):
     return "sha256:" + hashlib.sha256("\0".join(str(p) for p in parts).encode()).hexdigest()
+
+
+def observation_digest(snapshot):
+    """Return a content digest for model-observable browser state.
+
+    Snapshot references are deliberately excluded: they are regenerated on
+    every observation and do not represent page progress.  The digest also
+    never exposes page or credential values; only the hash crosses the action
+    boundary.
+    """
+    elements = []
+    for element in (snapshot or {}).get("elements") or []:
+        elements.append({
+            "role": element.get("role", ""),
+            "name": element.get("name", ""),
+            "context": element.get("context", ""),
+            "href": element.get("href", ""),
+            "state": snapshot_element_state(element),
+        })
+    canonical = {
+        "url": (snapshot or {}).get("url", ""),
+        "title": (snapshot or {}).get("title", ""),
+        "text": (snapshot or {}).get("text", "")[:MAX_TEXT],
+        "elements": elements[:MAX_ELEMENTS],
+    }
+    return "sha256:" + hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def stable_seed(value):
@@ -839,6 +867,7 @@ class CamoufoxRuntime:
             "ref_links": {},
             "challenges": [],
             "snapshot_text": "",
+            "observation_digest": "",
             "viewport": {},
             "mutations": 0,
             "receipts": {},
@@ -928,11 +957,13 @@ class CamoufoxRuntime:
             })
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
+        session["observation_digest"] = observation_digest(raw)
         session["viewport"] = raw.get("viewport") or {}
         session["challenges"] = detect_challenges(text, raw.get("url", ""), raw.get("title", ""))
         result = {
             "sessionId": session["id"],
             "generation": session["generation"],
+            "observationDigest": session["observation_digest"],
             "url": raw.get("url", ""),
             "title": raw.get("title", ""),
             "text": text,
@@ -995,9 +1026,10 @@ class CamoufoxRuntime:
         fingerprint = digest(operation, config.get("target"), config.get("generation"), config.get("x"), config.get("y"), value)
         receipt_key = f"{operation}:{key}"
         if receipt_key in session["receipts"]:
-            if session["receipts"][receipt_key] != fingerprint:
+            receipt = session["receipts"][receipt_key]
+            if receipt["fingerprint"] != fingerprint:
                 raise ValueError("idempotency key was reused with different arguments")
-            return {"sessionId": session["id"], "duplicate": True, "receipt": key}
+            return {**receipt["result"], "duplicate": True}
         target_ref = config.get("target")
         marker = session["refs"].get(target_ref) if target_ref else None
         point = target_ref is None and operation == "click"
@@ -1027,12 +1059,29 @@ class CamoufoxRuntime:
             session["handle"].select(marker, value)
         else:
             session["handle"].fill(marker, value)
-        session["receipts"][receipt_key] = fingerprint
+        before_digest = session.get("observation_digest") or ""
+        after_snapshot = session["handle"].snapshot(include_model_media=False)
+        after_digest = observation_digest(after_snapshot)
+        session["current_url"] = after_snapshot.get("url", session["current_url"])
+        session["snapshot_text"] = str(after_snapshot.get("text", ""))[:MAX_TEXT]
+        session["observation_digest"] = after_digest
+        result = {
+            "sessionId": session["id"],
+            "success": True,
+            "duplicate": False,
+            "receipt": key,
+            "progress": {
+                "changed": bool(before_digest and before_digest != after_digest),
+                "beforeDigest": before_digest,
+                "afterDigest": after_digest,
+            },
+        }
+        session["receipts"][receipt_key] = {"fingerprint": fingerprint, "result": result}
         session["refs"].clear()
         session["ref_names"].clear()
         session["ref_links"].clear()
         session["mutations"] += 1
-        return {"sessionId": session["id"], "success": True, "duplicate": False, "receipt": key}
+        return result
 
     def fill_secret(self, config, bindings):
         field = config.get("credentialField")
