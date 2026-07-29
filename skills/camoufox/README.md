@@ -15,6 +15,11 @@ handle for explicit dataflow through later actions. Concurrent Runs therefore
 cannot accidentally share a live browser session, while a retry of the same
 Run remains idempotent.
 
+The profile lock is a bounded renewable lease. Each action from its exact Run
+renews the lease; an abandoned session is closed and reclaimed after 120
+seconds by default, while a live owner remains exclusive. Hosts may set
+`CAMOUFOX_PROFILE_LEASE_TTL_SECONDS` between 30 and 3600 seconds.
+
 ```json
 CAMOUFOX_TARGETS={
   "approved-community": {
@@ -79,5 +84,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.10 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.11 .
 ```

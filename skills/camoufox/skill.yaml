@@ -310,7 +310,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.10
+          package: axiomstudio/skill-browser:2.0.11
     name: Browser Skill
     prompt:
         allowedTools:
@@ -328,7 +328,7 @@ definition:
             - camoufox-screenshot
             - camoufox-report
             - camoufox-close
-        instructions: Start a session with an optional authorized relative path; the host derives its isolated identity and target, profile, and egress from the durable Run and governed Skill configuration. Use the returned sessionId for subsequent actions. A persistent profile is exclusively leased to one active Run; if it is busy, retry only after that Run closes rather than selecting or reusing another session identity. Follow ordinary anchors from the current snapshot with camoufox-follow-link; it remains inside the active authorized target and does not require write authority. Use camoufox-navigate with an HTTP(S) URL only when no current link exists, or provide targetId when strict configured origin/path scope is desired. Take a new snapshot after every interaction or navigation. Use camoufox-click for mutation-capable controls and camoufox-commit only for the final approved external operation. A third-party access challenge requires human completion; pause automation when one is reported.
+        instructions: Start a session with an optional authorized relative path; the host derives its isolated identity and target, profile, and egress from the durable Run and governed Skill configuration. Use the returned sessionId for subsequent actions. A persistent profile is exclusively leased to one active Run; if it is busy, retry after that Run closes or its bounded inactive lease expires rather than selecting or reusing another session identity. Follow ordinary anchors from the current snapshot with camoufox-follow-link; it remains inside the active authorized target and does not require write authority. Use camoufox-navigate with an HTTP(S) URL only when no current link exists, or provide targetId when strict configured origin/path scope is desired. Take a new snapshot after every interaction or navigation. Use camoufox-click for mutation-capable controls and camoufox-commit only for the final approved external operation. A third-party access challenge requires human completion; pause automation when one is reported.
         userInvocable: true
     requirements:
         compute:
@@ -348,10 +348,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.10
+        resolvedVersion: 2.0.11
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.10
+    version: 2.0.11
 kind: SkillDefinition

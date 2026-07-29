@@ -17,7 +17,7 @@ import queue
 import re
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -43,7 +43,8 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.10"
+VERSION = "2.0.11"
+DEFAULT_PROFILE_LEASE_TTL_SECONDS = 120
 WORKER_TIMEOUT_SECONDS = {
     "launch": 45,
     "navigate": 40,
@@ -683,11 +684,20 @@ def default_browser_factory(options):
 
 
 class CamoufoxRuntime:
-    def __init__(self, inventory, workspace, browser_factory=None, now=None):
+    def __init__(self, inventory, workspace, browser_factory=None, now=None, lease_ttl_seconds=None):
         self.inventory = inventory
         self.workspace = workspace
         self.browser_factory = browser_factory or default_browser_factory
         self.now = now or (lambda: datetime.now(timezone.utc))
+        configured_ttl = lease_ttl_seconds if lease_ttl_seconds is not None else os.environ.get(
+            "CAMOUFOX_PROFILE_LEASE_TTL_SECONDS", DEFAULT_PROFILE_LEASE_TTL_SECONDS
+        )
+        try:
+            self.lease_ttl = timedelta(seconds=int(configured_ttl))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Camoufox profile lease TTL must be an integer number of seconds") from exc
+        if self.lease_ttl < timedelta(seconds=30) or self.lease_ttl > timedelta(hours=1):
+            raise ValueError("Camoufox profile lease TTL must be between 30 and 3600 seconds")
         self.sessions = {}
 
     def execute(self, action, config=None, bindings=None, context=None):
@@ -755,7 +765,65 @@ class CamoufoxRuntime:
             raise ValueError(
                 f"automation session is unavailable: {session['terminal_error']}"
             )
+        if not allow_terminal and self.now() >= session["lease_expires_at"]:
+            self._release_session(session, "lease_expired")
+            raise ValueError("automation session lease expired; start a new session")
+        if not allow_terminal:
+            self._renew_session_lease(session)
         return session
+
+    def _renew_session_lease(self, session):
+        current = read_json_file(session["lease_path"])
+        if (
+            current.get("state") != "active"
+            or current.get("sessionId") != session["id"]
+            or current.get("runDigest") != session["run_digest"]
+            or current.get("generation") != session["lease_generation"]
+        ):
+            raise ValueError("browser profile lease changed while the session was active")
+        now = self.now()
+        expires_at = now + self.lease_ttl
+        write_json_file(session["lease_path"], {
+            **current,
+            "renewedAt": now.isoformat(),
+            "expiresAt": expires_at.isoformat(),
+        })
+        session["lease_expires_at"] = expires_at
+
+    def _release_session(self, session, reason="closed"):
+        close_error = None
+        try:
+            session["handle"].close()
+        except Exception as exc:
+            close_error = exc
+        lease_fd = session["lease_fd"]
+        try:
+            current = read_json_file(session["lease_path"])
+            if (
+                current.get("state") != "active"
+                or current.get("sessionId") != session["id"]
+                or current.get("runDigest") != session["run_digest"]
+                or current.get("generation") != session["lease_generation"]
+            ):
+                raise ValueError("browser profile lease changed while the session was active")
+            write_json_file(session["lease_path"], {
+                **current,
+                "state": "released",
+                "releasedAt": self.now().isoformat(),
+                "releaseReason": reason,
+            })
+        finally:
+            fcntl.flock(lease_fd, fcntl.LOCK_UN)
+            os.close(lease_fd)
+            self.sessions.pop(session["id"], None)
+        if close_error is not None:
+            raise close_error
+
+    def _reclaim_expired_profile(self, profile_id):
+        now = self.now()
+        for session in list(self.sessions.values()):
+            if session["profile_id"] == profile_id and now >= session["lease_expires_at"]:
+                self._release_session(session, "lease_expired")
 
     def start(self, config, context=None):
         if not self.inventory:
@@ -770,17 +838,22 @@ class CamoufoxRuntime:
         pool_id = configured_choice(self.inventory["proxy_pools"], defaults.get("proxyPoolId"), "proxy pool")
         if session_id in self.sessions:
             session = self.sessions[session_id]
-            if (
+            if self.now() >= session["lease_expires_at"]:
+                self._release_session(session, "lease_expired")
+                session = None
+            if session is not None and (
                 session["target_id"] != target_id
                 or session["profile_id"] != profile_id
                 or session["proxy_pool_id"] != pool_id
             ):
                 raise ValueError("automation session identity conflicts with the existing session")
-            return {
-                "sessionId": session_id,
-                "url": session["current_url"],
-                "status": "active",
-            }
+            if session is not None:
+                self._renew_session_lease(session)
+                return {
+                    "sessionId": session_id,
+                    "url": session["current_url"],
+                    "status": "active",
+                }
         target = self.inventory["targets"].get(target_id)
         profile = self.inventory["profiles"].get(profile_id)
         proxy = self.inventory["proxy_pools"].get(pool_id)
@@ -795,6 +868,7 @@ class CamoufoxRuntime:
         destination = exact_path(target, config.get("path", "/"))
         profile_directory = os.path.join(self.workspace, "profiles", profile_id)
         os.makedirs(profile_directory, mode=0o700, exist_ok=True)
+        self._reclaim_expired_profile(profile_id)
         lease_path = os.path.join(profile_directory, "lease.json")
         lease_lock_path = os.path.join(profile_directory, "lease.lock")
         lease_fd = os.open(lease_lock_path, os.O_RDWR | os.O_CREAT, 0o600)
@@ -807,12 +881,16 @@ class CamoufoxRuntime:
             previous_lease = read_json_file(lease_path)
             generation = int(previous_lease.get("generation") or 0) + 1
             user_data_dir, migrated_from = persistent_profile_directory(profile_directory)
+            acquired_at = self.now()
+            lease_expires_at = acquired_at + self.lease_ttl
             lease = {
                 "generation": generation,
                 "sessionId": session_id,
                 "runDigest": run_digest(context),
                 "state": "active",
-                "acquiredAt": self.now().isoformat(),
+                "acquiredAt": acquired_at.isoformat(),
+                "renewedAt": acquired_at.isoformat(),
+                "expiresAt": lease_expires_at.isoformat(),
             }
             if migrated_from:
                 lease["migratedFrom"] = migrated_from
@@ -877,6 +955,7 @@ class CamoufoxRuntime:
             "lease_path": lease_path,
             "lease_generation": generation,
             "run_digest": lease["runDigest"],
+            "lease_expires_at": lease_expires_at,
         }
         return {
             "sessionId": session_id,
@@ -1134,33 +1213,5 @@ class CamoufoxRuntime:
 
     def close(self, config):
         session = self.session(config.get("sessionId"), allow_terminal=True)
-        close_error = None
-        try:
-            session["handle"].close()
-        except Exception as exc:
-            close_error = exc
-        lease_fd = session["lease_fd"]
-        try:
-            current = read_json_file(session["lease_path"])
-            if (
-                current.get("state") != "active"
-                or current.get("sessionId") != session["id"]
-                or current.get("runDigest") != session["run_digest"]
-                or current.get("generation") != session["lease_generation"]
-            ):
-                raise ValueError("browser profile lease changed while the session was active")
-            write_json_file(
-                session["lease_path"],
-                {
-                    **current,
-                    "state": "released",
-                    "releasedAt": self.now().isoformat(),
-                },
-            )
-        finally:
-            fcntl.flock(lease_fd, fcntl.LOCK_UN)
-            os.close(lease_fd)
-            del self.sessions[session["id"]]
-        if close_error is not None:
-            raise close_error
+        self._release_session(session)
         return {"sessionId": session["id"], "closed": True, "profilePreserved": True}
