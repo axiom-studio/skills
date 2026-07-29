@@ -43,6 +43,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
+VERSION = "2.0.9"
 WORKER_TIMEOUT_SECONDS = {
     "launch": 45,
     "navigate": 40,
@@ -702,7 +703,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.8",
+                "version": VERSION,
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -710,7 +711,7 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.8",
+            "version": VERSION,
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
@@ -987,8 +988,6 @@ class CamoufoxRuntime:
         session = self.session(config.get("sessionId"))
         if session["target"]["mode"] == "permitted-automation" and session["challenges"]:
             raise ValueError("the destination presented an access challenge; human completion is required")
-        if config.get("writeAuthorized") is not True:
-            raise ValueError("writeAuthorized must be true")
         key = config.get("idempotencyKey")
         if not isinstance(key, str) or len(key) < 8:
             raise ValueError("idempotencyKey is required")
