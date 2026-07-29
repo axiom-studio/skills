@@ -160,6 +160,7 @@ definition:
                             changed: {type: boolean}
                             beforeDigest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
                             afterDigest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+                            intentDigest: {type: string, pattern: '^[0-9a-f]{64}$'}
                         required: [changed, beforeDigest, afterDigest]
                 required: [sessionId, success, duplicate, receipt, progress]
             permissions: [browser:interact, network:http]
