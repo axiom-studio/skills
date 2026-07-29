@@ -9,11 +9,13 @@ Playwright sync API is bound to the thread that created it.
 from __future__ import annotations
 
 import base64
+import fcntl
 import hashlib
 import json
 import os
 import queue
 import re
+import sqlite3
 import threading
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
@@ -318,6 +320,73 @@ def run_session_id(context):
     return "run-" + hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:32]
 
 
+def run_digest(context):
+    run_id = context.get("runId") if isinstance(context, dict) else None
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("durable Run context is required for browser session ownership")
+    return "sha256:" + hashlib.sha256(run_id.strip().encode("utf-8")).hexdigest()
+
+
+def read_json_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        raise ValueError("browser profile lease metadata is invalid") from exc
+    if not isinstance(value, dict):
+        raise ValueError("browser profile lease metadata is invalid")
+    return value
+
+
+def write_json_file(path, value):
+    temporary = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        os.chmod(temporary, 0o600)
+        json.dump(value, handle, sort_keys=True, separators=(",", ":"))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def persistent_profile_directory(profile_directory):
+    data_directory = os.path.join(profile_directory, "data")
+    if os.path.isdir(data_directory):
+        return data_directory, ""
+    candidates = []
+    for name in os.listdir(profile_directory):
+        candidate = os.path.join(profile_directory, name)
+        if name != "data" and os.path.isdir(candidate):
+            candidates.append(candidate)
+    if candidates:
+        source = max(candidates, key=lambda candidate: (profile_cookie_count(candidate), os.path.getmtime(candidate)))
+        os.replace(source, data_directory)
+        return data_directory, os.path.basename(source)
+    os.makedirs(data_directory, mode=0o700, exist_ok=True)
+    return data_directory, ""
+
+
+def profile_cookie_count(profile_directory):
+    cookie_database = ""
+    for root, _directories, files in os.walk(profile_directory):
+        if "cookies.sqlite" in files:
+            cookie_database = os.path.join(root, "cookies.sqlite")
+            break
+    if not cookie_database:
+        return 0
+    connection = None
+    try:
+        connection = sqlite3.connect(f"file:{cookie_database}?mode=ro", uri=True, timeout=0.1)
+        row = connection.execute("SELECT COUNT(*) FROM moz_cookies").fetchone()
+        return int(row[0]) if row else 0
+    except (OSError, sqlite3.Error, TypeError, ValueError):
+        return 0
+    finally:
+        if connection is not None:
+            connection.close()
+
+
 def navigation_url(value):
     if not isinstance(value, str) or len(value) > 2048:
         raise ValueError("navigation URL is invalid")
@@ -595,6 +664,12 @@ class CamoufoxRuntime:
     def execute(self, action, config=None, bindings=None, context=None):
         config = config or {}
         bindings = bindings or {}
+        # The gRPC boundary always supplies an ExecutionContext. Unit tests may
+        # call the runtime directly without one, but hosted calls fail closed.
+        if context is not None and action not in ("camoufox-health", "camoufox-start"):
+            expected_session = run_session_id(context)
+            if config.get("sessionId") != expected_session:
+                raise ValueError("automation session belongs to a different durable Run")
         handlers = {
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config, context),
@@ -627,7 +702,7 @@ class CamoufoxRuntime:
             return {
                 "status": "needs_configuration",
                 "skillId": "skill-browser",
-                "version": "2.0.7",
+                "version": "2.0.8",
                 "authorizedTargets": 0,
                 "profiles": 0,
                 "proxyPools": 0,
@@ -635,19 +710,19 @@ class CamoufoxRuntime:
         return {
             "status": "ready",
             "skillId": "skill-browser",
-            "version": "2.0.7",
+            "version": "2.0.8",
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
         }
 
-    def session(self, session_id):
+    def session(self, session_id, allow_terminal=False):
         if not ID.match(session_id or ""):
             raise ValueError("sessionId is invalid")
         session = self.sessions.get(session_id)
         if not session:
             raise ValueError("automation session not found")
-        if session.get("terminal_error"):
+        if session.get("terminal_error") and not allow_terminal:
             raise ValueError(
                 f"automation session is unavailable: {session['terminal_error']}"
             )
@@ -689,23 +764,64 @@ class CamoufoxRuntime:
         if target["mode"] == "permitted-automation" and (profile.get("assessmentOnly") or proxy.get("assessmentOnly")):
             raise ValueError("assessment-only identity or egress cannot be used with a third-party automation target")
         destination = exact_path(target, config.get("path", "/"))
-        user_data_dir = os.path.join(self.workspace, "profiles", profile_id, session_id)
-        os.makedirs(user_data_dir, mode=0o700, exist_ok=True)
-        handle = self.browser_factory(
-            {
-                "headless": "virtual",
-                "user_data_dir": user_data_dir,
-                "proxy": resolve_proxy(proxy, pool_id, session_id),
-                "profile_options": profile_options(profile),
-            }
-        )
+        profile_directory = os.path.join(self.workspace, "profiles", profile_id)
+        os.makedirs(profile_directory, mode=0o700, exist_ok=True)
+        lease_path = os.path.join(profile_directory, "lease.json")
+        lease_lock_path = os.path.join(profile_directory, "lease.lock")
+        lease_fd = os.open(lease_lock_path, os.O_RDWR | os.O_CREAT, 0o600)
         try:
+            fcntl.flock(lease_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            os.close(lease_fd)
+            raise ValueError("browser profile is leased by another active Run") from exc
+        try:
+            previous_lease = read_json_file(lease_path)
+            generation = int(previous_lease.get("generation") or 0) + 1
+            user_data_dir, migrated_from = persistent_profile_directory(profile_directory)
+            lease = {
+                "generation": generation,
+                "sessionId": session_id,
+                "runDigest": run_digest(context),
+                "state": "active",
+                "acquiredAt": self.now().isoformat(),
+            }
+            if migrated_from:
+                lease["migratedFrom"] = migrated_from
+            write_json_file(lease_path, lease)
+        except Exception:
+            fcntl.flock(lease_fd, fcntl.LOCK_UN)
+            os.close(lease_fd)
+            raise
+        handle = None
+        try:
+            handle = self.browser_factory(
+                {
+                    "headless": "virtual",
+                    "user_data_dir": user_data_dir,
+                    "proxy": resolve_proxy(proxy, pool_id, session_id),
+                    "profile_options": profile_options(profile),
+                }
+            )
             navigation = handle.goto(destination, timeout_ms=30000)
         except Exception:
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
             try:
-                handle.close()
-            except Exception:
-                pass
+                write_json_file(
+                    lease_path,
+                    {
+                        **lease,
+                        "state": "released",
+                        "releasedAt": self.now().isoformat(),
+                        "releaseReason": "launch_failed",
+                    },
+                )
+            finally:
+                fcntl.flock(lease_fd, fcntl.LOCK_UN)
+                os.close(lease_fd)
             raise
         self.sessions[session_id] = {
             "id": session_id,
@@ -727,6 +843,10 @@ class CamoufoxRuntime:
             "receipts": {},
             "secrets": set(),
             "started_at": self.now(),
+            "lease_fd": lease_fd,
+            "lease_path": lease_path,
+            "lease_generation": generation,
+            "run_digest": lease["runDigest"],
         }
         return {
             "sessionId": session_id,
@@ -965,7 +1085,34 @@ class CamoufoxRuntime:
         }
 
     def close(self, config):
-        session = self.session(config.get("sessionId"))
-        session["handle"].close()
-        del self.sessions[session["id"]]
+        session = self.session(config.get("sessionId"), allow_terminal=True)
+        close_error = None
+        try:
+            session["handle"].close()
+        except Exception as exc:
+            close_error = exc
+        lease_fd = session["lease_fd"]
+        try:
+            current = read_json_file(session["lease_path"])
+            if (
+                current.get("state") != "active"
+                or current.get("sessionId") != session["id"]
+                or current.get("runDigest") != session["run_digest"]
+                or current.get("generation") != session["lease_generation"]
+            ):
+                raise ValueError("browser profile lease changed while the session was active")
+            write_json_file(
+                session["lease_path"],
+                {
+                    **current,
+                    "state": "released",
+                    "releasedAt": self.now().isoformat(),
+                },
+            )
+        finally:
+            fcntl.flock(lease_fd, fcntl.LOCK_UN)
+            os.close(lease_fd)
+            del self.sessions[session["id"]]
+        if close_error is not None:
+            raise close_error
         return {"sessionId": session["id"], "closed": True, "profilePreserved": True}
