@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import yaml
 
@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.10")
+        self.assertEqual(definition["version"], "2.0.11")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -583,6 +583,71 @@ class RuntimeTest(unittest.TestCase):
             "second-run",
         )
         second.execute("camoufox-close", {"sessionId": "second-run"}, context={"runId": "second-run"})
+
+    def test_abandoned_profile_lease_is_reclaimed_without_runtime_restart(self):
+        configured = inventory()
+        configured["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        workspace = tempfile.mkdtemp(prefix="camoufox-expiring-profile-")
+        state = {}
+        clock = {"now": datetime(2026, 7, 27, tzinfo=timezone.utc)}
+        service = CamoufoxRuntime(
+            inventory=configured,
+            workspace=workspace,
+            browser_factory=fake_factory(state),
+            now=lambda: clock["now"],
+            lease_ttl_seconds=30,
+        )
+        service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "failed-run"})
+        lease_path = os.path.join(workspace, "profiles", "seeded", "lease.json")
+        with open(lease_path, "r", encoding="utf-8") as handle:
+            first_lease = json.load(handle)
+        self.assertEqual(first_lease["expiresAt"], (clock["now"] + timedelta(seconds=30)).isoformat())
+
+        clock["now"] += timedelta(seconds=31)
+        replacement = service.execute(
+            "camoufox-start", {"path": "/assessment"}, context={"runId": "replacement-run"}
+        )
+        self.assertEqual(replacement["sessionId"], "replacement-run")
+        self.assertEqual(len(state["launches"]), 2)
+        with open(lease_path, "r", encoding="utf-8") as handle:
+            replacement_lease = json.load(handle)
+        self.assertEqual(replacement_lease["state"], "active")
+        self.assertEqual(replacement_lease["generation"], first_lease["generation"] + 1)
+        self.assertEqual(replacement_lease["sessionId"], "replacement-run")
+        service.execute("camoufox-close", {"sessionId": "replacement-run"}, context={"runId": "replacement-run"})
+
+    def test_owner_activity_renews_profile_lease(self):
+        configured = inventory()
+        configured["defaults"] = {"targetId": "owned", "profileId": "seeded", "proxyPoolId": "rotating"}
+        workspace = tempfile.mkdtemp(prefix="camoufox-renewing-profile-")
+        clock = {"now": datetime(2026, 7, 27, tzinfo=timezone.utc)}
+        service = CamoufoxRuntime(
+            inventory=configured,
+            workspace=workspace,
+            browser_factory=fake_factory({}),
+            now=lambda: clock["now"],
+            lease_ttl_seconds=30,
+        )
+        service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "active-run"})
+        clock["now"] += timedelta(seconds=20)
+        service.execute("camoufox-snapshot", {"sessionId": "active-run"}, context={"runId": "active-run"})
+        lease_path = os.path.join(workspace, "profiles", "seeded", "lease.json")
+        with open(lease_path, "r", encoding="utf-8") as handle:
+            renewed = json.load(handle)
+        self.assertEqual(renewed["expiresAt"], (clock["now"] + timedelta(seconds=30)).isoformat())
+        clock["now"] += timedelta(seconds=20)
+        with self.assertRaisesRegex(ValueError, "leased by another active Run"):
+            service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "other-run"})
+        service.execute("camoufox-close", {"sessionId": "active-run"}, context={"runId": "active-run"})
+
+    def test_profile_lease_ttl_is_bounded(self):
+        for value in (0, 29, 3601, "invalid"):
+            with self.assertRaisesRegex(ValueError, "profile lease TTL"):
+                CamoufoxRuntime(inventory=inventory(), workspace=tempfile.mkdtemp(), lease_ttl_seconds=value)
 
     def test_start_requires_explicit_choice_when_inventory_is_ambiguous(self):
         service, _ = make_runtime()
