@@ -429,7 +429,7 @@ definition:
             description: Verify Slack Events API requests and deliver durable replies through Slack Web API.
             provider: slack
             endpointModes: [channel, direct]
-            inboundEventTypes: [conversation.approval.decided, conversation.message.received]
+            inboundEventTypes: [conversation.message.received]
             features: [mentions, threads]
             credentials:
                 - name: slack_bot_token
@@ -463,6 +463,20 @@ definition:
                 deliveryEndpoint: slack.conversation.deliver
                 ingressCredentials: [slack_signing_secret]
                 deliveryCredentials: [slack_bot_token]
+    callbackAdapters:
+        interactions:
+            protocolVersion: openseal.callback.adapter/v1
+            name: Slack interactions
+            description: Verify signed Slack interactions and normalize governed approval decisions.
+            provider: slack
+            eventTypes: [approval.decided]
+            credentials:
+                - name: slack_signing_secret
+                  kind: slack_signing_secret
+            transport:
+                kind: plugin
+                ingressEndpoint: slack.callback.ingress
+                ingressCredentials: [slack_signing_secret]
     category: communication
     description: Send messages and interact with Slack channels
     icon: message-circle
@@ -471,7 +485,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.1.0
+          package: axiomstudio/skill-slack:2.2.0
     name: Slack Skill
     source:
         format: axiom.skill/v1
@@ -481,7 +495,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.1.0
+        resolvedVersion: 2.2.0
     tags:
         - chat
         - messaging
@@ -490,7 +504,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.1.0
+    version: 2.2.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.

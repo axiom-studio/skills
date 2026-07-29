@@ -22,7 +22,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.1.0"
+	slackSkillVersion       = "2.2.0"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -53,6 +53,7 @@ func main() {
 	conversationAdapter := newSlackAdapter("", os.Getenv("SLACK_API_BASE_URL"), nil)
 	server.RegisterExecutor(slackIngressNodeType, &slackIngressExecutor{adapter: conversationAdapter})
 	server.RegisterExecutor(slackDeliveryNodeType, &slackDeliveryExecutor{adapter: conversationAdapter})
+	server.RegisterExecutor(slackCallbackNodeType, &slackCallbackExecutor{adapter: conversationAdapter})
 
 	fmt.Printf("Starting skill-slack gRPC server on port %s\n", port)
 	if err := server.Serve(port); err != nil {
