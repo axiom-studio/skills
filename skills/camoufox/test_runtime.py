@@ -18,6 +18,7 @@ from runtime import (
     exact_path,
     load_inventory,
     navigation_url,
+    observation_digest,
     resolve_proxy,
     snapshot_element_state,
 )
@@ -71,11 +72,13 @@ class FakeHandle:
 
     def click(self, marker):
         self.state["click"] = marker
-        self.state["solved"] = True
+        if not self.state.get("no_progress"):
+            self.state["solved"] = True
 
     def click_point(self, x, y):
         self.state["click_point"] = (x, y)
-        self.state["solved"] = True
+        if not self.state.get("no_progress"):
+            self.state["solved"] = True
 
     def fill(self, marker, value):
         self.state["fill"] = {"marker": marker, "value": value}
@@ -324,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.9")
+        self.assertEqual(definition["version"], "2.0.10")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -705,10 +708,38 @@ class RuntimeTest(unittest.TestCase):
             "target": snapshot["elements"][0]["ref"],
             "idempotencyKey": "click-owned-1",
         }
-        self.assertTrue(service.execute("camoufox-click", request)["success"])
-        self.assertTrue(service.execute("camoufox-click", request)["duplicate"])
+        first = service.execute("camoufox-click", request)
+        self.assertTrue(first["success"])
+        self.assertTrue(first["progress"]["changed"])
+        duplicate = service.execute("camoufox-click", request)
+        self.assertTrue(duplicate["duplicate"])
+        self.assertEqual(duplicate["progress"], first["progress"])
         with self.assertRaisesRegex(ValueError, "stale"):
             service.execute("camoufox-click", {**request, "idempotencyKey": "click-owned-2"})
+
+    def test_click_reports_success_without_observable_progress(self):
+        service, _ = make_runtime({"no_progress": True})
+        start_session(service, "stagnant-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "stagnant-1"})
+        self.assertRegex(snapshot["observationDigest"], r"^sha256:[0-9a-f]{64}$")
+        result = service.execute("camoufox-click", {
+            "sessionId": "stagnant-1",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Open the community rules",
+            "idempotencyKey": "stagnant-click-1",
+        })
+        self.assertTrue(result["success"])
+        self.assertFalse(result["progress"]["changed"])
+        self.assertEqual(result["progress"]["beforeDigest"], result["progress"]["afterDigest"])
+
+    def test_observation_digest_ignores_regenerated_references(self):
+        before = {"url": "https://forum.example/community", "title": "Forum", "text": "Rules", "elements": [
+            {"ref": "1", "role": "button", "name": "Rules", "state": {"expanded": "false"}},
+        ]}
+        after = {**before, "elements": [
+            {"ref": "74", "role": "button", "name": "Rules", "state": {"expanded": "false"}},
+        ]}
+        self.assertEqual(observation_digest(before), observation_digest(after))
 
     def test_snapshot_attaches_bounded_model_media_and_supports_current_coordinates(self):
         service, state = make_runtime({"model_media": b"jpeg-screen"})
