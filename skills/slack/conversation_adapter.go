@@ -121,8 +121,9 @@ type conversationIngressRequest struct {
 }
 
 type conversationDelivery struct {
-	ID               string `json:"id"`
-	ExternalThreadID string `json:"externalThreadId,omitempty"`
+	ID               string                 `json:"id"`
+	ExternalThreadID string                 `json:"externalThreadId,omitempty"`
+	Parameters       map[string]interface{} `json:"parameters,omitempty"`
 }
 
 type conversationMessage struct {
@@ -199,6 +200,38 @@ type slackEvent struct {
 	ThreadTS    string `json:"thread_ts"`
 }
 
+type slackInteraction struct {
+	Type     string `json:"type"`
+	APIAppID string `json:"api_app_id"`
+	ActionTS string `json:"action_ts"`
+	Team     struct {
+		ID string `json:"id"`
+	} `json:"team"`
+	User struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"user"`
+	Channel struct {
+		ID string `json:"id"`
+	} `json:"channel"`
+	Container struct {
+		MessageTS string `json:"message_ts"`
+		ThreadTS  string `json:"thread_ts"`
+	} `json:"container"`
+	Actions []struct {
+		ActionID string `json:"action_id"`
+		Value    string `json:"value"`
+		ActionTS string `json:"action_ts"`
+	} `json:"actions"`
+}
+
+type slackApprovalValue struct {
+	ApprovalID       string `json:"approvalId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	ActionCallID     string `json:"actionCallId"`
+	InvocationDigest string `json:"invocationDigest"`
+}
+
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	envelope, err := decodeAdapterEnvelope(config)
 	if err != nil || envelope.Request == nil ||
@@ -216,6 +249,9 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 			"statusCode": http.StatusUnauthorized, "contentType": "text/plain",
 			"body": "invalid Slack signature",
 		}, nil
+	}
+	if strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
+		return normalizeSlackInteraction(envelope)
 	}
 	var payload slackEventsEnvelope
 	if err := json.Unmarshal(envelope.Request.Body, &payload); err != nil {
@@ -268,6 +304,81 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 		"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`,
 		"events": []normalizedConversationEvent{event},
 	}, nil
+}
+
+func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{}, error) {
+	if envelope.Operation != "ingress" || envelope.Endpoint == nil {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	form, err := url.ParseQuery(string(envelope.Request.Body))
+	if err != nil || strings.TrimSpace(form.Get("payload")) == "" {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	var payload slackInteraction
+	if json.Unmarshal([]byte(form.Get("payload")), &payload) != nil || payload.Type != "block_actions" || len(payload.Actions) != 1 {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	if envelope.Endpoint.Address != payload.Channel.ID ||
+		(stringConfiguration(envelope.Endpoint.Configuration, "teamId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "teamId") != payload.Team.ID) ||
+		(stringConfiguration(envelope.Endpoint.Configuration, "appId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "appId") != payload.APIAppID) {
+		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+	}
+	action := payload.Actions[0]
+	decision := strings.TrimPrefix(strings.TrimSpace(action.ActionID), "openseal_approval_")
+	if decision != "approve" && decision != "reject" && decision != "request_changes" {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	var reviewed slackApprovalValue
+	if json.Unmarshal([]byte(action.Value), &reviewed) != nil || reviewed.ApprovalID == "" || reviewed.ApprovalRevision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	principal, ok := slackApprovalPrincipal(envelope.Endpoint.Configuration, payload.User.ID)
+	if !ok {
+		return map[string]interface{}{"statusCode": http.StatusForbidden, "contentType": "text/plain", "body": "Slack user is not authorized to decide this approval"}, nil
+	}
+	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID
+	event := normalizedConversationEvent{
+		ID: eventID, Type: "conversation.approval.decided", ExternalConversationID: payload.Channel.ID,
+		ExternalThreadID: payload.Container.ThreadTS, ExternalMessageID: payload.Container.MessageTS,
+		ExternalParticipantID: payload.User.ID, OrderingKey: payload.Channel.ID + ":" + payload.Container.MessageTS,
+		OccurredAt: slackTimestamp(firstNonEmpty(action.ActionTS, payload.ActionTS)),
+		Attributes: map[string]interface{}{
+			"approvalId": reviewed.ApprovalID, "approvalRevision": reviewed.ApprovalRevision,
+			"actionCallId": reviewed.ActionCallID, "invocationDigest": reviewed.InvocationDigest,
+			"decision": decision, "principalType": principal["type"], "principalId": principal["id"],
+			"providerUserId": payload.User.ID,
+		},
+	}
+	if event.OccurredAt.IsZero() {
+		event.OccurredAt = time.Now().UTC()
+	}
+	return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`, "events": []normalizedConversationEvent{event}}, nil
+}
+
+func slackApprovalPrincipal(config map[string]interface{}, userID string) (map[string]string, bool) {
+	raw, ok := config["approvalPrincipals"].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	entry, ok := raw[userID].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	typeName, _ := entry["type"].(string)
+	id, _ := entry["id"].(string)
+	if strings.TrimSpace(typeName) == "" || strings.TrimSpace(id) == "" {
+		return nil, false
+	}
+	return map[string]string{"type": strings.TrimSpace(typeName), "id": strings.TrimSpace(id)}, true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (a *slackAdapter) verifySlackRequest(request *conversationIngressRequest, signingSecret string) bool {
@@ -437,6 +548,13 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 			"event_payload": map[string]string{"delivery_id": envelope.Delivery.ID},
 		},
 	}
+	if approval, ok := envelope.Delivery.Parameters["approval"].(map[string]interface{}); ok {
+		blocks, err := slackApprovalBlocks(approval)
+		if err != nil {
+			return failedDelivery("invalid_approval", "The approval card is invalid."), nil
+		}
+		body["blocks"] = blocks
+	}
 	if threadID := strings.TrimSpace(envelope.Delivery.ExternalThreadID); threadID != "" {
 		body["thread_ts"] = threadID
 	}
@@ -469,6 +587,45 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	return map[string]interface{}{
 		"outcome": "delivered", "providerMessageId": result.Timestamp,
 		"summary": "Slack accepted the message.",
+	}, nil
+}
+
+func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interface{}, error) {
+	encoded, err := json.Marshal(approval)
+	if err != nil {
+		return nil, err
+	}
+	var reviewed struct {
+		ID               string                 `json:"id"`
+		Revision         int64                  `json:"revision"`
+		ActionCallID     string                 `json:"actionCallId"`
+		InvocationDigest string                 `json:"invocationDigest"`
+		Risk             string                 `json:"risk"`
+		Summary          string                 `json:"summary"`
+		PolicyReason     string                 `json:"policyReason"`
+		ProposedAction   map[string]interface{} `json:"proposedAction"`
+		ExpiresAt        time.Time              `json:"expiresAt"`
+	}
+	if json.Unmarshal(encoded, &reviewed) != nil || reviewed.ID == "" || reviewed.Revision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" {
+		return nil, errors.New("invalid approval")
+	}
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest})
+	preview, _ := json.MarshalIndent(reviewed.ProposedAction, "", "  ")
+	previewText := string(preview)
+	if len(previewText) > 1800 {
+		previewText = previewText[:1800] + "…"
+	}
+	contextText := "Risk: " + reviewed.Risk + " · Approval: " + reviewed.ID + " · Expires: " + reviewed.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC")
+	return []map[string]interface{}{
+		{"type": "header", "text": map[string]interface{}{"type": "plain_text", "text": "Approval required"}},
+		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "*" + reviewed.Summary + "*\n" + reviewed.PolicyReason}},
+		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "```" + previewText + "```"}},
+		{"type": "context", "elements": []map[string]interface{}{{"type": "mrkdwn", "text": contextText}}},
+		{"type": "actions", "block_id": "openseal_approval_actions", "elements": []map[string]interface{}{
+			{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
+			{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Reject"}, "style": "danger", "value": string(value)},
+			{"type": "button", "action_id": "openseal_approval_request_changes", "text": map[string]interface{}{"type": "plain_text", "text": "Request changes"}, "value": string(value)},
+		}},
 	}, nil
 }
 

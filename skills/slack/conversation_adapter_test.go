@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -182,6 +183,83 @@ func TestSlackDeliveryPreservesRetryAfterWithoutLeakingProviderBody(t *testing.T
 	encoded, _ := json.Marshal(output)
 	if strings.Contains(string(encoded), "do-not-project") {
 		t.Fatalf("provider response leaked: %s", encoded)
+	}
+}
+
+func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
+	var posted map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
+			t.Error(err)
+		}
+		_, _ = io.WriteString(response, `{"ok":true,"channel":"C123","ts":"1720000001.123"}`)
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	envelope := config[adapterEnvelopeKey].(map[string]interface{})
+	delivery := envelope["delivery"].(*conversationDelivery)
+	delivery.Parameters = map[string]interface{}{"approval": map[string]interface{}{
+		"id": "approval-1", "revision": int64(4), "actionCallId": "call-1", "invocationDigest": strings.Repeat("a", 64),
+		"risk": "external", "summary": "Post reviewed comment", "policyReason": "external write",
+		"proposedAction": map[string]interface{}{"comment": "Useful context"}, "expiresAt": time.Now().UTC().Add(time.Hour),
+	}}
+	output, err := adapter.delivery(context.Background(), config)
+	if err != nil || output["outcome"] != "delivered" {
+		t.Fatalf("delivery = %#v, %v", output, err)
+	}
+	blocks, ok := posted["blocks"].([]interface{})
+	if !ok || len(blocks) != 5 {
+		t.Fatalf("blocks = %#v", posted["blocks"])
+	}
+	actions := blocks[4].(map[string]interface{})["elements"].([]interface{})
+	if len(actions) != 3 {
+		t.Fatalf("actions = %#v", actions)
+	}
+	for _, raw := range actions {
+		button := raw.(map[string]interface{})
+		var value slackApprovalValue
+		if json.Unmarshal([]byte(button["value"].(string)), &value) != nil || value.ApprovalID != "approval-1" || value.ApprovalRevision != 4 || value.ActionCallID != "call-1" {
+			t.Fatalf("button value = %#v", button)
+		}
+	}
+}
+
+func TestSlackApprovalInteractionRequiresMappedPrincipalAndPreservesReviewedDigest(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	adapter := newSlackAdapter("signing-secret", "", nil)
+	adapter.now = func() time.Time { return now }
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64)})
+	payload, _ := json.Marshal(map[string]interface{}{
+		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
+		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
+		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
+	})
+	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
+	config := ingressConfig(now, body, &conversationEndpoint{ID: "endpoint", Provider: "slack", Address: "C123", Configuration: map[string]interface{}{
+		"teamId": "T123", "appId": "A123", "approvalPrincipals": map[string]interface{}{"U123": map[string]interface{}{"type": "role", "id": "operator"}},
+	}})
+	request := config[adapterEnvelopeKey].(map[string]interface{})["request"].(*conversationIngressRequest)
+	request.Headers["Content-Type"] = []string{"application/x-www-form-urlencoded"}
+	output, err := adapter.ingress(context.Background(), config)
+	if err != nil || output["statusCode"] != http.StatusOK {
+		t.Fatalf("interaction = %#v, %v", output, err)
+	}
+	encoded, _ := json.Marshal(output["events"])
+	var events []normalizedConversationEvent
+	if json.Unmarshal(encoded, &events) != nil || len(events) != 1 {
+		t.Fatalf("events = %s", encoded)
+	}
+	attrs := events[0].Attributes
+	if events[0].Type != "conversation.approval.decided" || attrs["approvalId"] != "approval-1" || attrs["invocationDigest"] != strings.Repeat("a", 64) || attrs["principalId"] != "operator" {
+		t.Fatalf("decision = %#v", events[0])
+	}
+
+	config[adapterEnvelopeKey].(map[string]interface{})["endpoint"].(*conversationEndpoint).Configuration["approvalPrincipals"] = map[string]interface{}{}
+	denied, err := adapter.ingress(context.Background(), config)
+	if err != nil || denied["statusCode"] != http.StatusForbidden {
+		t.Fatalf("unauthorized = %#v, %v", denied, err)
 	}
 }
 
