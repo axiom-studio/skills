@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.11")
+        self.assertEqual(definition["version"], "2.0.12")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -648,6 +648,14 @@ class RuntimeTest(unittest.TestCase):
         for value in (0, 29, 3601, "invalid"):
             with self.assertRaisesRegex(ValueError, "profile lease TTL"):
                 CamoufoxRuntime(inventory=inventory(), workspace=tempfile.mkdtemp(), lease_ttl_seconds=value)
+
+    def test_default_profile_lease_spans_slow_hosted_model_turns(self):
+        service = CamoufoxRuntime(
+            inventory=inventory(),
+            workspace=tempfile.mkdtemp(),
+            browser_factory=fake_factory({}),
+        )
+        self.assertEqual(service.lease_ttl, timedelta(seconds=900))
 
     def test_start_requires_explicit_choice_when_inventory_is_ambiguous(self):
         service, _ = make_runtime()
