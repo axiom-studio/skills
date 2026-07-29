@@ -429,7 +429,7 @@ definition:
             description: Verify Slack Events API requests and deliver durable replies through Slack Web API.
             provider: slack
             endpointModes: [channel, direct]
-            inboundEventTypes: [conversation.message.received, conversation.approval.decided]
+            inboundEventTypes: [conversation.approval.decided, conversation.message.received]
             features: [mentions, threads]
             credentials:
                 - name: slack_bot_token
