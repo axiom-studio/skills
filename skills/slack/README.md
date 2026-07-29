@@ -1,12 +1,13 @@
 # Slack Skill
 
 First-class Slack integration for governed Agent and Team conversations,
-messaging, and channel operations.
+messaging, channel operations, and signed interactive approval decisions.
 
 The Skill owns request verification, event normalization, durable reply
-delivery, acknowledgement lookup, and paginated channel discovery. Hosts use
-the portable OpenSeal conversation-adapter contract; no Slack-specific logic
-is required in the kernel or product UI.
+delivery, acknowledgement lookup, paginated channel discovery, and interactive
+callback verification. Hosts use the portable OpenSeal conversation and
+callback-adapter contracts; no Slack-specific logic is required in the kernel
+or product UI.
 
 ## Node Types
 
@@ -24,6 +25,8 @@ is required in the kernel or product UI.
 - **slack-set-channel-purpose** — Set a channel purpose
 - **slack-send-ephemeral-message** — Send an ephemeral message to one user
 - **slack-list-users** — List users in the workspace
+- **slack.callback.ingress** — Verify signed Slack interactions and emit a
+  canonical `approval.decided` callback event
 
 ## Setup
 
@@ -36,3 +39,9 @@ is required in the kernel or product UI.
 4. Select an authorized channel by name during Agent or Team authoring. The
    Skill persists the exact channel ID and continues pagination using Slack's
    opaque cursor.
+5. For interactive approvals, create an OpenSeal callback registration for the
+   `interactions` adapter, map eligible Slack user IDs to approval principals,
+   subscribe `approval.decided` to the `approvals` consumer, then configure the
+   registration's public callback URL as the Slack app Interactivity Request
+   URL. Registrations begin paused and should be activated only after the exact
+   Skill binding and signing secret have been reviewed.
