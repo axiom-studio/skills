@@ -7,6 +7,8 @@ import threading
 import unittest
 from datetime import datetime, timezone
 
+import yaml
+
 from runtime import (
     SNAPSHOT_JS,
     BrowserOperationTimeout,
@@ -318,6 +320,21 @@ class BrowserNavigationTest(unittest.TestCase):
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_manifest_uses_kernel_owned_interaction_authority(self):
+        manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
+        with open(manifest_path, "r", encoding="utf-8") as stream:
+            definition = yaml.safe_load(stream)["definition"]
+        self.assertEqual(definition["version"], "2.0.9")
+        actions = definition["actions"]
+        for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
+            action = actions[name]
+            self.assertEqual((action["risk"], action["sideEffect"]), ("write", "write"))
+            self.assertNotIn("writeAuthorized", action["inputSchema"]["properties"])
+            self.assertNotIn("writeAuthorized", action["inputSchema"]["required"])
+        commit = actions["camoufox-commit"]
+        self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
+        self.assertEqual(commit["externalOperationPolicy"], "required")
+
     def test_health_reports_configuration_state(self):
         service, _ = make_runtime(inv=None)
         self.assertEqual(service.execute("camoufox-health")["status"], "needs_configuration")
@@ -666,7 +683,7 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "human completion"):
             service.execute(
                 "camoufox-click",
-                {"sessionId": "forum-1", "target": snapshot["elements"][0]["ref"], "writeAuthorized": True, "idempotencyKey": "challenge-click-1"},
+                {"sessionId": "forum-1", "target": snapshot["elements"][0]["ref"], "idempotencyKey": "challenge-click-1"},
             )
         self.assertEqual(service.execute("camoufox-report", {"sessionId": "forum-1"})["outcome"], "challenged")
 
@@ -686,7 +703,6 @@ class RuntimeTest(unittest.TestCase):
         request = {
             "sessionId": "owned-1",
             "target": snapshot["elements"][0]["ref"],
-            "writeAuthorized": True,
             "idempotencyKey": "click-owned-1",
         }
         self.assertTrue(service.execute("camoufox-click", request)["success"])
@@ -704,7 +720,7 @@ class RuntimeTest(unittest.TestCase):
             "camoufox-click",
             {
                 "sessionId": "visual-1", "generation": snapshot["generation"], "x": 640, "y": 360,
-                "intent": "Activate the visually identified control", "writeAuthorized": True,
+                "intent": "Activate the visually identified control",
                 "idempotencyKey": "visual-click-1",
             },
         )
@@ -737,7 +753,7 @@ class RuntimeTest(unittest.TestCase):
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "visual-stale"})
         base = {
             "sessionId": "visual-stale", "generation": snapshot["generation"], "x": 10, "y": 10,
-            "intent": "Activate the visually identified control", "writeAuthorized": True,
+            "intent": "Activate the visually identified control",
         }
         with self.assertRaisesRegex(ValueError, "stale"):
             service.execute("camoufox-click", {**base, "generation": 99, "idempotencyKey": "visual-stale-1"})
@@ -754,7 +770,6 @@ class RuntimeTest(unittest.TestCase):
                 "sessionId": "sel-1",
                 "target": snapshot["elements"][0]["ref"],
                 "value": "new",
-                "writeAuthorized": True,
                 "idempotencyKey": "select-sel-1",
             },
         )
@@ -808,7 +823,6 @@ class RuntimeTest(unittest.TestCase):
             "sessionId": "login-1",
             "target": snapshot["elements"][0]["ref"],
             "credentialField": "password",
-            "writeAuthorized": True,
             "idempotencyKey": "secret-fill-1",
         }
         with self.assertRaisesRegex(ValueError, "credential binding"):

@@ -46,13 +46,16 @@ Two target modes are explicit:
   anti-bot screens become truthful human checkpoints and block interactions.
 
 Every interaction uses a reference from the latest accessibility-style
-snapshot, explicit write authorization, and an idempotency key. The final
-external operation uses `camoufox-commit`, whose manifest requires a governed
-external-operation checkpoint. Credential fields are supplied through Skill
-bindings and never returned. Public actions do not expose JavaScript, CDP,
-cookies, headers, files, launch arguments, or literal proxy/profile values.
-Editable controls expose only a `state.filled` boolean so an Agent can progress
-through multi-field forms without observing or persisting the entered value.
+snapshot and an idempotency key. Authorization comes from the kernel's reviewed
+Skill binding, typed action risk, standing grants, and approval policy—not from
+a model-supplied boolean. Ordinary clicks and field edits are governed writes;
+the final externally observable operation uses `camoufox-commit`, whose
+manifest requires an external-operation checkpoint. Credential fields are
+supplied through Skill bindings and never returned. Public actions do not
+expose JavaScript, CDP, cookies, headers, files, launch arguments, or literal
+proxy/profile values. Editable controls expose only a `state.filled` boolean so
+an Agent can progress through multi-field forms without observing or persisting
+the entered value.
 
 An active session can move to another HTTP(S) URL with `camoufox-navigate` while
 reusing the existing browser context, so normal same-site cookies remain
@@ -64,8 +67,8 @@ Ordinary links discovered in the current semantic snapshot use
 `camoufox-follow-link`. The runtime resolves the exact anchor internally and
 navigates without clicking it, permits only the active target's configured
 origin/path scope, and invalidates the old snapshot references. This read-only
-path never accepts coordinates, form controls, write authorization, or a final
-external-operation receipt.
+path never accepts coordinates, form controls, or a final external-operation
+receipt.
 
 Run unit tests (stdlib only — no browser download):
 
@@ -76,5 +79,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.8 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.9 .
 ```

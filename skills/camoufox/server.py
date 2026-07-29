@@ -9,10 +9,9 @@ import yaml
 
 import skill_pb2
 import skill_pb2_grpc
-from runtime import CamoufoxRuntime, load_inventory
+from runtime import VERSION, CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-browser"
-VERSION = "2.0.8"
 ACTIONS = [
     "camoufox-health",
     "camoufox-start",
