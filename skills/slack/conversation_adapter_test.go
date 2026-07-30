@@ -334,6 +334,39 @@ func TestSlackApprovalExpiryUpdatesCardAndRemovesActions(t *testing.T) {
 	}
 }
 
+func TestSlackApprovalDecisionAndOutcomeCardsAreFinalAndActionable(t *testing.T) {
+	decidedAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name, status, actionStatus, header, progress string
+	}{
+		{name: "approved", status: "approved", actionStatus: "ready", header: "Proposal approved", progress: "Going ahead"},
+		{name: "completed", status: "approved", actionStatus: "succeeded", header: "Proposal completed", progress: "approved action completed"},
+		{name: "failed", status: "approved", actionStatus: "failed", header: "Proposal failed", progress: "did not complete"},
+		{name: "rejected", status: "rejected", actionStatus: "denied", header: "Proposal rejected", progress: "will not run"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			blocks, err := slackApprovalBlocks(map[string]interface{}{
+				"id": "approval-1", "revision": int64(5), "actionCallId": "call-1",
+				"status": testCase.status, "actionStatus": testCase.actionStatus,
+				"risk": "external", "summary": "Post reviewed comment", "policyReason": "external write",
+				"proposedAction": map[string]interface{}{"comment": "Useful context"},
+				"expiresAt":      time.Date(2026, 7, 30, 12, 15, 0, 0, time.UTC),
+				"decidedAt":      decidedAt, "providerApproverId": "U123",
+			})
+			if err != nil || len(blocks) != 4 {
+				t.Fatalf("blocks = %#v, %v", blocks, err)
+			}
+			header := blocks[0]["text"].(map[string]interface{})["text"]
+			detail := blocks[1]["text"].(map[string]interface{})["text"].(string)
+			contextText := blocks[3]["elements"].([]map[string]interface{})[0]["text"].(string)
+			if header != testCase.header || !strings.Contains(detail, testCase.progress) || !strings.Contains(contextText, "Decided by <@U123>") {
+				t.Fatalf("card header=%#v detail=%q context=%q", header, detail, contextText)
+			}
+		})
+	}
+}
+
 func TestSlackApprovalInteractionRequiresMappedPrincipalAndPreservesReviewedDigest(t *testing.T) {
 	now := time.Unix(1_720_000_000, 0).UTC()
 	adapter := newSlackAdapter("signing-secret", "", nil)
