@@ -248,6 +248,7 @@ func TestSlackDeliveryPreservesRetryAfterWithoutLeakingProviderBody(t *testing.T
 }
 
 func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
+	expiresAt := time.Date(2026, 7, 30, 12, 15, 0, 0, time.UTC)
 	var posted map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
@@ -263,7 +264,7 @@ func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
 	delivery.Parameters = map[string]interface{}{"approval": map[string]interface{}{
 		"id": "approval-1", "revision": int64(4), "actionCallId": "call-1", "invocationDigest": strings.Repeat("a", 64),
 		"risk": "external", "summary": "Post reviewed comment", "policyReason": "external write",
-		"proposedAction": map[string]interface{}{"comment": "Useful context"}, "expiresAt": time.Now().UTC().Add(time.Hour),
+		"proposedAction": map[string]interface{}{"comment": "Useful context"}, "expiresAt": expiresAt,
 	}}
 	output, err := adapter.delivery(context.Background(), config)
 	if err != nil || output["outcome"] != "delivered" {
@@ -280,9 +281,56 @@ func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
 	for _, raw := range actions {
 		button := raw.(map[string]interface{})
 		var value slackApprovalValue
-		if json.Unmarshal([]byte(button["value"].(string)), &value) != nil || value.ApprovalID != "approval-1" || value.ApprovalRevision != 4 || value.ActionCallID != "call-1" {
+		if json.Unmarshal([]byte(button["value"].(string)), &value) != nil || value.ApprovalID != "approval-1" || value.ApprovalRevision != 4 || value.ActionCallID != "call-1" || !value.ExpiresAt.Equal(expiresAt) {
 			t.Fatalf("button value = %#v", button)
 		}
+	}
+	contextBlock := blocks[3].(map[string]interface{})["elements"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(contextBlock, "Expires <!date^1785413700^{relative}|soon>") {
+		t.Fatalf("expiry context = %q", contextBlock)
+	}
+}
+
+func TestSlackApprovalExpiryUpdatesCardAndRemovesActions(t *testing.T) {
+	var updated map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/chat.update" {
+			t.Fatalf("path = %s", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&updated); err != nil {
+			t.Error(err)
+		}
+		_, _ = io.WriteString(response, `{"ok":true,"channel":"C123","ts":"1720000001.123"}`)
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	envelope := config[adapterEnvelopeKey].(map[string]interface{})
+	delivery := envelope["delivery"].(*conversationDelivery)
+	delivery.Operation = "message.update"
+	delivery.Parameters = map[string]interface{}{
+		"providerMessageId": "1720000001.123",
+		"approval": map[string]interface{}{
+			"id": "approval-1", "revision": int64(5), "actionCallId": "call-1", "status": "expired",
+			"risk": "external", "summary": "Post reviewed comment", "policyReason": "external write",
+			"proposedAction": map[string]interface{}{"comment": "Useful context"},
+			"expiresAt":      time.Date(2026, 7, 30, 12, 15, 0, 0, time.UTC),
+		},
+	}
+	output, err := adapter.delivery(context.Background(), config)
+	if err != nil || output["outcome"] != "delivered" {
+		t.Fatalf("update = %#v, %v", output, err)
+	}
+	if updated["channel"] != "C123" || updated["ts"] != "1720000001.123" || updated["metadata"] != nil {
+		t.Fatalf("Slack update = %#v", updated)
+	}
+	blocks, ok := updated["blocks"].([]interface{})
+	if !ok || len(blocks) != 4 || blocks[0].(map[string]interface{})["type"] != "header" {
+		t.Fatalf("terminal blocks = %#v", updated["blocks"])
+	}
+	header := blocks[0].(map[string]interface{})["text"].(map[string]interface{})["text"]
+	if header != "Approval expired" {
+		t.Fatalf("terminal header = %#v", header)
 	}
 }
 
@@ -290,7 +338,7 @@ func TestSlackApprovalInteractionRequiresMappedPrincipalAndPreservesReviewedDige
 	now := time.Unix(1_720_000_000, 0).UTC()
 	adapter := newSlackAdapter("signing-secret", "", nil)
 	adapter.now = func() time.Time { return now }
-	value, _ := json.Marshal(slackApprovalValue{ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64)})
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour)})
 	payload, _ := json.Marshal(map[string]interface{}{
 		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
 		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
