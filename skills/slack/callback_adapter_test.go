@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/axiom-studio/skills.sdk/executor"
 )
 
 func TestSlackCallbackVerifiesSignatureAndNormalizesApprovalDecision(t *testing.T) {
@@ -66,6 +68,38 @@ func TestSlackCallbackRejectsUnsignedProviderRequest(t *testing.T) {
 
 	if err != nil || output["statusCode"] != http.StatusUnauthorized || output["events"] != nil {
 		t.Fatalf("unsigned callback = %#v, %v", output, err)
+	}
+}
+
+func TestSlackCallbackExecutorReadsEphemeralSigningSecretFromBindingChannel(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	value, _ := json.Marshal(slackApprovalValue{
+		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64),
+	})
+	payload, _ := json.Marshal(map[string]interface{}{
+		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
+		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
+		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
+	})
+	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
+	config := callbackConfig(now, body, map[string]interface{}{
+		"teamId": "T123", "appId": "A123", "channelId": "C123",
+		"approvalPrincipals": map[string]interface{}{"U123": map[string]interface{}{"type": "role", "id": "operator"}},
+	})
+	step := &executor.StepDefinition{Config: config}
+	adapter := newSlackAdapter("", "", nil)
+	adapter.now = func() time.Time { return now }
+
+	result, err := (&slackCallbackExecutor{adapter: adapter}).Execute(t.Context(), step, slackBindingResolver{
+		bindings: map[string]interface{}{slackSigningSecretKey: "signing-secret"},
+	})
+
+	if err != nil || result.Output["statusCode"] != http.StatusOK {
+		t.Fatalf("callback = %#v, %v", result, err)
+	}
+	if _, leaked := step.Config[slackSigningSecretKey]; leaked {
+		t.Fatal("ephemeral Slack signing secret leaked into durable step config")
 	}
 }
 
