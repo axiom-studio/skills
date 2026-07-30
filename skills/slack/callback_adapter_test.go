@@ -66,7 +66,9 @@ func TestSlackCallbackRejectsUnsignedProviderRequest(t *testing.T) {
 
 	output, err := adapter.callback(context.Background(), config)
 
-	if err != nil || output["statusCode"] != http.StatusUnauthorized || output["events"] != nil {
+	body, bodyOK := output["body"].([]byte)
+	if err != nil || output["statusCode"] != http.StatusUnauthorized || output["events"] != nil ||
+		!bodyOK || string(body) != "invalid Slack signature" {
 		t.Fatalf("unsigned callback = %#v, %v", output, err)
 	}
 }
