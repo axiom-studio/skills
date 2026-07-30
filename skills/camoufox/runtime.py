@@ -44,7 +44,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.14"
+VERSION = "2.0.15"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -740,7 +740,7 @@ class CamoufoxRuntime:
             "camoufox-snapshot": lambda: self.snapshot(config, bindings),
             "camoufox-follow-link": lambda: self.follow_link(config),
             "camoufox-click": lambda: self.mutate("click", config),
-            "camoufox-commit": lambda: self.mutate("click", config),
+            "camoufox-commit": lambda: self.mutate("commit", config),
             "camoufox-fill": lambda: self.mutate("fill", config),
             "camoufox-fill-secret": lambda: self.fill_secret(config, bindings),
             "camoufox-select": lambda: self.mutate("select", config),
@@ -1145,7 +1145,7 @@ class CamoufoxRuntime:
             return {**receipt["result"], "duplicate": True}
         target_ref = config.get("target")
         marker = session["refs"].get(target_ref) if target_ref else None
-        point = target_ref is None and operation == "click"
+        point = target_ref is None and operation in ("click", "commit")
         if marker is None and not point:
             raise ValueError("target is stale or unknown; take a new snapshot")
         if point:
@@ -1163,7 +1163,7 @@ class CamoufoxRuntime:
             and SECRET_CONTROL.search(session["ref_names"].get(target_ref, ""))
         ):
             raise ValueError("literal values cannot fill a secret-like control; use an authorized credential binding")
-        if operation == "click":
+        if operation in ("click", "commit"):
             if point:
                 session["handle"].click_point(x, y)
             else:
@@ -1178,13 +1178,23 @@ class CamoufoxRuntime:
         session["current_url"] = after_snapshot.get("url", session["current_url"])
         session["snapshot_text"] = str(after_snapshot.get("text", ""))[:MAX_TEXT]
         session["observation_digest"] = after_digest
+        changed = bool(before_digest and before_digest != after_digest)
+        if operation == "commit" and not changed:
+            session["refs"].clear()
+            session["ref_names"].clear()
+            session["ref_controls"].clear()
+            session["ref_links"].clear()
+            raise ValueError(
+                "external commit produced no observable progress; completion is unverified; "
+                "take a fresh snapshot and confirm the external state before any retry"
+            )
         result = {
             "sessionId": session["id"],
             "success": True,
             "duplicate": False,
             "receipt": key,
             "progress": {
-                "changed": bool(before_digest and before_digest != after_digest),
+                "changed": changed,
                 "beforeDigest": before_digest,
                 "afterDigest": after_digest,
             },
