@@ -18,7 +18,7 @@ func TestSlackCallbackVerifiesSignatureAndNormalizesApprovalDecision(t *testing.
 	adapter := newSlackAdapter("signing-secret", "", nil)
 	adapter.now = func() time.Time { return now }
 	value, _ := json.Marshal(slackApprovalValue{
-		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64),
+		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour),
 	})
 	payload, _ := json.Marshal(map[string]interface{}{
 		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
@@ -96,10 +96,58 @@ func TestSlackCallbackRejectsUnsignedProviderRequest(t *testing.T) {
 	}
 }
 
+func TestSlackCallbackReplacesLateApprovalWithExpiredCard(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	adapter := newSlackAdapter("signing-secret", "", nil)
+	adapter.now = func() time.Time { return now }
+	value, _ := json.Marshal(slackApprovalValue{
+		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1",
+		InvocationDigest: strings.Repeat("a", 64), ExpiresAt: now.Add(-time.Second),
+	})
+	payload, _ := json.Marshal(map[string]interface{}{
+		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
+		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
+		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"message": map[string]interface{}{"blocks": []map[string]interface{}{
+			{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": "*Review this action*"}},
+			{"type": "actions", "elements": []map[string]string{{"type": "button", "text": "Approve"}}},
+		}},
+		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
+	})
+	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
+	output, err := adapter.callback(context.Background(), callbackConfig(now, body, map[string]interface{}{
+		"teamId": "T123", "appId": "A123", "channelId": "C123",
+		"approvalPrincipals": map[string]interface{}{"U123": map[string]interface{}{"type": "role", "id": "operator"}},
+	}))
+	if err != nil || output["statusCode"] != http.StatusOK {
+		t.Fatalf("callback = %#v, %v", output, err)
+	}
+	responseBody := output["body"].([]byte)
+	var response struct {
+		Text   string `json:"text"`
+		Blocks []struct {
+			Type string `json:"type"`
+		} `json:"blocks"`
+	}
+	if json.Unmarshal(responseBody, &response) != nil || response.Text != "Expired by <@U123>" {
+		t.Fatalf("expired response = %s", responseBody)
+	}
+	for _, block := range response.Blocks {
+		if block.Type == "actions" {
+			t.Fatalf("expired response retained action buttons: %s", responseBody)
+		}
+	}
+	encoded, _ := json.Marshal(output["events"])
+	var events []normalizedCallbackEvent
+	if json.Unmarshal(encoded, &events) != nil || len(events) != 1 || events[0].Attributes["decision"] != "approve" {
+		t.Fatalf("expiry event = %s", encoded)
+	}
+}
+
 func TestSlackCallbackExecutorReadsEphemeralSigningSecretFromBindingChannel(t *testing.T) {
 	now := time.Unix(1_720_000_000, 0).UTC()
 	value, _ := json.Marshal(slackApprovalValue{
-		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64),
+		ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour),
 	})
 	payload, _ := json.Marshal(map[string]interface{}{
 		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
