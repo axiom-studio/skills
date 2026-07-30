@@ -102,10 +102,10 @@ func (a *slackAdapter) callback(_ context.Context, config map[string]interface{}
 	if !strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
 		return map[string]interface{}{"statusCode": http.StatusUnsupportedMediaType}, nil
 	}
-	return normalizeSlackApprovalCallback(envelope)
+	return normalizeSlackApprovalCallback(envelope, a.now().UTC())
 }
 
-func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[string]interface{}, error) {
+func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope, now time.Time) (map[string]interface{}, error) {
 	form, err := url.ParseQuery(string(envelope.Request.Body))
 	if err != nil || strings.TrimSpace(form.Get("payload")) == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -131,7 +131,7 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[stri
 	}
 	var reviewed slackApprovalValue
 	if json.Unmarshal([]byte(action.Value), &reviewed) != nil || reviewed.ApprovalID == "" ||
-		reviewed.ApprovalRevision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" {
+		reviewed.ApprovalRevision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" || reviewed.ExpiresAt.IsZero() {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	principal, ok := slackApprovalPrincipal(configuration, payload.User.ID)
@@ -152,14 +152,14 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[stri
 			"approvalId": reviewed.ApprovalID, "approvalRevision": reviewed.ApprovalRevision,
 			"actionCallId": reviewed.ActionCallID, "invocationDigest": reviewed.InvocationDigest,
 			"decision": decision, "principalType": principal["type"], "principalId": principal["id"],
-			"providerUserId": payload.User.ID,
+			"providerUserId": payload.User.ID, "expiresAt": reviewed.ExpiresAt.UTC(),
 		},
 		Payload: map[string]interface{}{
 			"provider": "slack", "teamId": payload.Team.ID, "channelId": payload.Channel.ID,
 			"messageId": payload.Container.MessageTS, "threadId": payload.Container.ThreadTS,
 		},
 	}
-	responseBody, err := slackApprovalDecisionResponse(payload, decision, occurredAt)
+	responseBody, err := slackApprovalDecisionResponse(payload, decision, occurredAt, !now.Before(reviewed.ExpiresAt))
 	if err != nil {
 		return nil, err
 	}
@@ -169,12 +169,15 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[stri
 	}, nil
 }
 
-func slackApprovalDecisionResponse(payload slackInteraction, decision string, occurredAt time.Time) ([]byte, error) {
+func slackApprovalDecisionResponse(payload slackInteraction, decision string, occurredAt time.Time, expired bool) ([]byte, error) {
 	label := map[string]string{
 		"approve":         "Approved",
 		"reject":          "Rejected",
 		"request_changes": "Changes requested",
 	}[decision]
+	if expired {
+		label = "Expired"
+	}
 	actor := strings.TrimSpace(payload.User.Username)
 	if payload.User.ID != "" {
 		actor = "<@" + payload.User.ID + ">"

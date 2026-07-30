@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -151,9 +152,11 @@ type conversationIngressRequest struct {
 }
 
 type conversationDelivery struct {
-	ID               string                 `json:"id"`
-	ExternalThreadID string                 `json:"externalThreadId,omitempty"`
-	Parameters       map[string]interface{} `json:"parameters,omitempty"`
+	ID                string                 `json:"id"`
+	Operation         string                 `json:"operation"`
+	ExternalThreadID  string                 `json:"externalThreadId,omitempty"`
+	ProviderMessageID string                 `json:"providerMessageId,omitempty"`
+	Parameters        map[string]interface{} `json:"parameters,omitempty"`
 }
 
 type conversationMessage struct {
@@ -260,10 +263,11 @@ type slackInteraction struct {
 }
 
 type slackApprovalValue struct {
-	ApprovalID       string `json:"approvalId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	ActionCallID     string `json:"actionCallId"`
-	InvocationDigest string `json:"invocationDigest"`
+	ApprovalID       string    `json:"approvalId"`
+	ApprovalRevision int64     `json:"approvalRevision"`
+	ActionCallID     string    `json:"actionCallId"`
+	InvocationDigest string    `json:"invocationDigest"`
+	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
@@ -574,6 +578,7 @@ func (a *slackAdapter) delivery(ctx context.Context, config map[string]interface
 }
 
 func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	path := "/chat.postMessage"
 	body := map[string]interface{}{
 		"channel": envelope.Endpoint.Address,
 		"text":    envelope.Message.Content,
@@ -589,10 +594,20 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 		}
 		body["blocks"] = blocks
 	}
+	if envelope.Delivery.Operation == "message.update" {
+		providerMessageID, _ := envelope.Delivery.Parameters["providerMessageId"].(string)
+		providerMessageID = strings.TrimSpace(providerMessageID)
+		if providerMessageID == "" {
+			return failedDelivery("invalid_update", "The Slack message update target is unavailable."), nil
+		}
+		path = "/chat.update"
+		body["ts"] = providerMessageID
+		delete(body, "metadata")
+	}
 	if threadID := strings.TrimSpace(envelope.Delivery.ExternalThreadID); threadID != "" {
 		body["thread_ts"] = threadID
 	}
-	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/chat.postMessage", nil, body)
+	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, path, nil, body)
 	if err != nil {
 		return retryDelivery("slack_unavailable", "Slack could not be reached.", retryAfter), nil
 	}
@@ -639,28 +654,41 @@ func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interfac
 		PolicyReason     string                 `json:"policyReason"`
 		ProposedAction   map[string]interface{} `json:"proposedAction"`
 		ExpiresAt        time.Time              `json:"expiresAt"`
+		Status           string                 `json:"status"`
 	}
-	if json.Unmarshal(encoded, &reviewed) != nil || reviewed.ID == "" || reviewed.Revision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" {
+	if json.Unmarshal(encoded, &reviewed) != nil || reviewed.ID == "" || reviewed.Revision < 1 || reviewed.ActionCallID == "" {
 		return nil, errors.New("invalid approval")
 	}
-	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest})
+	if reviewed.ExpiresAt.IsZero() || (reviewed.Status != "expired" && reviewed.InvocationDigest == "") {
+		return nil, errors.New("invalid approval expiry")
+	}
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest, ExpiresAt: reviewed.ExpiresAt.UTC()})
 	preview, _ := json.MarshalIndent(reviewed.ProposedAction, "", "  ")
 	previewText := string(preview)
 	if len(previewText) > 1800 {
 		previewText = previewText[:1800] + "…"
 	}
-	contextText := "Risk: " + reviewed.Risk + " · Approval: " + reviewed.ID + " · Expires: " + reviewed.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC")
-	return []map[string]interface{}{
-		{"type": "header", "text": map[string]interface{}{"type": "plain_text", "text": "Approval required"}},
+	expiresUnix := reviewed.ExpiresAt.UTC().Unix()
+	contextText := fmt.Sprintf("Risk: %s · Approval: %s · Expires <!date^%d^{relative}|soon> · <!date^%d^{date_short_pretty} at {time}|%s>",
+		reviewed.Risk, reviewed.ID, expiresUnix, expiresUnix, reviewed.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC"))
+	header := "Approval required"
+	if reviewed.Status == "expired" {
+		header = "Approval expired"
+	}
+	blocks := []map[string]interface{}{
+		{"type": "header", "text": map[string]interface{}{"type": "plain_text", "text": header}},
 		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "*" + reviewed.Summary + "*\n" + reviewed.PolicyReason}},
 		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "```" + previewText + "```"}},
 		{"type": "context", "elements": []map[string]interface{}{{"type": "mrkdwn", "text": contextText}}},
-		{"type": "actions", "block_id": "openseal_approval_actions", "elements": []map[string]interface{}{
+	}
+	if reviewed.Status != "expired" {
+		blocks = append(blocks, map[string]interface{}{"type": "actions", "block_id": "openseal_approval_actions", "elements": []map[string]interface{}{
 			{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
 			{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Reject"}, "style": "danger", "value": string(value)},
 			{"type": "button", "action_id": "openseal_approval_request_changes", "text": map[string]interface{}{"type": "plain_text", "text": "Request changes"}, "value": string(value)},
-		}},
-	}, nil
+		}})
+	}
+	return blocks, nil
 }
 
 func (a *slackAdapter) lookup(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
