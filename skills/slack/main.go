@@ -22,7 +22,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.2.4"
+	slackSkillVersion       = "2.2.5"
 	slackBotTokenCredential = "slack_bot_token"
 )
 

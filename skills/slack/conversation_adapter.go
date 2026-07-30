@@ -655,11 +655,20 @@ func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interfac
 		ProposedAction   map[string]interface{} `json:"proposedAction"`
 		ExpiresAt        time.Time              `json:"expiresAt"`
 		Status           string                 `json:"status"`
+		ActionStatus     string                 `json:"actionStatus"`
+		ActionError      string                 `json:"actionError"`
+		DecisionBy       map[string]string      `json:"decisionBy"`
+		DecisionReason   string                 `json:"decisionReason"`
+		ProviderApprover string                 `json:"providerApproverId"`
+		DecidedAt        *time.Time             `json:"decidedAt"`
 	}
 	if json.Unmarshal(encoded, &reviewed) != nil || reviewed.ID == "" || reviewed.Revision < 1 || reviewed.ActionCallID == "" {
 		return nil, errors.New("invalid approval")
 	}
-	if reviewed.ExpiresAt.IsZero() || (reviewed.Status != "expired" && reviewed.InvocationDigest == "") {
+	if reviewed.Status == "" {
+		reviewed.Status = "pending"
+	}
+	if reviewed.ExpiresAt.IsZero() || (reviewed.Status == "pending" && reviewed.InvocationDigest == "") {
 		return nil, errors.New("invalid approval expiry")
 	}
 	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest, ExpiresAt: reviewed.ExpiresAt.UTC()})
@@ -668,20 +677,27 @@ func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interfac
 	if len(previewText) > 1800 {
 		previewText = previewText[:1800] + "…"
 	}
-	expiresUnix := reviewed.ExpiresAt.UTC().Unix()
-	contextText := fmt.Sprintf("Risk: %s · Approval: %s · Expires <!date^%d^{relative}|soon> · <!date^%d^{date_short_pretty} at {time}|%s>",
-		reviewed.Risk, reviewed.ID, expiresUnix, expiresUnix, reviewed.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC"))
-	header := "Approval required"
-	if reviewed.Status == "expired" {
-		header = "Approval expired"
+	header, progress := slackApprovalState(reviewed.Status, reviewed.ActionStatus, reviewed.DecisionReason)
+	contextText := slackApprovalContext(reviewed.ID, reviewed.Risk, reviewed.ExpiresAt, reviewed.DecidedAt, reviewed.ProviderApprover, reviewed.DecisionBy)
+	detail := "*" + reviewed.Summary + "*"
+	if strings.TrimSpace(reviewed.PolicyReason) != "" {
+		detail += "\n" + reviewed.PolicyReason
+	}
+	if progress != "" {
+		detail += "\n\n" + progress
+	}
+	if strings.TrimSpace(reviewed.ActionError) != "" && header == "Proposal failed" {
+		detail += "\n" + reviewed.ActionError
+	} else if strings.TrimSpace(reviewed.DecisionReason) != "" && reviewed.Status != "approved" {
+		detail += "\n" + reviewed.DecisionReason
 	}
 	blocks := []map[string]interface{}{
 		{"type": "header", "text": map[string]interface{}{"type": "plain_text", "text": header}},
-		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "*" + reviewed.Summary + "*\n" + reviewed.PolicyReason}},
+		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": detail}},
 		{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": "```" + previewText + "```"}},
 		{"type": "context", "elements": []map[string]interface{}{{"type": "mrkdwn", "text": contextText}}},
 	}
-	if reviewed.Status != "expired" {
+	if reviewed.Status == "pending" {
 		blocks = append(blocks, map[string]interface{}{"type": "actions", "block_id": "openseal_approval_actions", "elements": []map[string]interface{}{
 			{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
 			{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Reject"}, "style": "danger", "value": string(value)},
@@ -689,6 +705,59 @@ func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interfac
 		}})
 	}
 	return blocks, nil
+}
+
+func slackApprovalState(status, actionStatus, decisionReason string) (string, string) {
+	switch status {
+	case "pending":
+		return "Approval required", ""
+	case "rejected":
+		if strings.Contains(strings.ToLower(decisionReason), "changes requested") {
+			return "Changes requested", ":pencil2: Revise the proposal before trying again."
+		}
+		return "Proposal rejected", ":no_entry: This proposal will not run."
+	case "expired":
+		return "Approval expired", ":hourglass_flowing_sand: This proposal can no longer be approved."
+	case "canceled":
+		return "Proposal canceled", ":no_entry_sign: This proposal was canceled."
+	case "approved":
+		switch actionStatus {
+		case "succeeded":
+			return "Proposal completed", ":white_check_mark: The approved action completed."
+		case "failed", "denied":
+			return "Proposal failed", ":x: The approved action did not complete."
+		case "canceled", "compensated":
+			return "Proposal canceled", ":no_entry_sign: The approved action was canceled."
+		default:
+			return "Proposal approved", ":white_check_mark: *Going ahead…*"
+		}
+	default:
+		return "Approval updated", ""
+	}
+}
+
+func slackApprovalContext(
+	approvalID, risk string,
+	expiresAt time.Time,
+	decidedAt *time.Time,
+	providerApprover string,
+	decisionBy map[string]string,
+) string {
+	if decidedAt == nil {
+		expiresUnix := expiresAt.UTC().Unix()
+		return fmt.Sprintf("Risk: %s · Approval: %s · Expires <!date^%d^{relative}|soon> · <!date^%d^{date_short_pretty} at {time}|%s>",
+			risk, approvalID, expiresUnix, expiresUnix, expiresAt.UTC().Format("2006-01-02 15:04 UTC"))
+	}
+	actor := strings.TrimSpace(providerApprover)
+	if actor != "" {
+		actor = "<@" + actor + ">"
+	} else if strings.TrimSpace(decisionBy["id"]) != "" {
+		actor = decisionBy["id"]
+	} else {
+		actor = "an authorized approver"
+	}
+	decidedUnix := decidedAt.UTC().Unix()
+	return fmt.Sprintf("Risk: %s · Approval: %s · Decided by %s <!date^%d^{relative}|recently>", risk, approvalID, actor, decidedUnix)
 }
 
 func (a *slackAdapter) lookup(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
