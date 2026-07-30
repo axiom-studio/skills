@@ -248,6 +248,10 @@ type slackInteraction struct {
 		MessageTS string `json:"message_ts"`
 		ThreadTS  string `json:"thread_ts"`
 	} `json:"container"`
+	Message struct {
+		Text   string            `json:"text"`
+		Blocks []json.RawMessage `json:"blocks"`
+	} `json:"message"`
 	Actions []struct {
 		ActionID string `json:"action_id"`
 		Value    string `json:"value"`
