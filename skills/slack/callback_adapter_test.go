@@ -24,6 +24,13 @@ func TestSlackCallbackVerifiesSignatureAndNormalizesApprovalDecision(t *testing.
 		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
 		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
 		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"message": map[string]interface{}{
+			"text": "Review this action",
+			"blocks": []map[string]interface{}{
+				{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": "*Review this action*"}},
+				{"type": "actions", "elements": []map[string]string{{"type": "button", "text": "Approve"}}},
+			},
+		},
 		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
 	})
 	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
@@ -47,6 +54,22 @@ func TestSlackCallbackVerifiesSignatureAndNormalizesApprovalDecision(t *testing.
 		event.Attributes["actionCallId"] != "call-1" || event.Attributes["invocationDigest"] != strings.Repeat("a", 64) ||
 		event.Attributes["principalType"] != "role" || event.Attributes["principalId"] != "operator" {
 		t.Fatalf("decision = %#v", event)
+	}
+	responseBody, ok := output["body"].([]byte)
+	if !ok {
+		t.Fatalf("response body = %#v", output["body"])
+	}
+	var response struct {
+		ReplaceOriginal bool   `json:"replace_original"`
+		Text            string `json:"text"`
+		Blocks          []struct {
+			Type string `json:"type"`
+		} `json:"blocks"`
+	}
+	if json.Unmarshal(responseBody, &response) != nil || !response.ReplaceOriginal ||
+		response.Text != "Approved by <@U123>" || len(response.Blocks) != 2 ||
+		response.Blocks[0].Type != "section" || response.Blocks[1].Type != "context" {
+		t.Fatalf("decision response = %s", responseBody)
 	}
 
 	config[callbackEnvelopeKey].(map[string]interface{})["registration"].(*callbackRegistration).Configuration["approvalPrincipals"] = map[string]interface{}{}

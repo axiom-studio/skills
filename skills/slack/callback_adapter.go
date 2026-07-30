@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -158,8 +159,65 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[stri
 			"messageId": payload.Container.MessageTS, "threadId": payload.Container.ThreadTS,
 		},
 	}
+	responseBody, err := slackApprovalDecisionResponse(payload, decision, occurredAt)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{
-		"statusCode": http.StatusOK, "contentType": "application/json", "body": []byte(`{"ok":true}`),
+		"statusCode": http.StatusOK, "contentType": "application/json", "body": responseBody,
 		"events": []normalizedCallbackEvent{event},
 	}, nil
+}
+
+func slackApprovalDecisionResponse(payload slackInteraction, decision string, occurredAt time.Time) ([]byte, error) {
+	label := map[string]string{
+		"approve":         "Approved",
+		"reject":          "Rejected",
+		"request_changes": "Changes requested",
+	}[decision]
+	actor := strings.TrimSpace(payload.User.Username)
+	if payload.User.ID != "" {
+		actor = "<@" + payload.User.ID + ">"
+	}
+	if actor == "" {
+		actor = "an authorized approver"
+	}
+	text := fmt.Sprintf("%s by %s", label, actor)
+
+	blocks := make([]json.RawMessage, 0, len(payload.Message.Blocks)+1)
+	for _, block := range payload.Message.Blocks {
+		var header struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(block, &header) != nil || header.Type == "actions" {
+			continue
+		}
+		blocks = append(blocks, block)
+	}
+	if len(blocks) == 0 {
+		section, err := json.Marshal(map[string]interface{}{
+			"type": "section",
+			"text": map[string]string{"type": "mrkdwn", "text": "*" + label + "*"},
+		})
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, section)
+	}
+	contextBlock, err := json.Marshal(map[string]interface{}{
+		"type": "context",
+		"elements": []map[string]string{{
+			"type": "mrkdwn",
+			"text": fmt.Sprintf("*%s* by %s · %s", label, actor, occurredAt.UTC().Format(time.RFC3339)),
+		}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	blocks = append(blocks, contextBlock)
+	return json.Marshal(map[string]interface{}{
+		"replace_original": true,
+		"text":             text,
+		"blocks":           blocks,
+	})
 }
