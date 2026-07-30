@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.14")
+        self.assertEqual(definition["version"], "2.0.15")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -804,6 +804,36 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertFalse(result["progress"]["changed"])
         self.assertEqual(result["progress"]["beforeDigest"], result["progress"]["afterDigest"])
+
+    def test_commit_rejects_unverified_no_progress_without_persisting_receipt(self):
+        service, state = make_runtime({"no_progress": True})
+        start_session(service, "stagnant-commit", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "stagnant-commit"})
+        request = {
+            "sessionId": "stagnant-commit",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "stagnant-commit-1",
+        }
+        with self.assertRaisesRegex(ValueError, "external commit produced no observable progress"):
+            service.execute("camoufox-commit", request)
+        self.assertNotIn("commit:stagnant-commit-1", service.sessions["stagnant-commit"]["receipts"])
+        self.assertEqual(service.sessions["stagnant-commit"]["refs"], {})
+        self.assertEqual(state["click"], 1)
+
+    def test_commit_returns_receipt_only_after_observable_progress(self):
+        service, _ = make_runtime()
+        start_session(service, "commit-progress", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-progress"})
+        result = service.execute("camoufox-commit", {
+            "sessionId": "commit-progress",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "commit-progress-1",
+        })
+        self.assertTrue(result["success"])
+        self.assertTrue(result["progress"]["changed"])
+        self.assertEqual(result["receipt"], "commit-progress-1")
 
     def test_observation_digest_ignores_regenerated_references(self):
         before = {"url": "https://forum.example/community", "title": "Forum", "text": "Rules", "elements": [
