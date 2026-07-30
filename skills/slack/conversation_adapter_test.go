@@ -15,7 +15,17 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/axiom-studio/skills.sdk/executor"
 )
+
+type slackBindingResolver struct {
+	executor.TemplateResolver
+	bindings map[string]interface{}
+}
+
+func (r slackBindingResolver) GetBinding(name string) interface{}  { return r.bindings[name] }
+func (r slackBindingResolver) GetBindings() map[string]interface{} { return r.bindings }
 
 func TestSlackIngressVerifiesSignatureAndNormalizesMentionedMessage(t *testing.T) {
 	now := time.Unix(1_720_000_000, 0).UTC()
@@ -49,6 +59,32 @@ func TestSlackIngressVerifiesSignatureAndNormalizesMentionedMessage(t *testing.T
 		event.Text != "hello" || !event.MentionsEndpoint || event.ParticipantIsBot ||
 		event.OccurredAt.Unix() != now.Unix() {
 		t.Fatalf("normalized event = %#v", event)
+	}
+}
+
+func TestSlackIngressExecutorReadsEphemeralSigningSecretFromBindingChannel(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	body := []byte(`{
+		"type":"event_callback","team_id":"T123","api_app_id":"A123","event_id":"Ev123",
+		"event_time":1720000000,
+		"event":{"type":"message","user":"U123","text":"hello","channel":"C123",
+			"channel_type":"channel","ts":"1720000000.123456"}
+	}`)
+	config := ingressConfig(now, body, &conversationEndpoint{ID: "endpoint", Provider: "slack", Address: "C123"})
+	delete(config, slackSigningSecretKey)
+	step := &executor.StepDefinition{Config: config}
+	adapter := newSlackAdapter("", "", nil)
+	adapter.now = func() time.Time { return now }
+
+	result, err := (&slackIngressExecutor{adapter: adapter}).Execute(t.Context(), step, slackBindingResolver{
+		bindings: map[string]interface{}{slackSigningSecretKey: "signing-secret"},
+	})
+
+	if err != nil || result.Output["statusCode"] != http.StatusOK {
+		t.Fatalf("ingress = %#v, %v", result, err)
+	}
+	if _, leaked := step.Config[slackSigningSecretKey]; leaked {
+		t.Fatal("ephemeral Slack signing secret leaked into durable step config")
 	}
 }
 
@@ -162,6 +198,31 @@ func TestSlackDeliveryUsesOAuthMetadataAndAcknowledgementLookup(t *testing.T) {
 	if err != nil || acknowledgement["status"] != "found" ||
 		acknowledgement["providerMessageId"] != "1720000001.123" {
 		t.Fatalf("acknowledgement = %#v, %v", acknowledgement, err)
+	}
+}
+
+func TestSlackDeliveryExecutorReadsEphemeralTokenFromBindingChannel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer xoxb-bound-token" {
+			t.Fatalf("authorization = %q", request.Header.Get("Authorization"))
+		}
+		_, _ = io.WriteString(response, `{"ok":true,"channel":"C123","ts":"1720000001.123"}`)
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	delete(config, slackConnectionKey)
+	step := &executor.StepDefinition{Config: config}
+
+	result, err := (&slackDeliveryExecutor{adapter: adapter}).Execute(t.Context(), step, slackBindingResolver{
+		bindings: map[string]interface{}{slackConnectionKey: "xoxb-bound-token"},
+	})
+
+	if err != nil || result.Output["outcome"] != "delivered" {
+		t.Fatalf("delivery = %#v, %v", result, err)
+	}
+	if _, leaked := step.Config[slackConnectionKey]; leaked {
+		t.Fatal("ephemeral Slack token leaked into durable step config")
 	}
 }
 

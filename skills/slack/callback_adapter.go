@@ -24,9 +24,11 @@ func (e *slackCallbackExecutor) Type() string { return slackCallbackNodeType }
 func (e *slackCallbackExecutor) Execute(
 	ctx context.Context,
 	step *executor.StepDefinition,
-	_ executor.TemplateResolver,
+	resolver executor.TemplateResolver,
 ) (*executor.StepResult, error) {
-	output, err := e.adapter.callback(ctx, step.Config)
+	config := slackAdapterConfig(step.Config, resolver, slackSigningSecretKey)
+	defer clearSlackAdapterConfig(config, slackSigningSecretKey)
+	output, err := e.adapter.callback(ctx, config)
 	if err != nil {
 		return nil, err
 	}
