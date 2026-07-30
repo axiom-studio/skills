@@ -44,7 +44,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.13"
+VERSION = "2.0.14"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
