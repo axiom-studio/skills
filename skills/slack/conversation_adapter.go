@@ -277,7 +277,7 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 	if !a.verifySlackRequest(envelope.Request, signingSecret) {
 		return map[string]interface{}{
 			"statusCode": http.StatusUnauthorized, "contentType": "text/plain",
-			"body": "invalid Slack signature",
+			"body": []byte("invalid Slack signature"),
 		}, nil
 	}
 	if strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
@@ -287,7 +287,7 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 	if err := json.Unmarshal(envelope.Request.Body, &payload); err != nil {
 		return map[string]interface{}{
 			"statusCode": http.StatusBadRequest, "contentType": "text/plain",
-			"body": "invalid Slack event",
+			"body": []byte("invalid Slack event"),
 		}, nil
 	}
 	if payload.Type == "url_verification" {
@@ -364,7 +364,7 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 	}
 	principal, ok := slackApprovalPrincipal(envelope.Endpoint.Configuration, payload.User.ID)
 	if !ok {
-		return map[string]interface{}{"statusCode": http.StatusForbidden, "contentType": "text/plain", "body": "Slack user is not authorized to decide this approval"}, nil
+		return map[string]interface{}{"statusCode": http.StatusForbidden, "contentType": "text/plain", "body": []byte("Slack user is not authorized to decide this approval")}, nil
 	}
 	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID
 	event := normalizedConversationEvent{

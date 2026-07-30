@@ -95,7 +95,7 @@ func (a *slackAdapter) callback(_ context.Context, config map[string]interface{}
 	}
 	if !a.verifySlackRequest(request, signingSecret) {
 		return map[string]interface{}{
-			"statusCode": http.StatusUnauthorized, "contentType": "text/plain", "body": "invalid Slack signature",
+			"statusCode": http.StatusUnauthorized, "contentType": "text/plain", "body": []byte("invalid Slack signature"),
 		}, nil
 	}
 	if !strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
@@ -137,7 +137,7 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope) (map[stri
 	if !ok {
 		return map[string]interface{}{
 			"statusCode": http.StatusForbidden, "contentType": "text/plain",
-			"body": "Slack user is not authorized to decide this approval",
+			"body": []byte("Slack user is not authorized to decide this approval"),
 		}, nil
 	}
 	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID
