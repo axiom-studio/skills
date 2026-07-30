@@ -56,9 +56,11 @@ func (e *slackIngressExecutor) Type() string { return slackIngressNodeType }
 func (e *slackIngressExecutor) Execute(
 	ctx context.Context,
 	step *executor.StepDefinition,
-	_ executor.TemplateResolver,
+	resolver executor.TemplateResolver,
 ) (*executor.StepResult, error) {
-	output, err := e.adapter.ingress(ctx, step.Config)
+	config := slackAdapterConfig(step.Config, resolver, slackSigningSecretKey)
+	defer clearSlackAdapterConfig(config, slackSigningSecretKey)
+	output, err := e.adapter.ingress(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +74,41 @@ func (e *slackDeliveryExecutor) Type() string { return slackDeliveryNodeType }
 func (e *slackDeliveryExecutor) Execute(
 	ctx context.Context,
 	step *executor.StepDefinition,
-	_ executor.TemplateResolver,
+	resolver executor.TemplateResolver,
 ) (*executor.StepResult, error) {
-	output, err := e.adapter.delivery(ctx, step.Config)
+	config := slackAdapterConfig(step.Config, resolver, slackConnectionKey)
+	defer clearSlackAdapterConfig(config, slackConnectionKey)
+	output, err := e.adapter.delivery(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 	return &executor.StepResult{Output: output}, nil
+}
+
+func slackAdapterConfig(config map[string]interface{}, resolver executor.TemplateResolver, credentials ...string) map[string]interface{} {
+	resolved := make(map[string]interface{}, len(config)+len(credentials))
+	for key, value := range config {
+		resolved[key] = value
+	}
+	bindings, _ := resolver.(executor.BindingResolver)
+	if bindings == nil {
+		return resolved
+	}
+	for _, credential := range credentials {
+		if value, ok := bindings.GetBinding(credential).(string); ok && strings.TrimSpace(value) != "" {
+			resolved[credential] = value
+		}
+	}
+	return resolved
+}
+
+func clearSlackAdapterConfig(config map[string]interface{}, credentials ...string) {
+	for _, credential := range credentials {
+		if _, ok := config[credential]; ok {
+			config[credential] = ""
+			delete(config, credential)
+		}
+	}
 }
 
 type adapterEnvelope struct {
