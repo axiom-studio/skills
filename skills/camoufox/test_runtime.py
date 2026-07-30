@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.13")
+        self.assertEqual(definition["version"], "2.0.14")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
