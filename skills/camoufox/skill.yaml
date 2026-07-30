@@ -173,7 +173,18 @@ definition:
         camoufox-commit:
             name: camoufox-commit
             description: Click the final control that commits one approved, stable, externally observable operation.
-            inputSchema: *interaction_input
+            inputSchema:
+                type: object
+                additionalProperties: false
+                properties:
+                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    target:
+                        type: string
+                        pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'
+                        x-openseal-observationRef: {roles: [button], requireEnabled: true}
+                    intent: {type: string, minLength: 3, maxLength: 500}
+                    idempotencyKey: {type: string, minLength: 8, maxLength: 128}
+                required: [sessionId, target, intent, idempotencyKey]
             outputSchema: *interaction_output
             permissions: [browser:interact, network:http]
             externalOperationPolicy: required
@@ -310,7 +321,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.15
+          package: axiomstudio/skill-browser:2.0.16
     name: Browser Skill
     prompt:
         allowedTools:
@@ -348,10 +359,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.15
+        resolvedVersion: 2.0.16
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.15
+    version: 2.0.16
 kind: SkillDefinition

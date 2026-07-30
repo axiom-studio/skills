@@ -44,7 +44,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.15"
+VERSION = "2.0.16"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -856,21 +856,14 @@ class CamoufoxRuntime:
         if forbidden:
             raise ValueError(f"browser infrastructure fields are host-owned: {sorted(forbidden)}")
         session_id = run_session_id(context)
-        defaults = self.inventory.get("defaults") or {}
-        target_id = configured_choice(self.inventory["targets"], defaults.get("targetId"), "target")
-        profile_id = configured_choice(self.inventory["profiles"], defaults.get("profileId"), "browser profile")
-        pool_id = configured_choice(self.inventory["proxy_pools"], defaults.get("proxyPoolId"), "proxy pool")
         if session_id in self.sessions:
             session = self.sessions[session_id]
-            if self.now() >= session["lease_expires_at"]:
+            if session.get("terminal_error"):
+                self._release_session(session, "terminal_error")
+                session = None
+            elif self.now() >= session["lease_expires_at"]:
                 self._release_session(session, "lease_expired")
                 session = None
-            if session is not None and (
-                session["target_id"] != target_id
-                or session["profile_id"] != profile_id
-                or session["proxy_pool_id"] != pool_id
-            ):
-                raise ValueError("automation session identity conflicts with the existing session")
             if session is not None:
                 self._renew_session_lease(session)
                 return {
@@ -878,6 +871,10 @@ class CamoufoxRuntime:
                     "url": session["current_url"],
                     "status": "active",
                 }
+        defaults = self.inventory.get("defaults") or {}
+        target_id = configured_choice(self.inventory["targets"], defaults.get("targetId"), "target")
+        profile_id = configured_choice(self.inventory["profiles"], defaults.get("profileId"), "browser profile")
+        pool_id = configured_choice(self.inventory["proxy_pools"], defaults.get("proxyPoolId"), "proxy pool")
         target = self.inventory["targets"].get(target_id)
         profile = self.inventory["profiles"].get(profile_id)
         proxy = self.inventory["proxy_pools"].get(pool_id)
@@ -1146,6 +1143,13 @@ class CamoufoxRuntime:
         target_ref = config.get("target")
         marker = session["refs"].get(target_ref) if target_ref else None
         point = target_ref is None and operation in ("click", "commit")
+        if operation == "commit":
+            control = session["ref_controls"].get(target_ref)
+            state = control.get("state") if isinstance(control, dict) else {}
+            if not isinstance(control, dict) or control.get("role") != "button":
+                raise ValueError("external commit target must be a current button; take a new snapshot")
+            if isinstance(state, dict) and state.get("disabled") is True:
+                raise ValueError("external commit target is disabled; take a new snapshot")
         if marker is None and not point:
             raise ValueError("target is stale or unknown; take a new snapshot")
         if point:
