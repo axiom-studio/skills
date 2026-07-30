@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.15")
+        self.assertEqual(definition["version"], "2.0.16")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -337,6 +337,10 @@ class RuntimeTest(unittest.TestCase):
         commit = actions["camoufox-commit"]
         self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
         self.assertEqual(commit["externalOperationPolicy"], "required")
+        self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey"])
+        self.assertEqual(commit["inputSchema"]["properties"]["target"]["x-openseal-observationRef"], {
+            "roles": ["button"], "requireEnabled": True,
+        })
 
     def test_health_reports_configuration_state(self):
         service, _ = make_runtime(inv=None)
@@ -403,6 +407,17 @@ class RuntimeTest(unittest.TestCase):
         for field in ["sessionId", "targetId", "profileId", "proxyPoolId"]:
             with self.assertRaisesRegex(ValueError, "host-owned"):
                 service.execute("camoufox-start", {field: "caller-choice"}, context={"runId": "third-run"})
+
+    def test_start_replaces_terminal_session_for_same_durable_run(self):
+        service, state = make_runtime()
+        first = start_session(service, "terminal-run", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        service.sessions[first["sessionId"]]["terminal_error"] = "browser operation timed out; start a new session"
+
+        replacement = service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "terminal-run"})
+
+        self.assertEqual(replacement["sessionId"], first["sessionId"])
+        self.assertEqual(len(state["launches"]), 2)
+        self.assertNotIn("terminal_error", service.sessions[first["sessionId"]])
 
     def test_start_requires_durable_run_context(self):
         configured = inventory()
@@ -806,7 +821,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(result["progress"]["beforeDigest"], result["progress"]["afterDigest"])
 
     def test_commit_rejects_unverified_no_progress_without_persisting_receipt(self):
-        service, state = make_runtime({"no_progress": True})
+        service, state = make_runtime({"no_progress": True, "element_role": "button"})
         start_session(service, "stagnant-commit", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "stagnant-commit"})
         request = {
@@ -822,7 +837,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(state["click"], 1)
 
     def test_commit_returns_receipt_only_after_observable_progress(self):
-        service, _ = make_runtime()
+        service, _ = make_runtime({"element_role": "button"})
         start_session(service, "commit-progress", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-progress"})
         result = service.execute("camoufox-commit", {
@@ -834,6 +849,23 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertTrue(result["progress"]["changed"])
         self.assertEqual(result["receipt"], "commit-progress-1")
+
+    def test_commit_rejects_non_button_and_disabled_controls(self):
+        for state, message in [
+            ({"element_role": "textbox"}, "must be a current button"),
+            ({"element_role": "button", "elements": [{"ref": 1, "role": "button", "name": "Submit", "state": {"disabled": True}}]}, "is disabled"),
+        ]:
+            with self.subTest(message=message):
+                service, _ = make_runtime(state)
+                start_session(service, "invalid-commit", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+                snapshot = service.execute("camoufox-snapshot", {"sessionId": "invalid-commit"})
+                with self.assertRaisesRegex(ValueError, message):
+                    service.execute("camoufox-commit", {
+                        "sessionId": "invalid-commit",
+                        "target": snapshot["elements"][0]["ref"],
+                        "intent": "Publish the reviewed response",
+                        "idempotencyKey": "invalid-commit-1",
+                    })
 
     def test_observation_digest_ignores_regenerated_references(self):
         before = {"url": "https://forum.example/community", "title": "Forum", "text": "Rules", "elements": [
