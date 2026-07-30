@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.12")
+        self.assertEqual(definition["version"], "2.0.13")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -941,6 +941,28 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(redacted["text"], "Echo [REDACTED]")
         self.assertNotIn("value", redacted["elements"][0]["state"])
         self.assertNotIn("correct horse", json.dumps(service.execute("camoufox-report", {"sessionId": "login-1"})))
+
+    def test_secret_fill_rejects_semantically_wrong_current_textbox(self):
+        service, _ = make_runtime({
+            "text": "Home",
+            "elements": [{
+                "ref": 1,
+                "role": "textbox",
+                "name": "Find anything",
+                "state": {"autocomplete": "off", "filled": False},
+            }],
+        })
+        start_session(service, "wrong-secret-target", target="forum", path="/community/login", profile="standard", proxy_pool="direct")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "wrong-secret-target"})
+        request = {
+            "sessionId": "wrong-secret-target",
+            "target": snapshot["elements"][0]["ref"],
+            "credentialField": "username",
+            "intent": "Fill the login username",
+            "idempotencyKey": "wrong-secret-target-1",
+        }
+        with self.assertRaisesRegex(ValueError, "not a current username control"):
+            service.execute("camoufox-fill-secret", request, {"username": "private-user"})
 
     def test_snapshot_element_state_exposes_only_boolean_occupancy(self):
         projected = snapshot_element_state({"state": {

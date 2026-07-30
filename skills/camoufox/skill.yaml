@@ -353,5 +353,5 @@ definition:
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.12
+    version: 2.0.13
 kind: SkillDefinition

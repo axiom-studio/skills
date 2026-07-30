@@ -24,6 +24,7 @@ ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 SECRET_CONTROL = re.compile(
     r"(password|passcode|secret|token|api.?key|authorization|cookie|private.?key)", re.I
 )
+USERNAME_CONTROL = re.compile(r"\b(user(?:name)?|email|login|account)\b", re.I)
 CHALLENGES = {
     "captcha": re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I),
     "mfa": re.compile(r"\b(multi[ -]?factor|two[ -]?factor|2fa|authenticator|verification code)\b", re.I),
@@ -415,6 +416,26 @@ def snapshot_element_state(element):
         if isinstance(value, str) and value:
             result[key] = value[:128]
     return result
+
+
+def credential_control_matches(field, control):
+    """Require a current editable control whose semantics match the secret."""
+    if not isinstance(control, dict) or control.get("role") not in ("textbox", "combobox"):
+        return False
+    state = control.get("state") if isinstance(control.get("state"), dict) else {}
+    if state.get("disabled") or state.get("readonly"):
+        return False
+    semantics = " ".join((
+        str(control.get("name", "")),
+        str(control.get("context", "")),
+        str(state.get("type", "")),
+        str(state.get("autocomplete", "")),
+    ))
+    if field == "password":
+        return bool(SECRET_CONTROL.search(semantics))
+    if field == "username":
+        return bool(USERNAME_CONTROL.search(semantics))
+    return False
 
 
 def target_allows_url(target, value):
@@ -945,6 +966,7 @@ class CamoufoxRuntime:
             "generation": 0,
             "refs": {},
             "ref_names": {},
+            "ref_controls": {},
             "ref_links": {},
             "challenges": [],
             "snapshot_text": "",
@@ -992,6 +1014,7 @@ class CamoufoxRuntime:
         session["status_code"] = navigation.get("status") or 0
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_controls"].clear()
         session["ref_links"].clear()
         session["challenges"] = []
         session["snapshot_text"] = ""
@@ -1019,12 +1042,19 @@ class CamoufoxRuntime:
         session["generation"] += 1
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_controls"].clear()
         session["ref_links"].clear()
         elements = []
         for index, element in enumerate((raw.get("elements") or [])[:MAX_ELEMENTS]):
             ref = f"s{session['generation']}:e{index + 1}"
             session["refs"][ref] = element["ref"]
             session["ref_names"][ref] = element.get("name", "")
+            session["ref_controls"][ref] = {
+                "role": element.get("role", ""),
+                "name": element.get("name", ""),
+                "context": element.get("context", ""),
+                "state": snapshot_element_state(element),
+            }
             href = element.get("href", "")
             if element.get("role") == "link" and isinstance(href, str) and href:
                 session["ref_links"][ref] = href
@@ -1086,6 +1116,7 @@ class CamoufoxRuntime:
         session["status_code"] = navigation.get("status") or 0
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_controls"].clear()
         session["ref_links"].clear()
         session["challenges"] = []
         session["snapshot_text"] = ""
@@ -1161,6 +1192,7 @@ class CamoufoxRuntime:
         session["receipts"][receipt_key] = {"fingerprint": fingerprint, "result": result}
         session["refs"].clear()
         session["ref_names"].clear()
+        session["ref_controls"].clear()
         session["ref_links"].clear()
         session["mutations"] += 1
         return result
@@ -1170,8 +1202,14 @@ class CamoufoxRuntime:
         secret = bindings.get(field) if isinstance(field, str) else None
         if not isinstance(secret, str) or not secret:
             raise ValueError("authorized credential field is unavailable")
+        session = self.session(config.get("sessionId"))
+        receipt_key = f"fill:{config.get('idempotencyKey')}"
+        if receipt_key not in session["receipts"] and not credential_control_matches(
+            field, session["ref_controls"].get(config.get("target"))
+        ):
+            raise ValueError(f"target is not a current {field} control; take a new snapshot")
         result = self.mutate("fill", config, secret)
-        self.session(config.get("sessionId"))["secrets"].add(secret)
+        session["secrets"].add(secret)
         return result
 
     def scroll(self, config):
