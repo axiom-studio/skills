@@ -45,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.23"
+VERSION = "2.0.24"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -92,6 +92,18 @@ SNAPSHOT_JS = r"""
     const dy = r.bottom < 0 ? -r.bottom : (r.top > innerHeight ? r.top - innerHeight : 0);
     return Math.hypot(dx, dy);
   };
+  const focused = document.activeElement;
+  const focusedForm = focused?.closest?.('form');
+  const focusAffinity = (e) => {
+    if (!focused || focused === document.body) return 2;
+    if (e === focused) return 0;
+    if (focusedForm && focusedForm.contains(e)) return 0;
+    const target = focused.getBoundingClientRect();
+    const candidate = e.getBoundingClientRect();
+    const dx = Math.max(0, target.left - candidate.right, candidate.left - target.right);
+    const dy = Math.max(0, target.top - candidate.bottom, candidate.top - target.bottom);
+    return Math.hypot(dx, dy) <= Math.max(innerWidth, innerHeight) ? 1 : 2;
+  };
   const labelledBy = (e) => (e.getAttribute('aria-labelledby') || '').split(/\s+/)
     .map((id) => e.getRootNode().getElementById?.(id)?.innerText || '').filter(Boolean).join(' ');
   const name = (e) => (e.getAttribute('aria-label') || labelledBy(e) || e.innerText ||
@@ -112,15 +124,17 @@ SNAPSHOT_JS = r"""
   for (const e of (globalThis.__opensealCamoufoxRefs || [])) {
     e.removeAttribute?.('data-camoufox-ref');
   }
-  // Keep every current-viewport control first, then use any remaining bounded
-  // capacity for the nearest visible controls just outside it. Forms commonly
-  // place their submit button immediately below a textarea; excluding that
-  // button makes an otherwise observable form impossible to complete. The
+  // Keep the focused field's form and nearby actions first, then current-
+  // viewport controls, then the nearest visible controls outside it. Forms
+  // commonly place their submit button immediately below a textarea; keeping
+  // that interaction neighborhood together makes the compact observation
+  // usable even when the full page exceeds the durable result envelope. The
   // original DOM order breaks equal-distance ties and keeps refs deterministic.
   const els = [...new Set(candidates)]
     .map((element, index) => ({element, index}))
     .filter(({element}) => visible(element))
     .sort((left, right) =>
+      focusAffinity(left.element) - focusAffinity(right.element) ||
       viewportDistance(left.element) - viewportDistance(right.element) || left.index - right.index)
     .slice(0, %d)
     .map(({element}) => element);

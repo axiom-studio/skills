@@ -227,6 +227,8 @@ class BrowserNavigationTest(unittest.TestCase):
 
     def test_snapshot_uses_remaining_capacity_for_nearby_off_viewport_controls(self):
         self.assertIn("viewportDistance", SNAPSHOT_JS)
+        self.assertIn("focusedForm", SNAPSHOT_JS)
+        self.assertIn("focusAffinity", SNAPSHOT_JS)
         self.assertIn(".filter(({element}) => visible(element))", SNAPSHOT_JS)
         self.assertNotIn("visible(e) && inViewport(e)", SNAPSHOT_JS)
 
@@ -334,7 +336,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.23")
+        self.assertEqual(definition["version"], "2.0.24")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
