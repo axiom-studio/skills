@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.27")
+        self.assertEqual(definition["version"], "2.0.28")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1249,6 +1249,13 @@ class RuntimeTest(unittest.TestCase):
         self.assertIn("close-1", service.sessions)
         with self.assertRaisesRegex(ValueError, "usage lease expired"):
             service.execute("camoufox-snapshot", {"sessionId": "close-1"})
+
+    def test_close_treats_an_absent_session_as_already_released(self):
+        service, _ = make_runtime()
+        result = service.execute("camoufox-close", {"sessionId": "missing-session"})
+        self.assertTrue(result["usageReleased"])
+        self.assertTrue(result["profilePreserved"])
+        self.assertFalse(result["sessionPreserved"])
 
 
 if __name__ == "__main__":
