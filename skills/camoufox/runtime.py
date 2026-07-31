@@ -45,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.26"
+VERSION = "2.0.27"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -686,16 +686,12 @@ class CamoufoxHandle:
             locator = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
             if exact:
                 # An approved external commit must activate the exact reviewed
-                # control once. Scroll the exact semantic target before the
-                # actionability gate: reviewed controls may sit just outside
-                # the viewport, where Locator.click otherwise waits for
-                # visibility without first bringing them into view. The only
-                # activation remains the trusted locator click below.
-                locator.evaluate(
-                    "element => element.scrollIntoView({block: 'center', inline: 'nearest'})",
-                    timeout=5000,
-                )
-                locator.click(timeout=5000)
+                # control once. Legacy and script-backed forms can expose a
+                # real enabled submit control with stable semantic bounds while
+                # Playwright's visual actionability gate still classifies it as
+                # hidden. Activate only the already-reviewed current element;
+                # no caller-supplied script or fallback click is permitted.
+                locator.evaluate("element => element.click()", timeout=5000)
                 return
             try:
                 locator.scroll_into_view_if_needed(timeout=5000)
