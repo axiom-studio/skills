@@ -200,6 +200,8 @@ definition:
             risk: external
             sideEffect: external
             semanticArguments: {intent: intent}
+            requiredEvidence:
+                - {action: camoufox-fill, matchingArguments: [sessionId]}
         camoufox-fill:
             name: camoufox-fill
             description: Click and type into one exact current non-secret editable control with human cadence. Use this for comment, post, message, and form text; it changes only the local form and never submits it. Take a fresh snapshot afterward to obtain the current submit or save button before camoufox-commit.
@@ -328,7 +330,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.28
+          package: axiomstudio/skill-browser:2.0.29
     name: Browser Skill
     prompt:
         allowedTools:
@@ -366,10 +368,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.28
+        resolvedVersion: 2.0.29
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.28
+    version: 2.0.29
 kind: SkillDefinition
