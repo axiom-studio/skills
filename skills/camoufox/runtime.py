@@ -45,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.22"
+VERSION = "2.0.23"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -86,6 +86,12 @@ SNAPSHOT_JS = r"""
     const r = e.getBoundingClientRect();
     return r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
   };
+  const viewportDistance = (e) => {
+    const r = e.getBoundingClientRect();
+    const dx = r.right < 0 ? -r.right : (r.left > innerWidth ? r.left - innerWidth : 0);
+    const dy = r.bottom < 0 ? -r.bottom : (r.top > innerHeight ? r.top - innerHeight : 0);
+    return Math.hypot(dx, dy);
+  };
   const labelledBy = (e) => (e.getAttribute('aria-labelledby') || '').split(/\s+/)
     .map((id) => e.getRootNode().getElementById?.(id)?.innerText || '').filter(Boolean).join(' ');
   const name = (e) => (e.getAttribute('aria-label') || labelledBy(e) || e.innerText ||
@@ -106,7 +112,18 @@ SNAPSHOT_JS = r"""
   for (const e of (globalThis.__opensealCamoufoxRefs || [])) {
     e.removeAttribute?.('data-camoufox-ref');
   }
-  const els = [...new Set(candidates)].filter((e) => visible(e) && inViewport(e)).slice(0, %d);
+  // Keep every current-viewport control first, then use any remaining bounded
+  // capacity for the nearest visible controls just outside it. Forms commonly
+  // place their submit button immediately below a textarea; excluding that
+  // button makes an otherwise observable form impossible to complete. The
+  // original DOM order breaks equal-distance ties and keeps refs deterministic.
+  const els = [...new Set(candidates)]
+    .map((element, index) => ({element, index}))
+    .filter(({element}) => visible(element))
+    .sort((left, right) =>
+      viewportDistance(left.element) - viewportDistance(right.element) || left.index - right.index)
+    .slice(0, %d)
+    .map(({element}) => element);
   globalThis.__opensealCamoufoxRefs = els;
   els.forEach((e, i) => e.setAttribute('data-camoufox-ref', String(i + 1)));
   const lines = [];
