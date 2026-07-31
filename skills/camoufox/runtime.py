@@ -45,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.27"
+VERSION = "2.0.28"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -1423,7 +1423,18 @@ class CamoufoxRuntime:
         }
 
     def close(self, config):
-        session = self.session(config.get("sessionId"), allow_terminal=True)
+        session_id = config.get("sessionId")
+        if not ID.match(session_id or ""):
+            raise ValueError("sessionId is invalid")
+        session = self.sessions.get(session_id)
+        if session is None:
+            return {
+                "sessionId": session_id,
+                "closed": False,
+                "usageReleased": True,
+                "profilePreserved": True,
+                "sessionPreserved": False,
+            }
         self._release_usage_lease(session)
         return {
             "sessionId": session["id"],
