@@ -45,7 +45,8 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.24"
+VERSION = "2.0.25"
+COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -680,9 +681,17 @@ class CamoufoxHandle:
             _snapshot, timeout=WORKER_TIMEOUT_SECONDS["snapshot"], operation="snapshot"
         )
 
-    def click(self, marker):
+    def click(self, marker, exact=False):
         def _click():
             locator = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
+            if exact:
+                # An approved external commit must activate the exact reviewed
+                # control once. Playwright's locator action performs current
+                # hit-target and actionability checks while still dispatching
+                # trusted pointer input; raw coordinates can land on an
+                # overlapping SPA element after scrolling.
+                locator.click(timeout=5000)
+                return
             try:
                 locator.scroll_into_view_if_needed(timeout=5000)
                 box = locator.bounding_box()
@@ -1311,14 +1320,20 @@ class CamoufoxRuntime:
             if point:
                 session["handle"].click_point(x, y)
             else:
-                session["handle"].click(marker)
+                session["handle"].click(marker, exact=operation == "commit")
         elif operation == "select":
             session["handle"].select(marker, value)
         else:
             session["handle"].fill(marker, value)
         before_digest = session.get("observation_digest") or ""
-        after_snapshot = session["handle"].snapshot(include_model_media=False)
-        after_digest = observation_digest(after_snapshot)
+        observation_attempts = COMMIT_OBSERVATION_ATTEMPTS if operation == "commit" else 1
+        after_snapshot = None
+        after_digest = before_digest
+        for _attempt in range(observation_attempts):
+            after_snapshot = session["handle"].snapshot(include_model_media=False)
+            after_digest = observation_digest(after_snapshot)
+            if not before_digest or after_digest != before_digest:
+                break
         session["current_url"] = after_snapshot.get("url", session["current_url"])
         session["snapshot_text"] = str(after_snapshot.get("text", ""))[:MAX_TEXT]
         session["observation_digest"] = after_digest
