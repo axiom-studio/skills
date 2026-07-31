@@ -264,7 +264,16 @@ func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
 	delivery.Parameters = map[string]interface{}{"approval": map[string]interface{}{
 		"id": "approval-1", "revision": int64(4), "actionCallId": "call-1", "invocationDigest": strings.Repeat("a", 64),
 		"risk": "external", "summary": "Post reviewed comment", "policyReason": "external write",
-		"proposedAction": map[string]interface{}{"comment": "Useful context"}, "expiresAt": expiresAt,
+		"proposedAction": map[string]interface{}{
+			"action": "publish",
+			"externalOperation": map[string]interface{}{
+				"resource": "https://forum.example/posts/42", "operation": "comment:create",
+			},
+			"preparedEvidence": []interface{}{map[string]interface{}{
+				"action": "fill", "arguments": map[string]interface{}{"value": "The exact proposed public comment."},
+			}},
+		},
+		"expiresAt": expiresAt,
 	}}
 	output, err := adapter.delivery(context.Background(), config)
 	if err != nil || output["outcome"] != "delivered" {
@@ -288,6 +297,11 @@ func TestSlackApprovalDeliveryRendersExactInteractiveCard(t *testing.T) {
 	contextBlock := blocks[3].(map[string]interface{})["elements"].([]interface{})[0].(map[string]interface{})["text"].(string)
 	if !strings.Contains(contextBlock, "Expires <!date^1785413700^{relative}|soon>") {
 		t.Fatalf("expiry context = %q", contextBlock)
+	}
+	previewBlock := blocks[2].(map[string]interface{})["text"].(map[string]interface{})["text"].(string)
+	if !strings.Contains(previewBlock, "The exact proposed public comment.") ||
+		!strings.Contains(previewBlock, "https://forum.example/posts/42") {
+		t.Fatalf("approval preview omits exact content or destination: %q", previewBlock)
 	}
 }
 
