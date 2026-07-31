@@ -329,8 +329,15 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.21")
+        self.assertEqual(definition["version"], "2.0.22")
         actions = definition["actions"]
+        for action in actions.values():
+            input_schema = action.get("inputSchema", {})
+            if "sessionId" not in input_schema.get("required", []):
+                continue
+            session_id = input_schema["properties"]["sessionId"]
+            self.assertIs(session_id["x-openseal-kernel-resolved"], True)
+            self.assertEqual(session_id["x-openseal-kernel-source"], "agent_session_id")
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
             self.assertEqual((action["risk"], action["sideEffect"]), ("write", "write"))
