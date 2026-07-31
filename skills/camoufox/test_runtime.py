@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.29")
+        self.assertEqual(definition["version"], "2.0.30")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -593,6 +593,13 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(released["usageReleased"])
         self.assertTrue(released["sessionPreserved"])
         self.assertFalse(released["closed"])
+
+        snapshot = service.execute(
+            "camoufox-snapshot",
+            {"sessionId": first["sessionId"]},
+            context=second_context,
+        )
+        self.assertEqual(snapshot["sessionId"], first["sessionId"])
 
         second = service.execute("camoufox-start", {"path": "/assessment"}, context=second_context)
         self.assertEqual(second["sessionId"], first["sessionId"])
