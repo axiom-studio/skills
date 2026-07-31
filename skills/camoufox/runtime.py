@@ -44,7 +44,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.16"
+VERSION = "2.0.17"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -483,6 +483,24 @@ def observation_digest(snapshot):
     return "sha256:" + hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def snapshot_link_destination(current_url, href):
+    """Expose bounded, non-secret context for choosing a navigation link."""
+    if not isinstance(href, str) or not href:
+        return {}
+    try:
+        destination = urlparse(navigation_url(href))
+        current = urlparse(navigation_url(current_url))
+    except ValueError:
+        return {}
+    same_origin = (destination.scheme, destination.netloc) == (current.scheme, current.netloc)
+    result = {"destinationScope": "same_origin" if same_origin else "external_origin"}
+    if same_origin:
+        # Query strings and fragments can contain credentials or tracking
+        # values; the route alone is enough to distinguish local controls.
+        result["destinationPath"] = destination.path or "/"
+    return result
 
 
 def stable_seed(value):
@@ -1055,7 +1073,7 @@ class CamoufoxRuntime:
             href = element.get("href", "")
             if element.get("role") == "link" and isinstance(href, str) and href:
                 session["ref_links"][ref] = href
-            elements.append({
+            projected = {
                 "ref": ref,
                 "role": element.get("role", ""),
                 "name": redact(element.get("name", "")),
@@ -1063,7 +1081,10 @@ class CamoufoxRuntime:
                 "inViewport": bool(element.get("inViewport")),
                 "bounds": element.get("bounds") or {},
                 "state": snapshot_element_state(element),
-            })
+            }
+            if element.get("role") == "link":
+                projected.update(snapshot_link_destination(raw.get("url", session["current_url"]), href))
+            elements.append(projected)
         session["current_url"] = raw.get("url", session["current_url"])
         session["snapshot_text"] = text
         session["observation_digest"] = observation_digest(raw)

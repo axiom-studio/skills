@@ -327,7 +327,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.16")
+        self.assertEqual(definition["version"], "2.0.17")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -698,6 +698,9 @@ class RuntimeTest(unittest.TestCase):
         ]})
         start_session(service, "forum-follow", target="forum", path="/community", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow"})
+        self.assertEqual(snapshot["elements"][0]["destinationScope"], "same_origin")
+        self.assertEqual(snapshot["elements"][0]["destinationPath"], "/community/thread/2")
+        self.assertNotIn("destinationScope", snapshot["elements"][1])
         result = service.execute(
             "camoufox-follow-link",
             {"sessionId": "forum-follow", "target": snapshot["elements"][0]["ref"], "intent": "Read the next discussion"},
@@ -719,6 +722,10 @@ class RuntimeTest(unittest.TestCase):
         ]})
         start_session(service, "forum-follow-deny", target="forum", path="/community", profile="standard", proxy_pool="direct")
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "forum-follow-deny"})
+        self.assertEqual(snapshot["elements"][1]["destinationScope"], "same_origin")
+        self.assertEqual(snapshot["elements"][1]["destinationPath"], "/account/settings")
+        self.assertEqual(snapshot["elements"][2]["destinationScope"], "external_origin")
+        self.assertNotIn("destinationPath", snapshot["elements"][2])
         for index, message in [(0, "current navigable link"), (1, "authorized target scope"), (2, "authorized target scope")]:
             with self.assertRaisesRegex(ValueError, message):
                 service.execute(
