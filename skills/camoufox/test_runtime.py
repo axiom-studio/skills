@@ -329,7 +329,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.18")
+        self.assertEqual(definition["version"], "2.0.19")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -343,6 +343,9 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(commit["inputSchema"]["properties"]["target"]["x-openseal-observationRef"], {
             "roles": ["button"], "requireEnabled": True,
         })
+        self.assertIn("Never target a textbox", commit["description"])
+        self.assertIn("never submits", actions["camoufox-fill"]["description"])
+        self.assertIn("Never pass a textbox reference to camoufox-commit", definition["prompt"]["instructions"])
 
     def test_health_reports_configuration_state(self):
         service, _ = make_runtime(inv=None)
