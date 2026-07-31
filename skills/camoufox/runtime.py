@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
@@ -44,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.17"
+VERSION = "2.0.18"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -316,14 +317,14 @@ def configured_choice(options, requested, label):
     raise ValueError(f"{label} must be selected from the authorized inventory")
 
 
-def run_session_id(context):
-    run_id = context.get("runId") if isinstance(context, dict) else None
-    if not isinstance(run_id, str) or not run_id.strip():
-        raise ValueError("durable Run context is required to start a browser session")
-    run_id = run_id.strip()
-    if ID.fullmatch(run_id):
-        return run_id
-    return "run-" + hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:32]
+def agent_session_id(context):
+    agent_id = context.get("agentId") if isinstance(context, dict) else None
+    if not isinstance(agent_id, str) or not agent_id.strip():
+        raise ValueError("durable Agent context is required to start a browser session")
+    agent_id = agent_id.strip()
+    if ID.fullmatch(agent_id):
+        return agent_id
+    return "agent-" + hashlib.sha256(agent_id.encode("utf-8")).hexdigest()[:32]
 
 
 def run_digest(context):
@@ -371,6 +372,20 @@ def persistent_profile_directory(profile_directory):
         return data_directory, os.path.basename(source)
     os.makedirs(data_directory, mode=0o700, exist_ok=True)
     return data_directory, ""
+
+
+def agent_profile_directory(workspace, profile_id, session_id):
+    profile_root = os.path.join(workspace, "profiles", profile_id)
+    directory = os.path.join(profile_root, "agents", session_id)
+    data_directory = os.path.join(directory, "data")
+    legacy_data = os.path.join(profile_root, "data")
+    os.makedirs(profile_root, mode=0o700, exist_ok=True)
+    if not os.path.isdir(legacy_data):
+        persistent_profile_directory(profile_root)
+    if not os.path.isdir(data_directory) and os.path.isdir(legacy_data):
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        shutil.copytree(legacy_data, data_directory)
+    return directory
 
 
 def profile_cookie_count(profile_directory):
@@ -748,9 +763,12 @@ class CamoufoxRuntime:
         # The gRPC boundary always supplies an ExecutionContext. Unit tests may
         # call the runtime directly without one, but hosted calls fail closed.
         if context is not None and action not in ("camoufox-health", "camoufox-start"):
-            expected_session = run_session_id(context)
+            expected_session = agent_session_id(context)
             if config.get("sessionId") != expected_session:
-                raise ValueError("automation session belongs to a different durable Run")
+                raise ValueError("automation session belongs to a different durable Agent")
+            session = self.sessions.get(expected_session)
+            if session is not None and session.get("run_digest") != run_digest(context):
+                raise ValueError("browser session usage is leased by another active Run")
         handlers = {
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config, context),
@@ -808,8 +826,8 @@ class CamoufoxRuntime:
                 f"automation session is unavailable: {session['terminal_error']}"
             )
         if not allow_terminal and self.now() >= session["lease_expires_at"]:
-            self._release_session(session, "lease_expired")
-            raise ValueError("automation session lease expired; start a new session")
+            self._release_usage_lease(session, "usage_lease_expired")
+            raise ValueError("browser session usage lease expired; acquire the Agent session again")
         if not allow_terminal:
             self._renew_session_lease(session)
         return session
@@ -842,10 +860,13 @@ class CamoufoxRuntime:
         try:
             current = read_json_file(session["lease_path"])
             if (
-                current.get("state") != "active"
+                current.get("state") not in ("active", "idle")
                 or current.get("sessionId") != session["id"]
-                or current.get("runDigest") != session["run_digest"]
                 or current.get("generation") != session["lease_generation"]
+                or (
+                    current.get("state") == "active"
+                    and current.get("runDigest") != session["run_digest"]
+                )
             ):
                 raise ValueError("browser profile lease changed while the session was active")
             write_json_file(session["lease_path"], {
@@ -861,11 +882,71 @@ class CamoufoxRuntime:
         if close_error is not None:
             raise close_error
 
+    def _release_usage_lease(self, session, reason="run_released"):
+        current = read_json_file(session["lease_path"])
+        if (
+            current.get("sessionId") != session["id"]
+            or current.get("generation") != session["lease_generation"]
+        ):
+            raise ValueError("browser profile lease changed while the session was active")
+        now = self.now()
+        write_json_file(session["lease_path"], {
+            **current,
+            "state": "idle",
+            "lastRunDigest": session.get("run_digest", ""),
+            "runDigest": "",
+            "releasedAt": now.isoformat(),
+            "releaseReason": reason,
+            "expiresAt": now.isoformat(),
+        })
+        session["run_digest"] = ""
+        session["lease_expires_at"] = now
+
+    def _claim_usage_lease(self, session, context):
+        requested_run = run_digest(context)
+        now = self.now()
+        current_run = session.get("run_digest", "")
+        if current_run == requested_run:
+            self._renew_session_lease(session)
+            return
+        if current_run and now < session["lease_expires_at"]:
+            raise ValueError("browser session usage is leased by another active Run")
+        current = read_json_file(session["lease_path"])
+        if (
+            current.get("sessionId") != session["id"]
+            or current.get("generation") != session["lease_generation"]
+        ):
+            raise ValueError("browser profile lease changed while the session was active")
+        expires_at = now + self.lease_ttl
+        write_json_file(session["lease_path"], {
+            **current,
+            "state": "active",
+            "runDigest": requested_run,
+            "acquiredAt": now.isoformat(),
+            "renewedAt": now.isoformat(),
+            "expiresAt": expires_at.isoformat(),
+        })
+        session["run_digest"] = requested_run
+        session["lease_expires_at"] = expires_at
+        session["refs"].clear()
+        session["ref_names"].clear()
+        session["ref_controls"].clear()
+        session["ref_links"].clear()
+        session["receipts"].clear()
+        session["challenges"] = []
+        session["snapshot_text"] = ""
+        session["observation_digest"] = ""
+        session["viewport"] = {}
+
     def _reclaim_expired_profile(self, profile_id):
         now = self.now()
         for session in list(self.sessions.values()):
-            if session["profile_id"] == profile_id and now >= session["lease_expires_at"]:
-                self._release_session(session, "lease_expired")
+            if (
+                session["profile_id"] == profile_id
+                and session.get("run_digest")
+                and now >= session["lease_expires_at"]
+            ):
+                self._release_usage_lease(session, "usage_lease_expired")
 
     def start(self, config, context=None):
         if not self.inventory:
@@ -873,17 +954,14 @@ class CamoufoxRuntime:
         forbidden = set(config) & (set(DEFAULT_KEYS) | {"sessionId"})
         if forbidden:
             raise ValueError(f"browser infrastructure fields are host-owned: {sorted(forbidden)}")
-        session_id = run_session_id(context)
+        session_id = agent_session_id(context)
         if session_id in self.sessions:
             session = self.sessions[session_id]
             if session.get("terminal_error"):
                 self._release_session(session, "terminal_error")
                 session = None
-            elif self.now() >= session["lease_expires_at"]:
-                self._release_session(session, "lease_expired")
-                session = None
             if session is not None:
-                self._renew_session_lease(session)
+                self._claim_usage_lease(session, context)
                 return {
                     "sessionId": session_id,
                     "url": session["current_url"],
@@ -905,7 +983,7 @@ class CamoufoxRuntime:
         if target["mode"] == "permitted-automation" and (profile.get("assessmentOnly") or proxy.get("assessmentOnly")):
             raise ValueError("assessment-only identity or egress cannot be used with a third-party automation target")
         destination = exact_path(target, config.get("path", "/"))
-        profile_directory = os.path.join(self.workspace, "profiles", profile_id)
+        profile_directory = agent_profile_directory(self.workspace, profile_id, session_id)
         os.makedirs(profile_directory, mode=0o700, exist_ok=True)
         self._reclaim_expired_profile(profile_id)
         lease_path = os.path.join(profile_directory, "lease.json")
@@ -925,6 +1003,7 @@ class CamoufoxRuntime:
             lease = {
                 "generation": generation,
                 "sessionId": session_id,
+                "agentDigest": "sha256:" + hashlib.sha256(session_id.encode("utf-8")).hexdigest(),
                 "runDigest": run_digest(context),
                 "state": "active",
                 "acquiredAt": acquired_at.isoformat(),
@@ -1289,5 +1368,11 @@ class CamoufoxRuntime:
 
     def close(self, config):
         session = self.session(config.get("sessionId"), allow_terminal=True)
-        self._release_session(session)
-        return {"sessionId": session["id"], "closed": True, "profilePreserved": True}
+        self._release_usage_lease(session)
+        return {
+            "sessionId": session["id"],
+            "closed": False,
+            "usageReleased": True,
+            "profilePreserved": True,
+            "sessionPreserved": True,
+        }
