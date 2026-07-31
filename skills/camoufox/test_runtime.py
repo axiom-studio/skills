@@ -57,6 +57,10 @@ class FakeHandle:
         return {"url": url, "status": self.state.get("status", 200)}
 
     def snapshot(self, include_model_media=False):
+        if self.state.get("click") and self.state.get("delayed_progress_snapshots"):
+            self.state["post_click_snapshots"] = self.state.get("post_click_snapshots", 0) + 1
+            if self.state["post_click_snapshots"] >= self.state["delayed_progress_snapshots"]:
+                self.state["solved"] = True
         if self.state.get("solved"):
             return {"url": self.state["url"], "title": "Accepted", "text": "Assessment accepted", "elements": []}
         result = {
@@ -72,9 +76,10 @@ class FakeHandle:
             result["model_media"] = self.state["model_media"]
         return result
 
-    def click(self, marker):
+    def click(self, marker, exact=False):
         self.state["click"] = marker
-        if not self.state.get("no_progress"):
+        self.state["exact_click"] = exact
+        if not self.state.get("no_progress") and not self.state.get("delayed_progress_snapshots"):
             self.state["solved"] = True
 
     def click_point(self, x, y):
@@ -297,6 +302,42 @@ class BrowserNavigationTest(unittest.TestCase):
         self.assertEqual(calls[1], ("trusted", 5000))
         self.assertEqual(calls[2], ("exact-dom", "element => element.click()", 5000))
 
+    def test_external_commit_activates_exact_locator_once(self):
+        calls = []
+
+        class Locator:
+            first = None
+
+            def __init__(self):
+                self.first = self
+
+            def click(self, timeout):
+                calls.append(("trusted", timeout))
+
+            def scroll_into_view_if_needed(self, timeout):
+                calls.append(("unexpected-scroll", timeout))
+
+        class Page:
+            @staticmethod
+            def locator(selector):
+                calls.append(("locator", selector))
+                return Locator()
+
+        class Worker:
+            @staticmethod
+            def call(fn, **_kwargs):
+                return fn()
+
+        handle = CamoufoxHandle.__new__(CamoufoxHandle)
+        handle._worker = Worker()
+        handle._page = Page()
+        handle.click("21", exact=True)
+
+        self.assertEqual(calls, [
+            ("locator", '[data-camoufox-ref="21"]'),
+            ("trusted", 5000),
+        ])
+
     def test_fill_replaces_exact_control_without_pointer_stability_gate(self):
         calls = []
 
@@ -336,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.24")
+        self.assertEqual(definition["version"], "2.0.25")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -975,6 +1016,23 @@ class RuntimeTest(unittest.TestCase):
         self.assertNotIn("commit:stagnant-commit-1", service.sessions["stagnant-commit"]["receipts"])
         self.assertEqual(service.sessions["stagnant-commit"]["refs"], {})
         self.assertEqual(state["click"], 1)
+        self.assertTrue(state["exact_click"])
+
+    def test_commit_waits_for_delayed_progress_without_clicking_twice(self):
+        service, state = make_runtime({"element_role": "button", "delayed_progress_snapshots": 3})
+        start_session(service, "delayed-commit", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "delayed-commit"})
+        result = service.execute("camoufox-commit", {
+            "sessionId": "delayed-commit",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "delayed-commit-1",
+        })
+        self.assertTrue(result["success"])
+        self.assertTrue(result["progress"]["changed"])
+        self.assertEqual(state["click"], 1)
+        self.assertTrue(state["exact_click"])
+        self.assertEqual(state["post_click_snapshots"], 3)
 
     def test_commit_returns_receipt_only_after_observable_progress(self):
         service, _ = make_runtime({"element_role": "button"})
