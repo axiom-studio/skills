@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.28")
+        self.assertEqual(definition["version"], "2.0.29")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -399,6 +399,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(commit["inputSchema"]["properties"]["target"]["x-openseal-observationRef"], {
             "roles": ["button"], "requireEnabled": True,
         })
+        self.assertEqual(commit["requiredEvidence"], [{"action": "camoufox-fill", "matchingArguments": ["sessionId"]}])
         self.assertIn("Never target a textbox", commit["description"])
         self.assertIn("never submits", actions["camoufox-fill"]["description"])
         self.assertIn("Never pass a textbox reference to camoufox-commit", definition["prompt"]["instructions"])
