@@ -315,7 +315,7 @@ class BrowserNavigationTest(unittest.TestCase):
                 calls.append(("trusted", timeout))
 
             def evaluate(self, expression, timeout):
-                calls.append(("scroll", expression, timeout))
+                calls.append(("exact-dom", expression, timeout))
 
         class Page:
             @staticmethod
@@ -335,8 +335,7 @@ class BrowserNavigationTest(unittest.TestCase):
 
         self.assertEqual(calls, [
             ("locator", '[data-camoufox-ref="21"]'),
-            ("scroll", "element => element.scrollIntoView({block: 'center', inline: 'nearest'})", 5000),
-            ("trusted", 5000),
+            ("exact-dom", "element => element.click()", 5000),
         ])
 
     def test_fill_replaces_exact_control_without_pointer_stability_gate(self):
@@ -378,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.26")
+        self.assertEqual(definition["version"], "2.0.27")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
