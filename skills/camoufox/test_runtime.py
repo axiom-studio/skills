@@ -329,7 +329,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.19")
+        self.assertEqual(definition["version"], "2.0.20")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -593,6 +593,10 @@ class RuntimeTest(unittest.TestCase):
 
         legacy_profile("authenticated-session", 3, 1)
         legacy_profile("newer-empty-session", 1, 2)
+        os.symlink(
+            "/nonexistent/firefox-profile-lock",
+            os.path.join(profile_directory, "authenticated-session", "lock"),
+        )
 
         start_session(
             service,
@@ -607,6 +611,7 @@ class RuntimeTest(unittest.TestCase):
         )
         self.assertEqual(state["launch"]["user_data_dir"], data_directory)
         self.assertTrue(os.path.isfile(os.path.join(data_directory, "cookies.sqlite")))
+        self.assertFalse(os.path.lexists(os.path.join(data_directory, "lock")))
         database = sqlite3.connect(os.path.join(data_directory, "cookies.sqlite"))
         self.assertEqual(database.execute("SELECT COUNT(*) FROM moz_cookies").fetchone()[0], 3)
         database.close()
