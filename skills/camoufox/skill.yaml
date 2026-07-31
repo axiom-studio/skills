@@ -40,7 +40,11 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: &agent_session_input_value
+                        type: string
+                        pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
+                        x-openseal-kernel-resolved: true
+                        x-openseal-kernel-source: agent_session_id
                     url: {type: string, pattern: '^https?://', maxLength: 2048}
                     targetId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
                     path: {type: string, pattern: '^/', maxLength: 2048, default: /}
@@ -61,7 +65,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     includeScreenshot: {type: boolean, default: false}
                 required: [sessionId]
             outputSchema:
@@ -120,7 +124,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     intent: {type: string, minLength: 3, maxLength: 500}
                 required: [sessionId, target, intent]
@@ -137,7 +141,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     generation: {type: integer, minimum: 1}
                     x: {type: number, minimum: 0, maximum: 10000}
@@ -180,7 +184,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target:
                         type: string
                         pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'
@@ -203,7 +207,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     value: {type: string, maxLength: 20000}
                     intent: {type: string, minLength: 3, maxLength: 500}
@@ -227,7 +231,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     credentialField: {type: string, enum: [username, password]}
                     intent: {type: string, minLength: 3, maxLength: 500}
@@ -248,7 +252,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     target: {type: string, pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'}
                     value: {type: string, maxLength: 1000}
                     intent: {type: string, minLength: 3, maxLength: 500}
@@ -269,7 +273,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     dx: {type: number, default: 0}
                     dy: {type: number, default: 0}
                 required: [sessionId]
@@ -285,7 +289,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                     fullPage: {type: boolean, default: false}
                 required: [sessionId]
             permissions: [browser:observe]
@@ -300,7 +304,7 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
-                    sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'}
+                    sessionId: *agent_session_input_value
                 required: [sessionId]
             permissions: [browser:observe, security:report]
             idempotency: supported
@@ -324,7 +328,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.21
+          package: axiomstudio/skill-browser:2.0.22
     name: Browser Skill
     prompt:
         allowedTools:
@@ -362,10 +366,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.21
+        resolvedVersion: 2.0.22
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.21
+    version: 2.0.22
 kind: SkillDefinition
