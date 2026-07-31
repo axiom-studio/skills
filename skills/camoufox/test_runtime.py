@@ -329,7 +329,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.20")
+        self.assertEqual(definition["version"], "2.0.21")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -337,6 +337,7 @@ class RuntimeTest(unittest.TestCase):
             self.assertNotIn("writeAuthorized", action["inputSchema"]["properties"])
             self.assertNotIn("writeAuthorized", action["inputSchema"]["required"])
         commit = actions["camoufox-commit"]
+        self.assertEqual(actions["camoufox-start"]["finalizerAction"], "camoufox-close")
         self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
         self.assertEqual(commit["externalOperationPolicy"], "required")
         self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey"])
@@ -1169,6 +1170,9 @@ class RuntimeTest(unittest.TestCase):
         self.assertFalse(result["closed"])
         self.assertTrue(result["usageReleased"])
         self.assertTrue(result["sessionPreserved"])
+        repeated = service.execute("camoufox-close", {"sessionId": "close-1"})
+        self.assertTrue(repeated["usageReleased"])
+        self.assertTrue(repeated["sessionPreserved"])
         self.assertFalse(state.get("closed", False))
         self.assertIn("close-1", service.sessions)
         with self.assertRaisesRegex(ValueError, "usage lease expired"):

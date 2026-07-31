@@ -45,7 +45,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.18"
+VERSION = "2.0.21"
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -772,7 +772,11 @@ class CamoufoxRuntime:
             if config.get("sessionId") != expected_session:
                 raise ValueError("automation session belongs to a different durable Agent")
             session = self.sessions.get(expected_session)
-            if session is not None and session.get("run_digest") != run_digest(context):
+            if (
+                session is not None
+                and session.get("run_digest") != run_digest(context)
+                and not (action == "camoufox-close" and not session.get("run_digest"))
+            ):
                 raise ValueError("browser session usage is leased by another active Run")
         handlers = {
             "camoufox-health": lambda: self.health(),
