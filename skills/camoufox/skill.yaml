@@ -87,6 +87,8 @@ definition:
                                 inViewport: {type: boolean}
                                 bounds: {type: object}
                                 state: {type: object}
+                                destinationScope: {type: string, enum: [same_origin, external_origin]}
+                                destinationPath: {type: string, pattern: '^/', maxLength: 2048}
                             required: [ref, role, name, context, inViewport, bounds, state]
                     challenges:
                         type: array
@@ -321,7 +323,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.16
+          package: axiomstudio/skill-browser:2.0.17
     name: Browser Skill
     prompt:
         allowedTools:
@@ -359,10 +361,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.16
+        resolvedVersion: 2.0.17
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.16
+    version: 2.0.17
 kind: SkillDefinition
