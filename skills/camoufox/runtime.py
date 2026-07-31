@@ -384,7 +384,12 @@ def agent_profile_directory(workspace, profile_id, session_id):
         persistent_profile_directory(profile_root)
     if not os.path.isdir(data_directory) and os.path.isdir(legacy_data):
         os.makedirs(directory, mode=0o700, exist_ok=True)
-        shutil.copytree(legacy_data, data_directory)
+        shutil.copytree(
+            legacy_data,
+            data_directory,
+            ignore=shutil.ignore_patterns("lock", ".parentlock", "parent.lock"),
+            ignore_dangling_symlinks=True,
+        )
     return directory
 
 
