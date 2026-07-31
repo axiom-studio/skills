@@ -9,15 +9,16 @@ by injected scripts, and `humanize` drives real input cadence.
 
 A deployment supplies opaque inventories and optional governed defaults;
 agent actions never receive target policy, proxy credentials, profile values,
-or infrastructure identifiers. `camoufox-start` derives an isolated stable
-session identity from the transport's durable Run context and returns the
-handle for explicit dataflow through later actions. Concurrent Runs therefore
-cannot accidentally share a live browser session, while a retry of the same
-Run remains idempotent.
+or infrastructure identifiers. `camoufox-start` derives one isolated stable
+session identity from the transport's durable Agent context and returns the
+handle for explicit dataflow through later actions. Runs from that Agent reuse
+the authenticated session but acquire serialized usage; different Agents get
+separate session and profile directories.
 
-The profile lock is a bounded renewable lease. Each action from its exact Run
-renews the lease; an abandoned session is closed and reclaimed after 900
-seconds by default, while a live owner remains exclusive. Hosts may set
+Run usage is a bounded renewable lease on the Agent session. Each action from
+the exact owning Run renews the lease; another Run waits until the owner
+releases it or the lease expires. Releasing Run usage preserves the live Agent
+session and its authenticated profile. Hosts may set
 `CAMOUFOX_PROFILE_LEASE_TTL_SECONDS` between 30 and 3600 seconds.
 
 ```json
@@ -84,5 +85,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.17 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.18 .
 ```

@@ -15,11 +15,13 @@ from runtime import (
     BrowserWorker,
     CamoufoxHandle,
     CamoufoxRuntime,
+    agent_session_id,
     exact_path,
     load_inventory,
     navigation_url,
     observation_digest,
     resolve_proxy,
+    run_digest,
     snapshot_element_state,
 )
 
@@ -130,7 +132,7 @@ def start_session(service, run_id, *, target, profile, proxy_pool, path="/"):
     return service.execute(
         "camoufox-start",
         {"path": path},
-        context={"runId": run_id},
+        context={"agentId": run_id, "runId": run_id},
     )
 
 
@@ -327,7 +329,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.17")
+        self.assertEqual(definition["version"], "2.0.18")
         actions = definition["actions"]
         for name in ("camoufox-click", "camoufox-fill", "camoufox-fill-secret", "camoufox-select"):
             action = actions[name]
@@ -346,7 +348,7 @@ class RuntimeTest(unittest.TestCase):
         service, _ = make_runtime(inv=None)
         self.assertEqual(service.execute("camoufox-health")["status"], "needs_configuration")
         with self.assertRaisesRegex(ValueError, "not configured"):
-            service.execute("camoufox-start", {}, context={"runId": "unconfigured"})
+            service.execute("camoufox-start", {}, context={"agentId": "unconfigured", "runId": "unconfigured"})
         ready, _ = make_runtime()
         health = ready.execute("camoufox-health")
         self.assertEqual(health["status"], "ready")
@@ -373,16 +375,24 @@ class RuntimeTest(unittest.TestCase):
         configured["profiles"]["default"] = configured["profiles"]["standard"]
         configured["proxy_pools"]["default"] = configured["proxy_pools"]["direct"]
         service, _ = make_runtime(inv=configured)
-        result = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "run-123"})
+        result = service.execute(
+            "camoufox-start",
+            {"path": "/community"},
+            context={"agentId": "run-123", "runId": "run-123"},
+        )
         self.assertEqual(result["sessionId"], "run-123")
         self.assertNotIn("targetId", result)
         self.assertNotIn("profileId", result)
         self.assertNotIn("proxyPoolId", result)
 
-        repeated = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "run-123"})
+        repeated = service.execute(
+            "camoufox-start",
+            {"path": "/community"},
+            context={"agentId": "run-123", "runId": "run-123"},
+        )
         self.assertEqual(repeated, result)
 
-    def test_start_derives_isolated_handle_from_durable_run_context(self):
+    def test_start_derives_shared_handle_from_durable_agent_context(self):
         configured = inventory()
         configured["defaults"] = {
             "targetId": "forum",
@@ -390,36 +400,49 @@ class RuntimeTest(unittest.TestCase):
             "proxyPoolId": "direct",
         }
         service, _ = make_runtime(inv=configured)
-        long_run_id = "tenant/workforce/" + "r" * 160
-        first = service.execute("camoufox-start", {"path": "/community"}, context={"runId": long_run_id})
-        self.assertRegex(first["sessionId"], r"^run-[0-9a-f]{32}$")
+        long_agent_id = "tenant/workforce/" + "a" * 160
+        first_context = {"agentId": long_agent_id, "runId": "run-one"}
+        first = service.execute("camoufox-start", {"path": "/community"}, context=first_context)
+        self.assertRegex(first["sessionId"], r"^agent-[0-9a-f]{32}$")
         self.assertEqual(
-            service.execute("camoufox-start", {"path": "/community"}, context={"runId": long_run_id}),
+            service.execute("camoufox-start", {"path": "/community"}, context=first_context),
             first,
         )
         self.assertEqual(
             service.execute("camoufox-snapshot", {"sessionId": first["sessionId"]})["sessionId"],
             first["sessionId"],
         )
-        service.execute("camoufox-close", {"sessionId": first["sessionId"]})
-        second = service.execute("camoufox-start", {"path": "/community"}, context={"runId": "another-run"})
-        self.assertNotEqual(second["sessionId"], first["sessionId"])
+        service.execute("camoufox-close", {"sessionId": first["sessionId"]}, context=first_context)
+        second = service.execute(
+            "camoufox-start",
+            {"path": "/community"},
+            context={"agentId": long_agent_id, "runId": "another-run"},
+        )
+        self.assertEqual(second["sessionId"], first["sessionId"])
         for field in ["sessionId", "targetId", "profileId", "proxyPoolId"]:
             with self.assertRaisesRegex(ValueError, "host-owned"):
-                service.execute("camoufox-start", {field: "caller-choice"}, context={"runId": "third-run"})
+                service.execute(
+                    "camoufox-start",
+                    {field: "caller-choice"},
+                    context={"agentId": "third-run", "runId": "third-run"},
+                )
 
     def test_start_replaces_terminal_session_for_same_durable_run(self):
         service, state = make_runtime()
         first = start_session(service, "terminal-run", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         service.sessions[first["sessionId"]]["terminal_error"] = "browser operation timed out; start a new session"
 
-        replacement = service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "terminal-run"})
+        replacement = service.execute(
+            "camoufox-start",
+            {"path": "/assessment"},
+            context={"agentId": "terminal-run", "runId": "terminal-run"},
+        )
 
         self.assertEqual(replacement["sessionId"], first["sessionId"])
         self.assertEqual(len(state["launches"]), 2)
         self.assertNotIn("terminal_error", service.sessions[first["sessionId"]])
 
-    def test_start_requires_durable_run_context(self):
+    def test_start_requires_durable_agent_context(self):
         configured = inventory()
         configured["defaults"] = {
             "targetId": "forum",
@@ -427,70 +450,129 @@ class RuntimeTest(unittest.TestCase):
             "proxyPoolId": "direct",
         }
         service, _ = make_runtime(inv=configured)
-        with self.assertRaisesRegex(ValueError, "durable Run context"):
+        with self.assertRaisesRegex(ValueError, "durable Agent context"):
             service.execute("camoufox-start", {"path": "/community"})
 
-    def test_profile_lease_and_every_hosted_action_are_owned_by_the_durable_run(self):
+    def test_sessions_and_profiles_are_isolated_by_durable_agent(self):
         service, state = make_runtime()
-        first = start_session(
-            service,
-            "run-a",
-            target="owned",
-            path="/assessment",
-            profile="seeded",
-            proxy_pool="rotating",
+        service.inventory["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        first_context = {"agentId": "agent:a", "runId": "run-a"}
+        second_context = {"agentId": "agent:b", "runId": "run-b"}
+        first = service.execute(
+            "camoufox-start",
+            {"path": "/assessment"},
+            context=first_context,
         )
-        with self.assertRaisesRegex(ValueError, "different durable Run"):
-            service.execute(
-                "camoufox-close",
-                {"sessionId": first["sessionId"]},
-                context={"runId": "run-b"},
-            )
-        self.assertEqual(
+        with self.assertRaisesRegex(ValueError, "different durable Agent"):
             service.execute(
                 "camoufox-snapshot",
                 {"sessionId": first["sessionId"]},
-                context={"runId": "run-a"},
-            )["sessionId"],
-            first["sessionId"],
-        )
-        with self.assertRaisesRegex(ValueError, "leased by another active Run"):
-            start_session(
-                service,
-                "run-b",
-                target="owned",
-                path="/assessment",
-                profile="seeded",
-                proxy_pool="rotating",
+                context=second_context,
             )
-
-        lease_path = os.path.join(state["workspace"], "profiles", "seeded", "lease.json")
-        with open(lease_path, "r", encoding="utf-8") as handle:
-            active_lease = json.load(handle)
-        self.assertEqual(active_lease["state"], "active")
-        self.assertEqual(active_lease["sessionId"], "run-a")
-        self.assertRegex(active_lease["runDigest"], r"^sha256:[0-9a-f]{64}$")
-
-        first_profile_directory = state["launches"][0]["user_data_dir"]
+        second = service.execute(
+            "camoufox-start",
+            {"path": "/assessment"},
+            context=second_context,
+        )
+        self.assertNotEqual(first["sessionId"], second["sessionId"])
+        self.assertNotEqual(
+            service.sessions[first["sessionId"]]["lease_path"],
+            service.sessions[second["sessionId"]]["lease_path"],
+        )
+        self.assertEqual(len(state["launches"]), 2)
         service.execute(
             "camoufox-close",
             {"sessionId": first["sessionId"]},
-            context={"runId": "run-a"},
+            context=first_context,
         )
-        second = start_session(
-            service,
-            "run-b",
-            target="owned",
-            path="/assessment",
-            profile="seeded",
-            proxy_pool="rotating",
+        service.execute(
+            "camoufox-close",
+            {"sessionId": second["sessionId"]},
+            context=second_context,
         )
-        self.assertNotEqual(first["sessionId"], second["sessionId"])
-        self.assertEqual(state["launches"][1]["user_data_dir"], first_profile_directory)
+
+    def test_agent_session_is_reused_across_serialized_run_usage_leases(self):
+        configured = inventory()
+        configured["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        state = {}
+        clock = {"now": datetime(2026, 7, 27, tzinfo=timezone.utc)}
+        service = CamoufoxRuntime(
+            inventory=configured,
+            workspace=tempfile.mkdtemp(prefix="camoufox-agent-session-"),
+            browser_factory=fake_factory(state),
+            now=lambda: clock["now"],
+            lease_ttl_seconds=30,
+        )
+        first_context = {"agentId": "agent:shared", "runId": "run-a"}
+        second_context = {"agentId": "agent:shared", "runId": "run-b"}
+        first = service.execute("camoufox-start", {"path": "/assessment"}, context=first_context)
+        first_handle = service.sessions[first["sessionId"]]["handle"]
+
+        with self.assertRaisesRegex(ValueError, "usage is leased by another active Run"):
+            service.execute("camoufox-start", {"path": "/assessment"}, context=second_context)
+        with self.assertRaisesRegex(ValueError, "usage is leased by another active Run"):
+            service.execute(
+                "camoufox-snapshot",
+                {"sessionId": first["sessionId"]},
+                context=second_context,
+            )
+
+        released = service.execute(
+            "camoufox-close",
+            {"sessionId": first["sessionId"]},
+            context=first_context,
+        )
+        self.assertTrue(released["usageReleased"])
+        self.assertTrue(released["sessionPreserved"])
+        self.assertFalse(released["closed"])
+
+        second = service.execute("camoufox-start", {"path": "/assessment"}, context=second_context)
+        self.assertEqual(second["sessionId"], first["sessionId"])
+        self.assertIs(service.sessions[second["sessionId"]]["handle"], first_handle)
+        self.assertEqual(len(state["launches"]), 1)
+
+        lease_path = service.sessions[second["sessionId"]]["lease_path"]
         with open(lease_path, "r", encoding="utf-8") as handle:
-            replacement_lease = json.load(handle)
-        self.assertEqual(replacement_lease["generation"], active_lease["generation"] + 1)
-        service.execute("camoufox-close", {"sessionId": "run-b"}, context={"runId": "run-b"})
+            lease = json.load(handle)
+        self.assertEqual(lease["state"], "active")
+        self.assertEqual(lease["runDigest"], run_digest(second_context))
+        self.assertRegex(lease["agentDigest"], r"^sha256:[0-9a-f]{64}$")
+
+    def test_expired_run_usage_lease_reuses_the_agent_session(self):
+        configured = inventory()
+        configured["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        state = {}
+        clock = {"now": datetime(2026, 7, 27, tzinfo=timezone.utc)}
+        service = CamoufoxRuntime(
+            inventory=configured,
+            workspace=tempfile.mkdtemp(prefix="camoufox-agent-expiry-"),
+            browser_factory=fake_factory(state),
+            now=lambda: clock["now"],
+            lease_ttl_seconds=30,
+        )
+        first_context = {"agentId": "agent:shared", "runId": "run-a"}
+        second_context = {"agentId": "agent:shared", "runId": "run-b"}
+        first = service.execute("camoufox-start", {"path": "/assessment"}, context=first_context)
+        first_handle = service.sessions[first["sessionId"]]["handle"]
+
+        clock["now"] += timedelta(seconds=31)
+        second = service.execute("camoufox-start", {"path": "/assessment"}, context=second_context)
+
+        self.assertEqual(second["sessionId"], first["sessionId"])
+        self.assertIs(service.sessions[second["sessionId"]]["handle"], first_handle)
+        self.assertEqual(len(state["launches"]), 1)
 
     def test_first_profile_lease_forward_ports_the_richest_legacy_session_directory(self):
         service, state = make_runtime()
@@ -517,7 +599,9 @@ class RuntimeTest(unittest.TestCase):
             profile="seeded",
             proxy_pool="rotating",
         )
-        data_directory = os.path.join(state["workspace"], "profiles", "seeded", "data")
+        data_directory = os.path.join(
+            state["workspace"], "profiles", "seeded", "agents", "replacement-run", "data"
+        )
         self.assertEqual(state["launch"]["user_data_dir"], data_directory)
         self.assertTrue(os.path.isfile(os.path.join(data_directory, "cookies.sqlite")))
         database = sqlite3.connect(os.path.join(data_directory, "cookies.sqlite"))
@@ -526,7 +610,7 @@ class RuntimeTest(unittest.TestCase):
         service.execute(
             "camoufox-close",
             {"sessionId": "replacement-run"},
-            context={"runId": "replacement-run"},
+            context={"agentId": "replacement-run", "runId": "replacement-run"},
         )
 
     def test_failed_browser_launch_releases_the_durable_profile_lease(self):
@@ -543,8 +627,10 @@ class RuntimeTest(unittest.TestCase):
             browser_factory=lambda _options: (_ for _ in ()).throw(RuntimeError("launch failed")),
             now=lambda: datetime(2026, 7, 27, tzinfo=timezone.utc),
         )
+        failed_context = {"agentId": "agent:shared", "runId": "failed-run"}
+        replacement_context = {"agentId": "agent:shared", "runId": "replacement-run"}
         with self.assertRaisesRegex(RuntimeError, "launch failed"):
-            failing.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "failed-run"})
+            failing.execute("camoufox-start", {"path": "/assessment"}, context=failed_context)
 
         state = {}
         replacement = CamoufoxRuntime(
@@ -556,17 +642,17 @@ class RuntimeTest(unittest.TestCase):
         started = replacement.execute(
             "camoufox-start",
             {"path": "/assessment"},
-            context={"runId": "replacement-run"},
+            context=replacement_context,
         )
-        self.assertEqual(started["sessionId"], "replacement-run")
-        with open(os.path.join(workspace, "profiles", "seeded", "lease.json"), "r", encoding="utf-8") as handle:
+        self.assertEqual(started["sessionId"], agent_session_id(replacement_context))
+        with open(replacement.sessions[started["sessionId"]]["lease_path"], "r", encoding="utf-8") as handle:
             lease = json.load(handle)
         self.assertEqual(lease["state"], "active")
         self.assertEqual(lease["generation"], 2)
         replacement.execute(
             "camoufox-close",
-            {"sessionId": "replacement-run"},
-            context={"runId": "replacement-run"},
+            {"sessionId": started["sessionId"]},
+            context=replacement_context,
         )
 
     def test_profile_lease_is_exclusive_across_runtime_instances(self):
@@ -587,17 +673,20 @@ class RuntimeTest(unittest.TestCase):
             workspace=workspace,
             browser_factory=fake_factory({}),
         )
-        first.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "first-run"})
+        first_context = {"agentId": "agent:shared", "runId": "first-run"}
+        second_context = {"agentId": "agent:shared", "runId": "second-run"}
+        started = first.execute("camoufox-start", {"path": "/assessment"}, context=first_context)
         with self.assertRaisesRegex(ValueError, "leased by another active Run"):
-            second.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "second-run"})
-        first.execute("camoufox-close", {"sessionId": "first-run"}, context={"runId": "first-run"})
+            second.execute("camoufox-start", {"path": "/assessment"}, context=second_context)
+        first.execute("camoufox-close", {"sessionId": started["sessionId"]}, context=first_context)
+        first._release_session(first.sessions[started["sessionId"]], "binding_disabled")
         self.assertEqual(
-            second.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "second-run"})[
+            second.execute("camoufox-start", {"path": "/assessment"}, context=second_context)[
                 "sessionId"
             ],
-            "second-run",
+            started["sessionId"],
         )
-        second.execute("camoufox-close", {"sessionId": "second-run"}, context={"runId": "second-run"})
+        second.execute("camoufox-close", {"sessionId": started["sessionId"]}, context=second_context)
 
     def test_abandoned_profile_lease_is_reclaimed_without_runtime_restart(self):
         configured = inventory()
@@ -616,24 +705,31 @@ class RuntimeTest(unittest.TestCase):
             now=lambda: clock["now"],
             lease_ttl_seconds=30,
         )
-        service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "failed-run"})
-        lease_path = os.path.join(workspace, "profiles", "seeded", "lease.json")
+        first_context = {"agentId": "agent:shared", "runId": "failed-run"}
+        second_context = {"agentId": "agent:shared", "runId": "replacement-run"}
+        first = service.execute("camoufox-start", {"path": "/assessment"}, context=first_context)
+        lease_path = service.sessions[first["sessionId"]]["lease_path"]
         with open(lease_path, "r", encoding="utf-8") as handle:
             first_lease = json.load(handle)
         self.assertEqual(first_lease["expiresAt"], (clock["now"] + timedelta(seconds=30)).isoformat())
 
         clock["now"] += timedelta(seconds=31)
         replacement = service.execute(
-            "camoufox-start", {"path": "/assessment"}, context={"runId": "replacement-run"}
+            "camoufox-start", {"path": "/assessment"}, context=second_context
         )
-        self.assertEqual(replacement["sessionId"], "replacement-run")
-        self.assertEqual(len(state["launches"]), 2)
+        self.assertEqual(replacement["sessionId"], first["sessionId"])
+        self.assertEqual(len(state["launches"]), 1)
         with open(lease_path, "r", encoding="utf-8") as handle:
             replacement_lease = json.load(handle)
         self.assertEqual(replacement_lease["state"], "active")
-        self.assertEqual(replacement_lease["generation"], first_lease["generation"] + 1)
-        self.assertEqual(replacement_lease["sessionId"], "replacement-run")
-        service.execute("camoufox-close", {"sessionId": "replacement-run"}, context={"runId": "replacement-run"})
+        self.assertEqual(replacement_lease["generation"], first_lease["generation"])
+        self.assertEqual(replacement_lease["sessionId"], first["sessionId"])
+        self.assertEqual(replacement_lease["runDigest"], run_digest(second_context))
+        service.execute(
+            "camoufox-close",
+            {"sessionId": replacement["sessionId"]},
+            context=second_context,
+        )
 
     def test_owner_activity_renews_profile_lease(self):
         configured = inventory()
@@ -647,17 +743,27 @@ class RuntimeTest(unittest.TestCase):
             now=lambda: clock["now"],
             lease_ttl_seconds=30,
         )
-        service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "active-run"})
+        active_context = {"agentId": "agent:shared", "runId": "active-run"}
+        other_context = {"agentId": "agent:shared", "runId": "other-run"}
+        started = service.execute("camoufox-start", {"path": "/assessment"}, context=active_context)
         clock["now"] += timedelta(seconds=20)
-        service.execute("camoufox-snapshot", {"sessionId": "active-run"}, context={"runId": "active-run"})
-        lease_path = os.path.join(workspace, "profiles", "seeded", "lease.json")
+        service.execute(
+            "camoufox-snapshot",
+            {"sessionId": started["sessionId"]},
+            context=active_context,
+        )
+        lease_path = service.sessions[started["sessionId"]]["lease_path"]
         with open(lease_path, "r", encoding="utf-8") as handle:
             renewed = json.load(handle)
         self.assertEqual(renewed["expiresAt"], (clock["now"] + timedelta(seconds=30)).isoformat())
         clock["now"] += timedelta(seconds=20)
         with self.assertRaisesRegex(ValueError, "leased by another active Run"):
-            service.execute("camoufox-start", {"path": "/assessment"}, context={"runId": "other-run"})
-        service.execute("camoufox-close", {"sessionId": "active-run"}, context={"runId": "active-run"})
+            service.execute("camoufox-start", {"path": "/assessment"}, context=other_context)
+        service.execute(
+            "camoufox-close",
+            {"sessionId": started["sessionId"]},
+            context=active_context,
+        )
 
     def test_profile_lease_ttl_is_bounded(self):
         for value in (0, 29, 3601, "invalid"):
@@ -675,7 +781,11 @@ class RuntimeTest(unittest.TestCase):
     def test_start_requires_explicit_choice_when_inventory_is_ambiguous(self):
         service, _ = make_runtime()
         with self.assertRaisesRegex(ValueError, "target must be selected"):
-            service.execute("camoufox-start", {}, context={"runId": "run-123"})
+            service.execute(
+                "camoufox-start",
+                {},
+                context={"agentId": "run-123", "runId": "run-123"},
+            )
 
     def test_navigate_reuses_active_session_for_direct_https_url(self):
         service, state = make_runtime()
@@ -1044,13 +1154,16 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(projected, {"required": True, "filled": True, "type": "password"})
         self.assertNotIn("correct horse", str(projected))
 
-    def test_close_preserves_profile_and_removes_session(self):
+    def test_close_releases_usage_and_preserves_agent_session(self):
         service, state = make_runtime()
         start_session(service, "close-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
         result = service.execute("camoufox-close", {"sessionId": "close-1"})
-        self.assertTrue(result["closed"])
-        self.assertTrue(state["closed"])
-        with self.assertRaisesRegex(ValueError, "not found"):
+        self.assertFalse(result["closed"])
+        self.assertTrue(result["usageReleased"])
+        self.assertTrue(result["sessionPreserved"])
+        self.assertFalse(state.get("closed", False))
+        self.assertIn("close-1", service.sessions)
+        with self.assertRaisesRegex(ValueError, "usage lease expired"):
             service.execute("camoufox-snapshot", {"sessionId": "close-1"})
 
 
