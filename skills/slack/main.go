@@ -22,7 +22,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.2.5"
+	slackSkillVersion       = "2.2.8"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -292,9 +292,15 @@ type SlackChannelListExecutor struct{}
 
 func (e *SlackChannelListExecutor) Type() string { return "slack-channel-list" }
 
-func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
 	token := getString(config, slackBotTokenCredential)
+	if token == "" {
+		if bindings, ok := resolver.(executor.BindingResolver); ok {
+			token, _ = bindings.GetBinding(slackBotTokenCredential).(string)
+		}
+	}
+	token = strings.TrimSpace(token)
 	types := strings.TrimSpace(getString(config, "types"))
 	if types == "" {
 		types = "public_channel,private_channel"
