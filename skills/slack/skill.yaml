@@ -97,13 +97,22 @@ definition:
                             required: [id, name]
                             type: object
                         type: array
+                    connection:
+                        additionalProperties: false
+                        properties:
+                            displayName:
+                                type: string
+                            installationId:
+                                type: string
+                        required: [installationId]
+                        type: object
                     count:
                         type: integer
                     nextCursor:
                         type: string
                     success:
                         type: boolean
-                required: [success, channels, count, nextCursor]
+                required: [success, connection, channels, count, nextCursor]
                 type: object
             permissions:
                 - slack:read
@@ -439,6 +448,8 @@ definition:
                   idPath: id
                   displayNamePath: name
                   descriptionPath: description
+                  installationIdPath: connection.installationId
+                  connectionDisplayNamePath: connection.displayName
                   cursorArgument: cursor
                   limitArgument: limit
                   queryArgument: query
@@ -477,7 +488,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.2.6
+          package: axiomstudio/skill-slack:2.2.7
     name: Slack Skill
     source:
         format: axiom.skill/v1
@@ -487,7 +498,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.2.6
+        resolvedVersion: 2.2.7
     tags:
         - chat
         - messaging
@@ -496,7 +507,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.2.6
+    version: 2.2.7
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
