@@ -30,10 +30,10 @@ or product UI.
 
 ## Setup
 
-1. Create a Slack app with the scopes declared in `skill.yaml` and install it
-   to the workspace.
-2. Connect the installation through the host's authorized OAuth flow. The bot
-   token is bound opaquely as `slack_bot_token`; it is never an action input.
+1. Create a Slack app with the scopes required by the selected actions and
+   install it to the workspace.
+2. Bind its bot token through the host Vault. The token is bound opaquely as
+   `slack_bot_token`; it is never an action input.
 3. Configure `slack_signing_secret` through the host credential surface for
    inbound Events API verification.
 4. Select an authorized channel by name during Agent or Team authoring. The
