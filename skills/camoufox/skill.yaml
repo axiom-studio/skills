@@ -57,6 +57,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
             timeout: 45000000000
         camoufox-snapshot:
             name: camoufox-snapshot
@@ -117,6 +118,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
         camoufox-follow-link:
             name: camoufox-follow-link
             description: Follow one exact anchor from the current snapshot within the active authorized target without activating a form or mutation control.
@@ -133,6 +135,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
             timeout: 45000000000
         camoufox-click:
             name: camoufox-click
@@ -176,6 +179,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: write
             sideEffect: write
+            finalizerAction: camoufox-close
             semanticArguments: {intent: intent}
         camoufox-commit:
             name: camoufox-commit
@@ -199,6 +203,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: external
             sideEffect: external
+            finalizerAction: camoufox-close
             semanticArguments: {intent: intent}
             requiredEvidence:
                 - {action: camoufox-fill, matchingArguments: [sessionId]}
@@ -222,6 +227,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: write
             sideEffect: write
+            finalizerAction: camoufox-close
             semanticArguments: {body: value, target: target, intent: intent}
         camoufox-fill-secret:
             name: camoufox-fill-secret
@@ -246,6 +252,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: write
             sideEffect: write
+            finalizerAction: camoufox-close
             semanticArguments: {target: target, intent: intent}
         camoufox-select:
             name: camoufox-select
@@ -267,6 +274,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: write
             sideEffect: write
+            finalizerAction: camoufox-close
             semanticArguments: {target: target, intent: intent}
         camoufox-scroll:
             name: camoufox-scroll
@@ -284,6 +292,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
         camoufox-screenshot:
             name: camoufox-screenshot
             description: Capture a bounded PNG screenshot of the current viewport or full page as evidence.
@@ -299,6 +308,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
         camoufox-report:
             name: camoufox-report
             description: Return accepted, challenged, or blocked outcome evidence without revealing profile, proxy, cookie, or credential values.
@@ -313,6 +323,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
+            finalizerAction: camoufox-close
         camoufox-close:
             name: camoufox-close
             description: Release the current Run's exclusive use of its Agent-owned browser session while preserving the authenticated session and profile; this does not change the remote site.
@@ -330,7 +341,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.30
+          package: axiomstudio/skill-browser:2.0.31
     name: Browser Skill
     prompt:
         allowedTools:
@@ -368,10 +379,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.30
+        resolvedVersion: 2.0.31
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.30
+    version: 2.0.31
 kind: SkillDefinition
