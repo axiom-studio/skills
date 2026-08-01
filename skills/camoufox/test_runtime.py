@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.30")
+        self.assertEqual(definition["version"], "2.0.31")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -392,7 +392,12 @@ class RuntimeTest(unittest.TestCase):
             self.assertNotIn("writeAuthorized", action["inputSchema"]["properties"])
             self.assertNotIn("writeAuthorized", action["inputSchema"]["required"])
         commit = actions["camoufox-commit"]
-        self.assertEqual(actions["camoufox-start"]["finalizerAction"], "camoufox-close")
+        for name in (
+            "camoufox-start", "camoufox-navigate", "camoufox-snapshot", "camoufox-follow-link",
+            "camoufox-click", "camoufox-commit", "camoufox-fill", "camoufox-fill-secret",
+            "camoufox-select", "camoufox-scroll", "camoufox-screenshot", "camoufox-report",
+        ):
+            self.assertEqual(actions[name]["finalizerAction"], "camoufox-close")
         self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
         self.assertEqual(commit["externalOperationPolicy"], "required")
         self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey"])
