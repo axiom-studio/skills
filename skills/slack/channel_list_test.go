@@ -39,8 +39,8 @@ func TestSlackChannelListProjectsSearchableCursorPage(t *testing.T) {
 	slackBaseURLOverride = server.URL
 	t.Cleanup(func() { slackBaseURLOverride = previousBaseURL })
 	result, err := (&SlackChannelListExecutor{}).Execute(context.Background(), &executor.StepDefinition{Config: map[string]interface{}{
-		slackBotTokenCredential: "xoxb-authorized", "cursor": "cursor-1", "limit": 50, "query": "feedback",
-	}}, nil)
+		"cursor": "cursor-1", "limit": 50, "query": "feedback",
+	}}, slackBindingResolver{bindings: map[string]interface{}{slackBotTokenCredential: "xoxb-authorized"}})
 	if err != nil {
 		t.Fatal(err)
 	}
