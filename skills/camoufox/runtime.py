@@ -28,7 +28,20 @@ SECRET_CONTROL = re.compile(
 USERNAME_CONTROL = re.compile(r"\b(user(?:name)?|email|login|account)\b", re.I)
 CHALLENGES = {
     "captcha": re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I),
-    "mfa": re.compile(r"\b(multi[ -]?factor|two[ -]?factor|2fa|authenticator|verification code)\b", re.I),
+    # Challenge detection gates every later interaction, so ordinary page
+    # content that discusses MFA must not be treated as an authentication UI.
+    # Match phrases that instruct the current user to complete a factor rather
+    # than broad topic words such as "2FA" or "authenticator".
+    "mfa": re.compile(
+        r"\b("
+        r"(multi[ -]?factor|two[ -]?factor) authentication (is )?(required|needed)|"
+        r"enter (your )?(verification|security|authentication) code|"
+        r"(verification|security|authentication) code (is )?(required|needed)|"
+        r"2fa (challenge|required|verification)|"
+        r"one[ -]?time (password|passcode|code)"
+        r")\b",
+        re.I,
+    ),
     "anti_bot": re.compile(r"\b(access denied|unusual traffic|bot detection|security check|cloudflare|js_challenge)\b", re.I),
 }
 
@@ -45,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.31"
+VERSION = "2.0.32"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live

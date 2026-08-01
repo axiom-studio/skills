@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.31")
+        self.assertEqual(definition["version"], "2.0.32")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -971,6 +971,20 @@ class RuntimeTest(unittest.TestCase):
                 {"sessionId": "forum-1", "target": snapshot["elements"][0]["ref"], "idempotencyKey": "challenge-click-1"},
             )
         self.assertEqual(service.execute("camoufox-report", {"sessionId": "forum-1"})["outcome"], "challenged")
+
+    def test_mfa_discussion_content_is_not_an_authentication_challenge(self):
+        service, _ = make_runtime({"text": "Does MFA & 2FA collect data info for AI training?"})
+        start_session(service, "mfa-discussion", target="forum", path="/community", profile="standard", proxy_pool="direct")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "mfa-discussion"})
+        self.assertEqual(snapshot["challenges"], [])
+        self.assertFalse(snapshot["requiresHuman"])
+
+    def test_mfa_completion_ui_requires_human(self):
+        service, _ = make_runtime({"text": "Two-factor authentication is required. Enter your verification code."})
+        start_session(service, "mfa-challenge", target="forum", path="/community", profile="standard", proxy_pool="direct")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "mfa-challenge"})
+        self.assertEqual(snapshot["challenges"], ["mfa"])
+        self.assertTrue(snapshot["requiresHuman"])
 
     def test_reddit_js_challenge_is_typed_at_snapshot_boundary(self):
         service, state = make_runtime({"text": "File a ticket"})
