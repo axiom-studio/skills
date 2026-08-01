@@ -106,6 +106,13 @@ type SlackMessagesResponse struct {
 	} `json:"response_metadata"`
 }
 
+type slackAuthResponse struct {
+	OK     bool   `json:"ok"`
+	Error  string `json:"error"`
+	TeamID string `json:"team_id"`
+	Team   string `json:"team"`
+}
+
 type slackMutationResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
@@ -302,6 +309,17 @@ func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.S
 	}
 	cursor := strings.TrimSpace(getString(config, "cursor"))
 	query := strings.ToLower(strings.TrimSpace(getString(config, "query")))
+	authBody, err := doSlackRequest(ctx, token, "GET", "/auth.test", url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var auth slackAuthResponse
+	if err := parseSlackResponse(authBody, &auth); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(auth.TeamID) == "" {
+		return nil, fmt.Errorf("Slack connection did not return a workspace identity")
+	}
 
 	params := url.Values{}
 	params.Set("exclude_archived", "true")
@@ -348,7 +366,11 @@ func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.S
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"success":    true,
+			"success": true,
+			"connection": map[string]interface{}{
+				"installationId": strings.TrimSpace(auth.TeamID),
+				"displayName":    strings.TrimSpace(auth.Team),
+			},
 			"channels":   channels,
 			"count":      len(channels),
 			"nextCursor": strings.TrimSpace(result.ResponseMetadata.NextCursor),
