@@ -59,10 +59,6 @@ definition:
             credentials:
                 - kind: slack_bot_token
                   name: slack_bot_token
-                  oauth2:
-                    provider: slack
-                    subject: installation
-                    scopes: [app_mentions:read, channels:history, chat:write, groups:history, im:history, mpim:history]
             description: Slack Channel List
             idempotency: supported
             inputSchema:
@@ -434,10 +430,6 @@ definition:
             credentials:
                 - name: slack_bot_token
                   kind: slack_bot_token
-                  oauth2:
-                    provider: slack
-                    subject: installation
-                    scopes: [app_mentions:read, channels:history, chat:write, groups:history, im:history, mpim:history]
                 - name: slack_signing_secret
                   kind: slack_signing_secret
             destinationDiscovery:
@@ -485,7 +477,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.2.5
+          package: axiomstudio/skill-slack:2.2.6
     name: Slack Skill
     source:
         format: axiom.skill/v1
@@ -495,7 +487,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.2.5
+        resolvedVersion: 2.2.6
     tags:
         - chat
         - messaging
@@ -504,7 +496,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.2.5
+    version: 2.2.6
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
