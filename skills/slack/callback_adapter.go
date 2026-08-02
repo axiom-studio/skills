@@ -134,7 +134,7 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope, now time.
 	}
 	var reviewed slackApprovalValue
 	if json.Unmarshal([]byte(action.Value), &reviewed) != nil || reviewed.ApprovalID == "" ||
-		reviewed.ApprovalRevision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" || reviewed.ExpiresAt.IsZero() {
+		reviewed.ApprovalRevision < 1 || reviewed.ActionCallID == "" || reviewed.InvocationDigest == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	principal, ok := slackApprovalPrincipal(configuration, payload.User.ID)
@@ -142,6 +142,16 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope, now time.
 		return map[string]interface{}{
 			"statusCode": http.StatusForbidden, "contentType": "text/plain",
 			"body": []byte("Slack user is not authorized to decide this approval"),
+		}, nil
+	}
+	if reviewed.ExpiresAt.IsZero() {
+		responseBody, responseErr := slackApprovalDecisionResponse(payload, decision, now, true)
+		if responseErr != nil {
+			return nil, responseErr
+		}
+		return map[string]interface{}{
+			"statusCode": http.StatusOK, "contentType": "application/json", "body": responseBody,
+			"events": []normalizedCallbackEvent{},
 		}, nil
 	}
 	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID

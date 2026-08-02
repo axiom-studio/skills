@@ -146,6 +146,43 @@ func TestSlackCallbackReplacesLateApprovalWithExpiredCard(t *testing.T) {
 	}
 }
 
+func TestSlackCallbackExpiresLegacyCardWithoutReplayingApproval(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	value, _ := json.Marshal(slackApprovalValue{
+		ApprovalID: "approval-legacy", ApprovalRevision: 1, ActionCallID: "call-legacy",
+		InvocationDigest: strings.Repeat("b", 64),
+	})
+	payload, _ := json.Marshal(map[string]interface{}{
+		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
+		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
+		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"message": map[string]interface{}{"blocks": []map[string]interface{}{
+			{"type": "section", "text": map[string]string{"type": "mrkdwn", "text": "*Review this action*"}},
+			{"type": "actions", "elements": []map[string]string{{"type": "button", "text": "Approve"}}},
+		}},
+		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
+	})
+	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
+	adapter := newSlackAdapter("signing-secret", "", nil)
+	adapter.now = func() time.Time { return now }
+	output, err := adapter.callback(context.Background(), callbackConfig(now, body, map[string]interface{}{
+		"teamId": "T123", "appId": "A123",
+		"approvalPrincipals": map[string]interface{}{"U123": map[string]interface{}{"type": "role", "id": "operator"}},
+	}))
+	if err != nil || output["statusCode"] != http.StatusOK {
+		t.Fatalf("legacy callback = %#v, %v", output, err)
+	}
+	responseBody := output["body"].([]byte)
+	if !strings.Contains(string(responseBody), "Expired") {
+		t.Fatalf("legacy response = %s", responseBody)
+	}
+	encoded, _ := json.Marshal(output["events"])
+	var events []normalizedCallbackEvent
+	if json.Unmarshal(encoded, &events) != nil || len(events) != 0 {
+		t.Fatalf("legacy callback replayed events = %s", encoded)
+	}
+}
+
 func TestSlackCallbackExecutorReadsEphemeralSigningSecretFromBindingChannel(t *testing.T) {
 	now := time.Unix(1_720_000_000, 0).UTC()
 	value, _ := json.Marshal(slackApprovalValue{
