@@ -115,14 +115,17 @@ func normalizeSlackApprovalCallback(envelope *callbackAdapterEnvelope, now time.
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	configuration := envelope.Registration.Configuration
-	if expected := stringConfiguration(configuration, "channelId"); expected != "" && expected != payload.Channel.ID {
-		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
-	}
 	if expected := stringConfiguration(configuration, "teamId"); expected != "" && expected != payload.Team.ID {
-		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+		return map[string]interface{}{
+			"statusCode": http.StatusConflict, "contentType": "text/plain",
+			"body": []byte("Slack workspace does not match the reviewed callback installation"),
+		}, nil
 	}
 	if expected := stringConfiguration(configuration, "appId"); expected != "" && expected != payload.APIAppID {
-		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+		return map[string]interface{}{
+			"statusCode": http.StatusConflict, "contentType": "text/plain",
+			"body": []byte("Slack app does not match the reviewed callback installation"),
+		}, nil
 	}
 	action := payload.Actions[0]
 	decision := strings.TrimPrefix(strings.TrimSpace(action.ActionID), "openseal_approval_")
