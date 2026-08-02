@@ -35,7 +35,9 @@ func TestSlackCallbackVerifiesSignatureAndNormalizesApprovalDecision(t *testing.
 	})
 	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
 	config := callbackConfig(now, body, map[string]interface{}{
-		"teamId": "T123", "appId": "A123", "channelId": "C123",
+		// A legacy channel hint must not become a second routing authority. The
+		// reviewed callback subscription owns the destination and may move.
+		"teamId": "T123", "appId": "A123", "channelId": "C-OLD",
 		"approvalPrincipals": map[string]interface{}{"U123": map[string]interface{}{"type": "role", "id": "operator"}},
 	})
 
