@@ -316,8 +316,8 @@ class BrowserNavigationTest(unittest.TestCase):
             def __init__(self):
                 self.first = self
 
-            def scroll_into_view_if_needed(self, timeout):
-                calls.append(("scroll", timeout))
+            def evaluate(self, expression, timeout):
+                calls.append(("scroll", expression, timeout))
 
             def bounding_box(self):
                 return {"x": 10, "y": 20, "width": 30, "height": 40}
@@ -351,7 +351,7 @@ class BrowserNavigationTest(unittest.TestCase):
 
         self.assertEqual(calls, [
             ("locator", '[data-camoufox-ref="21"]'),
-            ("scroll", 5000),
+            ("scroll", "element => element.scrollIntoView({block: 'center', inline: 'nearest'})", 5000),
             ("move", 25.0, 40.0),
             ("click", 25.0, 40.0),
         ])
@@ -369,21 +369,35 @@ class BrowserNavigationTest(unittest.TestCase):
                 calls.append(("evaluate", script, args, timeout))
                 if "matches" in script:
                     return True
+                if "scrollIntoView" in script:
+                    return None
                 return "replacement"
 
-            def scroll_into_view_if_needed(self, timeout):
-                calls.append(("scroll", timeout))
+            def bounding_box(self):
+                return {"x": 10, "y": 20, "width": 30, "height": 40}
 
-            def click(self, timeout):
-                calls.append(("click", timeout))
+        class Mouse:
+            @staticmethod
+            def move(x, y):
+                calls.append(("move", x, y))
 
-            def press(self, key, timeout):
-                calls.append(("press", key, timeout))
+            @staticmethod
+            def click(x, y):
+                calls.append(("click", x, y))
 
-            def press_sequentially(self, value, delay, timeout):
-                calls.append(("type", value, delay, timeout))
+        class Keyboard:
+            @staticmethod
+            def press(key):
+                calls.append(("press", key))
+
+            @staticmethod
+            def type(value, delay):
+                calls.append(("type", value, delay))
 
         class Page:
+            mouse = Mouse()
+            keyboard = Keyboard()
+
             @staticmethod
             def locator(selector):
                 calls.append(("locator", selector))
@@ -402,11 +416,12 @@ class BrowserNavigationTest(unittest.TestCase):
         self.assertEqual(calls, [
             ("locator", '[data-camoufox-ref="70"]'),
             ("evaluate", "(element, selector) => element.matches(selector)", ('input, textarea, [contenteditable="true"], [role="textbox"]',), 5000),
-            ("scroll", 5000),
-            ("click", 5000),
-            ("press", "Control+A", 5000),
-            ("press", "Backspace", 5000),
-            ("type", "replacement", 8, 5000),
+            ("evaluate", "element => element.scrollIntoView({block: 'center', inline: 'nearest'})", (), 5000),
+            ("move", 25.0, 40.0),
+            ("click", 25.0, 40.0),
+            ("press", "Control+A"),
+            ("press", "Backspace"),
+            ("type", "replacement", 8),
             ("evaluate", "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))", (), 5000),
         ])
 
@@ -416,7 +431,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.34")
+        self.assertEqual(definition["version"], "2.0.35")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
