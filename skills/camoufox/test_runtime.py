@@ -56,6 +56,15 @@ class FakeHandle:
         self.state["url"] = url
         return {"url": url, "status": self.state.get("status", 200)}
 
+    def fresh_page(self):
+        self.state["fresh_pages"] = self.state.get("fresh_pages", 0) + 1
+        self.state["url"] = "about:blank"
+        self.state.pop("text", None)
+        self.state.pop("elements", None)
+        self.state.pop("fill", None)
+        self.state.pop("click", None)
+        self.state.pop("solved", None)
+
     def snapshot(self, include_model_media=False):
         if self.state.get("click") and self.state.get("delayed_progress_snapshots"):
             self.state["post_click_snapshots"] = self.state.get("post_click_snapshots", 0) + 1
@@ -438,7 +447,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.36")
+        self.assertEqual(definition["version"], "2.0.37")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -671,6 +680,8 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(second["sessionId"], first["sessionId"])
         self.assertIs(service.sessions[second["sessionId"]]["handle"], first_handle)
         self.assertEqual(len(state["launches"]), 1)
+        self.assertEqual(state["fresh_pages"], 1)
+        self.assertEqual(second["url"], "http://fixture.internal:8080/assessment")
 
         lease_path = service.sessions[second["sessionId"]]["lease_path"]
         with open(lease_path, "r", encoding="utf-8") as handle:
@@ -678,6 +689,34 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(lease["state"], "active")
         self.assertEqual(lease["runDigest"], run_digest(second_context))
         self.assertRegex(lease["agentDigest"], r"^sha256:[0-9a-f]{64}$")
+
+    def test_distinct_run_starts_on_fresh_page_but_same_run_is_idempotent(self):
+        service, state = make_runtime()
+        service.inventory["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        first_context = {"agentId": "agent:shared", "runId": "run-a"}
+        second_context = {"agentId": "agent:shared", "runId": "run-b"}
+        first = service.execute("camoufox-start", {"path": "/assessment/first"}, context=first_context)
+        self.assertEqual(
+            service.execute("camoufox-start", {"path": "/assessment/ignored"}, context=first_context),
+            first,
+        )
+        self.assertNotIn("fresh_pages", state)
+
+        service.execute("camoufox-close", {"sessionId": first["sessionId"]}, context=first_context)
+        second = service.execute("camoufox-start", {"path": "/assessment/second"}, context=second_context)
+
+        self.assertEqual(second["sessionId"], first["sessionId"])
+        self.assertEqual(second["url"], "http://fixture.internal:8080/assessment/second")
+        self.assertEqual(state["fresh_pages"], 1)
+        self.assertEqual(len(state["launches"]), 1)
+        session = service.sessions[second["sessionId"]]
+        self.assertEqual(session["generation"], 0)
+        self.assertEqual(session["receipts"], {})
+        self.assertIsNone(session["last_fill"])
 
     def test_expired_run_usage_lease_reuses_the_agent_session(self):
         configured = inventory()

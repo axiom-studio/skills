@@ -12,8 +12,9 @@ agent actions never receive target policy, proxy credentials, profile values,
 or infrastructure identifiers. `camoufox-start` derives one isolated stable
 session identity from the transport's durable Agent context and returns the
 handle for explicit dataflow through later actions. Runs from that Agent reuse
-the authenticated session but acquire serialized usage; different Agents get
-separate session and profile directories.
+the authenticated browser profile and cookies but each distinct Run starts on
+a fresh page with no inherited URL, DOM references, drafts, or navigation
+state. Usage remains serialized; different Agents get separate profiles.
 
 Run usage is a bounded renewable lease on the Agent session. Each action from
 the exact owning Run renews the lease; another Run waits until the owner
@@ -85,5 +86,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.36 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.37 .
 ```
