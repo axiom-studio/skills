@@ -22,7 +22,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.2.11"
+	slackSkillVersion       = "2.2.12"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -157,9 +157,9 @@ type SlackSendMessageExecutor struct{}
 
 func (e *SlackSendMessageExecutor) Type() string { return "slack-send-message" }
 
-func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	text := getString(config, "message")
 	if text == "" {
@@ -222,9 +222,9 @@ type SlackReadMessagesExecutor struct{}
 
 func (e *SlackReadMessagesExecutor) Type() string { return "slack-read-messages" }
 
-func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	limit := getInt(config, "limit", 10)
 
@@ -294,13 +294,7 @@ func (e *SlackChannelListExecutor) Type() string { return "slack-channel-list" }
 
 func (e *SlackChannelListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
-	if token == "" {
-		if bindings, ok := resolver.(executor.BindingResolver); ok {
-			token, _ = bindings.GetBinding(slackBotTokenCredential).(string)
-		}
-	}
-	token = strings.TrimSpace(token)
+	token := slackConnectionToken(config, resolver)
 	types := strings.TrimSpace(getString(config, "types"))
 	if types == "" {
 		types = "public_channel,private_channel"
@@ -406,9 +400,9 @@ type SlackAddReactionExecutor struct{}
 
 func (e *SlackAddReactionExecutor) Type() string { return "slack-add-reaction" }
 
-func (e *SlackAddReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackAddReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	emoji := strings.Trim(getString(config, "emoji"), ":")
@@ -466,9 +460,9 @@ type SlackRemoveReactionExecutor struct{}
 
 func (e *SlackRemoveReactionExecutor) Type() string { return "slack-remove-reaction" }
 
-func (e *SlackRemoveReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackRemoveReactionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	emoji := strings.Trim(getString(config, "emoji"), ":")
@@ -526,9 +520,9 @@ type SlackUpdateMessageExecutor struct{}
 
 func (e *SlackUpdateMessageExecutor) Type() string { return "slack-update-message" }
 
-func (e *SlackUpdateMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackUpdateMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 	text := getString(config, "text")
@@ -585,9 +579,9 @@ type SlackDeleteMessageExecutor struct{}
 
 func (e *SlackDeleteMessageExecutor) Type() string { return "slack-delete-message" }
 
-func (e *SlackDeleteMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackDeleteMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	timestamp := getString(config, "timestamp")
 
@@ -638,9 +632,9 @@ type SlackCreateChannelExecutor struct{}
 
 func (e *SlackCreateChannelExecutor) Type() string { return "slack-create-channel" }
 
-func (e *SlackCreateChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackCreateChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	name := strings.TrimSpace(getString(config, "name"))
 	isPrivate := getBool(config, "isPrivate", false)
 
@@ -693,9 +687,9 @@ type SlackRenameChannelExecutor struct{}
 
 func (e *SlackRenameChannelExecutor) Type() string { return "slack-rename-channel" }
 
-func (e *SlackRenameChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackRenameChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	name := strings.TrimSpace(getString(config, "name"))
 
@@ -753,9 +747,9 @@ type SlackArchiveChannelExecutor struct{}
 
 func (e *SlackArchiveChannelExecutor) Type() string { return "slack-archive-channel" }
 
-func (e *SlackArchiveChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackArchiveChannelExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 
 	if token == "" {
@@ -799,9 +793,9 @@ type SlackSetChannelTopicExecutor struct{}
 
 func (e *SlackSetChannelTopicExecutor) Type() string { return "slack-set-channel-topic" }
 
-func (e *SlackSetChannelTopicExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackSetChannelTopicExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	topic := strings.TrimSpace(getString(config, "topic"))
 
@@ -851,9 +845,9 @@ type SlackSetChannelPurposeExecutor struct{}
 
 func (e *SlackSetChannelPurposeExecutor) Type() string { return "slack-set-channel-purpose" }
 
-func (e *SlackSetChannelPurposeExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackSetChannelPurposeExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	purpose := strings.TrimSpace(getString(config, "purpose"))
 
@@ -903,9 +897,9 @@ type SlackSendEphemeralMessageExecutor struct{}
 
 func (e *SlackSendEphemeralMessageExecutor) Type() string { return "slack-send-ephemeral-message" }
 
-func (e *SlackSendEphemeralMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackSendEphemeralMessageExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	user := getString(config, "user")
 	text := getString(config, "text")
@@ -962,9 +956,9 @@ type SlackListUsersExecutor struct{}
 
 func (e *SlackListUsersExecutor) Type() string { return "slack-list-users" }
 
-func (e *SlackListUsersExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
+func (e *SlackListUsersExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := step.Config
-	token := getString(config, slackBotTokenCredential)
+	token := slackConnectionToken(config, resolver)
 	limit := getInt(config, "limit", 100)
 
 	if token == "" {
@@ -1123,6 +1117,19 @@ func getString(config map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// slackConnectionToken keeps credentials out of ordinary action config for
+// governed managed-Skill execution. Config lookup remains for standalone and
+// older SDK callers; the secure binding channel is canonical when present.
+func slackConnectionToken(config map[string]interface{}, resolver executor.TemplateResolver) string {
+	if bindings, ok := resolver.(executor.BindingResolver); ok {
+		token, _ := bindings.GetBinding(slackBotTokenCredential).(string)
+		if token = strings.TrimSpace(token); token != "" {
+			return token
+		}
+	}
+	return strings.TrimSpace(getString(config, slackBotTokenCredential))
 }
 
 func getInt(config map[string]interface{}, key string, def int) int {
