@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.32"
+VERSION = "2.0.33"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -826,15 +826,13 @@ class CamoufoxRuntime:
             if config.get("sessionId") != expected_session:
                 raise ValueError("automation session belongs to a different durable Agent")
             session = self.sessions.get(expected_session)
-            if session is not None and session.get("run_digest") != run_digest(context):
-                if not session.get("run_digest"):
-                    # An Agent keeps its authenticated session between Runs. A
-                    # new Run may begin with any authorized browser action, so
-                    # claim idle usage here instead of requiring a redundant
-                    # start call merely to acquire the lease.
-                    self._claim_usage_lease(session, context)
-                else:
-                    raise ValueError("browser session usage is leased by another active Run")
+            if session is not None:
+                # Every hosted action renews or atomically claims the Agent's
+                # serialized browser usage. This includes replaying an exact
+                # approved action after a long approval wait: the same Run can
+                # renew an expired lease without losing its snapshot refs,
+                # while another Run remains excluded until the lease expires.
+                self._claim_usage_lease(session, context)
         handlers = {
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config, context),

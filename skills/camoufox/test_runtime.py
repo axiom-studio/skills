@@ -377,7 +377,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.32")
+        self.assertEqual(definition["version"], "2.0.33")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -840,6 +840,48 @@ class RuntimeTest(unittest.TestCase):
             "camoufox-close",
             {"sessionId": started["sessionId"]},
             context=active_context,
+        )
+
+    def test_approved_action_reacquires_expired_usage_without_losing_snapshot_refs(self):
+        configured = inventory()
+        configured["defaults"] = {"targetId": "owned", "profileId": "seeded", "proxyPoolId": "rotating"}
+        state = {}
+        clock = {"now": datetime(2026, 7, 27, tzinfo=timezone.utc)}
+        service = CamoufoxRuntime(
+            inventory=configured,
+            workspace=tempfile.mkdtemp(prefix="camoufox-approval-wait-"),
+            browser_factory=fake_factory(state),
+            now=lambda: clock["now"],
+            lease_ttl_seconds=30,
+        )
+        context = {"agentId": "agent:shared", "runId": "approved-run"}
+        started = service.execute("camoufox-start", {"path": "/assessment"}, context=context)
+        snapshot = service.execute(
+            "camoufox-snapshot",
+            {"sessionId": started["sessionId"]},
+            context=context,
+        )
+        target = snapshot["elements"][0]["ref"]
+
+        clock["now"] += timedelta(seconds=31)
+        result = service.execute(
+            "camoufox-fill",
+            {
+                "sessionId": started["sessionId"],
+                "target": target,
+                "value": "Approved comment",
+                "intent": "Fill the previously approved comment",
+                "idempotencyKey": "approved-comment-1",
+            },
+            context=context,
+        )
+
+        self.assertEqual(result["receipt"], "approved-comment-1")
+        self.assertEqual(state["fill"]["value"], "Approved comment")
+        self.assertEqual(service.sessions[started["sessionId"]]["run_digest"], run_digest(context))
+        self.assertEqual(
+            service.sessions[started["sessionId"]]["lease_expires_at"],
+            clock["now"] + timedelta(seconds=30),
         )
 
     def test_profile_lease_ttl_is_bounded(self):
