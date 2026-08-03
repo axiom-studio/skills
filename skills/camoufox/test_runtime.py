@@ -371,7 +371,8 @@ class BrowserNavigationTest(unittest.TestCase):
                     return True
                 if "scrollIntoView" in script:
                     return None
-                return "replacement"
+                # Simulate a controlled editor replacing the original node.
+                return ""
 
             def bounding_box(self):
                 return {"x": 10, "y": 20, "width": 30, "height": 40}
@@ -403,6 +404,11 @@ class BrowserNavigationTest(unittest.TestCase):
                 calls.append(("locator", selector))
                 return Locator()
 
+            @staticmethod
+            def evaluate(script, value):
+                calls.append(("live-readback", script, value))
+                return value == "replacement"
+
         class Worker:
             @staticmethod
             def call(fn, **_kwargs):
@@ -423,6 +429,7 @@ class BrowserNavigationTest(unittest.TestCase):
             ("press", "Backspace"),
             ("type", "replacement", 8),
             ("evaluate", "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))", (), 5000),
+            ("live-readback", "expected => Array.from(document.querySelectorAll('input, textarea, [contenteditable=\"true\"], [role=\"textbox\"]')).some(element => (('value' in element ? element.value : (element.innerText || element.textContent || '')) === expected))", "replacement"),
         ])
 
 
@@ -431,7 +438,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.35")
+        self.assertEqual(definition["version"], "2.0.36")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
