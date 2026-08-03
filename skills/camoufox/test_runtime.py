@@ -62,7 +62,12 @@ class FakeHandle:
             if self.state["post_click_snapshots"] >= self.state["delayed_progress_snapshots"]:
                 self.state["solved"] = True
         if self.state.get("solved"):
-            return {"url": self.state["url"], "title": "Accepted", "text": "Assessment accepted", "elements": []}
+            return {
+                "url": self.state["url"],
+                "title": "Accepted",
+                "text": self.state.get("accepted_text", "Assessment accepted"),
+                "elements": self.state.get("accepted_elements", []),
+            }
         result = {
             "url": self.state["url"],
             "title": "Page",
@@ -311,13 +316,24 @@ class BrowserNavigationTest(unittest.TestCase):
             def __init__(self):
                 self.first = self
 
-            def click(self, timeout):
-                calls.append(("trusted", timeout))
+            def scroll_into_view_if_needed(self, timeout):
+                calls.append(("scroll", timeout))
 
-            def evaluate(self, expression, timeout):
-                calls.append(("exact-dom", expression, timeout))
+            def bounding_box(self):
+                return {"x": 10, "y": 20, "width": 30, "height": 40}
+
+        class Mouse:
+            @staticmethod
+            def move(x, y):
+                calls.append(("move", x, y))
+
+            @staticmethod
+            def click(x, y):
+                calls.append(("click", x, y))
 
         class Page:
+            mouse = Mouse()
+
             @staticmethod
             def locator(selector):
                 calls.append(("locator", selector))
@@ -335,7 +351,9 @@ class BrowserNavigationTest(unittest.TestCase):
 
         self.assertEqual(calls, [
             ("locator", '[data-camoufox-ref="21"]'),
-            ("exact-dom", "element => element.click()", 5000),
+            ("scroll", 5000),
+            ("move", 25.0, 40.0),
+            ("click", 25.0, 40.0),
         ])
 
     def test_fill_replaces_exact_control_without_pointer_stability_gate(self):
@@ -347,8 +365,23 @@ class BrowserNavigationTest(unittest.TestCase):
             def __init__(self):
                 self.first = self
 
-            def fill(self, value, timeout):
-                calls.append(("fill", value, timeout))
+            def evaluate(self, script, *args, timeout):
+                calls.append(("evaluate", script, args, timeout))
+                if "matches" in script:
+                    return True
+                return "replacement"
+
+            def scroll_into_view_if_needed(self, timeout):
+                calls.append(("scroll", timeout))
+
+            def click(self, timeout):
+                calls.append(("click", timeout))
+
+            def press(self, key, timeout):
+                calls.append(("press", key, timeout))
+
+            def press_sequentially(self, value, delay, timeout):
+                calls.append(("type", value, delay, timeout))
 
         class Page:
             @staticmethod
@@ -368,7 +401,13 @@ class BrowserNavigationTest(unittest.TestCase):
 
         self.assertEqual(calls, [
             ("locator", '[data-camoufox-ref="70"]'),
-            ("fill", "replacement", 5000),
+            ("evaluate", "(element, selector) => element.matches(selector)", ('input, textarea, [contenteditable="true"], [role="textbox"]',), 5000),
+            ("scroll", 5000),
+            ("click", 5000),
+            ("press", "Control+A", 5000),
+            ("press", "Backspace", 5000),
+            ("type", "replacement", 8, 5000),
+            ("evaluate", "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))", (), 5000),
         ])
 
 
@@ -377,7 +416,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.33")
+        self.assertEqual(definition["version"], "2.0.34")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -400,7 +439,7 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(actions[name]["finalizerAction"], "camoufox-close")
         self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
         self.assertEqual(commit["externalOperationPolicy"], "required")
-        self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey"])
+        self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey", "postcondition"])
         self.assertEqual(commit["inputSchema"]["properties"]["target"]["x-openseal-observationRef"], {
             "roles": ["button"], "requireEnabled": True,
         })
@@ -1079,6 +1118,7 @@ class RuntimeTest(unittest.TestCase):
             "target": snapshot["elements"][0]["ref"],
             "intent": "Publish the reviewed response",
             "idempotencyKey": "stagnant-commit-1",
+            "postcondition": {"kind": "text_present", "text": "Assessment accepted"},
         }
         with self.assertRaisesRegex(ValueError, "external commit produced no observable progress"):
             service.execute("camoufox-commit", request)
@@ -1096,6 +1136,7 @@ class RuntimeTest(unittest.TestCase):
             "target": snapshot["elements"][0]["ref"],
             "intent": "Publish the reviewed response",
             "idempotencyKey": "delayed-commit-1",
+            "postcondition": {"kind": "text_present", "text": "Assessment accepted"},
         })
         self.assertTrue(result["success"])
         self.assertTrue(result["progress"]["changed"])
@@ -1112,10 +1153,51 @@ class RuntimeTest(unittest.TestCase):
             "target": snapshot["elements"][0]["ref"],
             "intent": "Publish the reviewed response",
             "idempotencyKey": "commit-progress-1",
+            "postcondition": {"kind": "text_present", "text": "Assessment accepted"},
         })
         self.assertTrue(result["success"])
         self.assertTrue(result["progress"]["changed"])
         self.assertEqual(result["receipt"], "commit-progress-1")
+
+    def test_commit_rejects_changed_error_page_when_declared_outcome_is_absent(self):
+        service, _ = make_runtime({"element_role": "button", "accepted_text": "The field is required and cannot be empty"})
+        start_session(service, "commit-error", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-error"})
+        request = {
+            "sessionId": "commit-error",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "commit-error-1",
+            "postcondition": {"kind": "text_present", "text": "Published response"},
+        }
+        with self.assertRaisesRegex(ValueError, "did not produce the expected visible text"):
+            service.execute("camoufox-commit", request)
+        self.assertNotIn("commit:commit-error-1", service.sessions["commit-error"]["receipts"])
+
+    def test_commit_proves_previously_filled_value_persisted_after_form_reset(self):
+        posted = "A durable reviewed response"
+        service, state = make_runtime({"reflect_fill": True})
+        start_session(service, "commit-filled", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-filled"})
+        service.execute("camoufox-fill", {
+            "sessionId": "commit-filled",
+            "target": snapshot["elements"][0]["ref"],
+            "value": posted,
+            "intent": "Prepare the reviewed response",
+            "idempotencyKey": "fill-persisted-1",
+        })
+        state["elements"] = [{"ref": 2, "role": "button", "name": "Publish", "state": {}}]
+        state["accepted_text"] = f"Published {posted}"
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-filled"})
+        result = service.execute("camoufox-commit", {
+            "sessionId": "commit-filled",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "commit-persisted-1",
+            "postcondition": {"kind": "filled_value_persisted"},
+        })
+        self.assertTrue(result["success"])
+        self.assertEqual(result["receipt"], "commit-persisted-1")
 
     def test_commit_rejects_non_button_and_disabled_controls(self):
         for state, message in [
@@ -1132,6 +1214,7 @@ class RuntimeTest(unittest.TestCase):
                         "target": snapshot["elements"][0]["ref"],
                         "intent": "Publish the reviewed response",
                         "idempotencyKey": "invalid-commit-1",
+                        "postcondition": {"kind": "text_present", "text": "Assessment accepted"},
                     })
 
     def test_observation_digest_ignores_regenerated_references(self):

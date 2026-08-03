@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.33"
+VERSION = "2.0.34"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -698,13 +698,15 @@ class CamoufoxHandle:
         def _click():
             locator = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
             if exact:
-                # An approved external commit must activate the exact reviewed
-                # control once. Legacy and script-backed forms can expose a
-                # real enabled submit control with stable semantic bounds while
-                # Playwright's visual actionability gate still classifies it as
-                # hidden. Activate only the already-reviewed current element;
-                # no caller-supplied script or fallback click is permitted.
-                locator.evaluate("element => element.click()", timeout=5000)
+                # External effects must originate from trusted pointer input.
+                # A DOM element.click() can be ignored by controlled apps while
+                # still changing local UI, which creates a false success signal.
+                locator.scroll_into_view_if_needed(timeout=5000)
+                box = locator.bounding_box()
+                if not box:
+                    raise ValueError("external commit target has no visible mouse bounds")
+                self._page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+                self._page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
                 return
             try:
                 locator.scroll_into_view_if_needed(timeout=5000)
@@ -745,13 +747,24 @@ class CamoufoxHandle:
 
     def fill(self, marker, value):
         def _fill():
-            field = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
-            # Filling a form control does not need pointer stability. Requiring
-            # a preliminary click makes dynamic legacy forms wait indefinitely
-            # even when the exact current textarea is visible and editable.
-            # Playwright's fill action focuses the resolved control, replaces
-            # its value, and dispatches the normal input events.
-            field.fill(value, timeout=5000)
+            root = self._page.locator(f'[data-camoufox-ref="{marker}"]').first
+            editable_selector = 'input, textarea, [contenteditable="true"], [role="textbox"]'
+            field = root
+            if not root.evaluate(
+                "(element, selector) => element.matches(selector)", editable_selector, timeout=5000
+            ):
+                field = root.locator(editable_selector).first
+            field.scroll_into_view_if_needed(timeout=5000)
+            field.click(timeout=5000)
+            field.press("Control+A", timeout=5000)
+            field.press("Backspace", timeout=5000)
+            field.press_sequentially(value, delay=8, timeout=max(5000, len(value) * 20))
+            actual = field.evaluate(
+                "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))",
+                timeout=5000,
+            )
+            if actual != value:
+                raise ValueError("editable control did not retain the typed value")
 
         self._worker.call(_fill, timeout=WORKER_TIMEOUT_SECONDS["fill"], operation="fill")
 
@@ -1132,6 +1145,7 @@ class CamoufoxRuntime:
             "viewport": {},
             "mutations": 0,
             "receipts": {},
+            "last_fill": None,
             "secrets": set(),
             "started_at": self.now(),
             "lease_fd": lease_fd,
@@ -1297,7 +1311,15 @@ class CamoufoxRuntime:
         if not isinstance(key, str) or len(key) < 8:
             raise ValueError("idempotencyKey is required")
         value = secret_value if secret_value is not None else config.get("value", "")
-        fingerprint = digest(operation, config.get("target"), config.get("generation"), config.get("x"), config.get("y"), value)
+        fingerprint = digest(
+            operation,
+            config.get("target"),
+            config.get("generation"),
+            config.get("x"),
+            config.get("y"),
+            value,
+            config.get("postcondition"),
+        )
         receipt_key = f"{operation}:{key}"
         if receipt_key in session["receipts"]:
             receipt = session["receipts"][receipt_key]
@@ -1340,6 +1362,11 @@ class CamoufoxRuntime:
             session["handle"].select(marker, value)
         else:
             session["handle"].fill(marker, value)
+            if secret_value is None:
+                session["last_fill"] = {
+                    "value": value,
+                    "controlName": session["ref_names"].get(target_ref, ""),
+                }
         before_digest = session.get("observation_digest") or ""
         observation_attempts = COMMIT_OBSERVATION_ATTEMPTS if operation == "commit" else 1
         after_snapshot = None
@@ -1362,6 +1389,15 @@ class CamoufoxRuntime:
                 "external commit produced no observable progress; completion is unverified; "
                 "take a fresh snapshot and confirm the external state before any retry"
             )
+        if operation == "commit":
+            try:
+                self._verify_commit_postcondition(session, config.get("postcondition"), after_snapshot)
+            except ValueError:
+                session["refs"].clear()
+                session["ref_names"].clear()
+                session["ref_controls"].clear()
+                session["ref_links"].clear()
+                raise
         result = {
             "sessionId": session["id"],
             "success": True,
@@ -1380,6 +1416,44 @@ class CamoufoxRuntime:
         session["ref_links"].clear()
         session["mutations"] += 1
         return result
+
+    def _verify_commit_postcondition(self, session, postcondition, snapshot):
+        if not isinstance(postcondition, dict):
+            raise ValueError("external commit requires a typed postcondition")
+        kind = postcondition.get("kind")
+        normalized_text = " ".join(str(snapshot.get("text", "")).split())
+        if kind == "filled_value_persisted":
+            last_fill = session.get("last_fill")
+            value = last_fill.get("value") if isinstance(last_fill, dict) else None
+            if not isinstance(value, str) or not value:
+                raise ValueError("filled_value_persisted requires a preceding non-secret fill")
+            if " ".join(value.split()) not in normalized_text:
+                raise ValueError("external commit did not persist the previously filled value")
+            control_name = last_fill.get("controlName", "")
+            for element in snapshot.get("elements") or []:
+                state = element.get("state") if isinstance(element, dict) else None
+                if (
+                    isinstance(state, dict)
+                    and state.get("filled") is True
+                    and (not control_name or element.get("name") == control_name)
+                ):
+                    raise ValueError("external commit left the previously filled form control populated")
+            return
+        if kind == "text_present":
+            text = postcondition.get("text")
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text_present postcondition requires text")
+            if " ".join(text.split()) not in normalized_text:
+                raise ValueError("external commit did not produce the expected visible text")
+            return
+        if kind == "url_changed":
+            previous_url = postcondition.get("fromUrl")
+            if not isinstance(previous_url, str) or not previous_url:
+                raise ValueError("url_changed postcondition requires fromUrl")
+            if snapshot.get("url") == previous_url:
+                raise ValueError("external commit did not change the URL")
+            return
+        raise ValueError("external commit postcondition kind is unsupported")
 
     def fill_secret(self, config, bindings):
         field = config.get("credentialField")

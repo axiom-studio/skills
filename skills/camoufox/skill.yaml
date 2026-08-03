@@ -183,7 +183,7 @@ definition:
             semanticArguments: {intent: intent}
         camoufox-commit:
             name: camoufox-commit
-            description: Click one enabled button from the latest snapshot to commit the final approved, externally observable operation. Never target a textbox or editable field; fill it with camoufox-fill, take a fresh snapshot, then target the resulting submit or save button.
+            description: Click one enabled button from the latest snapshot with trusted pointer input to commit the final approved, externally observable operation. Supply a typed postcondition that proves the intended result persisted; a page change alone is never success. For a submitted comment, post, or message use filled_value_persisted. Never target a textbox or editable field; fill it with camoufox-fill, take a fresh snapshot, then target the resulting submit or save button.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -195,7 +195,15 @@ definition:
                         x-openseal-observationRef: {roles: [button], requireEnabled: true}
                     intent: {type: string, minLength: 3, maxLength: 500}
                     idempotencyKey: {type: string, minLength: 8, maxLength: 128}
-                required: [sessionId, target, intent, idempotencyKey]
+                    postcondition:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                            kind: {type: string, enum: [filled_value_persisted, text_present, url_changed]}
+                            text: {type: string, minLength: 1, maxLength: 20000}
+                            fromUrl: {type: string, pattern: '^https?://', maxLength: 2048}
+                        required: [kind]
+                required: [sessionId, target, intent, idempotencyKey, postcondition]
             outputSchema: *interaction_output
             permissions: [browser:interact, network:http]
             externalOperationPolicy: required
@@ -341,7 +349,7 @@ definition:
         - id: oci
           kind: oci
           label: Camoufox Skill service image with pinned Camoufox and Firefox
-          package: axiomstudio/skill-browser:2.0.33
+          package: axiomstudio/skill-browser:2.0.34
     name: Browser Skill
     prompt:
         allowedTools:
@@ -379,10 +387,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.33
+        resolvedVersion: 2.0.34
     tags: [anti-detect, browser, camoufox, firefox, stealth]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.33
+    version: 2.0.34
 kind: SkillDefinition
