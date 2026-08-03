@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.36"
+VERSION = "2.0.37"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -671,6 +671,16 @@ class CamoufoxHandle:
             operation="navigation",
         )
 
+    def fresh_page(self):
+        def _fresh_page():
+            previous = self._page
+            self._page = self._browser.new_page()
+            previous.close()
+
+        self._worker.call(
+            _fresh_page, timeout=WORKER_TIMEOUT_SECONDS["close"], operation="fresh page"
+        )
+
     def snapshot(self, include_model_media=False):
         def _snapshot():
             try:
@@ -1003,8 +1013,28 @@ class CamoufoxRuntime:
             "releaseReason": reason,
             "expiresAt": now.isoformat(),
         })
+        session["last_run_digest"] = session.get("run_digest", "")
         session["run_digest"] = ""
         session["lease_expires_at"] = now
+
+    def _reset_run_page(self, session):
+        session["handle"].fresh_page()
+        session["page_run_digest"] = ""
+        session["current_url"] = "about:blank"
+        session["status_code"] = 0
+        session["generation"] = 0
+        session["refs"].clear()
+        session["ref_names"].clear()
+        session["ref_controls"].clear()
+        session["ref_links"].clear()
+        session["receipts"].clear()
+        session["challenges"] = []
+        session["snapshot_text"] = ""
+        session["observation_digest"] = ""
+        session["viewport"] = {}
+        session["mutations"] = 0
+        session["last_fill"] = None
+        session["secrets"].clear()
 
     def _claim_usage_lease(self, session, context):
         requested_run = run_digest(context)
@@ -1012,15 +1042,19 @@ class CamoufoxRuntime:
         current_run = session.get("run_digest", "")
         if current_run == requested_run:
             self._renew_session_lease(session)
-            return
+            return False
         if current_run and now < session["lease_expires_at"]:
             raise ValueError("browser session usage is leased by another active Run")
+        previous_run = current_run or session.get("last_run_digest", "")
         current = read_json_file(session["lease_path"])
         if (
             current.get("sessionId") != session["id"]
             or current.get("generation") != session["lease_generation"]
         ):
             raise ValueError("browser profile lease changed while the session was active")
+        distinct_run = bool(previous_run and previous_run != requested_run)
+        if distinct_run:
+            self._reset_run_page(session)
         expires_at = now + self.lease_ttl
         write_json_file(session["lease_path"], {
             **current,
@@ -1032,15 +1066,7 @@ class CamoufoxRuntime:
         })
         session["run_digest"] = requested_run
         session["lease_expires_at"] = expires_at
-        session["refs"].clear()
-        session["ref_names"].clear()
-        session["ref_controls"].clear()
-        session["ref_links"].clear()
-        session["receipts"].clear()
-        session["challenges"] = []
-        session["snapshot_text"] = ""
-        session["observation_digest"] = ""
-        session["viewport"] = {}
+        return distinct_run
 
     def _reclaim_expired_profile(self, profile_id):
         now = self.now()
@@ -1058,19 +1084,6 @@ class CamoufoxRuntime:
         forbidden = set(config) & (set(DEFAULT_KEYS) | {"sessionId"})
         if forbidden:
             raise ValueError(f"browser infrastructure fields are host-owned: {sorted(forbidden)}")
-        session_id = agent_session_id(context)
-        if session_id in self.sessions:
-            session = self.sessions[session_id]
-            if session.get("terminal_error"):
-                self._release_session(session, "terminal_error")
-                session = None
-            if session is not None:
-                self._claim_usage_lease(session, context)
-                return {
-                    "sessionId": session_id,
-                    "url": session["current_url"],
-                    "status": "active",
-                }
         defaults = self.inventory.get("defaults") or {}
         target_id = configured_choice(self.inventory["targets"], defaults.get("targetId"), "target")
         profile_id = configured_choice(self.inventory["profiles"], defaults.get("profileId"), "browser profile")
@@ -1087,6 +1100,37 @@ class CamoufoxRuntime:
         if target["mode"] == "permitted-automation" and (profile.get("assessmentOnly") or proxy.get("assessmentOnly")):
             raise ValueError("assessment-only identity or egress cannot be used with a third-party automation target")
         destination = exact_path(target, config.get("path", "/"))
+        session_id = agent_session_id(context)
+        if session_id in self.sessions:
+            session = self.sessions[session_id]
+            if session.get("terminal_error"):
+                self._release_session(session, "terminal_error")
+                session = None
+            if session is not None:
+                session_profile = self.inventory["profiles"].get(session["profile_id"])
+                session_proxy = self.inventory["proxy_pools"].get(session["proxy_pool_id"])
+                if not session_profile or session_proxy is None:
+                    raise ValueError("session identity configuration is unavailable")
+                if target["mode"] == "permitted-automation" and (
+                    session_profile.get("assessmentOnly") or session_proxy.get("assessmentOnly")
+                ):
+                    raise ValueError(
+                        "assessment-only identity or egress cannot be used with a third-party automation target"
+                    )
+                self._claim_usage_lease(session, context)
+                requested_run = run_digest(context)
+                if session.get("page_run_digest") != requested_run:
+                    navigation = session["handle"].goto(destination, timeout_ms=30000)
+                    session["target_id"] = target_id
+                    session["target"] = target
+                    session["current_url"] = navigation.get("url") or destination
+                    session["status_code"] = navigation.get("status") or 0
+                    session["page_run_digest"] = requested_run
+                return {
+                    "sessionId": session_id,
+                    "url": session["current_url"],
+                    "status": "active",
+                }
         profile_directory = agent_profile_directory(self.workspace, profile_id, session_id)
         os.makedirs(profile_directory, mode=0o700, exist_ok=True)
         self._reclaim_expired_profile(profile_id)
@@ -1179,6 +1223,8 @@ class CamoufoxRuntime:
             "lease_path": lease_path,
             "lease_generation": generation,
             "run_digest": lease["runDigest"],
+            "last_run_digest": "",
+            "page_run_digest": lease["runDigest"],
             "lease_expires_at": lease_expires_at,
         }
         return {
@@ -1211,6 +1257,7 @@ class CamoufoxRuntime:
         session["target"] = target
         session["current_url"] = navigation.get("url") or destination
         session["status_code"] = navigation.get("status") or 0
+        session["page_run_digest"] = session.get("run_digest", "")
         session["refs"].clear()
         session["ref_names"].clear()
         session["ref_controls"].clear()
