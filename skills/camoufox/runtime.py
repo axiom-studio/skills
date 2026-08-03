@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.34"
+VERSION = "2.0.35"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -701,7 +701,10 @@ class CamoufoxHandle:
                 # External effects must originate from trusted pointer input.
                 # A DOM element.click() can be ignored by controlled apps while
                 # still changing local UI, which creates a false success signal.
-                locator.scroll_into_view_if_needed(timeout=5000)
+                locator.evaluate(
+                    "element => element.scrollIntoView({block: 'center', inline: 'nearest'})",
+                    timeout=5000,
+                )
                 box = locator.bounding_box()
                 if not box:
                     raise ValueError("external commit target has no visible mouse bounds")
@@ -754,11 +757,23 @@ class CamoufoxHandle:
                 "(element, selector) => element.matches(selector)", editable_selector, timeout=5000
             ):
                 field = root.locator(editable_selector).first
-            field.scroll_into_view_if_needed(timeout=5000)
-            field.click(timeout=5000)
-            field.press("Control+A", timeout=5000)
-            field.press("Backspace", timeout=5000)
-            field.press_sequentially(value, delay=8, timeout=max(5000, len(value) * 20))
+            # Dynamic controlled editors can animate or continuously resize
+            # while Playwright waits for locator stability. Scrolling does not
+            # mutate remote state, so place the exact reviewed field directly,
+            # then use trusted pointer and keyboard input for the interaction.
+            field.evaluate(
+                "element => element.scrollIntoView({block: 'center', inline: 'nearest'})",
+                timeout=5000,
+            )
+            box = field.bounding_box()
+            if not box:
+                raise ValueError("editable control has no visible mouse bounds")
+            x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+            self._page.mouse.move(x, y)
+            self._page.mouse.click(x, y)
+            self._page.keyboard.press("Control+A")
+            self._page.keyboard.press("Backspace")
+            self._page.keyboard.type(value, delay=8)
             actual = field.evaluate(
                 "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))",
                 timeout=5000,
