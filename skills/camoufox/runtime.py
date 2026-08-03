@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.35"
+VERSION = "2.0.36"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -778,7 +778,19 @@ class CamoufoxHandle:
                 "element => ('value' in element ? element.value : (element.innerText || element.textContent || ''))",
                 timeout=5000,
             )
-            if actual != value:
+            retained = actual == value
+            if not retained:
+                # Controlled editors may replace their DOM node while applying
+                # trusted input. Re-resolve the live editable state rather than
+                # treating the stale node's empty value as authoritative.
+                retained = self._page.evaluate(
+                    "expected => Array.from(document.querySelectorAll("
+                    "'input, textarea, [contenteditable=\"true\"], [role=\"textbox\"]'))"
+                    ".some(element => (('value' in element ? element.value : "
+                    "(element.innerText || element.textContent || '')) === expected))",
+                    value,
+                )
+            if not retained:
                 raise ValueError("editable control did not retain the typed value")
 
         self._worker.call(_fill, timeout=WORKER_TIMEOUT_SECONDS["fill"], operation="fill")
