@@ -75,6 +75,10 @@ class FakeHandle:
                 "url": self.state["url"],
                 "title": "Accepted",
                 "text": self.state.get("accepted_text", "Assessment accepted"),
+                **(
+                    {"persistedText": self.state["accepted_persisted_text"]}
+                    if "accepted_persisted_text" in self.state else {}
+                ),
                 "elements": self.state.get("accepted_elements", []),
             }
         result = {
@@ -447,7 +451,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.38")
+        self.assertEqual(definition["version"], "2.0.39")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1296,6 +1300,44 @@ class RuntimeTest(unittest.TestCase):
                 "idempotencyKey": "commit-draft-1",
                 "postcondition": {"kind": "filled_value_persisted"},
             })
+
+    def test_commit_accepts_published_value_when_application_retains_stale_composer(self):
+        posted = "A reviewed response that is visibly published"
+        service, state = make_runtime({"reflect_fill": True})
+        start_session(
+            service,
+            "commit-retained-composer",
+            target="owned",
+            path="/assessment",
+            profile="seeded",
+            proxy_pool="rotating",
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-retained-composer"})
+        service.execute("camoufox-fill", {
+            "sessionId": "commit-retained-composer",
+            "target": snapshot["elements"][0]["ref"],
+            "value": posted,
+            "intent": "Prepare the reviewed response",
+            "idempotencyKey": "fill-retained-composer-1",
+        })
+        state["elements"] = [{"ref": 2, "role": "button", "name": "Publish", "state": {}}]
+        state["accepted_text"] = posted
+        state["accepted_persisted_text"] = posted
+        state["accepted_elements"] = [{
+            "ref": 3,
+            "role": "textbox",
+            "name": posted,
+            "state": {"filled": True},
+        }]
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-retained-composer"})
+        result = service.execute("camoufox-commit", {
+            "sessionId": "commit-retained-composer",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "commit-retained-composer-1",
+            "postcondition": {"kind": "filled_value_persisted"},
+        })
+        self.assertTrue(result["success"])
 
     def test_commit_rejects_non_button_and_disabled_controls(self):
         for state, message in [
