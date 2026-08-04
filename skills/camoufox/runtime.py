@@ -58,7 +58,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.38"
+VERSION = "2.0.39"
 COMMIT_OBSERVATION_ATTEMPTS = 4
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
@@ -157,6 +157,10 @@ SNAPSHOT_JS = r"""
   const lines = [];
   const seen = new Set();
   let textLength = 0;
+  const persistedLines = [];
+  const persistedSeen = new Set();
+  let persistedTextLength = 0;
+  const editableSelector = 'input,textarea,select,[contenteditable="true"],[role="textbox"],[role="searchbox"],[role="combobox"]';
   const collectText = (root) => {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
     while (walker.nextNode() && textLength < %d) {
@@ -170,6 +174,16 @@ SNAPSHOT_JS = r"""
       seen.add(line);
       lines.push(line);
       textLength += line.length + 1;
+      // A form value is only prepared local state, even when a contenteditable
+      // control exposes that value as a text node. Keep a second observation
+      // lane containing text rendered outside editable controls so commit
+      // verification can prove publication without confusing a retained
+      // composer with the published resource.
+      if (!parent.closest(editableSelector) && !persistedSeen.has(line) && persistedTextLength < %d) {
+        persistedSeen.add(line);
+        persistedLines.push(line);
+        persistedTextLength += line.length + 1;
+      }
     }
   };
   collectText(document.body || document.documentElement);
@@ -177,6 +191,7 @@ SNAPSHOT_JS = r"""
     url: location.href,
     title: document.title,
     text: lines.join('\n').slice(0, %d),
+    persistedText: persistedLines.join('\n').slice(0, %d),
     elements: els.map((e, i) => {
       const r = e.getBoundingClientRect();
       const state = {};
@@ -202,7 +217,7 @@ SNAPSHOT_JS = r"""
     }),
   };
 }
-""" % (MAX_ELEMENTS, MAX_TEXT, MAX_TEXT)
+""" % (MAX_ELEMENTS, MAX_TEXT, MAX_TEXT, MAX_TEXT, MAX_TEXT)
 
 SETTLE_JS = r"""
 () => new Promise((resolve) => {
@@ -1502,8 +1517,21 @@ class CamoufoxRuntime:
             if not isinstance(value, str) or not value:
                 raise ValueError("filled_value_persisted requires a preceding non-secret fill")
             normalized_value = " ".join(value.split())
-            if normalized_value not in normalized_text:
+            persisted_text = snapshot.get("persistedText")
+            normalized_persisted_text = (
+                " ".join(str(persisted_text).split())
+                if isinstance(persisted_text, str)
+                else normalized_text
+            )
+            if normalized_value not in normalized_persisted_text:
                 raise ValueError("external commit did not persist the previously filled value")
+            # Older/custom browser handles do not provide the separated
+            # persisted-text lane. Preserve their conservative draft check;
+            # the canonical browser proves persistence from non-editable DOM
+            # text and therefore does not fail merely because an application
+            # keeps a stale composer mounted after a successful submission.
+            if isinstance(persisted_text, str):
+                return
             control_name = " ".join(str(last_fill.get("controlName", "")).split())
             for element in snapshot.get("elements") or []:
                 state = element.get("state") if isinstance(element, dict) else None
