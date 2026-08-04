@@ -447,7 +447,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.37")
+        self.assertEqual(definition["version"], "2.0.38")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1259,6 +1259,43 @@ class RuntimeTest(unittest.TestCase):
         })
         self.assertTrue(result["success"])
         self.assertEqual(result["receipt"], "commit-persisted-1")
+
+    def test_commit_rejects_filled_composer_when_accessible_name_changes_to_value(self):
+        posted = "A reviewed response that is still only a draft"
+        service, state = make_runtime({"reflect_fill": True})
+        start_session(
+            service,
+            "commit-draft",
+            target="owned",
+            path="/assessment",
+            profile="seeded",
+            proxy_pool="rotating",
+        )
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-draft"})
+        service.execute("camoufox-fill", {
+            "sessionId": "commit-draft",
+            "target": snapshot["elements"][0]["ref"],
+            "value": posted,
+            "intent": "Prepare the reviewed response",
+            "idempotencyKey": "fill-draft-1",
+        })
+        state["elements"] = [{"ref": 2, "role": "button", "name": "Publish", "state": {}}]
+        state["accepted_text"] = posted
+        state["accepted_elements"] = [{
+            "ref": 3,
+            "role": "textbox",
+            "name": posted,
+            "state": {"filled": True},
+        }]
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "commit-draft"})
+        with self.assertRaisesRegex(ValueError, "left the previously filled form control populated"):
+            service.execute("camoufox-commit", {
+                "sessionId": "commit-draft",
+                "target": snapshot["elements"][0]["ref"],
+                "intent": "Publish the reviewed response",
+                "idempotencyKey": "commit-draft-1",
+                "postcondition": {"kind": "filled_value_persisted"},
+            })
 
     def test_commit_rejects_non_button_and_disabled_controls(self):
         for state, message in [
