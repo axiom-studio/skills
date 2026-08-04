@@ -1501,16 +1501,32 @@ class CamoufoxRuntime:
             value = last_fill.get("value") if isinstance(last_fill, dict) else None
             if not isinstance(value, str) or not value:
                 raise ValueError("filled_value_persisted requires a preceding non-secret fill")
-            if " ".join(value.split()) not in normalized_text:
+            normalized_value = " ".join(value.split())
+            if normalized_value not in normalized_text:
                 raise ValueError("external commit did not persist the previously filled value")
-            control_name = last_fill.get("controlName", "")
+            control_name = " ".join(str(last_fill.get("controlName", "")).split())
             for element in snapshot.get("elements") or []:
                 state = element.get("state") if isinstance(element, dict) else None
-                if (
-                    isinstance(state, dict)
-                    and state.get("filled") is True
-                    and (not control_name or element.get("name") == control_name)
-                ):
+                if not isinstance(state, dict) or state.get("filled") is not True:
+                    continue
+                visible_values = [
+                    element.get("name"),
+                    state.get("value"),
+                    state.get("valueText"),
+                    state.get("text"),
+                ]
+                normalized_values = [
+                    " ".join(str(candidate).split())
+                    for candidate in visible_values
+                    if candidate is not None
+                ]
+                same_control = control_name and control_name in normalized_values
+                same_value = any(
+                    normalized_value in candidate or candidate in normalized_value
+                    for candidate in normalized_values
+                    if candidate
+                )
+                if same_control or same_value:
                     raise ValueError("external commit left the previously filled form control populated")
             return
         if kind == "text_present":
