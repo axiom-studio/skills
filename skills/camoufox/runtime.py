@@ -18,6 +18,7 @@ import re
 import shutil
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
@@ -58,8 +59,9 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.39"
-COMMIT_OBSERVATION_ATTEMPTS = 4
+VERSION = "2.0.40"
+COMMIT_OBSERVATION_ATTEMPTS = 8
+COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
 # legitimately take several minutes, so the default must not reclaim a live
 # Run's browser while that Run is still deciding its next bounded action.
@@ -865,11 +867,20 @@ def default_browser_factory(options):
 
 
 class CamoufoxRuntime:
-    def __init__(self, inventory, workspace, browser_factory=None, now=None, lease_ttl_seconds=None):
+    def __init__(
+        self,
+        inventory,
+        workspace,
+        browser_factory=None,
+        now=None,
+        lease_ttl_seconds=None,
+        sleep=None,
+    ):
         self.inventory = inventory
         self.workspace = workspace
         self.browser_factory = browser_factory or default_browser_factory
         self.now = now or (lambda: datetime.now(timezone.utc))
+        self.sleep = sleep or time.sleep
         configured_ttl = lease_ttl_seconds if lease_ttl_seconds is not None else os.environ.get(
             "CAMOUFOX_PROFILE_LEASE_TTL_SECONDS", DEFAULT_PROFILE_LEASE_TTL_SECONDS
         )
@@ -1460,11 +1471,27 @@ class CamoufoxRuntime:
         observation_attempts = COMMIT_OBSERVATION_ATTEMPTS if operation == "commit" else 1
         after_snapshot = None
         after_digest = before_digest
-        for _attempt in range(observation_attempts):
+        postcondition_error = None
+        postcondition_verified = operation != "commit"
+        for attempt in range(observation_attempts):
             after_snapshot = session["handle"].snapshot(include_model_media=False)
             after_digest = observation_digest(after_snapshot)
-            if not before_digest or after_digest != before_digest:
+            if operation != "commit":
                 break
+            try:
+                self._verify_commit_postcondition(
+                    session, config.get("postcondition"), after_snapshot
+                )
+                postcondition_verified = True
+            except ValueError as exc:
+                postcondition_error = exc
+            # A commit is complete only when both the page changed and the
+            # reviewed postcondition is visible. Intermediate UI mutations
+            # such as disabled buttons and spinners are progress, not proof.
+            if before_digest and after_digest != before_digest and postcondition_verified:
+                break
+            if attempt + 1 < observation_attempts:
+                self.sleep(COMMIT_OBSERVATION_INTERVAL_SECONDS)
         session["current_url"] = after_snapshot.get("url", session["current_url"])
         session["snapshot_text"] = str(after_snapshot.get("text", ""))[:MAX_TEXT]
         session["observation_digest"] = after_digest
@@ -1478,15 +1505,14 @@ class CamoufoxRuntime:
                 "external commit produced no observable progress; completion is unverified; "
                 "take a fresh snapshot and confirm the external state before any retry"
             )
-        if operation == "commit":
-            try:
-                self._verify_commit_postcondition(session, config.get("postcondition"), after_snapshot)
-            except ValueError:
-                session["refs"].clear()
-                session["ref_names"].clear()
-                session["ref_controls"].clear()
-                session["ref_links"].clear()
-                raise
+        if operation == "commit" and not postcondition_verified:
+            session["refs"].clear()
+            session["ref_names"].clear()
+            session["ref_controls"].clear()
+            session["ref_links"].clear()
+            raise postcondition_error or ValueError(
+                "external commit did not satisfy its reviewed postcondition"
+            )
         result = {
             "sessionId": session["id"],
             "success": True,
