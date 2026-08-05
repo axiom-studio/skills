@@ -84,7 +84,11 @@ class FakeHandle:
         result = {
             "url": self.state["url"],
             "title": "Page",
-            "text": self.state.get("text", "Welcome"),
+            "text": (
+                self.state.get("pending_text")
+                if self.state.get("click") and self.state.get("pending_text")
+                else self.state.get("text", "Welcome")
+            ),
             "viewport": {"width": 1280, "height": 720},
             "elements": self.state.get("elements") or [
                 {"ref": 1, "role": self.state.get("element_role", "textbox"), "name": self.state.get("element_name", "Comment")}
@@ -143,6 +147,7 @@ def make_runtime(state=None, inv=_UNSET):
         workspace=workspace,
         browser_factory=fake_factory(state),
         now=lambda: datetime(2026, 7, 27, tzinfo=timezone.utc),
+        sleep=lambda _seconds: None,
     ), state
 
 
@@ -451,7 +456,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.39")
+        self.assertEqual(definition["version"], "2.0.40")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1263,6 +1268,47 @@ class RuntimeTest(unittest.TestCase):
         })
         self.assertTrue(result["success"])
         self.assertEqual(result["receipt"], "commit-persisted-1")
+
+    def test_commit_waits_past_intermediate_dom_change_for_persisted_value(self):
+        posted = "A durable response published after the submit indicator"
+        service, state = make_runtime({
+            "reflect_fill": True,
+            "delayed_progress_snapshots": 3,
+            "pending_text": "Submitting response…",
+            "accepted_persisted_text": posted,
+        })
+        start_session(
+            service,
+            "commit-delayed-persistence",
+            target="owned",
+            path="/assessment",
+            profile="seeded",
+            proxy_pool="rotating",
+        )
+        snapshot = service.execute(
+            "camoufox-snapshot", {"sessionId": "commit-delayed-persistence"}
+        )
+        service.execute("camoufox-fill", {
+            "sessionId": "commit-delayed-persistence",
+            "target": snapshot["elements"][0]["ref"],
+            "value": posted,
+            "intent": "Prepare the reviewed response",
+            "idempotencyKey": "fill-delayed-persistence-1",
+        })
+        state["elements"] = [{"ref": 2, "role": "button", "name": "Publish", "state": {}}]
+        state["accepted_text"] = posted
+        snapshot = service.execute(
+            "camoufox-snapshot", {"sessionId": "commit-delayed-persistence"}
+        )
+        result = service.execute("camoufox-commit", {
+            "sessionId": "commit-delayed-persistence",
+            "target": snapshot["elements"][0]["ref"],
+            "intent": "Publish the reviewed response",
+            "idempotencyKey": "commit-delayed-persistence-1",
+            "postcondition": {"kind": "filled_value_persisted"},
+        })
+        self.assertTrue(result["success"])
+        self.assertGreaterEqual(state["post_click_snapshots"], 3)
 
     def test_commit_rejects_filled_composer_when_accessible_name_changes_to_value(self):
         posted = "A reviewed response that is still only a draft"
