@@ -43,7 +43,16 @@ CHALLENGES = {
         r")\b",
         re.I,
     ),
-    "anti_bot": re.compile(r"\b(access denied|unusual traffic|bot detection|security check|cloudflare|js_challenge)\b", re.I),
+    # Do not treat product/news mentions such as "Cloudflare OS" as an
+    # access challenge. This evidence is collected from the whole semantic
+    # page, so anti-bot detection must require challenge-specific language or
+    # provider challenge markers rather than a vendor name by itself.
+    "anti_bot": re.compile(
+        r"\b(access denied|unusual traffic|bot detection|security check|js_challenge|"
+        r"checking your browser|performing security verification|cloudflare ray id)\b|"
+        r"(?:/cdn-cgi/challenge-platform/|cf-chl-)",
+        re.I,
+    ),
 }
 
 MODES = ("owned-assessment", "permitted-automation")
@@ -59,7 +68,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.40"
+VERSION = "2.0.41"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can

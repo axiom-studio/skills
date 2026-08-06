@@ -456,7 +456,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.40")
+        self.assertEqual(definition["version"], "2.0.41")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1129,6 +1129,23 @@ class RuntimeTest(unittest.TestCase):
         snapshot = service.execute("camoufox-snapshot", {"sessionId": "mfa-discussion"})
         self.assertEqual(snapshot["challenges"], [])
         self.assertFalse(snapshot["requiresHuman"])
+
+    def test_cloudflare_discussion_content_is_not_an_anti_bot_challenge(self):
+        service, _ = make_runtime({
+            "text": "Cloudflare OS: New software for our local systems\n12 minutes ago\nr/LocalLLaMA"
+        })
+        start_session(service, "cloudflare-discussion", target="forum", path="/community", profile="standard", proxy_pool="direct")
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "cloudflare-discussion"})
+        self.assertEqual(snapshot["challenges"], [])
+        self.assertFalse(snapshot["requiresHuman"])
+
+    def test_cloudflare_challenge_markers_require_human(self):
+        service, state = make_runtime({"text": "Checking your browser before accessing this site. Cloudflare Ray ID: abc123"})
+        start_session(service, "cloudflare-challenge", target="forum", path="/community", profile="standard", proxy_pool="direct")
+        state["url"] = "https://old.forum.example/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"
+        snapshot = service.execute("camoufox-snapshot", {"sessionId": "cloudflare-challenge"})
+        self.assertEqual(snapshot["challenges"], ["anti_bot"])
+        self.assertTrue(snapshot["requiresHuman"])
 
     def test_mfa_completion_ui_requires_human(self):
         service, _ = make_runtime({"text": "Two-factor authentication is required. Enter your verification code."})
