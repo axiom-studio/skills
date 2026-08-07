@@ -234,10 +234,11 @@ type slackEvent struct {
 }
 
 type slackInteraction struct {
-	Type     string `json:"type"`
-	APIAppID string `json:"api_app_id"`
-	ActionTS string `json:"action_ts"`
-	Team     struct {
+	Type      string `json:"type"`
+	APIAppID  string `json:"api_app_id"`
+	ActionTS  string `json:"action_ts"`
+	TriggerID string `json:"trigger_id"`
+	Team      struct {
 		ID string `json:"id"`
 	} `json:"team"`
 	User struct {
@@ -260,6 +261,17 @@ type slackInteraction struct {
 		Value    string `json:"value"`
 		ActionTS string `json:"action_ts"`
 	} `json:"actions"`
+	View struct {
+		ID              string `json:"id"`
+		CallbackID      string `json:"callback_id"`
+		PrivateMetadata string `json:"private_metadata"`
+		State           struct {
+			Values map[string]map[string]struct {
+				Type  string `json:"type"`
+				Value string `json:"value"`
+			} `json:"values"`
+		} `json:"state"`
+	} `json:"view"`
 }
 
 type slackApprovalValue struct {
