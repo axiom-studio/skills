@@ -112,3 +112,41 @@ func TestDestinationDiscoveryCredentialMatchesAdapterContract(t *testing.T) {
 		}
 	}
 }
+
+func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
+	data, err := os.ReadFile("skill.yaml")
+	if err != nil {
+		t.Fatalf("read Skill manifest: %v", err)
+	}
+
+	var manifest struct {
+		Definition struct {
+			CallbackAdapters map[string]struct {
+				Credentials []manifestCredential `yaml:"credentials"`
+				Transport   struct {
+					IngressCredentials []string `yaml:"ingressCredentials"`
+				} `yaml:"transport"`
+			} `yaml:"callbackAdapters"`
+		} `yaml:"definition"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("decode Skill manifest: %v", err)
+	}
+
+	interactions, ok := manifest.Definition.CallbackAdapters["interactions"]
+	if !ok {
+		t.Fatal("interactions callback adapter is missing")
+	}
+	want := []string{"slack_bot_token", "slack_signing_secret"}
+	if !reflect.DeepEqual(interactions.Transport.IngressCredentials, want) {
+		t.Fatalf("callback ingress credentials = %v, want canonical order %v", interactions.Transport.IngressCredentials, want)
+	}
+	if len(interactions.Credentials) != len(want) {
+		t.Fatalf("callback credentials = %v, want %v", interactions.Credentials, want)
+	}
+	for index, credential := range interactions.Credentials {
+		if credential.Name != want[index] {
+			t.Fatalf("callback credential %d = %q, want %q", index, credential.Name, want[index])
+		}
+	}
+}
