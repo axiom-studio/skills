@@ -481,7 +481,7 @@ definition:
             transport:
                 kind: plugin
                 ingressEndpoint: slack.callback.ingress
-                ingressCredentials: [slack_signing_secret, slack_bot_token]
+                ingressCredentials: [slack_bot_token, slack_signing_secret]
     category: communication
     description: Send messages and interact with Slack channels
     icon: message-circle
