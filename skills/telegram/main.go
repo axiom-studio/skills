@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,7 +22,9 @@ import (
 )
 
 const (
-	iconTelegram = "send"
+	iconTelegram          = "send"
+	telegramSkillVersion  = "1.1.0"
+	telegramCredentialKey = "telegram_bot"
 )
 
 // TelegramConfig holds Telegram bot configuration
@@ -48,7 +52,7 @@ func main() {
 	}
 
 	// Create skill server
-	server := grpc.NewSkillServer("skill-telegram", "1.0.0")
+	server := grpc.NewSkillServer("skill-telegram", telegramSkillVersion)
 
 	// Register executors with schemas
 	server.RegisterExecutorWithSchema("telegram-send-message", &SendMessageExecutor{}, SendMessageSchema)
@@ -59,6 +63,10 @@ func main() {
 	server.RegisterExecutorWithSchema("telegram-get-updates", &GetUpdatesExecutor{}, GetUpdatesSchema)
 	server.RegisterExecutorWithSchema("telegram-get-chat", &GetChatExecutor{}, GetChatSchema)
 	server.RegisterExecutorWithSchema("telegram-set-webhook", &SetWebhookExecutor{}, SetWebhookSchema)
+
+	conversationAdapter := newTelegramConversationAdapter(TelegramAPIBase, httpClient)
+	server.RegisterExecutor(telegramIngressNodeType, &telegramIngressExecutor{adapter: conversationAdapter})
+	server.RegisterExecutor(telegramDeliveryNodeType, &telegramDeliveryExecutor{adapter: conversationAdapter})
 
 	fmt.Printf("Starting skill-telegram gRPC server on port %s\n", port)
 	if err := server.Serve(port); err != nil {
@@ -258,6 +266,11 @@ func parseTelegramResponse(body []byte, result interface{}) error {
 // getBotToken gets the bot token from config or resolver
 func getBotToken(config map[string]interface{}, resolver executor.TemplateResolver) (string, error) {
 	botToken := resolver.ResolveString(getString(config, "botToken"))
+	if botToken == "" {
+		if bindings, ok := resolver.(executor.BindingResolver); ok {
+			botToken, _ = bindings.GetBinding(telegramCredentialKey).(string)
+		}
+	}
 	if botToken == "" {
 		return "", fmt.Errorf("bot token is required")
 	}
@@ -1082,9 +1095,10 @@ func (e *SetWebhookExecutor) Execute(ctx context.Context, step *executor.StepDef
 	}
 
 	secretToken := resolver.ResolveString(getString(config, "secretToken"))
-	if secretToken != "" {
-		params["secret_token"] = secretToken
+	if secretToken == "" {
+		secretToken = telegramWebhookSecret(botToken)
 	}
+	params["secret_token"] = secretToken
 
 	if getBool(config, "dropPendingUpdates", false) {
 		params["drop_pending_updates"] = true
@@ -1106,6 +1120,13 @@ func (e *SetWebhookExecutor) Execute(ctx context.Context, step *executor.StepDef
 			"url":     url,
 		},
 	}, nil
+}
+
+// telegramWebhookSecret turns the BotFather token into a Telegram-compatible
+// webhook secret without exposing the credential in callback URLs or headers.
+func telegramWebhookSecret(botToken string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(botToken)))
+	return hex.EncodeToString(digest[:])
 }
 
 // ============================================================================

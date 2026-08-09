@@ -232,6 +232,28 @@ definition:
                 maxAttempts: 1
             risk: external
             sideEffect: external
+    conversationAdapters:
+        conversations:
+            protocolVersion: openseal.conversation.adapter/v1
+            name: Telegram conversations
+            description: Verify Telegram Bot API webhooks and deliver durable replies through the Telegram Bot API.
+            provider: telegram
+            endpointModes: [channel, direct]
+            inboundEventTypes: [conversation.message.received]
+            credentials:
+                - name: telegram_bot
+                  kind: telegram_bot
+            delivery:
+                operations: [message.send, message.update]
+                ordering: conversation
+                idempotency: supported
+                supportsRetryAfter: true
+            transport:
+                kind: plugin
+                ingressEndpoint: telegram.conversation.ingress
+                deliveryEndpoint: telegram.conversation.deliver
+                ingressCredentials: [telegram_bot]
+                deliveryCredentials: [telegram_bot]
     category: communication
     description: Telegram messaging bot operations for Atlas agents
     icon: send
@@ -240,15 +262,17 @@ definition:
         - id: oci
           kind: oci
           label: Telegram Skill service image
-          package: axiomstudio/skill-telegram:1.0.0
+          package: axiomstudio/skill-telegram:1.1.0
     name: Telegram Skill
     source:
         format: axiom.skill/v1
         homepage: ""
+        identity: https://github.com/axiom-studio/skills::skill-telegram
         license: MIT
         publisher: Axiom Studio
+        registry: https://github.com/axiom-studio/skills
         reference: skill-telegram
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.1.0
     tags:
         - bot
         - chat
@@ -257,7 +281,7 @@ definition:
     transport:
         endpoint: skill-telegram
         kind: tool
-    version: 1.0.0
+    version: 1.1.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
