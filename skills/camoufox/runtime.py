@@ -70,7 +70,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.43"
+VERSION = "2.0.44"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -99,11 +99,24 @@ BROWSER_LAUNCH_LOCK = threading.Lock()
 
 
 def _direct_children(pid):
+    children = set()
     try:
-        with open(f"/proc/{pid}/task/{pid}/children", "r", encoding="utf-8") as stream:
-            return {int(value) for value in stream.read().split()}
-    except (FileNotFoundError, OSError, ValueError):
-        return set()
+        task_ids = os.listdir(f"/proc/{pid}/task")
+    except (FileNotFoundError, OSError):
+        return children
+    # Linux accounts a child to the specific thread that called clone(2), not
+    # necessarily to the process leader.  Playwright is launched from the
+    # BrowserWorker thread, so inspecting only task/<pid>/children misses the
+    # entire native browser tree.
+    for task_id in task_ids:
+        try:
+            with open(
+                f"/proc/{pid}/task/{task_id}/children", "r", encoding="utf-8"
+            ) as stream:
+                children.update(int(value) for value in stream.read().split())
+        except (FileNotFoundError, OSError, ValueError):
+            continue
+    return children
 
 
 def _process_start_time(pid):
