@@ -70,7 +70,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.42"
+VERSION = "2.0.43"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -182,10 +182,15 @@ class BrowserProcessTree:
         with self._lock:
             self._terminate_requested = True
             identities = dict(self._roots)
-            if self._launch_active:
-                for pid in _direct_children(self.parent_pid):
-                    if pid not in self._launch_baseline:
-                        identities[pid] = _process_start_time(pid)
+            # Playwright may materialize or re-parent its driver/Xvfb children
+            # immediately after Camoufox.__enter__ returns.  Re-scan for the
+            # whole handle lifetime instead of trusting the launch-time
+            # capture alone.  The serialized launch baseline keeps processes
+            # owned by other live handles out of this tree.
+            for pid in _direct_children(self.parent_pid):
+                started_at = _process_start_time(pid)
+                if self._launch_baseline.get(pid) != started_at:
+                    identities[pid] = started_at
             self._roots.clear()
         roots = _matching_processes(identities)
         if not roots:
@@ -1089,7 +1094,16 @@ class CamoufoxRuntime:
         cancellation = context.get("_cancellation") if isinstance(context, dict) else None
         cancellation_token = ACTIVE_CANCELLATION.set(cancellation)
         try:
-            return handlers[action]()
+            result = handlers[action]()
+            # A client can cancel after the last synchronous browser call but
+            # before gRPC delivers the response.  Treat that boundary as a
+            # failed operation too, otherwise a successfully launched browser
+            # can become an unreachable orphan with its lease still held.
+            if cancellation is not None and cancellation.is_set():
+                raise BrowserOperationTimeout(
+                    "browser action was cancelled; start a new session"
+                )
+            return result
         except BrowserOperationTimeout as exc:
             session_id = config.get("sessionId")
             if action == "camoufox-start" and isinstance(context, dict):
