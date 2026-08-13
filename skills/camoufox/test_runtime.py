@@ -2,16 +2,20 @@ import base64
 import json
 import os
 import sqlite3
+import subprocess
 import tempfile
 import threading
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 import yaml
 
 from runtime import (
+    ACTIVE_CANCELLATION,
     SNAPSHOT_JS,
     BrowserOperationTimeout,
+    BrowserProcessTree,
     BrowserWorker,
     CamoufoxHandle,
     CamoufoxRuntime,
@@ -229,6 +233,46 @@ class BrowserWorkerTest(unittest.TestCase):
         finally:
             release.set()
             worker.stop()
+
+    def test_cancellation_aborts_the_active_operation(self):
+        cancellation = threading.Event()
+        release = threading.Event()
+        aborted = threading.Event()
+        worker = BrowserWorker(abort=aborted.set)
+        token = ACTIVE_CANCELLATION.set(cancellation)
+        timer = threading.Timer(0.01, cancellation.set)
+        timer.start()
+        try:
+            with self.assertRaisesRegex(BrowserOperationTimeout, "was cancelled"):
+                worker.call(lambda: release.wait(10), timeout=1, operation="test operation")
+            self.assertTrue(aborted.is_set())
+        finally:
+            ACTIVE_CANCELLATION.reset(token)
+            release.set()
+            worker.stop()
+            timer.join()
+
+
+class BrowserProcessTreeTest(unittest.TestCase):
+    def test_terminate_kills_and_reaps_processes_created_during_launch(self):
+        tree = BrowserProcessTree()
+        tree.begin_launch()
+        child = subprocess.Popen(["sleep", "30"])
+        tree.capture()
+
+        tree.terminate()
+
+        self.assertIsNotNone(child.poll())
+
+    def test_launch_that_spawns_after_cancellation_is_still_terminated(self):
+        tree = BrowserProcessTree()
+        tree.begin_launch()
+        tree.terminate()
+        child = subprocess.Popen(["sleep", "30"])
+
+        tree.capture()
+
+        self.assertIsNotNone(child.poll())
 
 
 class ProxyRotationTest(unittest.TestCase):
@@ -456,7 +500,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.41")
+        self.assertEqual(definition["version"], "2.0.42")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -477,6 +521,7 @@ class RuntimeTest(unittest.TestCase):
             "camoufox-select", "camoufox-scroll", "camoufox-screenshot", "camoufox-report",
         ):
             self.assertEqual(actions[name]["finalizerAction"], "camoufox-close")
+
         self.assertEqual((commit["risk"], commit["sideEffect"]), ("external", "external"))
         self.assertEqual(commit["externalOperationPolicy"], "required")
         self.assertEqual(commit["inputSchema"]["required"], ["sessionId", "target", "intent", "idempotencyKey", "postcondition"])
@@ -487,6 +532,14 @@ class RuntimeTest(unittest.TestCase):
         self.assertIn("Never target a textbox", commit["description"])
         self.assertIn("never submits", actions["camoufox-fill"]["description"])
         self.assertIn("Never pass a textbox reference to camoufox-commit", definition["prompt"]["instructions"])
+
+    def test_health_fails_closed_under_cgroup_memory_pressure(self):
+        service, _ = make_runtime()
+        with mock.patch("runtime._cgroup_memory", return_value=(950, 1000)):
+            health = service.execute("camoufox-health")
+        self.assertEqual(health["status"], "resource_exhausted")
+        self.assertEqual(health["memoryCurrentBytes"], 950)
+        self.assertEqual(health["memoryLimitBytes"], 1000)
 
     def test_health_reports_configuration_state(self):
         service, _ = make_runtime(inv=None)
@@ -1501,12 +1554,15 @@ class RuntimeTest(unittest.TestCase):
 
     def test_timed_out_action_invalidates_only_its_session(self):
         service, state = make_runtime({"timeout_scroll": True})
-        start_session(service, "stuck-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        started = start_session(service, "stuck-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
+        lease_path = service.sessions[started["sessionId"]]["lease_path"]
         with self.assertRaisesRegex(BrowserOperationTimeout, "scroll exceeded"):
             service.execute("camoufox-scroll", {"sessionId": "stuck-1", "dy": 600})
-        with self.assertRaisesRegex(ValueError, "session is unavailable"):
+        self.assertNotIn(started["sessionId"], service.sessions)
+        with self.assertRaisesRegex(ValueError, "session not found"):
             service.execute("camoufox-snapshot", {"sessionId": "stuck-1"})
-        service.execute("camoufox-close", {"sessionId": "stuck-1"})
+        with open(lease_path, "r", encoding="utf-8") as stream:
+            self.assertEqual(json.load(stream)["releaseReason"], "operation_timeout")
 
         state["timeout_scroll"] = False
         start_session(service, "fresh-1", target="owned", path="/assessment", profile="seeded", proxy_pool="rotating")
