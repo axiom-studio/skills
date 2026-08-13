@@ -86,5 +86,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.41 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.42 .
 ```

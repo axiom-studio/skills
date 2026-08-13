@@ -15,6 +15,7 @@ RUN apt-get update \
         libgtk-3-0 \
         libx11-xcb1 \
         libxt6 \
+        tini \
         xvfb \
     && rm -rf /var/lib/apt/lists/*
 
@@ -37,4 +38,5 @@ COPY --chown=skill:skill skills/${SKILL_NAME}/ ./
 USER skill
 
 EXPOSE ${SKILL_PORT}
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "server.py"]

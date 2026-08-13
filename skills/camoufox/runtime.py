@@ -9,12 +9,14 @@ Playwright sync API is bound to the thread that created it.
 from __future__ import annotations
 
 import base64
+import contextvars
 import fcntl
 import hashlib
 import json
 import os
 import queue
 import re
+import signal
 import shutil
 import sqlite3
 import threading
@@ -68,7 +70,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.41"
+VERSION = "2.0.42"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -90,6 +92,131 @@ WORKER_TIMEOUT_SECONDS = {
 
 class BrowserOperationTimeout(TimeoutError):
     """A browser-engine call exceeded its local action boundary."""
+
+
+ACTIVE_CANCELLATION = contextvars.ContextVar("camoufox_active_cancellation", default=None)
+BROWSER_LAUNCH_LOCK = threading.Lock()
+
+
+def _direct_children(pid):
+    try:
+        with open(f"/proc/{pid}/task/{pid}/children", "r", encoding="utf-8") as stream:
+            return {int(value) for value in stream.read().split()}
+    except (FileNotFoundError, OSError, ValueError):
+        return set()
+
+
+def _process_start_time(pid):
+    try:
+        with open(f"/proc/{pid}/stat", "r", encoding="utf-8") as stream:
+            fields = stream.read().rsplit(")", 1)[1].split()
+        return fields[19]
+    except (FileNotFoundError, IndexError, OSError):
+        return None
+
+
+def _matching_processes(identities):
+    return {
+        pid for pid, started_at in identities.items()
+        if started_at is not None and _process_start_time(pid) == started_at
+    }
+
+
+def _descendants(roots):
+    pending = list(roots)
+    result = set()
+    while pending:
+        parent = pending.pop()
+        for child in _direct_children(parent):
+            if child not in result:
+                result.add(child)
+                pending.append(child)
+    return result
+
+
+def _cgroup_memory():
+    try:
+        with open("/sys/fs/cgroup/memory.current", "r", encoding="utf-8") as stream:
+            current = int(stream.read().strip())
+        with open("/sys/fs/cgroup/memory.max", "r", encoding="utf-8") as stream:
+            raw_limit = stream.read().strip()
+        limit = None if raw_limit == "max" else int(raw_limit)
+        return current, limit
+    except (FileNotFoundError, OSError, TypeError, ValueError):
+        return None, None
+
+
+class BrowserProcessTree:
+    """Own and forcibly reap the native processes created by one browser."""
+
+    def __init__(self, parent_pid=None):
+        self.parent_pid = parent_pid or os.getpid()
+        self._lock = threading.Lock()
+        self._launch_baseline = {}
+        self._roots = {}
+        self._launch_active = False
+        self._terminate_requested = False
+
+    def begin_launch(self):
+        with self._lock:
+            self._launch_baseline = {
+                pid: _process_start_time(pid) for pid in _direct_children(self.parent_pid)
+            }
+            self._launch_active = True
+            self._terminate_requested = False
+
+    def capture(self):
+        with self._lock:
+            current = {
+                pid: _process_start_time(pid) for pid in _direct_children(self.parent_pid)
+            }
+            for pid, started_at in current.items():
+                if pid not in self._launch_baseline:
+                    self._roots[pid] = started_at
+            self._launch_active = False
+            terminate_requested = self._terminate_requested
+        if terminate_requested:
+            self.terminate()
+
+    def terminate(self):
+        with self._lock:
+            self._terminate_requested = True
+            identities = dict(self._roots)
+            if self._launch_active:
+                for pid in _direct_children(self.parent_pid):
+                    if pid not in self._launch_baseline:
+                        identities[pid] = _process_start_time(pid)
+            self._roots.clear()
+        roots = _matching_processes(identities)
+        if not roots:
+            return
+        targets = _descendants(roots) | roots
+        for pid in targets:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline and any(_process_start_time(pid) for pid in targets):
+            time.sleep(0.02)
+        for pid in targets:
+            if _process_start_time(pid) is not None:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            unreaped = False
+            for pid in roots:
+                try:
+                    waited, _status = os.waitpid(pid, os.WNOHANG)
+                    unreaped = unreaped or waited == 0
+                except (ChildProcessError, ProcessLookupError):
+                    pass
+            if not unreaped:
+                break
+            time.sleep(0.02)
 
 SNAPSHOT_JS = r"""
 () => {
@@ -614,10 +741,11 @@ def profile_options(profile):
 class BrowserWorker(threading.Thread):
     """Single dedicated thread for Playwright-sync engine calls."""
 
-    def __init__(self):
+    def __init__(self, abort=None):
         super().__init__(daemon=True)
         self._jobs = queue.Queue()
         self._poisoned = False
+        self._abort = abort or (lambda: None)
         self.start()
 
     def run(self):
@@ -640,14 +768,27 @@ class BrowserWorker(threading.Thread):
             )
         result = {"done": threading.Event(), "value": None, "error": None}
         self._jobs.put((fn, args, kwargs, result))
-        if not result["done"].wait(timeout=timeout):
-            self._poisoned = True
-            raise BrowserOperationTimeout(
-                f"browser {operation} exceeded its {timeout}-second action timeout; start a new session"
-            )
+        cancellation = ACTIVE_CANCELLATION.get()
+        deadline = time.monotonic() + timeout
+        while not result["done"].is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or (cancellation is not None and cancellation.is_set()):
+                self._poisoned = True
+                self._abort()
+                reason = "was cancelled" if cancellation is not None and cancellation.is_set() else (
+                    f"exceeded its {timeout}-second action timeout"
+                )
+                raise BrowserOperationTimeout(
+                    f"browser {operation} {reason}; start a new session"
+                )
+            result["done"].wait(timeout=min(remaining, 0.1))
         if result["error"] is not None:
             raise result["error"]
         return result["value"]
+
+    @property
+    def poisoned(self):
+        return self._poisoned
 
     def stop(self):
         self._jobs.put(None)
@@ -658,12 +799,14 @@ class CamoufoxHandle:
     """Real engine handle; every method runs on the worker thread."""
 
     def __init__(self, options):
-        self._worker = BrowserWorker()
+        self._processes = BrowserProcessTree()
+        self._worker = BrowserWorker(abort=self._processes.terminate)
         try:
             self._worker.call(
                 self._launch, options, timeout=WORKER_TIMEOUT_SECONDS["launch"], operation="launch"
             )
         except Exception:
+            self._processes.terminate()
             self._worker.stop()
             raise
 
@@ -673,14 +816,19 @@ class CamoufoxHandle:
         kwargs = dict(options.get("profile_options") or {})
         if options.get("proxy"):
             kwargs["proxy"] = {"server": options["proxy"]}
-        self._ctx = Camoufox(
-            headless=options.get("headless", "virtual"),
-            user_data_dir=options["user_data_dir"],
-            persistent_context=True,
-            **kwargs,
-        )
-        self._browser = self._ctx.__enter__()
-        self._page = self._browser.new_page()
+        with BROWSER_LAUNCH_LOCK:
+            self._processes.begin_launch()
+            try:
+                self._ctx = Camoufox(
+                    headless=options.get("headless", "virtual"),
+                    user_data_dir=options["user_data_dir"],
+                    persistent_context=True,
+                    **kwargs,
+                )
+                self._browser = self._ctx.__enter__()
+                self._page = self._browser.new_page()
+            finally:
+                self._processes.capture()
 
     def goto(self, url, timeout_ms=30000):
         def _goto():
@@ -862,12 +1010,14 @@ class CamoufoxHandle:
 
     def close(self):
         try:
-            self._worker.call(
-                lambda: self._ctx.__exit__(None, None, None),
-                timeout=WORKER_TIMEOUT_SECONDS["close"],
-                operation="close",
-            )
+            if not self._worker.poisoned:
+                self._worker.call(
+                    lambda: self._ctx.__exit__(None, None, None),
+                    timeout=WORKER_TIMEOUT_SECONDS["close"],
+                    operation="close",
+                )
         finally:
+            self._processes.terminate()
             self._worker.stop()
 
 
@@ -936,14 +1086,21 @@ class CamoufoxRuntime:
         }
         if action not in handlers:
             raise ValueError(f"unsupported Camoufox action {action}")
+        cancellation = context.get("_cancellation") if isinstance(context, dict) else None
+        cancellation_token = ACTIVE_CANCELLATION.set(cancellation)
         try:
             return handlers[action]()
         except BrowserOperationTimeout as exc:
             session_id = config.get("sessionId")
+            if action == "camoufox-start" and isinstance(context, dict):
+                session_id = agent_session_id(context)
             session = self.sessions.get(session_id) if isinstance(session_id, str) else None
             if session is not None:
                 session["terminal_error"] = str(exc)
+                self._release_session(session, "operation_timeout")
             raise
+        finally:
+            ACTIVE_CANCELLATION.reset(cancellation_token)
 
     def health(self):
         if not self.inventory:
@@ -955,14 +1112,26 @@ class CamoufoxRuntime:
                 "profiles": 0,
                 "proxyPools": 0,
             }
-        return {
-            "status": "ready",
+        memory_current, memory_limit = _cgroup_memory()
+        resource_exhausted = (
+            memory_current is not None
+            and memory_limit is not None
+            and memory_limit > 0
+            and memory_current / memory_limit >= 0.9
+        )
+        result = {
+            "status": "resource_exhausted" if resource_exhausted else "ready",
             "skillId": "skill-browser",
             "version": VERSION,
             "authorizedTargets": len(self.inventory["targets"]),
             "profiles": len(self.inventory["profiles"]),
             "proxyPools": len(self.inventory["proxy_pools"]),
         }
+        if memory_current is not None:
+            result["memoryCurrentBytes"] = memory_current
+        if memory_limit is not None:
+            result["memoryLimitBytes"] = memory_limit
+        return result
 
     def session(self, session_id, allow_terminal=False):
         if not ID.match(session_id or ""):
