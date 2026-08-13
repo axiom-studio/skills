@@ -284,6 +284,29 @@ class BrowserProcessTreeTest(unittest.TestCase):
 
         self.assertIsNotNone(child.poll())
 
+    def test_process_spawned_by_worker_thread_is_terminated(self):
+        tree = BrowserProcessTree()
+        spawned = threading.Event()
+        release = threading.Event()
+        state = {}
+
+        def launch_from_worker():
+            tree.begin_launch()
+            state["child"] = subprocess.Popen(["sleep", "30"])
+            tree.capture()
+            spawned.set()
+            release.wait(10)
+
+        worker = threading.Thread(target=launch_from_worker)
+        worker.start()
+        self.assertTrue(spawned.wait(5))
+        try:
+            tree.terminate()
+            self.assertIsNotNone(state["child"].poll())
+        finally:
+            release.set()
+            worker.join(5)
+
 
 class ProxyRotationTest(unittest.TestCase):
     def test_single_and_direct_pools(self):
@@ -510,7 +533,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.43")
+        self.assertEqual(definition["version"], "2.0.44")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
