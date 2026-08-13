@@ -2,6 +2,7 @@
 
 import json
 import os
+import threading
 from concurrent import futures
 
 import grpc
@@ -80,10 +81,13 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
 
     def Execute(self, request, _context):
         bindings = decode(request.bindings)
+        cancellation = threading.Event()
+        _context.add_callback(cancellation.set)
         execution_context = {
             "runId": request.context.run_id,
             "agentId": request.context.agent_id,
             "namespace": request.context.namespace,
+            "_cancellation": cancellation,
         }
         try:
             result = self.runtime.execute(request.node_type, decode(request.config), bindings, execution_context)
@@ -106,7 +110,10 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
         return skill_pb2.GetNodeSchemaResponse(schema=json.dumps(schema, sort_keys=True).encode("utf-8"))
 
     def Health(self, _request, _context):
-        return skill_pb2.HealthResponse(healthy=True, skill_id=SKILL_ID, version=VERSION)
+        status = self.runtime.health().get("status")
+        return skill_pb2.HealthResponse(
+            healthy=status == "ready", skill_id=SKILL_ID, version=VERSION
+        )
 
 
 def serve():
