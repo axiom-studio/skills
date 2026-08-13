@@ -274,6 +274,16 @@ class BrowserProcessTreeTest(unittest.TestCase):
 
         self.assertIsNotNone(child.poll())
 
+    def test_process_materialized_after_launch_capture_is_still_terminated(self):
+        tree = BrowserProcessTree()
+        tree.begin_launch()
+        tree.capture()
+        child = subprocess.Popen(["sleep", "30"])
+
+        tree.terminate()
+
+        self.assertIsNotNone(child.poll())
+
 
 class ProxyRotationTest(unittest.TestCase):
     def test_single_and_direct_pools(self):
@@ -500,7 +510,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.42")
+        self.assertEqual(definition["version"], "2.0.43")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
@@ -1570,6 +1580,32 @@ class RuntimeTest(unittest.TestCase):
             service.execute("camoufox-scroll", {"sessionId": "fresh-1", "dy": 300})["scrolled"],
             True,
         )
+
+    def test_cancelled_start_after_browser_call_releases_the_session(self):
+        service, state = make_runtime()
+        service.inventory["defaults"] = {
+            "targetId": "owned",
+            "profileId": "seeded",
+            "proxyPoolId": "rotating",
+        }
+        cancellation = threading.Event()
+        cancellation.set()
+        context = {
+            "agentId": "cancelled-start",
+            "runId": "cancelled-start-run",
+            "_cancellation": cancellation,
+        }
+
+        with self.assertRaisesRegex(BrowserOperationTimeout, "was cancelled"):
+            service.execute("camoufox-start", {"path": "/assessment"}, context=context)
+
+        self.assertNotIn("cancelled-start", service.sessions)
+        self.assertTrue(state["closed"])
+        lease_path = os.path.join(
+            state["workspace"], "profiles", "seeded", "agents", "cancelled-start", "lease.json"
+        )
+        with open(lease_path, "r", encoding="utf-8") as stream:
+            self.assertEqual(json.load(stream)["releaseReason"], "operation_timeout")
 
     def test_screenshot_returns_bounded_png_evidence(self):
         service, state = make_runtime()
