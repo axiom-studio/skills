@@ -20,6 +20,7 @@ from runtime import (
     CamoufoxHandle,
     CamoufoxRuntime,
     agent_session_id,
+    camoufox_proxy_options,
     exact_path,
     load_inventory,
     navigation_url,
@@ -322,6 +323,22 @@ class ProxyRotationTest(unittest.TestCase):
         self.assertGreater(len(chosen), 1)
         self.assertTrue(chosen <= set(pool["urls"]))
 
+    def test_authenticated_endpoint_uses_separate_playwright_credentials(self):
+        self.assertEqual(
+            camoufox_proxy_options("http://user%40tenant:p%40ss@proxy.example:6490/"),
+            {
+                "server": "http://proxy.example:6490",
+                "username": "user@tenant",
+                "password": "p@ss",
+            },
+        )
+
+    def test_unauthenticated_endpoint_preserves_server_authority(self):
+        self.assertEqual(
+            camoufox_proxy_options("socks5://proxy.example:1080"),
+            {"server": "socks5://proxy.example:1080"},
+        )
+
 
 class BrowserNavigationTest(unittest.TestCase):
     def test_snapshot_clears_previous_dom_markers_before_assigning_current_refs(self):
@@ -533,7 +550,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.44")
+        self.assertEqual(definition["version"], "2.0.45")
         actions = definition["actions"]
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
