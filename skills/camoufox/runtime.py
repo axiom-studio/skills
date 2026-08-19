@@ -22,7 +22,7 @@ import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 SECRET_CONTROL = re.compile(
@@ -70,7 +70,7 @@ MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.44"
+VERSION = "2.0.45"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -752,6 +752,25 @@ def resolve_proxy(proxy, pool_id, session_id):
     return endpoints[stable_seed(f"{pool_id}:{session_id}") % len(endpoints)]
 
 
+def camoufox_proxy_options(endpoint):
+    """Translate one opaque inventory endpoint into Playwright proxy fields."""
+    parsed = urlparse(endpoint)
+    host = parsed.hostname
+    if parsed.scheme not in PROXY_SCHEMES or not host:
+        raise ValueError("proxy endpoint is invalid")
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    server = f"{parsed.scheme}://{host}"
+    if parsed.port is not None:
+        server += f":{parsed.port}"
+    result = {"server": server}
+    if parsed.username is not None:
+        result["username"] = unquote(parsed.username)
+    if parsed.password is not None:
+        result["password"] = unquote(parsed.password)
+    return result
+
+
 def profile_options(profile):
     return {key: profile[key] for key in PROFILE_KEYS if key in profile}
 
@@ -833,7 +852,7 @@ class CamoufoxHandle:
 
         kwargs = dict(options.get("profile_options") or {})
         if options.get("proxy"):
-            kwargs["proxy"] = {"server": options["proxy"]}
+            kwargs["proxy"] = camoufox_proxy_options(options["proxy"])
         with BROWSER_LAUNCH_LOCK:
             self._processes.begin_launch()
             try:
