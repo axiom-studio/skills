@@ -1,0 +1,154 @@
+apiVersion: openseal.dev/v1alpha1
+kind: SkillDefinition
+definition:
+    id: skill-github
+    version: 1.0.0
+    name: GitHub Skill
+    description: Governed GitHub repository metadata and pull-request operations for OpenSeal Agents.
+    category: devops
+    icon: github
+    tags: [github, git, repository, pull-request]
+    transport:
+        kind: tool
+        endpoint: skill-github
+    actions:
+        github-pull-request-create:
+            name: github-pull-request-create
+            description: Create an idempotent pull request in one GitHub repository.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, title, head, base]
+                properties:
+                    owner:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+                        description: GitHub organization or user.
+                    repository:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+                        description: GitHub repository name.
+                    title:
+                        type: string
+                        minLength: 1
+                        maxLength: 256
+                    body:
+                        type: string
+                        maxLength: 65536
+                    head:
+                        type: string
+                        pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$'
+                        description: Source branch already pushed to GitHub.
+                    base:
+                        type: string
+                        pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$'
+                        description: Destination branch.
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [pullRequest]
+                properties:
+                    pullRequest:
+                        type: object
+                        additionalProperties: true
+            sideEffect: external
+            risk: external
+            permissions: [github:pull-requests:write]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry:
+                maxAttempts: 1
+            idempotency: required
+        github-pull-request-list:
+            name: github-pull-request-list
+            description: List bounded pull requests in one GitHub repository.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+                    repository:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+                    state:
+                        type: string
+                        enum: [open, closed, all]
+                        default: open
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [pullRequests, count]
+                properties:
+                    pullRequests:
+                        type: array
+                        maxItems: 50
+                        items:
+                            type: object
+                            additionalProperties: true
+                    count:
+                        type: integer
+                        minimum: 0
+                        maximum: 50
+            sideEffect: read
+            risk: read
+            permissions: [github:pull-requests:read]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry:
+                maxAttempts: 3
+            idempotency: supported
+        github-repository-get:
+            name: github-repository-get
+            description: Read metadata for one GitHub repository.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+                    repository:
+                        type: string
+                        pattern: '^[A-Za-z0-9_.-]{1,100}$'
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [repository]
+                properties:
+                    repository:
+                        type: object
+                        additionalProperties: true
+            sideEffect: read
+            risk: read
+            permissions: [github:repositories:read]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry:
+                maxAttempts: 3
+            idempotency: supported
+    prompt:
+        instructions: Use GitHub reads to verify repository and pull-request state. Create a pull request only after the source branch has been pushed and the user requested delivery. Never request, print, or expose token values.
+        userInvocable: true
+        allowedTools: [github-pull-request-create, github-pull-request-list, github-repository-get]
+    installers:
+        - id: oci
+          kind: oci
+          label: GitHub Skill service image
+          package: axiomstudio/skill-github:1.0.0
+    source:
+        format: axiom.skill/v1
+        publisher: Axiom Studio
+        license: MIT
+        reference: skill-github
+        resolvedVersion: 1.0.0
+diagnostics:
+    - code: forward_ported
+      message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.
+      severity: info
