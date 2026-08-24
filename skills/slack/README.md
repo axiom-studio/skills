@@ -27,21 +27,27 @@ or product UI.
 - **slack-list-users** — List users in the workspace
 - **slack.callback.ingress** — Verify signed Slack interactions and emit a
   canonical `approval.decided` callback event
+- **slack.callback.socket_mode** — Maintain a pooled Slack Socket Mode
+  connection for one exact app-token binding and route interactions to the
+  owning Agent callback through the same signed normalizer
 
 ## Setup
 
 1. Create a Slack app with the scopes required by the selected actions and
    install it to the workspace.
-2. Bind its bot token through the host Vault. The token is bound opaquely as
-   `slack_bot_token`; it is never an action input.
-3. Configure `slack_signing_secret` through the host credential surface for
-   inbound Events API verification.
+2. Store the app token, bot token, and signing secret as fields of the same
+   Slack Vault credential. They are bound opaquely as `slack_app_token`,
+   `slack_bot_token`, and `slack_signing_secret`; none is an action input.
+3. Enable Socket Mode on the Slack app. No public Interactivity Request URL is
+   required for the managed connection.
 4. Select an authorized channel by name during Agent or Team authoring. The
    Skill persists the exact channel ID and continues pagination using Slack's
    opaque cursor.
 5. For interactive approvals, create an OpenSeal callback registration for the
    `interactions` adapter, map eligible Slack user IDs to approval principals,
-   subscribe `approval.decided` to the `approvals` consumer, then configure the
-   registration's public callback URL as the Slack app Interactivity Request
-   URL. Registrations begin paused and should be activated only after the exact
-   Skill binding and signing secret have been reviewed.
+   and subscribe `approval.decided` to the `approvals` consumer. Bind a
+   `slack_app_token`; the host pools one isolated connector for registrations
+   sharing that exact opaque app credential and routes each approval to its
+   subscribed Agent endpoint. Legacy HTTP-mode apps may still use the
+   registration's public callback URL. Registrations begin paused and activate
+   only after the exact Skill binding and credentials have been reviewed.

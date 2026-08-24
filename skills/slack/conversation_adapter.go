@@ -280,6 +280,7 @@ type slackApprovalValue struct {
 	ActionCallID     string    `json:"actionCallId"`
 	InvocationDigest string    `json:"invocationDigest"`
 	ExpiresAt        time.Time `json:"expiresAt"`
+	DestinationID    string    `json:"destinationId,omitempty"`
 }
 
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
@@ -600,7 +601,7 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 		},
 	}
 	if approval, ok := envelope.Delivery.Parameters["approval"].(map[string]interface{}); ok {
-		blocks, err := slackApprovalBlocks(approval)
+		blocks, err := slackApprovalBlocks(approval, envelope.Endpoint.ID)
 		if err != nil {
 			return failedDelivery("invalid_approval", "The approval card is invalid."), nil
 		}
@@ -651,7 +652,7 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	}, nil
 }
 
-func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interface{}, error) {
+func slackApprovalBlocks(approval map[string]interface{}, destinationID string) ([]map[string]interface{}, error) {
 	encoded, err := json.Marshal(approval)
 	if err != nil {
 		return nil, err
@@ -683,7 +684,7 @@ func slackApprovalBlocks(approval map[string]interface{}) ([]map[string]interfac
 	if reviewed.ExpiresAt.IsZero() || (reviewed.Status == "pending" && reviewed.InvocationDigest == "") {
 		return nil, errors.New("invalid approval expiry")
 	}
-	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest, ExpiresAt: reviewed.ExpiresAt.UTC()})
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: reviewed.ID, ApprovalRevision: reviewed.Revision, ActionCallID: reviewed.ActionCallID, InvocationDigest: reviewed.InvocationDigest, ExpiresAt: reviewed.ExpiresAt.UTC(), DestinationID: strings.TrimSpace(destinationID)})
 	preview, _ := json.MarshalIndent(reviewed.ProposedAction, "", "  ")
 	previewText := string(preview)
 	if len(previewText) > 1800 {

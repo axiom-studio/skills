@@ -125,6 +125,12 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 				Credentials []manifestCredential `yaml:"credentials"`
 				Transport   struct {
 					IngressCredentials []string `yaml:"ingressCredentials"`
+					Connection         struct {
+						Kind               string   `yaml:"kind"`
+						Endpoint           string   `yaml:"endpoint"`
+						Credentials        []string `yaml:"credentials"`
+						SharedByCredential string   `yaml:"sharedByCredential"`
+					} `yaml:"connection"`
 				} `yaml:"transport"`
 			} `yaml:"callbackAdapters"`
 		} `yaml:"definition"`
@@ -137,10 +143,11 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 	if !ok {
 		t.Fatal("interactions callback adapter is missing")
 	}
-	want := []string{"slack_bot_token", "slack_signing_secret"}
-	if !reflect.DeepEqual(interactions.Transport.IngressCredentials, want) {
-		t.Fatalf("callback ingress credentials = %v, want canonical order %v", interactions.Transport.IngressCredentials, want)
+	ingressWant := []string{"slack_bot_token", "slack_signing_secret"}
+	if !reflect.DeepEqual(interactions.Transport.IngressCredentials, ingressWant) {
+		t.Fatalf("callback ingress credentials = %v, want canonical order %v", interactions.Transport.IngressCredentials, ingressWant)
 	}
+	want := []string{"slack_app_token", "slack_bot_token", "slack_signing_secret"}
 	if len(interactions.Credentials) != len(want) {
 		t.Fatalf("callback credentials = %v, want %v", interactions.Credentials, want)
 	}
@@ -148,5 +155,11 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 		if credential.Name != want[index] {
 			t.Fatalf("callback credential %d = %q, want %q", index, credential.Name, want[index])
 		}
+	}
+	connection := interactions.Transport.Connection
+	if connection.Kind != "websocket" || connection.Endpoint != "slack.callback.socket_mode" ||
+		!reflect.DeepEqual(connection.Credentials, []string{"slack_app_token", "slack_signing_secret"}) ||
+		connection.SharedByCredential != "slack_app_token" {
+		t.Fatalf("callback connection = %#v", connection)
 	}
 }

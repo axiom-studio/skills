@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
@@ -22,7 +24,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.2.13"
+	slackSkillVersion       = "2.2.14"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -30,6 +32,15 @@ var slackHTTPClient = &http.Client{Timeout: 30 * time.Second}
 var slackBaseURLOverride string
 
 func main() {
+	if strings.TrimSpace(os.Getenv("OPENSEAL_CONNECTOR_ENDPOINT")) == slackSocketModeConnectorEndpoint {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runSlackSocketModeConnectorFromEnvironment(ctx); err != nil && ctx.Err() == nil {
+			fmt.Fprintln(os.Stderr, "Slack Socket Mode connector stopped")
+			os.Exit(1)
+		}
+		return
+	}
 	port := os.Getenv("SKILL_PORT")
 	if port == "" {
 		port = slackHTTPPort
