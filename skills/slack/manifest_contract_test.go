@@ -158,7 +158,7 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 	}
 	connection := interactions.Transport.Connection
 	if connection.Kind != "websocket" || connection.Endpoint != "slack.callback.socket_mode" ||
-		!reflect.DeepEqual(connection.Credentials, []string{"slack_app_token", "slack_signing_secret"}) ||
+		!reflect.DeepEqual(connection.Credentials, []string{"slack_app_token", "slack_bot_token", "slack_signing_secret"}) ||
 		connection.SharedByCredential != "slack_app_token" {
 		t.Fatalf("callback connection = %#v", connection)
 	}

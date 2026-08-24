@@ -89,7 +89,7 @@ func TestSlackSocketModeConnectorForwardsSignedInteractionAndAcknowledgesRespons
 	done := make(chan error, 1)
 	go func() {
 		done <- runSlackSocketModeConnector(ctx, slackSocketModeConfig{
-			AppToken: "xapp-reviewed", SigningSecret: signingSecret,
+			AppToken: "xapp-reviewed", SigningSecret: signingSecret, BotToken: "xoxb-reviewed",
 			CallbackRoutes: map[string]string{"endpoint-1": callback.URL}, APIBaseURL: slack.URL,
 			HTTPClient: slack.Client(), Dialer: websocket.DefaultDialer, Now: func() time.Time { return fixedNow },
 		})
@@ -159,7 +159,17 @@ func TestSlackSocketModeForwardsEventsAPIToConversationGateway(t *testing.T) {
 	payload := json.RawMessage(`{"type":"event_callback","team_id":"T1","api_app_id":"A1","event_id":"Ev1","event":{"type":"app_mention","user":"U1","channel":"C1","ts":"1.1","text":"<@B1> help"}}`)
 
 	called := 0
+	statusCalled := 0
 	gateway := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/assistant.threads.setStatus" {
+			statusCalled++
+			if request.Header.Get("Authorization") != "Bearer xoxb-reviewed" {
+				t.Error("assistant status omitted the bound bot token")
+			}
+			response.Header().Set("Content-Type", "application/json")
+			_, _ = response.Write([]byte(`{"ok":true}`))
+			return
+		}
 		called++
 		body, _ := io.ReadAll(request.Body)
 		if request.Header.Get("Content-Type") != "application/json" || string(body) != string(payload) {
@@ -176,10 +186,11 @@ func TestSlackSocketModeForwardsEventsAPIToConversationGateway(t *testing.T) {
 	defer gateway.Close()
 
 	err := forwardSlackSocketEvents(context.Background(), slackSocketModeConfig{
-		SigningSecret: signingSecret, HTTPClient: gateway.Client(), Now: func() time.Time { return fixedNow },
+		SigningSecret: signingSecret, BotToken: "xoxb-reviewed", APIBaseURL: gateway.URL,
+		HTTPClient: gateway.Client(), Now: func() time.Time { return fixedNow },
 		CallbackRoutes: map[string]string{"approval": "http://sentinel/approval", "conversation_gateway:shared": gateway.URL},
 	}, slackSocketModeEnvelope{EnvelopeID: "events-1", Type: "events_api", Payload: payload})
-	if err != nil || called != 1 {
-		t.Fatalf("forward events called=%d err=%v", called, err)
+	if err != nil || called != 1 || statusCalled != 1 {
+		t.Fatalf("forward events called=%d status=%d err=%v", called, statusCalled, err)
 	}
 }

@@ -33,6 +33,7 @@ const (
 type slackSocketModeConfig struct {
 	AppToken       string
 	SigningSecret  string
+	BotToken       string
 	CallbackRoutes map[string]string
 	APIBaseURL     string
 	HTTPClient     *http.Client
@@ -65,8 +66,13 @@ func runSlackSocketModeConnectorFromEnvironment(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	botToken, err := readConnectorCredential(credentialDir, slackBotTokenCredential)
+	if err != nil {
+		return err
+	}
 	defer clearBytes(appToken)
 	defer clearBytes(signingSecret)
+	defer clearBytes(botToken)
 	routesFile := strings.TrimSpace(os.Getenv("OPENSEAL_CALLBACK_ROUTES_FILE"))
 	if routesFile == "" {
 		routesFile = filepath.Join(credentialDir, slackCallbackRoutesFile)
@@ -76,7 +82,7 @@ func runSlackSocketModeConnectorFromEnvironment(ctx context.Context) error {
 		return err
 	}
 	return runSlackSocketModeConnector(ctx, slackSocketModeConfig{
-		AppToken: string(appToken), SigningSecret: string(signingSecret),
+		AppToken: string(appToken), SigningSecret: string(signingSecret), BotToken: string(botToken),
 		CallbackRoutes: routes,
 		APIBaseURL:     strings.TrimSpace(os.Getenv("SLACK_API_BASE_URL")),
 	})
@@ -116,7 +122,7 @@ func clearBytes(value []byte) {
 }
 
 func runSlackSocketModeConnector(ctx context.Context, config slackSocketModeConfig) error {
-	if strings.TrimSpace(config.AppToken) == "" || strings.TrimSpace(config.SigningSecret) == "" ||
+	if strings.TrimSpace(config.AppToken) == "" || strings.TrimSpace(config.SigningSecret) == "" || strings.TrimSpace(config.BotToken) == "" ||
 		len(config.CallbackRoutes) == 0 {
 		return errors.New("complete Socket Mode connector configuration is required")
 	}
@@ -260,6 +266,50 @@ func forwardSlackSocketEvents(ctx context.Context, config slackSocketModeConfig,
 		if _, err := forwardSlackSocketPayload(ctx, config, callbackURL, "application/json", envelope.Payload); err != nil {
 			return err
 		}
+	}
+	_ = setSlackSocketAssistantStatus(ctx, config, envelope.Payload, "Working on it…")
+	return nil
+}
+
+func setSlackSocketAssistantStatus(ctx context.Context, config slackSocketModeConfig, payload json.RawMessage, status string) error {
+	var eventEnvelope struct {
+		Event struct {
+			Type     string `json:"type"`
+			Channel  string `json:"channel"`
+			TS       string `json:"ts"`
+			ThreadTS string `json:"thread_ts"`
+		} `json:"event"`
+	}
+	if json.Unmarshal(payload, &eventEnvelope) != nil || strings.TrimSpace(eventEnvelope.Event.Channel) == "" ||
+		strings.TrimSpace(eventEnvelope.Event.TS) == "" || (eventEnvelope.Event.Type != "app_mention" && eventEnvelope.Event.Type != "message") {
+		return nil
+	}
+	threadTS := strings.TrimSpace(eventEnvelope.Event.ThreadTS)
+	if threadTS == "" {
+		threadTS = strings.TrimSpace(eventEnvelope.Event.TS)
+	}
+	body, _ := json.Marshal(map[string]string{
+		"channel_id": eventEnvelope.Event.Channel, "thread_ts": threadTS, "status": status,
+	})
+	requestContext, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestContext, http.MethodPost,
+		strings.TrimRight(config.APIBaseURL, "/")+"/assistant.threads.setStatus", bytes.NewReader(body))
+	if err != nil {
+		return errors.New("create Slack assistant status request")
+	}
+	request.Header.Set("Authorization", "Bearer "+config.BotToken)
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	response, err := config.HTTPClient.Do(request)
+	if err != nil {
+		return errors.New("set Slack assistant status")
+	}
+	defer response.Body.Close()
+	var result struct {
+		OK bool `json:"ok"`
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 || json.NewDecoder(io.LimitReader(response.Body, maximumSocketEnvelopeBytes)).Decode(&result) != nil || !result.OK {
+		return errors.New("Slack rejected assistant status")
 	}
 	return nil
 }
