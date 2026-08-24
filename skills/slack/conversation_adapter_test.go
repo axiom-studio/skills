@@ -201,6 +201,34 @@ func TestSlackDeliveryUsesOAuthMetadataAndAcknowledgementLookup(t *testing.T) {
 	}
 }
 
+func TestSlackDeliveryProjectsNativeAssistantThreadStatus(t *testing.T) {
+	var posted map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/assistant.threads.setStatus" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.WriteString(response, `{"ok":true}`)
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	envelope := config[adapterEnvelopeKey].(map[string]interface{})
+	delivery := envelope["delivery"].(*conversationDelivery)
+	delivery.Operation = "typing.set"
+	delivery.Parameters = map[string]interface{}{"status": "Reviewing the workspace…"}
+
+	result, err := adapter.delivery(t.Context(), config)
+	if err != nil || result["outcome"] != "delivered" || result["providerMessageId"] != "1720000000.123" {
+		t.Fatalf("status result = %#v, %v", result, err)
+	}
+	if posted["channel_id"] != "C123" || posted["thread_ts"] != "1720000000.123" || posted["status"] != "Reviewing the workspace…" {
+		t.Fatalf("status body = %#v", posted)
+	}
+}
+
 func TestSlackDeliveryExecutorReadsEphemeralTokenFromBindingChannel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer xoxb-bound-token" {

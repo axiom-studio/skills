@@ -435,7 +435,7 @@ definition:
             provider: slack
             endpointModes: [channel, direct]
             inboundEventTypes: [conversation.message.received]
-            features: [mentions, threads]
+            features: [mentions, threads, typing]
             credentials:
                 - name: slack_bot_token
                   kind: slack_bot_token
@@ -455,7 +455,7 @@ definition:
                   queryArgument: query
                   nextCursorPath: nextCursor
             delivery:
-                operations: [message.send, message.update]
+                operations: [message.send, message.update, typing.set]
                 ordering: thread
                 idempotency: required
                 supportsAcknowledgementLookup: true
@@ -497,7 +497,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.2.14
+          package: axiomstudio/skill-slack:2.3.0
     name: Slack Skill
     source:
         format: axiom.skill/v1
@@ -507,7 +507,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.2.14
+        resolvedVersion: 2.3.0
     tags:
         - chat
         - messaging
@@ -516,7 +516,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.2.14
+    version: 2.3.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.

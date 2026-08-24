@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
     id: skill-github
-    version: 1.0.1
+    version: 1.1.0
     name: GitHub Skill
     description: Governed GitHub repository metadata and pull-request operations for OpenSeal Agents.
     category: devops
@@ -102,6 +102,60 @@ definition:
             retry:
                 maxAttempts: 3
             idempotency: supported
+        github-pull-request-get:
+            name: github-pull-request-get
+            description: Read one pull request with its current head/base revisions and bounded summary metadata.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [pullRequest]
+                properties:
+                    pullRequest: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:pull-requests:read]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-pull-request-files:
+            name: github-pull-request-files
+            description: Read up to 100 changed files and bounded GitHub patch fragments for one pull request.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [files, count]
+                properties:
+                    files:
+                        type: array
+                        maxItems: 100
+                        items: {type: object, additionalProperties: true}
+                    count: {type: integer, minimum: 0, maximum: 100}
+            sideEffect: read
+            risk: read
+            permissions: [github:pull-requests:read]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry: {maxAttempts: 3}
+            idempotency: supported
         github-repository-get:
             name: github-repository-get
             description: Read metadata for one GitHub repository.
@@ -133,21 +187,67 @@ definition:
             retry:
                 maxAttempts: 3
             idempotency: supported
+        github-pull-request-review-create:
+            name: github-pull-request-review-create
+            description: Submit a COMMENT, APPROVE, or REQUEST_CHANGES review for one exact pull request revision.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number, event, body]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+                    event: {type: string, enum: [COMMENT, APPROVE, REQUEST_CHANGES]}
+                    body: {type: string, minLength: 1, maxLength: 65536}
+                    commitId: {type: string, pattern: '^[a-fA-F0-9]{40}$'}
+            outputSchema:
+                type: object
+                additionalProperties: false
+                required: [review]
+                properties:
+                    review: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:pull-requests:write]
+            credentials:
+                - name: token
+                  kind: github_token
+            retry: {maxAttempts: 1}
+            idempotency: required
+    callbackAdapters:
+        pull-requests:
+            protocolVersion: openseal.callback.adapter/v1
+            name: GitHub pull request events
+            description: Verify GitHub webhook signatures and normalize pull request review triggers.
+            provider: github
+            eventTypes:
+                - github.pull_request.opened
+                - github.pull_request.ready_for_review
+                - github.pull_request.reopened
+                - github.pull_request.synchronize
+            credentials:
+                - name: webhook_secret
+                  kind: github_webhook_secret
+            transport:
+                kind: plugin
+                ingressEndpoint: github.callback.ingress
+                ingressCredentials: [webhook_secret]
     prompt:
-        instructions: Use GitHub reads to verify repository and pull-request state. Create a pull request only after the source branch has been pushed and the user requested delivery. Never request, print, or expose token values.
+        instructions: Use GitHub reads to verify repository and pull-request state. Read the exact pull request and changed files before reviewing. Submit a review only against the inspected head revision. Create a pull request only after the source branch has been pushed and the user requested delivery. Never request, print, or expose credential values.
         userInvocable: true
-        allowedTools: [github-pull-request-create, github-pull-request-list, github-repository-get]
+        allowedTools: [github-pull-request-create, github-pull-request-list, github-pull-request-get, github-pull-request-files, github-pull-request-review-create, github-repository-get]
     installers:
         - id: oci
           kind: oci
           label: GitHub Skill service image
-          package: axiomstudio/skill-github:1.0.1
+          package: axiomstudio/skill-github:1.1.0
     source:
         format: axiom.skill/v1
         publisher: Axiom Studio
         license: MIT
         reference: skill-github
-        resolvedVersion: 1.0.1
+        resolvedVersion: 1.1.0
 diagnostics:
     - code: forward_ported
       message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.
