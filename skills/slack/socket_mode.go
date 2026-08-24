@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -221,6 +222,18 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 			if err := connection.WriteJSON(acknowledgement); err != nil {
 				return errors.New("acknowledge Socket Mode envelope")
 			}
+		case "events_api":
+			if strings.TrimSpace(envelope.EnvelopeID) == "" || len(envelope.Payload) == 0 {
+				return errors.New("Events API Socket Mode envelope is invalid")
+			}
+			if err := forwardSlackSocketEvents(ctx, config, envelope); err != nil {
+				// A failed durable ingress is deliberately left unacknowledged so
+				// Slack retries the envelope. OpenSeal deduplicates accepted events.
+				continue
+			}
+			if err := connection.WriteJSON(slackSocketModeAcknowledgement{EnvelopeID: envelope.EnvelopeID}); err != nil {
+				return errors.New("acknowledge Events API Socket Mode envelope")
+			}
 		default:
 			if strings.TrimSpace(envelope.EnvelopeID) != "" {
 				if err := connection.WriteJSON(slackSocketModeAcknowledgement{EnvelopeID: envelope.EnvelopeID}); err != nil {
@@ -232,35 +245,34 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 	return nil
 }
 
+func forwardSlackSocketEvents(ctx context.Context, config slackSocketModeConfig, envelope slackSocketModeEnvelope) error {
+	routes := make([]string, 0)
+	for destinationID, callbackURL := range config.CallbackRoutes {
+		if strings.HasPrefix(destinationID, "conversation_gateway:") {
+			routes = append(routes, callbackURL)
+		}
+	}
+	if len(routes) == 0 {
+		return errors.New("Socket Mode conversation gateway is unavailable")
+	}
+	sort.Strings(routes)
+	for _, callbackURL := range routes {
+		if _, err := forwardSlackSocketPayload(ctx, config, callbackURL, "application/json", envelope.Payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeConfig, envelope slackSocketModeEnvelope) (slackSocketModeAcknowledgement, error) {
 	callbackURL, err := slackSocketCallbackURL(envelope.Payload, config.CallbackRoutes)
 	if err != nil {
 		return slackSocketModeAcknowledgement{}, err
 	}
 	form := url.Values{"payload": []string{string(envelope.Payload)}}.Encode()
-	timestamp := strconv.FormatInt(config.Now().UTC().Unix(), 10)
-	signatureBase := "v0:" + timestamp + ":" + form
-	mac := hmac.New(sha256.New, []byte(config.SigningSecret))
-	_, _ = mac.Write([]byte(signatureBase))
-	signature := "v0=" + hex.EncodeToString(mac.Sum(nil))
-
-	requestContext, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
-	defer cancel()
-	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, callbackURL, strings.NewReader(form))
+	body, err := forwardSlackSocketPayload(ctx, config, callbackURL, "application/x-www-form-urlencoded", []byte(form))
 	if err != nil {
-		return slackSocketModeAcknowledgement{}, errors.New("create callback ingress request")
-	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Header.Set("X-Slack-Request-Timestamp", timestamp)
-	request.Header.Set("X-Slack-Signature", signature)
-	response, err := config.HTTPClient.Do(request)
-	if err != nil {
-		return slackSocketModeAcknowledgement{}, errors.New("deliver callback ingress request")
-	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, maximumSocketEnvelopeBytes+1))
-	if err != nil || len(body) > maximumSocketEnvelopeBytes || response.StatusCode < 200 || response.StatusCode >= 300 {
-		return slackSocketModeAcknowledgement{}, errors.New("callback ingress rejected Socket Mode envelope")
+		return slackSocketModeAcknowledgement{}, err
 	}
 	acknowledgement := slackSocketModeAcknowledgement{EnvelopeID: envelope.EnvelopeID}
 	if envelope.AcceptsResponsePayload && len(bytes.TrimSpace(body)) > 0 {
@@ -270,6 +282,34 @@ func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeCo
 		acknowledgement.Payload = append(json.RawMessage(nil), bytes.TrimSpace(body)...)
 	}
 	return acknowledgement, nil
+}
+
+func forwardSlackSocketPayload(ctx context.Context, config slackSocketModeConfig, callbackURL, contentType string, payloadBody []byte) ([]byte, error) {
+	timestamp := strconv.FormatInt(config.Now().UTC().Unix(), 10)
+	signatureBase := "v0:" + timestamp + ":" + string(payloadBody)
+	mac := hmac.New(sha256.New, []byte(config.SigningSecret))
+	_, _ = mac.Write([]byte(signatureBase))
+	signature := "v0=" + hex.EncodeToString(mac.Sum(nil))
+
+	requestContext, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, callbackURL, bytes.NewReader(payloadBody))
+	if err != nil {
+		return nil, errors.New("create callback ingress request")
+	}
+	request.Header.Set("Content-Type", contentType)
+	request.Header.Set("X-Slack-Request-Timestamp", timestamp)
+	request.Header.Set("X-Slack-Signature", signature)
+	response, err := config.HTTPClient.Do(request)
+	if err != nil {
+		return nil, errors.New("deliver callback ingress request")
+	}
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, maximumSocketEnvelopeBytes+1))
+	if err != nil || len(responseBody) > maximumSocketEnvelopeBytes || response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, errors.New("callback ingress rejected Socket Mode envelope")
+	}
+	return responseBody, nil
 }
 
 func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (string, error) {
@@ -305,9 +345,19 @@ func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (
 	}
 	// Cards created before destination routing was introduced remain safe only
 	// when the shared Slack connection has exactly one possible destination.
-	if strings.TrimSpace(reviewed.DestinationID) == "" && len(routes) == 1 {
-		for _, callbackURL := range routes {
-			return strings.TrimSpace(callbackURL), nil
+	if strings.TrimSpace(reviewed.DestinationID) == "" {
+		callbackURL := ""
+		for destinationID, candidate := range routes {
+			if strings.HasPrefix(destinationID, "conversation_gateway:") {
+				continue
+			}
+			if callbackURL != "" {
+				return "", errors.New("Socket Mode interaction destination is unavailable")
+			}
+			callbackURL = strings.TrimSpace(candidate)
+		}
+		if callbackURL != "" {
+			return callbackURL, nil
 		}
 	}
 	return "", errors.New("Socket Mode interaction destination is unavailable")
