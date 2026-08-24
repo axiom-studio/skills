@@ -474,6 +474,8 @@ definition:
             provider: slack
             eventTypes: [approval.decided]
             credentials:
+                - name: slack_app_token
+                  kind: slack_app_token
                 - name: slack_bot_token
                   kind: slack_bot_token
                 - name: slack_signing_secret
@@ -482,6 +484,11 @@ definition:
                 kind: plugin
                 ingressEndpoint: slack.callback.ingress
                 ingressCredentials: [slack_bot_token, slack_signing_secret]
+                connection:
+                    kind: websocket
+                    endpoint: slack.callback.socket_mode
+                    credentials: [slack_app_token, slack_signing_secret]
+                    sharedByCredential: slack_app_token
     category: communication
     description: Send messages and interact with Slack channels
     icon: message-circle
@@ -490,7 +497,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.2.13
+          package: axiomstudio/skill-slack:2.2.14
     name: Slack Skill
     source:
         format: axiom.skill/v1
@@ -500,7 +507,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.2.13
+        resolvedVersion: 2.2.14
     tags:
         - chat
         - messaging
@@ -509,7 +516,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.2.13
+    version: 2.2.14
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
