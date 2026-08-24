@@ -27,6 +27,9 @@ or product UI.
 - **slack-list-users** — List users in the workspace
 - **slack.callback.ingress** — Verify signed Slack interactions and emit a
   canonical `approval.decided` callback event
+- **slack.callback.socket_mode** — Maintain an isolated Slack Socket Mode
+  connection for one callback registration and feed interactions through the
+  same signed callback normalizer
 
 ## Setup
 
@@ -41,7 +44,9 @@ or product UI.
    opaque cursor.
 5. For interactive approvals, create an OpenSeal callback registration for the
    `interactions` adapter, map eligible Slack user IDs to approval principals,
-   subscribe `approval.decided` to the `approvals` consumer, then configure the
-   registration's public callback URL as the Slack app Interactivity Request
-   URL. Registrations begin paused and should be activated only after the exact
-   Skill binding and signing secret have been reviewed.
+   and subscribe `approval.decided` to the `approvals` consumer. Bind a
+   `slack_app_token` when the Slack app uses Socket Mode; the host then
+   materializes one isolated connector for the registration. HTTP-mode apps may
+   instead use the registration's public callback URL as the Interactivity
+   Request URL. Registrations begin paused and activate only after the exact
+   Skill binding and credentials have been reviewed.
