@@ -591,6 +591,9 @@ func (a *slackAdapter) delivery(ctx context.Context, config map[string]interface
 }
 
 func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	if envelope.Delivery.Operation == "typing.set" {
+		return a.setThreadStatus(ctx, token, envelope)
+	}
 	path := "/chat.postMessage"
 	body := map[string]interface{}{
 		"channel": envelope.Endpoint.Address,
@@ -649,6 +652,31 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	return map[string]interface{}{
 		"outcome": "delivered", "providerMessageId": result.Timestamp,
 		"summary": "Slack accepted the message.",
+	}, nil
+}
+
+func (a *slackAdapter) setThreadStatus(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	threadID := strings.TrimSpace(envelope.Delivery.ExternalThreadID)
+	statusText, _ := envelope.Delivery.Parameters["status"].(string)
+	statusText = strings.TrimSpace(statusText)
+	if threadID == "" || len(statusText) > 100 {
+		return failedDelivery("invalid_status", "The Slack thread status is invalid."), nil
+	}
+	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/assistant.threads.setStatus", nil, map[string]interface{}{
+		"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": statusText,
+	})
+	if err != nil || status >= 500 {
+		return retryDelivery("slack_unavailable", "Slack could not update the thread status.", retryAfter), nil
+	}
+	if status == http.StatusTooManyRequests {
+		return retryDelivery("rate_limited", "Slack asked the Skill to retry later.", retryAfter), nil
+	}
+	var result slackDeliveryResponse
+	if status < 200 || status >= 300 || json.Unmarshal(response, &result) != nil || !result.OK {
+		return failedDelivery("slack_rejected", "Slack rejected the thread status."), nil
+	}
+	return map[string]interface{}{
+		"outcome": "delivered", "providerMessageId": threadID, "summary": "Slack accepted the thread status.",
 	}, nil
 }
 

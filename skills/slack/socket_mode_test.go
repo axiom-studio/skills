@@ -146,4 +146,40 @@ func TestSlackSocketCallbackURLRoutesExactDestinationAndBoundsLegacyFallback(t *
 	if callbackURL, err := slackSocketCallbackURL(legacy, map[string]string{"only": "http://sentinel/only"}); err != nil || callbackURL != "http://sentinel/only" {
 		t.Fatalf("bounded legacy callback route = %q, %v", callbackURL, err)
 	}
+	if callbackURL, err := slackSocketCallbackURL(legacy, map[string]string{
+		"only": "http://sentinel/only", "conversation_gateway:shared": "http://sentinel/gateway",
+	}); err != nil || callbackURL != "http://sentinel/only" {
+		t.Fatalf("gateway route affected bounded legacy callback = %q, %v", callbackURL, err)
+	}
+}
+
+func TestSlackSocketModeForwardsEventsAPIToConversationGateway(t *testing.T) {
+	fixedNow := time.Date(2026, 8, 24, 5, 0, 0, 0, time.UTC)
+	const signingSecret = "socket-signing-secret"
+	payload := json.RawMessage(`{"type":"event_callback","team_id":"T1","api_app_id":"A1","event_id":"Ev1","event":{"type":"app_mention","user":"U1","channel":"C1","ts":"1.1","text":"<@B1> help"}}`)
+
+	called := 0
+	gateway := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		called++
+		body, _ := io.ReadAll(request.Body)
+		if request.Header.Get("Content-Type") != "application/json" || string(body) != string(payload) {
+			t.Errorf("gateway request = %s %q", request.Header.Get("Content-Type"), string(body))
+		}
+		timestamp := request.Header.Get("X-Slack-Request-Timestamp")
+		mac := hmac.New(sha256.New, []byte(signingSecret))
+		_, _ = mac.Write([]byte("v0:" + timestamp + ":" + string(body)))
+		if request.Header.Get("X-Slack-Signature") != "v0="+hex.EncodeToString(mac.Sum(nil)) {
+			t.Error("gateway signature was not regenerated")
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer gateway.Close()
+
+	err := forwardSlackSocketEvents(context.Background(), slackSocketModeConfig{
+		SigningSecret: signingSecret, HTTPClient: gateway.Client(), Now: func() time.Time { return fixedNow },
+		CallbackRoutes: map[string]string{"approval": "http://sentinel/approval", "conversation_gateway:shared": gateway.URL},
+	}, slackSocketModeEnvelope{EnvelopeID: "events-1", Type: "events_api", Payload: payload})
+	if err != nil || called != 1 {
+		t.Fatalf("forward events called=%d err=%v", called, err)
+	}
 }

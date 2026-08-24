@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 
 const (
 	skillID      = "skill-github"
-	skillVersion = "1.0.1"
+	skillVersion = "1.1.0"
 	defaultPort  = "50051"
 	iconGitHub   = "github"
 )
@@ -30,13 +31,18 @@ var (
 	githubClient  = &http.Client{Timeout: 45 * time.Second}
 	namePattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,100}$`)
 	branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$`)
+	commitPattern = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
 )
 
 func main() {
 	server := grpc.NewSkillServer(skillID, skillVersion)
 	server.RegisterExecutorWithSchema("github-repository-get", &repositoryGetExecutor{}, repositoryGetSchema)
 	server.RegisterExecutorWithSchema("github-pull-request-list", &pullRequestListExecutor{}, pullRequestListSchema)
+	server.RegisterExecutorWithSchema("github-pull-request-get", &pullRequestGetExecutor{}, pullRequestGetSchema)
+	server.RegisterExecutorWithSchema("github-pull-request-files", &pullRequestFilesExecutor{}, pullRequestFilesSchema)
 	server.RegisterExecutorWithSchema("github-pull-request-create", &pullRequestCreateExecutor{}, pullRequestCreateSchema)
+	server.RegisterExecutorWithSchema("github-pull-request-review-create", &pullRequestReviewCreateExecutor{}, pullRequestReviewCreateSchema)
+	server.RegisterExecutor(githubCallbackNodeType, &githubCallbackExecutor{})
 	port := strings.TrimSpace(os.Getenv("SKILL_PORT"))
 	if port == "" {
 		port = defaultPort
@@ -76,6 +82,38 @@ var pullRequestCreateSchema = resolver.NewSchemaBuilder("github-pull-request-cre
 	AddTextareaField("body", "Body", resolver.WithRows(8)).
 	AddExpressionField("head", "Head branch", resolver.WithRequired()).
 	AddExpressionField("base", "Base branch", resolver.WithRequired()).
+	EndSection().Build()
+
+var pullRequestGetSchema = resolver.NewSchemaBuilder("github-pull-request-get").
+	WithName("Get GitHub pull request").WithCategory("action").WithIcon(iconGitHub).
+	WithDescription("Read one pull request and its current head/base revisions").
+	AddSection("Pull request").
+	AddExpressionField("owner", "Owner", resolver.WithRequired()).
+	AddExpressionField("repository", "Repository", resolver.WithRequired()).
+	AddExpressionField("number", "Pull request number", resolver.WithRequired()).
+	EndSection().Build()
+
+var pullRequestFilesSchema = resolver.NewSchemaBuilder("github-pull-request-files").
+	WithName("List GitHub pull request files").WithCategory("action").WithIcon(iconGitHub).
+	WithDescription("Read a bounded file and patch projection for one pull request").
+	AddSection("Pull request").
+	AddExpressionField("owner", "Owner", resolver.WithRequired()).
+	AddExpressionField("repository", "Repository", resolver.WithRequired()).
+	AddExpressionField("number", "Pull request number", resolver.WithRequired()).
+	EndSection().Build()
+
+var pullRequestReviewCreateSchema = resolver.NewSchemaBuilder("github-pull-request-review-create").
+	WithName("Submit GitHub pull request review").WithCategory("action").WithIcon(iconGitHub).
+	WithDescription("Submit an idempotent COMMENT, APPROVE, or REQUEST_CHANGES review").
+	AddSection("Pull request").
+	AddExpressionField("owner", "Owner", resolver.WithRequired()).
+	AddExpressionField("repository", "Repository", resolver.WithRequired()).
+	AddExpressionField("number", "Pull request number", resolver.WithRequired()).
+	EndSection().
+	AddSection("Review").
+	AddExpressionField("event", "Decision", resolver.WithRequired()).
+	AddTextareaField("body", "Review summary", resolver.WithRows(10), resolver.WithRequired()).
+	AddExpressionField("commitId", "Reviewed commit SHA").
 	EndSection().Build()
 
 type repositoryGetExecutor struct{}
@@ -154,6 +192,92 @@ func (*pullRequestCreateExecutor) Execute(ctx context.Context, step *executor.St
 	return &executor.StepResult{Output: map[string]interface{}{"pullRequest": projectPullRequest(result)}}, nil
 }
 
+type pullRequestGetExecutor struct{}
+
+func (*pullRequestGetExecutor) Type() string { return "github-pull-request-get" }
+
+func (*pullRequestGetExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
+	if err != nil {
+		return nil, err
+	}
+	number, err := pullRequestNumber(step)
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]interface{}
+	if err = githubRequest(ctx, token, http.MethodGet, repositoryEndpoint(owner, repository)+"/pulls/"+strconv.Itoa(number), nil, &result); err != nil {
+		return nil, err
+	}
+	return &executor.StepResult{Output: map[string]interface{}{"pullRequest": projectPullRequest(result)}}, nil
+}
+
+type pullRequestFilesExecutor struct{}
+
+func (*pullRequestFilesExecutor) Type() string { return "github-pull-request-files" }
+
+func (*pullRequestFilesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
+	if err != nil {
+		return nil, err
+	}
+	number, err := pullRequestNumber(step)
+	if err != nil {
+		return nil, err
+	}
+	var result []map[string]interface{}
+	endpoint := repositoryEndpoint(owner, repository) + "/pulls/" + strconv.Itoa(number) + "/files?per_page=100"
+	if err = githubRequest(ctx, token, http.MethodGet, endpoint, nil, &result); err != nil {
+		return nil, err
+	}
+	files := make([]map[string]interface{}, 0, len(result))
+	for _, file := range result {
+		files = append(files, map[string]interface{}{
+			"filename": file["filename"], "status": file["status"], "additions": file["additions"],
+			"deletions": file["deletions"], "changes": file["changes"], "patch": file["patch"],
+		})
+	}
+	return &executor.StepResult{Output: map[string]interface{}{"files": files, "count": len(files)}}, nil
+}
+
+type pullRequestReviewCreateExecutor struct{}
+
+func (*pullRequestReviewCreateExecutor) Type() string { return "github-pull-request-review-create" }
+
+func (*pullRequestReviewCreateExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
+	if err != nil {
+		return nil, err
+	}
+	number, err := pullRequestNumber(step)
+	if err != nil {
+		return nil, err
+	}
+	event := strings.ToUpper(configString(step, "event"))
+	body, commitID := configString(step, "body"), configString(step, "commitId")
+	if event != "COMMENT" && event != "APPROVE" && event != "REQUEST_CHANGES" {
+		return nil, errors.New("review event must be COMMENT, APPROVE, or REQUEST_CHANGES")
+	}
+	if body == "" || len(body) > 65536 {
+		return nil, errors.New("a bounded review body is required")
+	}
+	payload := map[string]interface{}{"event": event, "body": body}
+	if commitID != "" {
+		if !commitPattern.MatchString(commitID) {
+			return nil, errors.New("review commitId must be a Git commit SHA")
+		}
+		payload["commit_id"] = commitID
+	}
+	var result map[string]interface{}
+	endpoint := repositoryEndpoint(owner, repository) + "/pulls/" + strconv.Itoa(number) + "/reviews"
+	if err = githubRequest(ctx, token, http.MethodPost, endpoint, payload, &result); err != nil {
+		return nil, err
+	}
+	return &executor.StepResult{Output: map[string]interface{}{"review": map[string]interface{}{
+		"id": result["id"], "state": result["state"], "url": result["html_url"], "body": result["body"], "commitId": result["commit_id"],
+	}}}, nil
+}
+
 var errGitHubConflict = errors.New("GitHub rejected a conflicting pull request")
 
 func githubRequest(ctx context.Context, token, method, endpoint string, body, output interface{}) error {
@@ -218,6 +342,28 @@ func repositoryConfig(step *executor.StepDefinition, resolver executor.TemplateR
 	return owner, repository, token, nil
 }
 
+func repositoryEndpoint(owner, repository string) string {
+	return "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository)
+}
+
+func pullRequestNumber(step *executor.StepDefinition) (int, error) {
+	var number int
+	switch value := step.Config["number"].(type) {
+	case int:
+		number = value
+	case int64:
+		number = int(value)
+	case float64:
+		number = int(value)
+	case string:
+		number, _ = strconv.Atoi(strings.TrimSpace(value))
+	}
+	if number < 1 {
+		return 0, errors.New("a positive pull request number is required")
+	}
+	return number, nil
+}
+
 func configString(step *executor.StepDefinition, key string) string {
 	if step == nil {
 		return ""
@@ -231,7 +377,14 @@ func projectRepository(value map[string]interface{}) map[string]interface{} {
 }
 
 func projectPullRequest(value map[string]interface{}) map[string]interface{} {
-	return map[string]interface{}{"number": value["number"], "title": value["title"], "state": value["state"], "url": value["html_url"], "draft": value["draft"], "head": nestedString(value, "head", "ref"), "base": nestedString(value, "base", "ref")}
+	return map[string]interface{}{
+		"number": value["number"], "title": value["title"], "body": value["body"], "state": value["state"],
+		"url": value["html_url"], "draft": value["draft"], "mergeable": value["mergeable"],
+		"head": nestedString(value, "head", "ref"), "headSha": nestedString(value, "head", "sha"),
+		"base": nestedString(value, "base", "ref"), "baseSha": nestedString(value, "base", "sha"),
+		"author": nestedString(value, "user", "login"), "changedFiles": value["changed_files"],
+		"additions": value["additions"], "deletions": value["deletions"], "commits": value["commits"],
+	}
 }
 
 func nestedString(value map[string]interface{}, outer, inner string) string {
