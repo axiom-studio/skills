@@ -10,6 +10,14 @@ import (
 	"github.com/axiom-studio/skills.sdk/executor"
 )
 
+type githubBindingResolver struct {
+	executor.TemplateResolver
+	bindings map[string]interface{}
+}
+
+func (r githubBindingResolver) GetBinding(name string) interface{}  { return r.bindings[name] }
+func (r githubBindingResolver) GetBindings() map[string]interface{} { return r.bindings }
+
 func TestPullRequestCreateUsesBearerCredentialAndProjectsResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/repos/axiom-studio/cortex/pulls" || request.Header.Get("Authorization") != "Bearer SECRET" {
@@ -21,13 +29,17 @@ func TestPullRequestCreateUsesBearerCredentialAndProjectsResponse(t *testing.T) 
 	previousBase, previousClient := githubAPIBase, githubClient
 	githubAPIBase, githubClient = server.URL, server.Client()
 	defer func() { githubAPIBase, githubClient = previousBase, previousClient }()
-	result, err := (&pullRequestCreateExecutor{}).Execute(context.Background(), &executor.StepDefinition{Config: map[string]interface{}{"owner": "axiom-studio", "repository": "cortex", "token": "SECRET", "title": "Fix", "head": "fix/test", "base": "main"}}, nil)
+	step := &executor.StepDefinition{Config: map[string]interface{}{"owner": "axiom-studio", "repository": "cortex", "title": "Fix", "head": "fix/test", "base": "main"}}
+	result, err := (&pullRequestCreateExecutor{}).Execute(context.Background(), step, githubBindingResolver{bindings: map[string]interface{}{"token": "SECRET"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pullRequest := result.Output["pullRequest"].(map[string]interface{})
 	if pullRequest["number"] != float64(42) || pullRequest["head"] != "fix/test" {
 		t.Fatalf("pull request = %#v", pullRequest)
+	}
+	if _, leaked := step.Config["token"]; leaked {
+		t.Fatal("governed credential leaked into ordinary action config")
 	}
 }
 
@@ -37,7 +49,7 @@ func TestRepositoryConfigurationRejectsUnsafeIdentityAndMissingCredential(t *tes
 		"missing token": {"owner": "owner", "repository": "repo"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, _, _, err := repositoryConfig(&executor.StepDefinition{Config: config}); err == nil {
+			if _, _, _, err := repositoryConfig(&executor.StepDefinition{Config: config}, nil); err == nil {
 				t.Fatal("invalid repository authority was accepted")
 			}
 		})
