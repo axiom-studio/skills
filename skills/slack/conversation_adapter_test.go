@@ -367,7 +367,7 @@ func TestSlackApprovalDecisionAndOutcomeCardsAreFinalAndActionable(t *testing.T)
 				"proposedAction": map[string]interface{}{"comment": "Useful context"},
 				"expiresAt":      time.Date(2026, 7, 30, 12, 15, 0, 0, time.UTC),
 				"decidedAt":      decidedAt, "providerApproverId": "U123",
-			})
+			}, "endpoint-1")
 			if err != nil || len(blocks) != 4 {
 				t.Fatalf("blocks = %#v, %v", blocks, err)
 			}

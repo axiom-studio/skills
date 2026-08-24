@@ -20,7 +20,7 @@ import (
 func TestSlackSocketModeConnectorForwardsSignedInteractionAndAcknowledgesResponse(t *testing.T) {
 	fixedNow := time.Date(2026, 8, 24, 5, 0, 0, 0, time.UTC)
 	const signingSecret = "socket-signing-secret"
-	payload := json.RawMessage(`{"type":"block_actions","team":{"id":"T1"},"user":{"id":"U1"},"actions":[{"action_id":"openseal_approval_approve"}]}`)
+	payload := json.RawMessage(`{"type":"block_actions","team":{"id":"T1"},"user":{"id":"U1"},"actions":[{"action_id":"openseal_approval_approve","value":"{\"destinationId\":\"endpoint-1\"}"}]}`)
 
 	callbackCalled := make(chan struct{}, 1)
 	callback := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -90,7 +90,7 @@ func TestSlackSocketModeConnectorForwardsSignedInteractionAndAcknowledgesRespons
 	go func() {
 		done <- runSlackSocketModeConnector(ctx, slackSocketModeConfig{
 			AppToken: "xapp-reviewed", SigningSecret: signingSecret,
-			CallbackURL: callback.URL, APIBaseURL: slack.URL,
+			CallbackRoutes: map[string]string{"endpoint-1": callback.URL}, APIBaseURL: slack.URL,
 			HTTPClient: slack.Client(), Dialer: websocket.DefaultDialer, Now: func() time.Time { return fixedNow },
 		})
 	}()
@@ -125,10 +125,25 @@ func TestSlackSocketModeConnectorDoesNotAcknowledgeRejectedIngress(t *testing.T)
 	}))
 	defer callback.Close()
 	result, err := forwardSlackSocketInteraction(context.Background(), slackSocketModeConfig{
-		SigningSecret: "secret", CallbackURL: callback.URL,
+		SigningSecret: "secret", CallbackRoutes: map[string]string{"endpoint-1": callback.URL},
 		HTTPClient: callback.Client(), Now: time.Now,
-	}, slackSocketModeEnvelope{EnvelopeID: "envelope", Payload: json.RawMessage(`{"type":"block_actions"}`)})
+	}, slackSocketModeEnvelope{EnvelopeID: "envelope", Payload: json.RawMessage(`{"type":"block_actions","actions":[{"value":"{\"destinationId\":\"endpoint-1\"}"}]}`)})
 	if err == nil || result.EnvelopeID != "" {
 		t.Fatalf("rejected ingress result = %#v, %v", result, err)
+	}
+}
+
+func TestSlackSocketCallbackURLRoutesExactDestinationAndBoundsLegacyFallback(t *testing.T) {
+	routes := map[string]string{"endpoint-1": "http://sentinel/one", "endpoint-2": "http://sentinel/two"}
+	payload := json.RawMessage(`{"type":"block_actions","actions":[{"value":"{\"destinationId\":\"endpoint-2\"}"}]}`)
+	if callbackURL, err := slackSocketCallbackURL(payload, routes); err != nil || callbackURL != routes["endpoint-2"] {
+		t.Fatalf("callback route = %q, %v", callbackURL, err)
+	}
+	legacy := json.RawMessage(`{"type":"block_actions","actions":[{"value":"{}"}]}`)
+	if _, err := slackSocketCallbackURL(legacy, routes); err == nil {
+		t.Fatal("ambiguous legacy interaction was accepted")
+	}
+	if callbackURL, err := slackSocketCallbackURL(legacy, map[string]string{"only": "http://sentinel/only"}); err != nil || callbackURL != "http://sentinel/only" {
+		t.Fatalf("bounded legacy callback route = %q, %v", callbackURL, err)
 	}
 }

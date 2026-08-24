@@ -488,6 +488,7 @@ definition:
                     kind: websocket
                     endpoint: slack.callback.socket_mode
                     credentials: [slack_app_token, slack_signing_secret]
+                    sharedByCredential: slack_app_token
     category: communication
     description: Send messages and interact with Slack channels
     icon: message-circle

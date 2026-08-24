@@ -126,9 +126,10 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 				Transport   struct {
 					IngressCredentials []string `yaml:"ingressCredentials"`
 					Connection         struct {
-						Kind        string   `yaml:"kind"`
-						Endpoint    string   `yaml:"endpoint"`
-						Credentials []string `yaml:"credentials"`
+						Kind               string   `yaml:"kind"`
+						Endpoint           string   `yaml:"endpoint"`
+						Credentials        []string `yaml:"credentials"`
+						SharedByCredential string   `yaml:"sharedByCredential"`
 					} `yaml:"connection"`
 				} `yaml:"transport"`
 			} `yaml:"callbackAdapters"`
@@ -157,7 +158,8 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 	}
 	connection := interactions.Transport.Connection
 	if connection.Kind != "websocket" || connection.Endpoint != "slack.callback.socket_mode" ||
-		!reflect.DeepEqual(connection.Credentials, []string{"slack_app_token", "slack_signing_secret"}) {
+		!reflect.DeepEqual(connection.Credentials, []string{"slack_app_token", "slack_signing_secret"}) ||
+		connection.SharedByCredential != "slack_app_token" {
 		t.Fatalf("callback connection = %#v", connection)
 	}
 }

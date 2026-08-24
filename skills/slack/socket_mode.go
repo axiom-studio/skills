@@ -25,17 +25,18 @@ const (
 	slackSocketModeConnectorEndpoint = "slack.callback.socket_mode"
 	slackAppTokenCredential          = "slack_app_token"
 	slackSigningSecretCredential     = "slack_signing_secret"
+	slackCallbackRoutesFile          = "callback_routes.json"
 	maximumSocketEnvelopeBytes       = 1 << 20
 )
 
 type slackSocketModeConfig struct {
-	AppToken      string
-	SigningSecret string
-	CallbackURL   string
-	APIBaseURL    string
-	HTTPClient    *http.Client
-	Dialer        *websocket.Dialer
-	Now           func() time.Time
+	AppToken       string
+	SigningSecret  string
+	CallbackRoutes map[string]string
+	APIBaseURL     string
+	HTTPClient     *http.Client
+	Dialer         *websocket.Dialer
+	Now            func() time.Time
 }
 
 type slackSocketModeEnvelope struct {
@@ -65,11 +66,38 @@ func runSlackSocketModeConnectorFromEnvironment(ctx context.Context) error {
 	}
 	defer clearBytes(appToken)
 	defer clearBytes(signingSecret)
+	routesFile := strings.TrimSpace(os.Getenv("OPENSEAL_CALLBACK_ROUTES_FILE"))
+	if routesFile == "" {
+		routesFile = filepath.Join(credentialDir, slackCallbackRoutesFile)
+	}
+	routes, err := readSlackCallbackRoutes(routesFile)
+	if err != nil {
+		return err
+	}
 	return runSlackSocketModeConnector(ctx, slackSocketModeConfig{
 		AppToken: string(appToken), SigningSecret: string(signingSecret),
-		CallbackURL: strings.TrimSpace(os.Getenv("OPENSEAL_CALLBACK_URL")),
-		APIBaseURL:  strings.TrimSpace(os.Getenv("SLACK_API_BASE_URL")),
+		CallbackRoutes: routes,
+		APIBaseURL:     strings.TrimSpace(os.Getenv("SLACK_API_BASE_URL")),
 	})
+}
+
+func readSlackCallbackRoutes(path string) (map[string]string, error) {
+	encoded, err := os.ReadFile(path)
+	if err != nil || len(encoded) > maximumSocketEnvelopeBytes {
+		return nil, errors.New("connector callback routes are unavailable")
+	}
+	var routes map[string]string
+	if json.Unmarshal(encoded, &routes) != nil || len(routes) == 0 {
+		return nil, errors.New("connector callback routes are invalid")
+	}
+	for destinationID, callbackURL := range routes {
+		parsed, parseErr := url.Parse(strings.TrimSpace(callbackURL))
+		if strings.TrimSpace(destinationID) == "" || parseErr != nil || parsed.Host == "" ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return nil, errors.New("connector callback routes are invalid")
+		}
+	}
+	return routes, nil
 }
 
 func readConnectorCredential(directory, name string) ([]byte, error) {
@@ -88,7 +116,7 @@ func clearBytes(value []byte) {
 
 func runSlackSocketModeConnector(ctx context.Context, config slackSocketModeConfig) error {
 	if strings.TrimSpace(config.AppToken) == "" || strings.TrimSpace(config.SigningSecret) == "" ||
-		strings.TrimSpace(config.CallbackURL) == "" {
+		len(config.CallbackRoutes) == 0 {
 		return errors.New("complete Socket Mode connector configuration is required")
 	}
 	if config.HTTPClient == nil {
@@ -205,6 +233,10 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 }
 
 func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeConfig, envelope slackSocketModeEnvelope) (slackSocketModeAcknowledgement, error) {
+	callbackURL, err := slackSocketCallbackURL(envelope.Payload, config.CallbackRoutes)
+	if err != nil {
+		return slackSocketModeAcknowledgement{}, err
+	}
 	form := url.Values{"payload": []string{string(envelope.Payload)}}.Encode()
 	timestamp := strconv.FormatInt(config.Now().UTC().Unix(), 10)
 	signatureBase := "v0:" + timestamp + ":" + form
@@ -214,7 +246,7 @@ func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeCo
 
 	requestContext, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
-	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, config.CallbackURL, strings.NewReader(form))
+	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, callbackURL, strings.NewReader(form))
 	if err != nil {
 		return slackSocketModeAcknowledgement{}, errors.New("create callback ingress request")
 	}
@@ -238,4 +270,45 @@ func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeCo
 		acknowledgement.Payload = append(json.RawMessage(nil), bytes.TrimSpace(body)...)
 	}
 	return acknowledgement, nil
+}
+
+func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (string, error) {
+	var interaction struct {
+		Type    string `json:"type"`
+		Actions []struct {
+			Value string `json:"value"`
+		} `json:"actions"`
+		View struct {
+			PrivateMetadata string `json:"private_metadata"`
+		} `json:"view"`
+	}
+	if json.Unmarshal(payload, &interaction) != nil {
+		return "", errors.New("Socket Mode interaction is invalid")
+	}
+	var reviewed slackApprovalValue
+	switch interaction.Type {
+	case "block_actions":
+		if len(interaction.Actions) != 1 || json.Unmarshal([]byte(interaction.Actions[0].Value), &reviewed) != nil {
+			return "", errors.New("Socket Mode interaction route is invalid")
+		}
+	case "view_submission":
+		var metadata slackApprovalRevisionMetadata
+		if json.Unmarshal([]byte(interaction.View.PrivateMetadata), &metadata) != nil {
+			return "", errors.New("Socket Mode interaction route is invalid")
+		}
+		reviewed = metadata.Reviewed
+	default:
+		return "", errors.New("Socket Mode interaction type is unsupported")
+	}
+	if callbackURL := strings.TrimSpace(routes[reviewed.DestinationID]); callbackURL != "" {
+		return callbackURL, nil
+	}
+	// Cards created before destination routing was introduced remain safe only
+	// when the shared Slack connection has exactly one possible destination.
+	if strings.TrimSpace(reviewed.DestinationID) == "" && len(routes) == 1 {
+		for _, callbackURL := range routes {
+			return strings.TrimSpace(callbackURL), nil
+		}
+	}
+	return "", errors.New("Socket Mode interaction destination is unavailable")
 }
