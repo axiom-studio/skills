@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
     id: skill-github
-    version: 1.0.0
+    version: 1.0.1
     name: GitHub Skill
     description: Governed GitHub repository metadata and pull-request operations for OpenSeal Agents.
     category: devops
@@ -141,13 +141,13 @@ definition:
         - id: oci
           kind: oci
           label: GitHub Skill service image
-          package: axiomstudio/skill-github:1.0.0
+          package: axiomstudio/skill-github:1.0.1
     source:
         format: axiom.skill/v1
         publisher: Axiom Studio
         license: MIT
         reference: skill-github
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.0.1
 diagnostics:
     - code: forward_ported
       message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.

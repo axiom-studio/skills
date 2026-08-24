@@ -20,7 +20,7 @@ import (
 
 const (
 	skillID      = "skill-github"
-	skillVersion = "1.0.0"
+	skillVersion = "1.0.1"
 	defaultPort  = "50051"
 	iconGitHub   = "github"
 )
@@ -82,8 +82,8 @@ type repositoryGetExecutor struct{}
 
 func (*repositoryGetExecutor) Type() string { return "github-repository-get" }
 
-func (*repositoryGetExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
-	owner, repository, token, err := repositoryConfig(step)
+func (*repositoryGetExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +98,8 @@ type pullRequestListExecutor struct{}
 
 func (*pullRequestListExecutor) Type() string { return "github-pull-request-list" }
 
-func (*pullRequestListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
-	owner, repository, token, err := repositoryConfig(step)
+func (*pullRequestListExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +126,8 @@ type pullRequestCreateExecutor struct{}
 
 func (*pullRequestCreateExecutor) Type() string { return "github-pull-request-create" }
 
-func (*pullRequestCreateExecutor) Execute(ctx context.Context, step *executor.StepDefinition, _ executor.TemplateResolver) (*executor.StepResult, error) {
-	owner, repository, token, err := repositoryConfig(step)
+func (*pullRequestCreateExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	owner, repository, token, err := repositoryConfig(step, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +200,15 @@ func githubRequest(ctx context.Context, token, method, endpoint string, body, ou
 	return nil
 }
 
-func repositoryConfig(step *executor.StepDefinition) (string, string, string, error) {
-	owner, repository, token := configString(step, "owner"), configString(step, "repository"), configString(step, "token")
+func repositoryConfig(step *executor.StepDefinition, resolver executor.TemplateResolver) (string, string, string, error) {
+	owner, repository := configString(step, "owner"), configString(step, "repository")
+	token := ""
+	if bindings, ok := resolver.(executor.BindingResolver); ok {
+		token, _ = bindings.GetBinding("token").(string)
+	}
+	if token = strings.TrimSpace(token); token == "" {
+		token = configString(step, "token")
+	}
 	if !namePattern.MatchString(owner) || !namePattern.MatchString(repository) {
 		return "", "", "", errors.New("valid GitHub owner and repository are required")
 	}
