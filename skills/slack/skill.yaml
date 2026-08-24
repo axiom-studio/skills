@@ -1,5 +1,15 @@
 apiVersion: openseal.dev/v1alpha1
 definition:
+    # Target-host, non-secret configuration used when an Agent is installed
+    # against a selected destination. It is never accepted from model arguments.
+    bindingConfigSchema:
+        type: object
+        additionalProperties: false
+        properties:
+            default_channel:
+                type: string
+                minLength: 1
+                maxLength: 256
     actions:
         slack-add-reaction:
             credentials:
@@ -330,9 +340,7 @@ definition:
                     threadTs:
                         description: Thread timestamp for replying in a thread
                         type: string
-                required:
-                    - channel
-                    - message
+                required: [message]
                 type: object
             name: slack-send-message
             permissions:

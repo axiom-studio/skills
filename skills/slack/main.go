@@ -172,6 +172,9 @@ func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.S
 	config := step.Config
 	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
+	if channel == "" {
+		channel = getString(config, "default_channel")
+	}
 	text := getString(config, "message")
 	if text == "" {
 		text = getString(config, "text")
@@ -1181,7 +1184,7 @@ var SlackSendMessageSchema = resolver.NewSchemaBuilder("slack-send-message").
 	WithIcon(iconSlack).
 	WithDescription("Send a message to a Slack channel").
 	AddSection("Message").
-	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
+	AddExpressionField("channel", "Channel", resolver.WithPlaceholder("Uses the configured destination when omitted")).
 	AddTextareaField("message", "Message Text", resolver.WithRequired()).
 	EndSection().
 	Build()
