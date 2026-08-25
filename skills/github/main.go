@@ -21,7 +21,7 @@ import (
 
 const (
 	skillID      = "skill-github"
-	skillVersion = "1.1.0"
+	skillVersion = "1.2.0"
 	defaultPort  = "50051"
 	iconGitHub   = "github"
 )
@@ -42,6 +42,7 @@ func main() {
 	server.RegisterExecutorWithSchema("github-pull-request-files", &pullRequestFilesExecutor{}, pullRequestFilesSchema)
 	server.RegisterExecutorWithSchema("github-pull-request-create", &pullRequestCreateExecutor{}, pullRequestCreateSchema)
 	server.RegisterExecutorWithSchema("github-pull-request-review-create", &pullRequestReviewCreateExecutor{}, pullRequestReviewCreateSchema)
+	registerExtendedGitHubActions(server)
 	server.RegisterExecutor(githubCallbackNodeType, &githubCallbackExecutor{})
 	port := strings.TrimSpace(os.Getenv("SKILL_PORT"))
 	if port == "" {
