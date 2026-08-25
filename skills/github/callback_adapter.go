@@ -93,7 +93,7 @@ func normalizeGitHubCallback(config map[string]interface{}) (map[string]interfac
 	if eventName == "ping" {
 		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`, "events": []githubNormalizedCallbackEvent{}}, nil
 	}
-	if eventName != "pull_request" {
+	if eventName != "pull_request" && eventName != "issues" && eventName != "issue_comment" && eventName != "workflow_run" {
 		return map[string]interface{}{"statusCode": http.StatusAccepted, "events": []githubNormalizedCallbackEvent{}}, nil
 	}
 	var payload struct {
@@ -107,15 +107,24 @@ func normalizeGitHubCallback(config map[string]interface{}) (map[string]interfac
 			} `json:"owner"`
 		} `json:"repository"`
 		PullRequest map[string]interface{} `json:"pull_request"`
+		Issue       map[string]interface{} `json:"issue"`
+		Comment     map[string]interface{} `json:"comment"`
+		WorkflowRun map[string]interface{} `json:"workflow_run"`
 		Sender      struct {
 			Login string `json:"login"`
 		} `json:"sender"`
 	}
-	if json.Unmarshal(envelope.Request.Body, &payload) != nil || payload.Number < 1 || payload.Repository.Owner.Login == "" || payload.Repository.Name == "" {
+	if json.Unmarshal(envelope.Request.Body, &payload) != nil || payload.Repository.Owner.Login == "" || payload.Repository.Name == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	action := strings.ToLower(strings.TrimSpace(payload.Action))
-	if action != "opened" && action != "reopened" && action != "synchronize" && action != "ready_for_review" {
+	allowedActions := map[string]map[string]bool{
+		"pull_request":  {"opened": true, "reopened": true, "synchronize": true, "ready_for_review": true, "closed": true},
+		"issues":        {"opened": true, "reopened": true, "edited": true, "closed": true},
+		"issue_comment": {"created": true, "edited": true},
+		"workflow_run":  {"requested": true, "in_progress": true, "completed": true},
+	}
+	if !allowedActions[eventName][action] {
 		return map[string]interface{}{"statusCode": http.StatusAccepted, "events": []githubNormalizedCallbackEvent{}}, nil
 	}
 	configuredOwner := githubConfigString(envelope.Registration.Configuration, "owner")
@@ -128,10 +137,46 @@ func normalizeGitHubCallback(config map[string]interface{}) (map[string]interfac
 	if fullName == "" {
 		fullName = payload.Repository.Owner.Login + "/" + payload.Repository.Name
 	}
-	pullRequest := projectPullRequest(payload.PullRequest)
-	pullRequest["number"] = payload.Number
+	if payload.Number < 1 {
+		payload.Number = githubInteger(payload.Issue["number"])
+	}
+	if eventName != "workflow_run" && payload.Number < 1 {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	attributes := map[string]interface{}{"owner": payload.Repository.Owner.Login, "repository": payload.Repository.Name, "action": action}
+	eventPayload := map[string]interface{}{
+		"repository": map[string]interface{}{"owner": payload.Repository.Owner.Login, "name": payload.Repository.Name, "fullName": fullName},
+		"sender":     payload.Sender.Login,
+	}
+	subject := fullName + "#" + strconv.Itoa(payload.Number)
+	eventType := "github." + eventName + "." + action
+	updatedObject := payload.PullRequest
+	switch eventName {
+	case "pull_request":
+		pullRequest := projectPullRequest(payload.PullRequest)
+		pullRequest["number"] = payload.Number
+		eventPayload["pullRequest"] = pullRequest
+		attributes["number"] = payload.Number
+	case "issues":
+		eventPayload["issue"] = projectIssue(payload.Issue)
+		attributes["number"] = payload.Number
+	case "issue_comment":
+		eventPayload["issue"] = projectIssue(payload.Issue)
+		eventPayload["comment"] = projectComment(payload.Comment)
+		attributes["number"] = payload.Number
+		updatedObject = payload.Comment
+	case "workflow_run":
+		runID := githubInteger(payload.WorkflowRun["id"])
+		if runID < 1 {
+			return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+		}
+		eventPayload["workflowRun"] = projectWorkflowRun(payload.WorkflowRun)
+		attributes["runId"] = runID
+		subject = fullName + "/actions/runs/" + strconv.Itoa(runID)
+		updatedObject = payload.WorkflowRun
+	}
 	occurredAt := time.Now().UTC()
-	if rawTime, _ := payload.PullRequest["updated_at"].(string); rawTime != "" {
+	if rawTime, _ := updatedObject["updated_at"].(string); rawTime != "" {
 		if parsed, parseErr := time.Parse(time.RFC3339, rawTime); parseErr == nil {
 			occurredAt = parsed.UTC()
 		}
@@ -142,12 +187,24 @@ func normalizeGitHubCallback(config map[string]interface{}) (map[string]interfac
 		deliveryID = hex.EncodeToString(digest[:])
 	}
 	event := githubNormalizedCallbackEvent{
-		ID: "github:" + deliveryID, Type: "github.pull_request." + action, Source: "github",
-		Subject: fullName + "#" + strconv.Itoa(payload.Number), OccurredAt: occurredAt,
-		Attributes: map[string]interface{}{"owner": payload.Repository.Owner.Login, "repository": payload.Repository.Name, "number": payload.Number, "action": action},
-		Payload:    map[string]interface{}{"repository": map[string]interface{}{"owner": payload.Repository.Owner.Login, "name": payload.Repository.Name, "fullName": fullName}, "pullRequest": pullRequest, "sender": payload.Sender.Login},
+		ID: "github:" + deliveryID, Type: eventType, Source: "github", Subject: subject, OccurredAt: occurredAt,
+		Attributes: attributes, Payload: eventPayload,
 	}
 	return map[string]interface{}{"statusCode": http.StatusAccepted, "contentType": "application/json", "body": `{"ok":true}`, "events": []githubNormalizedCallbackEvent{event}}, nil
+}
+
+func githubInteger(value interface{}) int {
+	switch number := value.(type) {
+	case int:
+		return number
+	case float64:
+		return int(number)
+	case json.Number:
+		result, _ := strconv.Atoi(number.String())
+		return result
+	default:
+		return 0
+	}
 }
 
 func verifyGitHubWebhook(body []byte, signature, secret string) bool {

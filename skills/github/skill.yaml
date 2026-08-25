@@ -2,12 +2,12 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
     id: skill-github
-    version: 1.1.0
+    version: 1.2.0
     name: GitHub Skill
-    description: Governed GitHub repository metadata and pull-request operations for OpenSeal Agents.
+    description: Governed GitHub repository, issue, pull-request, and Actions operations for OpenSeal Agents.
     category: devops
     icon: github
-    tags: [github, git, repository, pull-request]
+    tags: [github, git, repository, issue, pull-request, actions]
     transport:
         kind: tool
         endpoint: skill-github
@@ -215,17 +215,330 @@ definition:
                   kind: github_token
             retry: {maxAttempts: 1}
             idempotency: required
+        github-repository-content-get:
+            name: github-repository-content-get
+            description: Read one text file or directory listing at a branch, tag, or commit.
+            inputSchema: &contentGetInput
+                type: object
+                additionalProperties: false
+                required: [owner, repository, path]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    path: {type: string, minLength: 1, maxLength: 1024}
+                    ref: {type: string, maxLength: 255}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:contents:read]
+            credentials: &githubToken [{name: token, kind: github_token}]
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-branch-list:
+            name: github-branch-list
+            description: List up to 100 branches in one repository.
+            inputSchema: &repositoryInput
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:contents:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-commit-list:
+            name: github-commit-list
+            description: List up to 100 commits, optionally filtered by revision or path.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    ref: {type: string, maxLength: 255}
+                    path: {type: string, maxLength: 1024}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:contents:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-issue-list:
+            name: github-issue-list
+            description: List up to 100 issues with optional state and label filters.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    state: {type: string, enum: [open, closed, all], default: open}
+                    labels: {type: string, maxLength: 1024}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:issues:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-issue-get:
+            name: github-issue-get
+            description: Read one GitHub issue.
+            inputSchema: &numberedInput
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:issues:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-issue-create:
+            name: github-issue-create
+            description: Create an issue in one repository.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, title]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    title: {type: string, minLength: 1, maxLength: 256}
+                    body: {type: string, maxLength: 65536}
+                    labels: {type: string, maxLength: 1024}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:issues:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: required
+        github-issue-update:
+            name: github-issue-update
+            description: Update an issue title, body, labels, or state.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+                    title: {type: string, maxLength: 256}
+                    body: {type: string, maxLength: 65536}
+                    labels: {type: string, maxLength: 1024}
+                    state: {type: string, enum: [open, closed]}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:issues:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: supported
+        github-issue-comments-list:
+            name: github-issue-comments-list
+            description: Read up to 100 comments on an issue.
+            inputSchema: *numberedInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:issues:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-issue-comment-create:
+            name: github-issue-comment-create
+            description: Create a comment on an issue.
+            inputSchema: &commentInput
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number, body]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+                    body: {type: string, minLength: 1, maxLength: 65536}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:issues:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: required
+        github-pull-request-update:
+            name: github-pull-request-update
+            description: Update pull request title, body, base branch, or state.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+                    title: {type: string, maxLength: 256}
+                    body: {type: string, maxLength: 65536}
+                    base: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$'}
+                    state: {type: string, enum: [open, closed]}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:pull-requests:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: supported
+        github-pull-request-comments-list:
+            name: github-pull-request-comments-list
+            description: Read up to 100 conversation comments on a pull request.
+            inputSchema: *numberedInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:pull-requests:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-pull-request-comment-create:
+            name: github-pull-request-comment-create
+            description: Create a conversation comment on a pull request.
+            inputSchema: *commentInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:pull-requests:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: required
+        github-pull-request-reviews-list:
+            name: github-pull-request-reviews-list
+            description: Read up to 100 submitted reviews on a pull request.
+            inputSchema: *numberedInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:pull-requests:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-pull-request-checks-list:
+            name: github-pull-request-checks-list
+            description: Read checks for the current pull request head revision.
+            inputSchema: *numberedInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:checks:read, github:pull-requests:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-pull-request-merge:
+            name: github-pull-request-merge
+            description: Merge a pull request, optionally requiring an exact inspected head revision.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, number]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    number: {type: integer, minimum: 1}
+                    headSha: {type: string, pattern: '^[a-fA-F0-9]{40}$'}
+                    method: {type: string, enum: [merge, squash, rebase], default: merge}
+                    commitTitle: {type: string, maxLength: 256}
+                    commitMessage: {type: string, maxLength: 65536}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: destructive
+            risk: destructive
+            permissions: [github:pull-requests:merge]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: required
+        github-workflow-list:
+            name: github-workflow-list
+            description: List up to 100 GitHub Actions workflows.
+            inputSchema: *repositoryInput
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:actions:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-workflow-runs-list:
+            name: github-workflow-runs-list
+            description: List up to 100 recent GitHub Actions workflow runs.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    workflow: {type: string, maxLength: 255}
+                    branch: {type: string, maxLength: 255}
+                    status: {type: string, maxLength: 64}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: read
+            risk: read
+            permissions: [github:actions:read]
+            credentials: *githubToken
+            retry: {maxAttempts: 3}
+            idempotency: supported
+        github-workflow-dispatch:
+            name: github-workflow-dispatch
+            description: Dispatch a GitHub Actions workflow on an explicit branch or tag.
+            inputSchema:
+                type: object
+                additionalProperties: false
+                required: [owner, repository, workflow, ref]
+                properties:
+                    owner: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    repository: {type: string, pattern: '^[A-Za-z0-9_.-]{1,100}$'}
+                    workflow: {type: string, minLength: 1, maxLength: 255}
+                    ref: {type: string, minLength: 1, maxLength: 255}
+                    inputs: {type: string, maxLength: 65536, description: JSON object of workflow inputs.}
+            outputSchema: {type: object, additionalProperties: true}
+            sideEffect: external
+            risk: external
+            permissions: [github:actions:write]
+            credentials: *githubToken
+            retry: {maxAttempts: 1}
+            idempotency: required
     callbackAdapters:
-        pull-requests:
+        repository-events:
             protocolVersion: openseal.callback.adapter/v1
-            name: GitHub pull request events
-            description: Verify GitHub webhook signatures and normalize pull request review triggers.
+            name: GitHub repository events
+            description: Verify GitHub webhook signatures and normalize pull request, issue, comment, and workflow run triggers.
             provider: github
             eventTypes:
                 - github.pull_request.opened
                 - github.pull_request.ready_for_review
                 - github.pull_request.reopened
                 - github.pull_request.synchronize
+                - github.pull_request.closed
+                - github.issues.opened
+                - github.issues.reopened
+                - github.issues.edited
+                - github.issues.closed
+                - github.issue_comment.created
+                - github.issue_comment.edited
+                - github.workflow_run.requested
+                - github.workflow_run.in_progress
+                - github.workflow_run.completed
             credentials:
                 - name: webhook_secret
                   kind: github_webhook_secret
@@ -234,20 +547,20 @@ definition:
                 ingressEndpoint: github.callback.ingress
                 ingressCredentials: [webhook_secret]
     prompt:
-        instructions: Use GitHub reads to verify repository and pull-request state. Read the exact pull request and changed files before reviewing. Submit a review only against the inspected head revision. Create a pull request only after the source branch has been pushed and the user requested delivery. Never request, print, or expose credential values.
+        instructions: Use GitHub reads to verify repository, issue, pull-request, check, and workflow state. Read the exact pull request, changed files, reviews, and checks before reviewing or merging. Supply the inspected headSha when merging. Create or update external GitHub state only when requested. Never request, print, or expose credential values.
         userInvocable: true
-        allowedTools: [github-pull-request-create, github-pull-request-list, github-pull-request-get, github-pull-request-files, github-pull-request-review-create, github-repository-get]
+        allowedTools: [github-repository-get, github-repository-content-get, github-branch-list, github-commit-list, github-issue-list, github-issue-get, github-issue-create, github-issue-update, github-issue-comments-list, github-issue-comment-create, github-pull-request-list, github-pull-request-get, github-pull-request-files, github-pull-request-create, github-pull-request-update, github-pull-request-comments-list, github-pull-request-comment-create, github-pull-request-reviews-list, github-pull-request-review-create, github-pull-request-checks-list, github-pull-request-merge, github-workflow-list, github-workflow-runs-list, github-workflow-dispatch]
     installers:
         - id: oci
           kind: oci
           label: GitHub Skill service image
-          package: axiomstudio/skill-github:1.1.0
+          package: axiomstudio/skill-github:1.2.0
     source:
         format: axiom.skill/v1
         publisher: Axiom Studio
         license: MIT
         reference: skill-github
-        resolvedVersion: 1.1.0
+        resolvedVersion: 1.2.0
 diagnostics:
     - code: forward_ported
       message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.

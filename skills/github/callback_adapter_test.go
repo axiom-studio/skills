@@ -60,3 +60,36 @@ func TestGitHubCallbackRejectsInvalidSignatureAndFiltersRepository(t *testing.T)
 		t.Fatalf("filtered events=%#v", filtered["events"])
 	}
 }
+
+func TestGitHubCallbackNormalizesIssueAndWorkflowEvents(t *testing.T) {
+	tests := []struct {
+		name, eventName, body, wantType, wantSubject string
+	}{
+		{"issue comment", "issue_comment", `{"action":"created","repository":{"name":"cortex","full_name":"axiom-studio/cortex","owner":{"login":"axiom-studio"}},"issue":{"number":23,"title":"Bug"},"comment":{"id":7,"body":"Looking","updated_at":"2026-08-26T10:00:00Z"},"sender":{"login":"kev"}}`, "github.issue_comment.created", "axiom-studio/cortex#23"},
+		{"workflow run", "workflow_run", `{"action":"completed","repository":{"name":"cortex","full_name":"axiom-studio/cortex","owner":{"login":"axiom-studio"}},"workflow_run":{"id":91,"name":"CI","status":"completed","conclusion":"success","updated_at":"2026-08-26T10:00:00Z"},"sender":{"login":"github-actions"}}`, "github.workflow_run.completed", "axiom-studio/cortex/actions/runs/91"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			body := []byte(test.body)
+			secret := "repository-hook"
+			mac := hmac.New(sha256.New, []byte(secret))
+			_, _ = mac.Write(body)
+			output, err := normalizeGitHubCallback(map[string]interface{}{
+				githubWebhookSecretKey: secret,
+				githubCallbackEnvelope: map[string]interface{}{
+					"operation": "callback", "registration": map[string]interface{}{"id": "events", "provider": "github"},
+					"request": map[string]interface{}{"method": http.MethodPost, "headers": map[string][]string{
+						"X-Hub-Signature-256": {"sha256=" + hex.EncodeToString(mac.Sum(nil))}, "X-GitHub-Event": {test.eventName},
+					}, "body": body},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := output["events"].([]githubNormalizedCallbackEvent)
+			if len(events) != 1 || events[0].Type != test.wantType || events[0].Subject != test.wantSubject {
+				t.Fatalf("events = %#v", events)
+			}
+		})
+	}
+}
