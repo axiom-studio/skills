@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   validate-build-push:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
