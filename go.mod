@@ -296,5 +296,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/axiom-studio/skills.sdk => /home/k/skills/skills.sdk
