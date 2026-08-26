@@ -21,7 +21,7 @@ import (
 
 const (
 	skillID      = "skill-github"
-	skillVersion = "1.2.1"
+	skillVersion = "1.2.2"
 	defaultPort  = "50051"
 	iconGitHub   = "github"
 )
