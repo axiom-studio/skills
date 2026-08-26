@@ -163,3 +163,33 @@ func TestCallbackIngressCredentialsUseCanonicalOrdering(t *testing.T) {
 		t.Fatalf("callback connection = %#v", connection)
 	}
 }
+
+func TestPromptAllowsGovernedMessageDelivery(t *testing.T) {
+	data, err := os.ReadFile("skill.yaml")
+	if err != nil {
+		t.Fatalf("read Skill manifest: %v", err)
+	}
+
+	var manifest struct {
+		Definition struct {
+			Prompt struct {
+				AllowedTools  []string `yaml:"allowedTools"`
+				Instructions  string   `yaml:"instructions"`
+				UserInvocable bool     `yaml:"userInvocable"`
+			} `yaml:"prompt"`
+		} `yaml:"definition"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("decode Skill manifest: %v", err)
+	}
+
+	if !manifest.Definition.Prompt.UserInvocable || manifest.Definition.Prompt.Instructions == "" {
+		t.Fatalf("Slack prompt module is incomplete: %#v", manifest.Definition.Prompt)
+	}
+	for _, tool := range manifest.Definition.Prompt.AllowedTools {
+		if tool == "slack-send-message" {
+			return
+		}
+	}
+	t.Fatal("Slack prompt does not allow slack-send-message")
+}
