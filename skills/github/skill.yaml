@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
     id: skill-github
-    version: 1.2.0
+    version: 1.2.1
     name: GitHub Skill
     description: Governed GitHub repository, issue, pull-request, and Actions operations for OpenSeal Agents.
     category: devops
@@ -525,20 +525,20 @@ definition:
             description: Verify GitHub webhook signatures and normalize pull request, issue, comment, and workflow run triggers.
             provider: github
             eventTypes:
+                - github.issue_comment.created
+                - github.issue_comment.edited
+                - github.issues.closed
+                - github.issues.edited
+                - github.issues.opened
+                - github.issues.reopened
+                - github.pull_request.closed
                 - github.pull_request.opened
                 - github.pull_request.ready_for_review
                 - github.pull_request.reopened
                 - github.pull_request.synchronize
-                - github.pull_request.closed
-                - github.issues.opened
-                - github.issues.reopened
-                - github.issues.edited
-                - github.issues.closed
-                - github.issue_comment.created
-                - github.issue_comment.edited
-                - github.workflow_run.requested
-                - github.workflow_run.in_progress
                 - github.workflow_run.completed
+                - github.workflow_run.in_progress
+                - github.workflow_run.requested
             credentials:
                 - name: webhook_secret
                   kind: github_webhook_secret
@@ -554,13 +554,13 @@ definition:
         - id: oci
           kind: oci
           label: GitHub Skill service image
-          package: axiomstudio/skill-github:1.2.0
+          package: axiomstudio/skill-github:1.2.1
     source:
         format: axiom.skill/v1
         publisher: Axiom Studio
         license: MIT
         reference: skill-github
-        resolvedVersion: 1.2.0
+        resolvedVersion: 1.2.1
 diagnostics:
     - code: forward_ported
       message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.
