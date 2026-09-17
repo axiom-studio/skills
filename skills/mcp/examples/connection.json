@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "remote-tools",
+  "transport": "mcp",
+  "endpoint": "https://tools.example/mcp",
+  "sources": [
+    "https://tools.example/docs"
+  ],
+  "credential": {
+    "binding": "tools-token",
+    "field": "token",
+    "header": "Authorization",
+    "prefix": "Bearer "
+  },
+  "operations": []
+}

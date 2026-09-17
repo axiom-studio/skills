@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "id": "github-public-e2e",
+  "transport": "api",
+  "endpoint": "https://api.github.com",
+  "sources": [
+    "https://docs.github.com/en/rest/repos/repos#get-a-repository"
+  ],
+  "operations": [
+    {
+      "name": "repository-get",
+      "description": "Read public repository metadata",
+      "effect": "read",
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}",
+      "pathParams": {
+        "owner": "owner",
+        "repo": "repo"
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repo": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "owner",
+          "repo"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "full_name": {
+            "type": "string"
+          },
+          "private": {
+            "const": false
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "default_branch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "private",
+          "html_url",
+          "default_branch"
+        ]
+      }
+    }
+  ]
+}

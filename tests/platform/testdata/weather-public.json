@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "id": "weather-public-e2e",
+  "transport": "api",
+  "endpoint": "https://api.open-meteo.com",
+  "sources": [
+    "https://open-meteo.com/en/docs"
+  ],
+  "fixedQuery": {
+    "current": "temperature_2m",
+    "timezone": "UTC"
+  },
+  "operations": [
+    {
+      "name": "weather-current",
+      "description": "Get current modeled temperature at specified coordinates",
+      "effect": "read",
+      "method": "GET",
+      "path": "/v1/forecast",
+      "queryParams": {
+        "latitude": "latitude",
+        "longitude": "longitude"
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "current": {
+            "type": "object",
+            "properties": {
+              "time": {
+                "type": "string"
+              },
+              "temperature_2m": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "time",
+              "temperature_2m"
+            ]
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "current"
+        ]
+      }
+    }
+  ]
+}

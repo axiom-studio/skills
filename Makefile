@@ -7,9 +7,8 @@ SKILLS_DIR := skills
 REGISTRY := axiomstudio
 
 # Skills that are NOT buildable as Go binaries
-# mcp: manifest-only, uses npx/uvx for external MCP servers
 # mongodb: has go.mod but no Go source files (incomplete)
-SKIP_SKILLS := mcp mongodb
+SKIP_SKILLS := mongodb
 
 # Discover all buildable skills (Go via main.go, Python via pyproject.toml, excluding skipped)
 ALL_SKILL_DIRS := $(filter-out $(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS)),\

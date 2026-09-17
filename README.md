@@ -51,3 +51,13 @@ make docker-push
 2. Add your canonical Skill under `skills/<skill-name>/`
 3. Run validation: `./scripts/validate.sh`
 4. Submit a pull request
+
+## Learning new API and MCP integrations
+
+The [generic API](skills/api/SKILL.md) and [generic MCP](skills/mcp/SKILL.md) skills
+let agents learn a service contract and compile it into reusable named OpenSeal
+blocks. They share a provider-neutral runtime with pinned profiles, schema checks,
+and separate credential bindings. Compiled binding plans use OpenSeal's existing
+`upsert_binding` lifecycle to persist and activate learned contracts on the shared
+runtimes. See the [contract reference](internal/integration/README.md)
+for the learning/provisioning workflow, supported features, and current limitations.

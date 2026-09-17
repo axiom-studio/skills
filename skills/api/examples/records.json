@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "id": "records-service",
+  "transport": "api",
+  "endpoint": "https://records.example",
+  "sources": [
+    "https://records.example/docs/v2"
+  ],
+  "credential": {
+    "binding": "records-token",
+    "field": "token",
+    "header": "Authorization",
+    "prefix": "Bearer "
+  },
+  "fixedQuery": {
+    "workspace": "example-workspace"
+  },
+  "operations": [
+    {
+      "name": "record-get",
+      "description": "Read a record from the configured workspace",
+      "effect": "read",
+      "method": "GET",
+      "path": "/v2/records/{id}",
+      "pathParams": {
+        "id": "recordId"
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "recordId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "recordId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ]
+      }
+    },
+    {
+      "name": "record-create",
+      "description": "Create a record in the configured workspace",
+      "effect": "write",
+      "method": "POST",
+      "path": "/v2/records",
+      "bodyParam": "record",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "record": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "title"
+            ]
+          }
+        },
+        "required": [
+          "record"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    }
+  ]
+}

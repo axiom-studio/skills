@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "cloudflare-docs-e2e",
+  "transport": "mcp",
+  "endpoint": "https://docs.mcp.cloudflare.com/mcp",
+  "sources": [
+    "https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/"
+  ],
+  "operations": []
+}

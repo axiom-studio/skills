@@ -39,6 +39,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.11.2
 	github.com/xanzy/go-gitlab v0.105.0
 	github.com/xdg-go/scram v1.1.2
+	github.com/xeipuuv/gojsonschema v1.2.0
 	go.temporal.io/api v1.29.1
 	go.temporal.io/sdk v1.26.0
 	golang.org/x/oauth2 v0.35.0
@@ -244,7 +245,6 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
