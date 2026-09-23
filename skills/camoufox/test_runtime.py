@@ -17,6 +17,7 @@ from runtime import (
     BrowserOperationTimeout,
     BrowserProcessTree,
     BrowserWorker,
+    WORKER_TIMEOUT_SECONDS,
     CamoufoxHandle,
     CamoufoxRuntime,
     agent_session_id,
@@ -550,8 +551,12 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.46")
+        self.assertEqual(definition["version"], "2.0.47")
         actions = definition["actions"]
+        self.assertGreaterEqual(
+            actions["camoufox-start"]["timeout"],
+            (WORKER_TIMEOUT_SECONDS["launch"] + WORKER_TIMEOUT_SECONDS["navigate"] + 5) * 1_000_000_000,
+        )
         for name in ("lightpanda-fetch", "lightpanda-search"):
             self.assertEqual((actions[name]["risk"], actions[name]["sideEffect"]), ("read", "read"))
             self.assertNotIn("sessionId", actions[name]["inputSchema"]["properties"])
