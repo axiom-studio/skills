@@ -550,8 +550,11 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.45")
+        self.assertEqual(definition["version"], "2.0.46")
         actions = definition["actions"]
+        for name in ("lightpanda-fetch", "lightpanda-search"):
+            self.assertEqual((actions[name]["risk"], actions[name]["sideEffect"]), ("read", "read"))
+            self.assertNotIn("sessionId", actions[name]["inputSchema"]["properties"])
         for action in actions.values():
             input_schema = action.get("inputSchema", {})
             if "sessionId" not in input_schema.get("required", []):
@@ -582,6 +585,30 @@ class RuntimeTest(unittest.TestCase):
         self.assertIn("Never target a textbox", commit["description"])
         self.assertIn("never submits", actions["camoufox-fill"]["description"])
         self.assertIn("Never pass a textbox reference to camoufox-commit", definition["prompt"]["instructions"])
+
+    def test_lightpanda_reads_public_pages_without_camoufox_session(self):
+        service, _ = make_runtime()
+        result = {"url": "https://example.com/", "http_status": 200, "content": "# Example Domain", "error": None}
+        completed = subprocess.CompletedProcess([], 0, json.dumps(result), "")
+        with mock.patch("runtime.subprocess.run", return_value=completed) as execute:
+            page = service.execute("lightpanda-fetch", {"url": "https://example.com"}, context={"runId": "run-1", "agentId": "agent-1"})
+        self.assertEqual(page, {"url": "https://example.com/", "httpStatus": 200, "text": "# Example Domain", "truncated": False})
+        command = execute.call_args.args[0]
+        self.assertIn("--block-private-networks", command)
+        self.assertIn("--terminate-ms", command)
+        self.assertEqual(service.sessions, {})
+        with mock.patch("runtime.subprocess.run") as execute:
+            with self.assertRaisesRegex(ValueError, "without embedded credentials"):
+                service.execute("lightpanda-fetch", {"url": "https://user:secret@example.com"})
+            execute.assert_not_called()
+
+    def test_lightpanda_search_encodes_query(self):
+        service, _ = make_runtime()
+        result = {"url": "https://search.brave.com/search?q=capital+of+Tanzania", "http_status": 200, "content": "Dodoma", "error": None}
+        with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(result), "")) as execute:
+            page = service.execute("lightpanda-search", {"query": "capital of Tanzania"})
+        self.assertEqual(page["text"], "Dodoma")
+        self.assertEqual(execute.call_args.args[0][2], result["url"])
 
     def test_health_fails_closed_under_cgroup_memory_pressure(self):
         service, _ = make_runtime()
