@@ -19,10 +19,11 @@ import re
 import signal
 import shutil
 import sqlite3
+import subprocess
 import threading
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 SECRET_CONTROL = re.compile(
@@ -68,9 +69,10 @@ DEFAULT_KEYS = {
 }
 MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
+MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.45"
+VERSION = "2.0.46"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -1093,7 +1095,7 @@ class CamoufoxRuntime:
         bindings = bindings or {}
         # The gRPC boundary always supplies an ExecutionContext. Unit tests may
         # call the runtime directly without one, but hosted calls fail closed.
-        if context is not None and action not in ("camoufox-health", "camoufox-start"):
+        if context is not None and action not in ("camoufox-health", "camoufox-start", "lightpanda-fetch", "lightpanda-search"):
             expected_session = agent_session_id(context)
             if config.get("sessionId") != expected_session:
                 raise ValueError("automation session belongs to a different durable Agent")
@@ -1106,6 +1108,8 @@ class CamoufoxRuntime:
                 # while another Run remains excluded until the lease expires.
                 self._claim_usage_lease(session, context)
         handlers = {
+            "lightpanda-fetch": lambda: self.lightpanda_fetch(config),
+            "lightpanda-search": lambda: self.lightpanda_search(config),
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config, context),
             "camoufox-navigate": lambda: self.navigate(config),
@@ -1147,6 +1151,44 @@ class CamoufoxRuntime:
             raise
         finally:
             ACTIVE_CANCELLATION.reset(cancellation_token)
+
+    def lightpanda_fetch(self, config):
+        """Read a public page without acquiring a Camoufox profile or session."""
+        url = navigation_url(config.get("url"))
+        command = [
+            os.environ.get("LIGHTPANDA_BINARY", "/usr/local/bin/lightpanda"),
+            "fetch", url, "--json", "--dump", "markdown", "--strip-mode", "clutter",
+            "--strip-mode", "ui", "--dump-max-bytes", str(MAX_LIGHTPANDA_TEXT), "--block-private-networks",
+            "--terminate-ms", "12000", "--http-timeout", "8000",
+            "--log-level", "error", "--log-filter", "note",
+        ]
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
+        except FileNotFoundError as exc:
+            raise RuntimeError("Lightpanda browser is not installed") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise BrowserOperationTimeout("Lightpanda page read timed out") from exc
+        try:
+            result = json.loads(completed.stdout)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise RuntimeError("Lightpanda did not return a valid page result") from exc
+        if completed.returncode != 0 or result.get("error"):
+            raise RuntimeError("Lightpanda could not read this page")
+        content = result.get("content")
+        if not isinstance(content, str):
+            raise RuntimeError("Lightpanda returned no page content")
+        return {
+            "url": navigation_url(result.get("url", url)),
+            "httpStatus": result.get("http_status", 0),
+            "text": content[:MAX_LIGHTPANDA_TEXT],
+            "truncated": len(content) > MAX_LIGHTPANDA_TEXT or content.endswith("[truncated]"),
+        }
+
+    def lightpanda_search(self, config):
+        query = config.get("query")
+        if not isinstance(query, str) or not query.strip() or len(query) > 512:
+            raise ValueError("search query must be between 1 and 512 characters")
+        return self.lightpanda_fetch({"url": "https://search.brave.com/search?q=" + quote_plus(query.strip())})
 
     def health(self):
         if not self.inventory:

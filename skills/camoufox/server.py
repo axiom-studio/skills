@@ -14,6 +14,8 @@ from runtime import VERSION, CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-browser"
 ACTIONS = [
+    "lightpanda-fetch",
+    "lightpanda-search",
     "camoufox-health",
     "camoufox-start",
     "camoufox-navigate",
@@ -111,8 +113,9 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
 
     def Health(self, _request, _context):
         status = self.runtime.health().get("status")
+        lightpanda = os.environ.get("LIGHTPANDA_BINARY", "/usr/local/bin/lightpanda")
         return skill_pb2.HealthResponse(
-            healthy=status == "ready", skill_id=SKILL_ID, version=VERSION
+            healthy=status == "ready" or os.access(lightpanda, os.X_OK), skill_id=SKILL_ID, version=VERSION
         )
 
 

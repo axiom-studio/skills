@@ -1,8 +1,14 @@
 # Browser Skill
 
-`skill-browser` is the canonical governed browser Skill. Its Python runtime
-implements the Skill gRPC
-transport wrapping [Camoufox](https://github.com/daijro/camoufox) — a
+`skill-browser` is the canonical governed browser Skill. For routine public
+research, `lightpanda-search` and `lightpanda-fetch` use
+[Lightpanda](https://github.com/lightpanda-io/browser) to return bounded
+Markdown without acquiring a persistent browser profile. Private/internal
+network destinations are blocked by Lightpanda after DNS resolution. Use
+Camoufox when a site needs an interactive session or stronger compatibility.
+
+The Python runtime implements the Skill gRPC transport wrapping
+[Camoufox](https://github.com/daijro/camoufox) — a
 C++-patched Firefox with OS-level anti-detection. Fingerprint coherence (OS,
 canvas, WebGL, fonts, screen, timezone) is enforced by the engine itself, not
 by injected scripts, and `humanize` drives real input cadence.
@@ -86,5 +92,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.45 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.46 .
 ```
