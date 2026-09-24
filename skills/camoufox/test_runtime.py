@@ -551,7 +551,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.47")
+        self.assertEqual(definition["version"], "2.0.48")
         actions = definition["actions"]
         self.assertGreaterEqual(
             actions["camoufox-start"]["timeout"],
@@ -614,6 +614,22 @@ class RuntimeTest(unittest.TestCase):
             page = service.execute("lightpanda-search", {"query": "capital of Tanzania"})
         self.assertEqual(page["text"], "Dodoma")
         self.assertEqual(execute.call_args.args[0][2], result["url"])
+
+    def test_lightpanda_does_not_report_blocked_or_empty_pages_as_reads(self):
+        service, _ = make_runtime()
+        cases = [
+            (403, "Access Denied", "HTTP 403"),
+            (203, "HHS Vulnerability Disclosure", "HTTP 203"),
+            (200, "  \n", "empty page"),
+            (200, "Performing security verification", "access challenge"),
+        ]
+        for status, content, reason in cases:
+            with self.subTest(status=status, content=content):
+                result = {"url": "https://example.com/article", "http_status": status, "content": content, "error": None}
+                completed = subprocess.CompletedProcess([], 0, json.dumps(result), "")
+                with mock.patch("runtime.subprocess.run", return_value=completed):
+                    with self.assertRaisesRegex(RuntimeError, reason):
+                        service.execute("lightpanda-fetch", {"url": result["url"]})
 
     def test_health_fails_closed_under_cgroup_memory_pressure(self):
         service, _ = make_runtime()

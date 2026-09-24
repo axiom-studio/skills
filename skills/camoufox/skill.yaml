@@ -3,7 +3,7 @@ definition:
     actions:
         lightpanda-fetch:
             name: lightpanda-fetch
-            description: Read a public web page or search-results URL quickly with Lightpanda and return bounded Markdown. Use this first for routine research; use Camoufox when an interactive session or stronger browser compatibility is needed.
+            description: Read a public web page or search-results URL quickly with Lightpanda and return bounded Markdown. HTTP errors, empty pages, and access challenges fail the action; use another source or Camoufox when that happens.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -27,7 +27,7 @@ definition:
             timeout: 15000000000
         lightpanda-search:
             name: lightpanda-search
-            description: Search the public web with Lightpanda in one lightweight read-only call and return bounded Markdown results.
+            description: Search the public web with Lightpanda in one lightweight read-only call and return bounded Markdown results. HTTP errors, empty pages, and access challenges fail the action.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -397,7 +397,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda and Camoufox
-          package: axiomstudio/skill-browser:2.0.47
+          package: axiomstudio/skill-browser:2.0.48
     name: Browser Skill
     prompt:
         allowedTools:
@@ -437,10 +437,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.47
+        resolvedVersion: 2.0.48
     tags: [browser, lightpanda, camoufox, firefox, research]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.47
+    version: 2.0.48
 kind: SkillDefinition

@@ -72,7 +72,7 @@ MAX_TEXT = 48 * 1024
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.47"
+VERSION = "2.0.48"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -1174,12 +1174,19 @@ class CamoufoxRuntime:
             raise RuntimeError("Lightpanda did not return a valid page result") from exc
         if completed.returncode != 0 or result.get("error"):
             raise RuntimeError("Lightpanda could not read this page")
+        status = result.get("http_status")
+        if status != 200:
+            raise RuntimeError(f"Lightpanda page read returned HTTP {status}; try another source or Camoufox")
         content = result.get("content")
         if not isinstance(content, str):
             raise RuntimeError("Lightpanda returned no page content")
+        if not content.strip():
+            raise RuntimeError("Lightpanda returned an empty page; try another source or Camoufox")
+        if len(content) < 1024 and CHALLENGES["anti_bot"].search(content):
+            raise RuntimeError("Lightpanda received an access challenge; try another source or Camoufox")
         return {
             "url": navigation_url(result.get("url", url)),
-            "httpStatus": result.get("http_status", 0),
+            "httpStatus": status,
             "text": content[:MAX_LIGHTPANDA_TEXT],
             "truncated": len(content) > MAX_LIGHTPANDA_TEXT or content.endswith("[truncated]"),
         }
