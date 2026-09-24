@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
@@ -70,9 +71,10 @@ DEFAULT_KEYS = {
 MAX_ELEMENTS = 180
 MAX_TEXT = 48 * 1024
 MAX_LIGHTPANDA_TEXT = 24 * 1024
+MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
 MAX_SCREENSHOT = 5 * 1024 * 1024
 MAX_MODEL_SCREENSHOT = 1 * 1024 * 1024
-VERSION = "2.0.48"
+VERSION = "2.0.49"
 COMMIT_OBSERVATION_ATTEMPTS = 8
 COMMIT_OBSERVATION_INTERVAL_SECONDS = 0.5
 # A lease spans model planning as well as browser I/O. Hosted model turns can
@@ -1095,7 +1097,7 @@ class CamoufoxRuntime:
         bindings = bindings or {}
         # The gRPC boundary always supplies an ExecutionContext. Unit tests may
         # call the runtime directly without one, but hosted calls fail closed.
-        if context is not None and action not in ("camoufox-health", "camoufox-start", "lightpanda-fetch", "lightpanda-search"):
+        if context is not None and action not in ("camoufox-health", "camoufox-start", "lightpanda-fetch", "lightpanda-search", "lightpanda-read-many"):
             expected_session = agent_session_id(context)
             if config.get("sessionId") != expected_session:
                 raise ValueError("automation session belongs to a different durable Agent")
@@ -1110,6 +1112,7 @@ class CamoufoxRuntime:
         handlers = {
             "lightpanda-fetch": lambda: self.lightpanda_fetch(config),
             "lightpanda-search": lambda: self.lightpanda_search(config),
+            "lightpanda-read-many": lambda: self.lightpanda_read_many(config),
             "camoufox-health": lambda: self.health(),
             "camoufox-start": lambda: self.start(config, context),
             "camoufox-navigate": lambda: self.navigate(config),
@@ -1196,6 +1199,39 @@ class CamoufoxRuntime:
         if not isinstance(query, str) or not query.strip() or len(query) > 512:
             raise ValueError("search query must be between 1 and 512 characters")
         return self.lightpanda_fetch({"url": "https://search.brave.com/search?q=" + quote_plus(query.strip())})
+
+    def lightpanda_read_many(self, config):
+        """Run independent public reads concurrently and retain each result."""
+        reads = config.get("reads")
+        if not isinstance(reads, list) or not 2 <= len(reads) <= 4:
+            raise ValueError("reads must contain two to four public searches or URLs")
+        normalized = []
+        for item in reads:
+            if not isinstance(item, dict) or set(item) != {"kind", "value"}:
+                raise ValueError("each read needs a kind and value")
+            if item["kind"] == "url":
+                normalized.append(("url", navigation_url(item["value"])))
+            elif item["kind"] == "query" and isinstance(item["value"], str) and 1 <= len(item["value"].strip()) <= 512:
+                normalized.append(("query", item["value"].strip()))
+            else:
+                raise ValueError("each read needs a valid URL or search query")
+
+        def read(item):
+            kind, value = item
+            try:
+                page = self.lightpanda_fetch({"url": value}) if kind == "url" else self.lightpanda_search({"query": value})
+            except (RuntimeError, BrowserOperationTimeout) as exc:
+                return {"kind": kind, "input": value, "status": "failed", "error": str(exc)[:240]}
+            text = page["text"]
+            return {
+                "kind": kind, "input": value, "status": "succeeded", "url": page["url"],
+                "httpStatus": page["httpStatus"], "text": text[:MAX_LIGHTPANDA_BATCH_TEXT],
+                "truncated": page["truncated"] or len(text) > MAX_LIGHTPANDA_BATCH_TEXT,
+            }
+
+        with ThreadPoolExecutor(max_workers=len(normalized)) as workers:
+            results = list(workers.map(read, normalized))
+        return {"results": results}
 
     def health(self):
         if not self.inventory:

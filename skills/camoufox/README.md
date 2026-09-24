@@ -6,6 +6,8 @@ research, `lightpanda-search` and `lightpanda-fetch` use
 Markdown without acquiring a persistent browser profile. Private/internal
 network destinations are blocked by Lightpanda after DNS resolution. Use
 Camoufox when a site needs an interactive session or stronger compatibility.
+`lightpanda-read-many` runs two to four independent searches or page reads
+concurrently and reports each result separately.
 
 The Python runtime implements the Skill gRPC transport wrapping
 [Camoufox](https://github.com/daijro/camoufox) — a
@@ -92,5 +94,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.48 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.49 .
 ```

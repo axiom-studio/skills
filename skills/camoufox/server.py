@@ -16,6 +16,7 @@ SKILL_ID = "skill-browser"
 ACTIONS = [
     "lightpanda-fetch",
     "lightpanda-search",
+    "lightpanda-read-many",
     "camoufox-health",
     "camoufox-start",
     "camoufox-navigate",

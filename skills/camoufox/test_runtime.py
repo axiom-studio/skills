@@ -551,13 +551,13 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.48")
+        self.assertEqual(definition["version"], "2.0.49")
         actions = definition["actions"]
         self.assertGreaterEqual(
             actions["camoufox-start"]["timeout"],
             (WORKER_TIMEOUT_SECONDS["launch"] + WORKER_TIMEOUT_SECONDS["navigate"] + 5) * 1_000_000_000,
         )
-        for name in ("lightpanda-fetch", "lightpanda-search"):
+        for name in ("lightpanda-fetch", "lightpanda-search", "lightpanda-read-many"):
             self.assertEqual((actions[name]["risk"], actions[name]["sideEffect"]), ("read", "read"))
             self.assertNotIn("sessionId", actions[name]["inputSchema"]["properties"])
         for action in actions.values():
@@ -630,6 +630,44 @@ class RuntimeTest(unittest.TestCase):
                 with mock.patch("runtime.subprocess.run", return_value=completed):
                     with self.assertRaisesRegex(RuntimeError, reason):
                         service.execute("lightpanda-fetch", {"url": result["url"]})
+
+    def test_lightpanda_read_many_runs_concurrently_and_keeps_partial_results(self):
+        service, _ = make_runtime()
+        started = threading.Barrier(2)
+
+        def fetch(command, **_kwargs):
+            started.wait(timeout=5)
+            url = command[2]
+            blocked = "blocked" in url
+            result = {
+                "url": url, "http_status": 403 if blocked else 200,
+                "content": "Access Denied" if blocked else "# Useful page\n" + "x" * 7000,
+                "error": None,
+            }
+            return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
+
+        with mock.patch("runtime.subprocess.run", side_effect=fetch) as execute:
+            result = service.execute("lightpanda-read-many", {"reads": [
+                {"kind": "url", "value": "https://example.com/useful"},
+                {"kind": "url", "value": "https://example.com/blocked"},
+            ]}, context={"runId": "run-1", "agentId": "agent-1"})
+        self.assertEqual(execute.call_count, 2)
+        good, blocked = result["results"]
+        self.assertEqual((good["status"], good["httpStatus"], len(good["text"]), good["truncated"]),
+                         ("succeeded", 200, 6144, True))
+        self.assertEqual((blocked["status"], blocked["kind"]), ("failed", "url"))
+        self.assertIn("HTTP 403", blocked["error"])
+        self.assertNotIn("text", blocked)
+
+    def test_lightpanda_read_many_validates_every_input_before_starting(self):
+        service, _ = make_runtime()
+        with mock.patch("runtime.subprocess.run") as execute:
+            with self.assertRaises(ValueError):
+                service.execute("lightpanda-read-many", {"reads": [
+                    {"kind": "url", "value": "https://example.com"},
+                    {"kind": "url", "value": "https://user:secret@example.com"},
+                ]})
+            execute.assert_not_called()
 
     def test_health_fails_closed_under_cgroup_memory_pressure(self):
         service, _ = make_runtime()
