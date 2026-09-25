@@ -11,3 +11,4 @@ skills/*/skill-*
 **/*.py[cod]
 **/.pytest_cache
 **/.venv
+**/node_modules
