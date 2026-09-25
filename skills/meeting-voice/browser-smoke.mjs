@@ -67,7 +67,17 @@ try {
       await context.route('https://zoom.us/**', route => route.fulfill({
         status: 200, contentType: 'text/html',
         body: `<!doctype html><html><body>
-          <a href="#" onclick="document.body.insertAdjacentHTML('beforeend','<input aria-label=&quot;Your name&quot;><button aria-label=&quot;Join&quot; onclick=&quot;document.body.insertAdjacentHTML(\\'beforeend\\',\\'<button aria-label=Leave>Leave</button>\\')&quot;>Join</button>')">Join from Your Browser</a>
+          <a href="#" onclick="this.hidden=true;document.getElementById('join-form').hidden=false">Join from Your Browser</a>
+          <div id="join-form" hidden>
+            <input aria-label="Your name">
+            <button aria-label="Join" onclick="window.meetingJoined=true;document.getElementById('in-meeting').hidden=false">Join</button>
+          </div>
+          <div id="in-meeting" hidden>
+            <button aria-label="Leave">Leave</button>
+            <button aria-label="Join Audio" onclick="window.audioJoined=true;this.hidden=true;document.getElementById('computer-audio').hidden=false">Join Audio</button>
+            <button id="computer-audio" aria-label="Join with Computer Audio" hidden onclick="window.computerAudioJoined=true;this.hidden=true;document.getElementById('unmute').hidden=false">Join with Computer Audio</button>
+            <button id="unmute" aria-label="Unmute" hidden onclick="window.microphoneUnmuted=true;this.hidden=true">Unmute</button>
+          </div>
         </body></html>`,
       }));
       await context.route('https://teams.microsoft.com/**', route => route.fulfill({
@@ -75,7 +85,11 @@ try {
         body: `<!doctype html><html><body>
           <button aria-label="Continue on this browser">Continue on this browser</button>
           <input aria-label="Type your name">
-          <button aria-label="Join now" onclick="document.body.insertAdjacentHTML('beforeend','<button aria-label=&quot;Leave&quot;>Leave</button>')">Join now</button>
+          <button aria-label="Join now" onclick="document.getElementById('in-teams').hidden=false">Join now</button>
+          <div id="in-teams" hidden>
+            <button aria-label="Leave">Leave</button>
+            <button aria-label="Unmute microphone" onclick="window.teamsMicrophoneUnmuted=true;this.hidden=true">Unmute microphone</button>
+          </div>
         </body></html>`,
       }));
       return context;
@@ -130,6 +144,10 @@ try {
     chromiumAPI, timeoutMs: 15000 });
   assert.equal(meeting.platform, 'zoom');
   assert.equal(await meeting.page.locator('input').inputValue(), 'Axiom Test Agent');
+  assert.deepEqual(await meeting.page.evaluate(() => ({ joined: window.meetingJoined === true,
+    audio: window.audioJoined === true, computerAudio: window.computerAudioJoined === true,
+    unmuted: window.microphoneUnmuted === true })),
+  { joined: true, audio: true, computerAudio: true, unmuted: true });
   await meeting.leave();
   meeting = undefined;
   meeting = await joinMeet({ url: 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0',
@@ -137,6 +155,7 @@ try {
     displayName: 'Axiom Test Agent', chromiumAPI, timeoutMs: 15000 });
   assert.equal(meeting.platform, 'teams');
   assert.equal(await meeting.page.locator('input').inputValue(), 'Axiom Test Agent');
+  assert.equal(await meeting.page.evaluate(() => window.teamsMicrophoneUnmuted === true), true);
   console.log(JSON.stringify({ ...state, microphonePeak, admissionRequests, retainedProfile, zoom: true, teams: true }));
 } finally {
   if (meeting) await meeting.leave();

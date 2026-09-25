@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { MeetSessionService } from './session.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.0';
+export const SKILL_VERSION = '0.2.1';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {

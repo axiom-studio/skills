@@ -23,7 +23,22 @@ export function meetingURL(value) {
   return new URL(value).toString();
 }
 
-async function visible(locator) { return locator.isVisible().catch(() => false); }
+async function visible(locator) {
+  try { return await locator.isVisible(); } catch { return false; }
+}
+
+async function enableMicrophone(page, platform) {
+  if (platform === 'zoom') {
+    const joinAudio = page.getByRole('button', { name: /^Join Audio$/i });
+    if (await visible(joinAudio)) await joinAudio.click();
+    const computerAudio = page.getByRole('button', { name: /^Join with Computer Audio$/i });
+    if (await visible(computerAudio)) await computerAudio.click();
+  }
+  const unmute = page.getByRole('button', {
+    name: /^(Unmute(?: microphone)?|Turn on microphone|Mic button muted)$/i,
+  });
+  if (await visible(unmute)) await unmute.click();
+}
 
 async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested) {
   const guestName = page.getByRole('textbox', { name: /^(Your name|Name)$/i });
@@ -37,6 +52,7 @@ async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested
   if (admissionRequired) onAdmissionRequested?.();
   const leave = page.getByRole('button', { name: /^(Leave call|Leave meeting)$/i });
   await leave.waitFor({ timeout: timeoutMs });
+  await enableMicrophone(page, 'meet');
   return leave;
 }
 
@@ -52,6 +68,7 @@ async function joinZoom(page, displayName, timeoutMs, onAdmissionRequested) {
   const leave = page.getByRole('button', { name: /^Leave( meeting)?$/i });
   if (await visible(page.getByText(/waiting for (the )?host|please wait.*admit/i))) onAdmissionRequested?.();
   await leave.waitFor({ timeout: timeoutMs });
+  await enableMicrophone(page, 'zoom');
   return leave;
 }
 
@@ -66,6 +83,7 @@ async function joinTeams(page, displayName, timeoutMs, onAdmissionRequested) {
   const leave = page.getByRole('button', { name: /^Leave( meeting)?$/i });
   if (await visible(page.getByText(/let you in|waiting in the lobby/i))) onAdmissionRequested?.();
   await leave.waitFor({ timeout: timeoutMs });
+  await enableMicrophone(page, 'teams');
   return leave;
 }
 

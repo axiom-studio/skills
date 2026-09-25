@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: openseal.meeting.voice
-  version: 0.2.0
+  version: 0.2.1
   name: Meeting voice
   description: Join an authorized Google Meet, Zoom, or Teams call as a visible Agent participant, listen, speak, and keep the conversation in Seal Chat.
   category: communication
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: meeting-voice
-    resolvedVersion: 0.2.0
+    resolvedVersion: 0.2.1
   transport:
     kind: tool
     endpoint: openseal.meeting.voice
@@ -20,7 +20,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party meeting voice service
-      package: axiomstudio/skill-meeting-voice:0.2.0
+      package: axiomstudio/skill-meeting-voice:0.2.1
   requirements:
     operatingSystems: [linux]
     compute:

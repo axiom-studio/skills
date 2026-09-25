@@ -65,7 +65,7 @@ test('joins Teams through the browser and waits for admission', async () => {
     profileDir: '/profile', displayName: 'Quorum', chromiumAPI,
     onAdmissionRequested: () => actions.push('waiting') });
   assert.equal(meeting.platform, 'teams');
-  assert.deepEqual(actions, ['click', 'Quorum', 'click', 'waiting']);
+  assert.deepEqual(actions, ['click', 'Quorum', 'click', 'waiting', 'click']);
   await meeting.leave();
 });
 
