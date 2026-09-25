@@ -27,7 +27,10 @@ export class ElevenLabsClient {
     if (!Array.isArray(rawModels)) throw new Error('ElevenLabs model catalog is invalid');
     const speechModels = rawModels.filter(model => model?.can_do_text_to_speech === true &&
       typeof model.model_id === 'string' && MODEL_ID.test(model.model_id))
-      .map(model => ({ id: model.model_id, name: model.name || model.model_id, voices: [] }));
+      .map(model => ({ id: model.model_id, name: model.name || model.model_id, voices: [],
+        maxCharacters: Number.isInteger(model.maximum_text_length_per_request) &&
+          model.maximum_text_length_per_request >= 32
+          ? Math.min(model.maximum_text_length_per_request, 3000) : 3000 }));
     const voices = [];
     let pageToken;
     for (let page = 0; page < 10; page++) {

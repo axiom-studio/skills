@@ -9,7 +9,8 @@ test('ElevenLabs speech uses the bound Vault key and current transcription and s
   const fetchAPI = async (url, options) => {
     calls.push({ url: String(url), options });
     if (String(url).endsWith('/v1/models')) return { ok: true, json: async () => [
-      { model_id: 'eleven_flash_v2_5', name: 'Flash', can_do_text_to_speech: true },
+      { model_id: 'eleven_flash_v2_5', name: 'Flash', can_do_text_to_speech: true,
+        maximum_text_length_per_request: 1200 },
       { model_id: 'unsupported', can_do_text_to_speech: false },
     ] };
     if (String(url).includes('/v2/voices')) return { ok: true, json: async () => ({
@@ -21,7 +22,7 @@ test('ElevenLabs speech uses the bound Vault key and current transcription and s
   const client = new ElevenLabsClient({ apiKey: 'vault-secret', fetchAPI });
   assert.deepEqual(await client.models(), {
     transcriptionModels: [{ id: 'scribe_v2', name: 'Scribe v2', voices: [] }],
-    speechModels: [{ id: 'eleven_flash_v2_5', name: 'Flash', voices: ['voice123456'] }],
+    speechModels: [{ id: 'eleven_flash_v2_5', name: 'Flash', voices: ['voice123456'], maxCharacters: 1200 }],
     voiceOptions: [{ id: 'voice123456', name: 'Team voice' }],
   });
   assert.equal(await client.transcribe(Buffer.alloc(320), 'scribe_v2'), 'Hello team.');

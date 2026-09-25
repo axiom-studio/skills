@@ -152,12 +152,15 @@ export class MeetSessionService {
     await this.restore();
     const intendedConversationID = await this.destination({ runID, agentID, issuerToken: resolvedIssuerToken,
       invocationToken, action: invocationToken ? 'meet-start' : 'meet-status' });
+    let speechMaxCharacters = 3000;
     if (elevenLabs) {
       const available = await elevenLabs.models();
+      const chosenSpeechModel = available.speechModels.find(model => model.id === selectedSpeechModel);
       if (!available.transcriptionModels.some(model => model.id === selectedTranscriptionModel) ||
-          !available.speechModels.some(model => model.id === selectedSpeechModel && model.voices.includes(selectedVoice))) {
+          !chosenSpeechModel?.voices.includes(selectedVoice)) {
         throw new Error('selected ElevenLabs model or voice is unavailable (use meet-models)');
       }
+      speechMaxCharacters = chosenSpeechModel.maxCharacters ?? 3000;
     }
     const current = this.sessions.get(agentID);
     if (current && !['ended', 'failed'].includes(current.status)) {
@@ -206,6 +209,7 @@ export class MeetSessionService {
         AXIOM_TRANSCRIPTION_MODEL: selectedTranscriptionModel,
         AXIOM_SPEECH_MODEL: selectedSpeechModel,
         AXIOM_SPEECH_VOICE: selectedVoice,
+        AXIOM_SPEECH_CHUNK_CHARACTERS: String(speechMaxCharacters),
         MEET_SPEECH_PROVIDER: elevenLabs ? 'elevenlabs' : 'axiom',
         MEET_URL: meetURL,
         MEET_SESSION_EXPIRES_AT: session.expiresAt,

@@ -101,9 +101,9 @@ npm test
 From the `skills` repository root:
 
 ```bash
-docker build -f skills/meeting-voice/Dockerfile -t axiomstudio/skill-meeting-voice:0.2.1 .
-docker run --rm -e MEET_AUDIO_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.1
-docker run --rm -e MEET_BROWSER_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.1
+docker build -f skills/meeting-voice/Dockerfile -t axiomstudio/skill-meeting-voice:0.2.2 .
+docker run --rm -e MEET_AUDIO_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.2
+docker run --rm -e MEET_BROWSER_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.2
 ```
 
 The browser smoke serves an offline fake Meet page to the real packaged

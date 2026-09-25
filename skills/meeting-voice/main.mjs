@@ -41,6 +41,7 @@ async function main() {
   });
   const commands = audioCommands();
   Object.assign(process.env, commands.chromeEnv);
+  const speechChunkCharacters = Number(process.env.AXIOM_SPEECH_CHUNK_CHARACTERS) || 3000;
 
   const controller = new AbortController();
   let meeting;
@@ -53,7 +54,7 @@ async function main() {
     speaking = true;
     detector.reset();
     try {
-      for (const chunk of speechChunks(text)) {
+      for (const chunk of speechChunks(text, speechChunkCharacters)) {
         const encoded = await speech.synthesize(chunk, controller.signal);
         const output = await decodeSpeech(encoded);
         await audio.speak(output);

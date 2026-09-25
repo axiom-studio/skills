@@ -16,7 +16,8 @@ function service(overrides = {}) {
     if (new URL(url).hostname === 'api.elevenlabs.io') {
       assert.equal(options.headers['xi-api-key'], 'vault-secret');
       if (new URL(url).pathname === '/v1/models') return { ok: true, json: async () => [
-        { model_id: 'eleven_flash_v2_5', name: 'Flash', can_do_text_to_speech: true },
+        { model_id: 'eleven_flash_v2_5', name: 'Flash', can_do_text_to_speech: true,
+          maximum_text_length_per_request: 1200 },
       ] };
       if (new URL(url).pathname === '/v2/voices') return { ok: true, json: async () => ({
         voices: [{ voice_id: 'voice123456', name: 'Team voice' }], has_more: false,
@@ -106,6 +107,7 @@ test('ElevenLabs Vault key stays in the parent while the meeting worker requests
   const started = await worker.start(input);
   assert.equal(started.status, 'joining');
   assert.equal(children[0].options.env.MEET_SPEECH_PROVIDER, 'elevenlabs');
+  assert.equal(children[0].options.env.AXIOM_SPEECH_CHUNK_CHARACTERS, '1200');
   assert.equal(JSON.stringify(children[0].options.env).includes('vault-secret'), false);
   assert.equal(readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8').includes('vault-secret'), false);
   assert.equal(requests.some(request => request.path.endsWith('/speech/grants')), false);
