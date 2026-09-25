@@ -1,0 +1,19 @@
+{
+  "name": "axiom-meeting-voice-worker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.mjs",
+    "start:meeting": "node main.mjs"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "1.14.5",
+    "@grpc/proto-loader": "0.8.0",
+    "playwright-core": "1.59.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
