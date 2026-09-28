@@ -26,7 +26,8 @@ export class BrowserHumanView {
     try {
       return await this.#control.human(principal, leaseID, async () => {
         const viewport = this.#page.viewportSize();
-        if (!viewport || viewport.width > 1920 || viewport.height > 1200) throw new Error();
+        if (!viewport || !Number.isInteger(viewport.width) || !Number.isInteger(viewport.height) ||
+          viewport.width <= 0 || viewport.height <= 0 || viewport.width > 1920 || viewport.height > 1200) throw new Error();
         switch (input?.type) {
           case 'frame': {
             if (!exactFields(input, ['type'])) throw new Error();

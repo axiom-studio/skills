@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { meetingPlatform, meetingURL, joinMeet as realJoinMeet } from './meet.mjs';
+import { BrowserHandoff } from './browser-handoff.mjs';
 
 async function joinMeet(options) {
   const launch = options.chromiumAPI.launchPersistentContext;
@@ -227,4 +228,77 @@ test('reports a Meet access refusal immediately without attempting to join', asy
     profileDir: '/profile', chromiumAPI }), /Google Meet refused access.*host.*guest access/);
   assert.equal(clicked, false);
   assert.equal(closed, true);
+});
+
+test('failed prejoin hands the same browser to a human and confirms their manual admission', async () => {
+  let admitted = false;
+  let launches = 0;
+  let closed = 0;
+  let navigations = 0;
+  const principal = { tenantID: 't1', agentID: 'a1', userID: 'u1' };
+  let offered;
+  const ready = new Promise(resolve => { offered = resolve; });
+  const handoff = new BrowserHandoff({ ...principal, onState: state => { if (state === 'awaiting_user') offered(); } });
+  const page = {
+    goto: async () => { navigations++; },
+    getByRole: (_role, { name }) => name.test('Leave call')
+      ? { isVisible: async () => admitted, click: async () => {} }
+      : { waitFor: () => new Promise(() => {}), isVisible: async () => false },
+    getByText: () => ({ waitFor: async () => {} }),
+    viewportSize: () => ({ width: 1280, height: 800 }),
+    mouse: { click: async () => { admitted = true; } },
+  };
+  const context = { pages: () => [page], close: async () => { closed++; } };
+  const joining = joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', handoff,
+    chromiumAPI: { launchPersistentContext: async () => { launches++; return context; } } });
+  await ready;
+  assert.equal(closed, 0);
+  const lease = await handoff.handle(principal, { type: 'claim' });
+  await handoff.handle(principal, { type: 'input', leaseID: lease.id, input: { type: 'click', x: 10, y: 10 } });
+  await handoff.handle(principal, { type: 'resume', leaseID: lease.id });
+  const meeting = await joining;
+  assert.equal(meeting.page, page);
+  assert.equal(meeting.context, context);
+  assert.equal(await meeting.isPresent(), true);
+  assert.equal(launches, 1);
+  assert.equal(navigations, 1);
+  await meeting.leave();
+  assert.equal(closed, 1);
+});
+
+test('returning from sign-in reopens only the approved meeting once, without reading login fields', async () => {
+  let signedIn = false;
+  let admission = false;
+  const navigations = [];
+  const principal = { tenantID: 't1', agentID: 'a1', userID: 'u1' };
+  let offered;
+  const ready = new Promise(resolve => { offered = resolve; });
+  const handoff = new BrowserHandoff({ ...principal, onState: state => { if (state === 'awaiting_user') offered(); } });
+  const page = {
+    goto: async target => { navigations.push(target); },
+    getByRole: (role, { name }) => {
+      if (role === 'textbox') return { isVisible: async () => false };
+      if (name.test('Leave call')) return { isVisible: async () => admission, waitFor: async () => { assert.equal(admission, true); }, click: async () => {} };
+      if (name.test('Join now')) return {
+        waitFor: () => signedIn ? Promise.resolve() : new Promise(() => {}),
+        click: async () => { assert.equal(navigations.length, 2); admission = true; },
+        isVisible: async () => false,
+      };
+      return { isVisible: async () => false };
+    },
+    getByText: () => ({ waitFor: () => signedIn ? new Promise(() => {}) : Promise.resolve() }),
+    viewportSize: () => ({ width: 1280, height: 800 }),
+    mouse: { click: async () => { signedIn = true; } },
+  };
+  const target = 'https://meet.google.com/abc-defg-hij';
+  const joining = joinMeet({ url: target, profileDir: '/profile', handoff,
+    chromiumAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) } });
+  await ready;
+  const lease = await handoff.handle(principal, { type: 'claim' });
+  await handoff.handle(principal, { type: 'input', leaseID: lease.id, input: { type: 'click', x: 10, y: 10 } });
+  await handoff.handle(principal, { type: 'resume', leaseID: lease.id });
+  const meeting = await joining;
+  assert.deepEqual(navigations, [target, target]);
+  assert.equal(await meeting.isPresent(), true);
+  await meeting.leave();
 });

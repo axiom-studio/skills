@@ -56,6 +56,7 @@ function service(overrides = {}) {
   };
   return { worker: new MeetSessionService({ baseURL: 'https://cortex.example/orchestrator/agent/meet/v1/',
     tenantID: '7', profilesDir, fetchAPI, forkProcess, terminationGraceMs: overrides.terminationGraceMs ?? 10000,
+    authorizeBrowserControl: overrides.authorizeBrowserControl,
     speechConfig: { AXIOM_SPEECH_API_URL: 'https://speech.example/',
       AXIOM_TRANSCRIPTION_MODEL: 'transcribe', AXIOM_SPEECH_MODEL: 'speak', AXIOM_SPEECH_VOICE: 'voice' } }), children, requests, profilesDir };
 }
@@ -96,6 +97,56 @@ test('start derives the Seal Chat from the authenticated Run and persists past t
   assert.equal((await worker.status(input)).status, 'ended');
   assert.ok(requests.some(({ path, token, body }) => path.endsWith(`/sessions/${started.sessionId}/outcome`) &&
     token === 'bound-bot-token' && body.outcome === 'ended'));
+});
+
+test('browser handoff is disabled without a host verifier, even if environment requests it', async t => {
+  const { worker, children, profilesDir } = service();
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  await worker.start({ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
+    issuerToken: 'bound-bot-token', speechToken: 'bound-speech-token' });
+  assert.equal(children[0].options.env.MEET_BROWSER_HANDOFF_ENABLED, 'false');
+  await assert.rejects(worker.controlBrowser({ agentID: 'agent-1', command: { type: 'claim' } }));
+});
+
+test('host-authorized control is scoped to the exact pending session and excluded from persisted state', async t => {
+  let authorized = 0;
+  const { worker, children, profilesDir } = service({ authorizeBrowserControl: async scope => {
+    authorized++;
+    assert.equal(scope.tenantID, '7');
+    assert.equal(scope.conversationID, 'chat-1');
+    if (scope.authorization !== 'host-signed-request') throw new Error('secret failure');
+    return { userID: 'human-1', tenantID: scope.tenantID, agentID: scope.agentID };
+  } });
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  const started = await worker.start({ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
+    issuerToken: 'bound-bot-token', speechToken: 'bound-speech-token' });
+  const { child, options } = children[0];
+  assert.equal(options.env.MEET_BROWSER_HANDOFF_ENABLED, 'true');
+  const input = { agentID: 'agent-1', sessionID: started.sessionId,
+    authorization: 'host-signed-request', command: { type: 'claim' } };
+  await assert.rejects(worker.controlBrowser(input));
+  assert.equal(authorized, 0);
+  child.emit('message', { status: 'awaiting_user' });
+  await assert.rejects(worker.controlBrowser({ ...input, sessionID: 'foreign-session' }));
+  assert.equal(authorized, 0);
+  await assert.rejects(worker.controlBrowser({ ...input, authorization: 'invalid' }), error => {
+    assert.doesNotMatch(error.message, /secret/);
+    return true;
+  });
+  child.send = message => {
+    assert.equal(message.type, 'browser-control');
+    assert.deepEqual(message.principal, { userID: 'human-1', tenantID: '7', agentID: 'agent-1' });
+    queueMicrotask(() => child.emit('message', { type: 'browser-result', id: message.id,
+      result: { id: 'private-lease', expiresAt: Date.now() + 300000 } }));
+  };
+  assert.equal((await worker.controlBrowser(input)).id, 'private-lease');
+  await worker.pendingWrite;
+  const persisted = readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8');
+  assert.match(persisted, /awaiting_user/);
+  assert.doesNotMatch(persisted, /private-lease|host-signed-request|human-1/);
+  child.emit('message', { status: 'joining' });
+  assert.equal(worker.sessions.get('agent-1').status, 'joining');
+  await assert.rejects(worker.controlBrowser(input));
 });
 
 test('ElevenLabs Vault key stays in the parent while the meeting worker requests speech', async t => {

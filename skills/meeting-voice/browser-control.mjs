@@ -22,7 +22,8 @@ export class BrowserControl {
   get state() { return this.#state; }
 
   #authorized(principal) {
-    if (!principal?.userID || principal.tenantID !== this.#scope.tenantID || principal.agentID !== this.#scope.agentID) {
+    if (typeof principal?.userID !== 'string' || !principal.userID.trim() ||
+      principal.tenantID !== this.#scope.tenantID || principal.agentID !== this.#scope.agentID) {
       throw new Error('Browser control denied');
     }
   }

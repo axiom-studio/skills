@@ -1,5 +1,6 @@
 import { joinMeeting, meetingURL, MeetingJoinError } from './meet.mjs';
 import { runWorker } from './worker-lifecycle.mjs';
+import { BrowserHandoff } from './browser-handoff.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -32,12 +33,31 @@ async function main() {
     throw new Error('the bot browser profile and Chromium executable are required');
   }
   const conversation = new CortexConversation(config.cortex);
+  const handoff = process.env.MEET_BROWSER_HANDOFF_ENABLED === 'true' ? new BrowserHandoff({
+    tenantID: config.cortex.tenantID, agentID: config.cortex.agentID,
+    onState: async status => {
+      process.send?.({ status });
+      if (status === 'awaiting_user') {
+        await conversation.postStatus('I need you to take control of my browser to finish signing in. Browser input stays outside this chat. Return control when you are finished.', controller.signal);
+      }
+    },
+  }) : null;
   const speech = process.env.MEET_SPEECH_PROVIDER === 'elevenlabs'
     ? new ParentSpeechClient({ processRef: process }) : new SpeechClient(config.speech);
   process.on('message', message => {
     if (message?.type === 'grant' && typeof message.grant === 'string') conversation.setGrant(message.grant);
     if (message?.type === 'speech-grants') {
       try { speech.setTokens(message); } catch { controller.abort(); }
+    }
+    // This IPC channel is private to the parent. The parent must authenticate
+    // every request and derive the principal before forwarding it here.
+    if (message?.type === 'browser-control' && handoff && typeof message.id === 'string') {
+      void handoff.handle(message.principal, message.command).then(result => {
+        if (result.type === 'frame') result = { ...result, bytes: result.bytes.toString('base64') };
+        if (process.connected) process.send?.({ type: 'browser-result', id: message.id, result });
+      }, () => {
+        if (process.connected) process.send?.({ type: 'browser-result', id: message.id, error: true });
+      });
     }
   });
   const commands = audioCommands();
@@ -104,7 +124,7 @@ async function main() {
   try {
     await conversation.attach(controller.signal);
     meeting = await joinMeeting({ url: config.meetURL, profileDir: config.profileDir, executablePath: config.executablePath,
-      displayName: config.displayName, signal: controller.signal,
+      displayName: config.displayName, signal: controller.signal, handoff,
       onAdmissionRequested: () => {
         process.send?.({ status: 'awaiting_admission' });
         void conversation.postStatus('I requested to join the meeting and am waiting for the host to admit me.',

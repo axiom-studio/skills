@@ -37,7 +37,7 @@ function validID(value, name) {
 // model-supplied conversation ID is never accepted by this service.
 export class MeetSessionService {
   constructor({ baseURL, tenantID, profilesDir, fetchAPI = fetch, forkProcess = fork, speechConfig = process.env,
-    terminationGraceMs = 10000 }) {
+    terminationGraceMs = 10000, authorizeBrowserControl }) {
     this.baseURL = required(baseURL, 'Cortex Meet API URL');
     this.tenantID = required(tenantID, 'tenant ID');
     this.profilesDir = required(profilesDir, 'profiles directory');
@@ -45,6 +45,9 @@ export class MeetSessionService {
     this.forkProcess = forkProcess;
     this.speechConfig = speechConfig;
     this.terminationGraceMs = terminationGraceMs;
+    // No insecure fallback: the server enables handoff only when it supplies
+    // a host authorization verifier, separate from model action authority.
+    this.authorizeBrowserControl = authorizeBrowserControl;
     this.sessions = new Map();
     this.statePath = join(this.profilesDir, '.meet-voice-state.json');
     this.restorePromise = null;
@@ -214,6 +217,7 @@ export class MeetSessionService {
         MEET_URL: meetURL,
         MEET_SESSION_EXPIRES_AT: session.expiresAt,
         MEET_SESSION_ID: session.id,
+        MEET_BROWSER_HANDOFF_ENABLED: typeof this.authorizeBrowserControl === 'function' ? 'true' : 'false',
         CORTEX_MEET_SESSION_API_URL: new URL(`sessions/${encodeURIComponent(session.id)}/`,
           this.baseURL.endsWith('/') ? this.baseURL : `${this.baseURL}/`).toString(),
         CORTEX_TENANT_ID: this.tenantID,
@@ -251,7 +255,9 @@ export class MeetSessionService {
         void this.handleElevenLabsRequest(session, message);
         return;
       }
-      if ((message?.status === 'awaiting_admission' && session.status === 'joining') ||
+      if ((message?.status === 'awaiting_user' && ['joining', 'awaiting_admission'].includes(session.status)) ||
+          (message?.status === 'joining' && session.status === 'awaiting_user') ||
+          (message?.status === 'awaiting_admission' && session.status === 'joining') ||
           (message?.status === 'active' && ['joining', 'awaiting_admission'].includes(session.status))) {
         session.status = message.status;
         void this.persist().catch(() => {});
@@ -281,6 +287,66 @@ export class MeetSessionService {
       throw error;
     }
     return this.publicState(session);
+  }
+
+  // Host-only RPC entrypoint; deliberately not exposed in the Skill catalog.
+  // Authorization must validate current membership and return the principal
+  // from a signed host request, never from command fields or model arguments.
+  async controlBrowser({ agentID, sessionID, authorization, command }) {
+    try {
+      if (typeof this.authorizeBrowserControl !== 'function') throw new Error();
+      if (!command || typeof command !== 'object' || Array.isArray(command) ||
+        Buffer.byteLength(JSON.stringify(command)) > 32768) throw new Error();
+      agentID = validID(agentID, 'agent ID');
+      sessionID = validID(sessionID, 'session ID');
+      await this.restore();
+      const session = this.sessions.get(agentID);
+      if (!session?.child || session.id !== sessionID || session.status !== 'awaiting_user') throw new Error();
+      const principal = await this.authorizeBrowserControl({ authorization, command,
+        tenantID: this.tenantID, agentID, sessionID, conversationID: session.conversationID });
+      if (typeof principal?.userID !== 'string' || !principal.userID.trim() ||
+        principal.tenantID !== this.tenantID || principal.agentID !== agentID) throw new Error();
+      const child = session.child;
+      if (!child || session.status !== 'awaiting_user') throw new Error();
+      // Bound each in-flight input and prevent a slow browser from accumulating
+      // secrets in an unbounded parent IPC queue.
+      if (session.browserRequestPending) throw new Error();
+      session.browserRequestPending = true;
+      try {
+        return await new Promise((resolve, reject) => {
+          const id = randomUUID();
+          let timer;
+          const cleanup = () => {
+            clearTimeout(timer);
+            child.off('message', receive);
+            child.off('exit', fail);
+            child.off('error', fail);
+          };
+          const fail = () => { cleanup(); reject(new Error('Browser control unavailable')); };
+          const receive = message => {
+            if (message?.type !== 'browser-result' || message.id !== id) return;
+            cleanup();
+            if (message.error) reject(new Error('Browser control unavailable'));
+            else resolve(message.result);
+          };
+          child.on('message', receive);
+          child.once('exit', fail);
+          child.once('error', fail);
+          timer = setTimeout(() => {
+            // Delivery may already have happened. Do not retry input or leave
+            // a human-controlled browser running after transport uncertainty.
+            this.beginStop(session);
+            fail();
+          }, 10000);
+          timer.unref?.();
+          const failedDelivery = () => { this.beginStop(session); fail(); };
+          try { child.send({ type: 'browser-control', id, principal, command }, error => { if (error) failedDelivery(); }); }
+          catch { failedDelivery(); }
+        });
+      } finally { session.browserRequestPending = false; }
+    } catch {
+      throw new Error('Browser control request could not be completed');
+    }
   }
 
   async handleElevenLabsRequest(session, message) {
