@@ -1,6 +1,7 @@
 import { joinMeeting, meetingURL, MeetingJoinError } from './meet.mjs';
 import { runWorker } from './worker-lifecycle.mjs';
 import { BrowserHandoff } from './browser-handoff.mjs';
+import { TranscriptQueue } from './transcript-queue.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -69,8 +70,6 @@ async function main() {
   let audio;
   let presenceCheck;
   let speaking = false;
-  let busy = false;
-  let queued = Promise.resolve();
   async function playText(text) {
     speaking = true;
     detector.reset();
@@ -86,30 +85,28 @@ async function main() {
       detector.reset();
     }
   }
-  const detector = new UtteranceDetector(pcm => {
-    if (speaking || busy) return;
-    busy = true;
-    queued = queued.then(async () => {
+  const transcripts = new TranscriptQueue({
+    signal: controller.signal,
+    transcribe: pcm => speech.transcribe(pcm, controller.signal),
+    postUtterance: text => conversation.postUtterance(text, controller.signal),
+    reply: async utterance => {
+      const reply = await conversation.waitForReply(utterance.id, 90000, controller.signal);
+      if (!reply || controller.signal.aborted) return;
       try {
-        const text = await speech.transcribe(pcm, controller.signal);
-        if (!text) return;
-        const utterance = await conversation.postUtterance(text, controller.signal);
-        const reply = await conversation.waitForReply(utterance.id, 90000, controller.signal);
-        if (!reply || controller.signal.aborted) return;
-        try {
-          await playText(reply);
-        } catch (error) {
-          await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal)
-            .catch(() => {});
-          throw error;
-        }
-      } finally {
-        speaking = false;
-        busy = false;
-        detector.reset();
+        await playText(reply);
+      } catch (error) {
+        await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal)
+          .catch(() => {});
+        throw error;
       }
-    }).catch(error => { console.error('voice turn failed:', error.name); busy = false; });
+    },
+    onError: async () => {
+      try {
+        await conversation.postStatus('I stopped because the audio processing pipeline could not keep up or failed. The transcript may be incomplete.', controller.signal);
+      } finally { controller.abort(); }
+    },
   });
+  const detector = new UtteranceDetector(pcm => transcripts.enqueue(pcm));
 
   const stop = () => controller.abort();
   const expiresIn = Date.parse(config.expiresAt) - Date.now();
@@ -147,7 +144,7 @@ async function main() {
     } catch (error) {
       console.error('Meet status update failed:', error.name);
     }
-    audio.input.on('data', chunk => { if (!speaking && !busy) detector.feed(chunk); });
+    audio.input.on('data', chunk => { if (!speaking) detector.feed(chunk); });
     process.send?.({ status: 'active' });
     const greeting = 'Hello, I am the Axiom voice assistant. I am listening and can respond to requests.';
     await playText(greeting);

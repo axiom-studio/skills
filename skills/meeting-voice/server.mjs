@@ -5,7 +5,7 @@ import { MeetSessionService } from './session.mjs';
 import { browserAuthorizer } from './browser-authorizer.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.8';
+export const SKILL_VERSION = '0.2.9';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
