@@ -1,5 +1,6 @@
 import { BrowserControl } from './browser-control.mjs';
 import { BrowserHumanView } from './browser-human-view.mjs';
+import { browserIntervention } from './browser-intervention.mjs';
 
 // Private worker integration. Only a host-authorized transport may call handle;
 // none of these commands belong in Execute or the model's action catalog.
@@ -18,8 +19,9 @@ export class BrowserHandoff {
     this.#timeoutMs = timeoutMs;
   }
 
-  async request({ page, context, signal }) {
+  async request({ page, context, signal, reason = 'manual_confirmation' }) {
     if (this.#pending || signal?.aborted) throw new Error('Browser handoff is unavailable');
+    const intervention = browserIntervention(reason);
     let resolve, reject;
     const completed = new Promise((ok, fail) => { resolve = ok; reject = fail; });
     // A status callback can fail before the await below is reached. Keep its
@@ -40,7 +42,7 @@ export class BrowserHandoff {
     signal?.addEventListener('abort', cancel, { once: true });
     page.on?.('close', cancel);
     try {
-      await this.#onState('awaiting_user');
+      await this.#onState('awaiting_user', intervention);
       await completed;
       if (signal?.aborted || control.state !== 'automation') throw new Error('Browser handoff was cancelled');
       await this.#onState('joining');

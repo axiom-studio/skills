@@ -8,7 +8,7 @@ WORKDIR /app
 ARG SKILL_NAME=meeting-voice
 COPY skills/${SKILL_NAME}/package.json skills/${SKILL_NAME}/package-lock.json ./
 RUN npm ci --omit=dev
-COPY skills/${SKILL_NAME}/*.mjs skills/${SKILL_NAME}/skill.proto skills/${SKILL_NAME}/entrypoint.sh ./
+COPY skills/${SKILL_NAME}/*.mjs skills/${SKILL_NAME}/*.proto skills/${SKILL_NAME}/entrypoint.sh ./
 RUN chmod 755 /app/entrypoint.sh && mkdir -p /profile && chown -R node:node /app /profile
 
 USER node

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { meetingURL } from './meet.mjs';
 import { availableSpeechModels } from './bridge.mjs';
 import { ElevenLabsClient } from './elevenlabs.mjs';
+import { browserIntervention } from './browser-intervention.mjs';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
 
@@ -137,7 +138,8 @@ export class MeetSessionService {
   }
 
   async start({ runID, agentID, url, issuerToken, invocationToken, speechToken, elevenLabsAPIKey,
-    transcriptionModel, speechModel, voice, durationMinutes = 240 }) {
+    transcriptionModel, speechModel, voice, durationMinutes = 240, requestBrowserHandoff = false }) {
+    if (typeof requestBrowserHandoff !== 'boolean') throw new Error('browser handoff choice must be a boolean');
     const resolvedIssuerToken = issuerToken ? secret(issuerToken, 'Cortex meeting issuer token') : undefined;
     if (!invocationToken && !resolvedIssuerToken) throw new Error('Cortex meeting invocation is required');
     const resolvedSpeechToken = speechToken ? secret(speechToken, 'speech token') : undefined;
@@ -192,11 +194,15 @@ export class MeetSessionService {
       id: sessionID, agentID, conversationID, meetURL, status: 'joining',
       startedAt: startedAt.toISOString(), expiresAt,
       grant, grantExpiresAt, issuerToken: resolvedIssuerToken, controlGrant,
+      browserGrant: typeof issued.browserGrant === 'string' ? issued.browserGrant : undefined,
       transcriptionModel: selectedTranscriptionModel, speechModel: selectedSpeechModel, voice: selectedVoice,
       elevenLabs, speechManaged: !elevenLabs && !resolvedSpeechToken,
       endedAt: null, child: null,
     };
     try {
+      if (requestBrowserHandoff && (!session.browserGrant || typeof this.authorizeBrowserControl !== 'function')) {
+        throw new Error('Human browser handoff is unavailable on this runtime');
+      }
       if (session.speechManaged) await this.refreshSpeechGrants(session);
       else if (!elevenLabs) session.transcriptionToken = session.speechToken = resolvedSpeechToken;
     } catch (error) {
@@ -217,7 +223,8 @@ export class MeetSessionService {
         MEET_URL: meetURL,
         MEET_SESSION_EXPIRES_AT: session.expiresAt,
         MEET_SESSION_ID: session.id,
-        MEET_BROWSER_HANDOFF_ENABLED: typeof this.authorizeBrowserControl === 'function' ? 'true' : 'false',
+        MEET_BROWSER_HANDOFF_ENABLED: typeof this.authorizeBrowserControl === 'function' && session.browserGrant ? 'true' : 'false',
+        MEET_BROWSER_HANDOFF_REQUESTED: requestBrowserHandoff ? 'true' : 'false',
         CORTEX_MEET_SESSION_API_URL: new URL(`sessions/${encodeURIComponent(session.id)}/`,
           this.baseURL.endsWith('/') ? this.baseURL : `${this.baseURL}/`).toString(),
         CORTEX_TENANT_ID: this.tenantID,
@@ -260,6 +267,10 @@ export class MeetSessionService {
           (message?.status === 'awaiting_admission' && session.status === 'joining') ||
           (message?.status === 'active' && ['joining', 'awaiting_admission'].includes(session.status))) {
         session.status = message.status;
+        if (message.status === 'awaiting_user') {
+          try { session.intervention = browserIntervention(message.intervention?.reason); }
+          catch { this.beginStop(session); return; }
+        } else session.intervention = undefined;
         void this.persist().catch(() => {});
       }
     });
@@ -301,11 +312,22 @@ export class MeetSessionService {
       sessionID = validID(sessionID, 'session ID');
       await this.restore();
       const session = this.sessions.get(agentID);
-      if (!session?.child || session.id !== sessionID || session.status !== 'awaiting_user') throw new Error();
+      if (!session?.child || session.id !== sessionID || ['leaving', 'ended', 'failed'].includes(session.status)) throw new Error();
+      if (command.type !== 'status' && session.status !== 'awaiting_user') throw new Error();
       const principal = await this.authorizeBrowserControl({ authorization, command,
-        tenantID: this.tenantID, agentID, sessionID, conversationID: session.conversationID });
+        tenantID: this.tenantID, agentID, sessionID, conversationID: session.conversationID, sessionGrant: session.browserGrant });
       if (typeof principal?.userID !== 'string' || !principal.userID.trim() ||
-        principal.tenantID !== this.tenantID || principal.agentID !== agentID) throw new Error();
+        principal.tenantID !== this.tenantID || principal.agentID !== agentID ||
+        typeof principal.requestID !== 'string' || !ID.test(principal.requestID) ||
+        !Number.isFinite(Date.parse(principal.expiresAt)) || Date.parse(principal.expiresAt) <= Date.now()) throw new Error();
+      session.browserRequests ??= new Map();
+      for (const [id, expiry] of session.browserRequests) if (expiry <= Date.now()) session.browserRequests.delete(id);
+      if (session.browserRequests.has(principal.requestID) || session.browserRequests.size >= 256) throw new Error();
+      session.browserRequests.set(principal.requestID, Date.parse(principal.expiresAt));
+      if (command.type === 'status' && Object.keys(command).length === 1) {
+        return { sessionId: session.id, status: session.status, expiresAt: session.expiresAt,
+          ...(session.status === 'awaiting_user' ? { intervention: session.intervention } : {}) };
+      }
       const child = session.child;
       if (!child || session.status !== 'awaiting_user') throw new Error();
       // Bound each in-flight input and prevent a slow browser from accumulating
@@ -340,7 +362,8 @@ export class MeetSessionService {
           }, 10000);
           timer.unref?.();
           const failedDelivery = () => { this.beginStop(session); fail(); };
-          try { child.send({ type: 'browser-control', id, principal, command }, error => { if (error) failedDelivery(); }); }
+          const owner = { tenantID: principal.tenantID, agentID: principal.agentID, userID: principal.userID };
+          try { child.send({ type: 'browser-control', id, principal: owner, command }, error => { if (error) failedDelivery(); }); }
           catch { failedDelivery(); }
         });
       } finally { session.browserRequestPending = false; }
@@ -525,6 +548,7 @@ export class MeetSessionService {
 
   publicState(session) {
     return { sessionId: session.id, status: session.status, meetURL: session.meetURL,
+      ...(session.status === 'awaiting_user' && session.intervention ? { intervention: session.intervention } : {}),
       startedAt: session.startedAt, expiresAt: session.expiresAt, endedAt: session.endedAt };
   }
 

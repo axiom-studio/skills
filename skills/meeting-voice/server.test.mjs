@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import grpc from '@grpc/grpc-js';
 import protoLoader from '@grpc/proto-loader';
 import { fileURLToPath } from 'node:url';
-import { handlers } from './server.mjs';
+import { handlers, browserHandlers } from './server.mjs';
 
 function invoke(handler, request) {
   return new Promise((resolve, reject) => handler({ request }, (error, result) => error ? reject(error) : resolve(result)));
@@ -35,7 +35,7 @@ test('hosted Skill action derives authority from Run context and receives URL fr
   });
   assert.deepEqual(calls, [{ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
     issuerToken: 'bot-secret', invocationToken: 'signed-invocation', speechToken: 'speech-secret', transcriptionModel: undefined,
-    speechModel: undefined, voice: undefined, durationMinutes: undefined }]);
+    speechModel: undefined, voice: undefined, durationMinutes: undefined, requestBrowserHandoff: undefined }]);
   assert.equal(JSON.parse(reply.output.status.toString()), 'joining');
   assert.equal(JSON.parse(reply.output.sessionId.toString()), 'session-1');
 });
@@ -113,6 +113,33 @@ test('hosted Skill serves the standard gRPC Execute contract', async () => {
       node_type: 'meet-status', context: { run_id: 'run-1', agent_id: 'agent-1' }, config: {},
     }, (error, value) => error ? reject(error) : resolve(value)));
     assert.equal(JSON.parse(result.output.status.toString()), 'none');
+  } finally {
+    client.close();
+    await new Promise(resolve => server.tryShutdown(resolve));
+  }
+});
+
+test('generic browser control has a separate gRPC contract with sanitized authorization failures', async () => {
+  const definition = protoLoader.loadSync(fileURLToPath(new URL('./browser-control.proto', import.meta.url)), { keepCase: true });
+  const protocol = grpc.loadPackageDefinition(definition).axiom.browser.v1;
+  const server = new grpc.Server();
+  server.addService(protocol.BrowserControlService.service, browserHandlers({ controlBrowser: async input => {
+    if (input.authorization.token !== 'host-proof') throw new Error('private authentication detail');
+    return { id: 'exclusive-lease' };
+  } }));
+  const port = await new Promise((resolve, reject) => server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(),
+    (error, bound) => error ? reject(error) : resolve(bound)));
+  const client = new protocol.BrowserControlService(`127.0.0.1:${port}`, grpc.credentials.createInsecure());
+  const call = authorization => new Promise((resolve, reject) => client.Control({ value: Buffer.from(JSON.stringify({
+    agentID:'agent-1', sessionID:'session-1', authorization, commandJSON:'{"type":"claim"}',
+  })) }, (error, value) => error ? reject(error) : resolve(value)));
+  try {
+    assert.equal(JSON.parse((await call('host-proof')).value).id, 'exclusive-lease');
+    await assert.rejects(call('bad-proof'), error => {
+      assert.equal(error.code, grpc.status.PERMISSION_DENIED);
+      assert.doesNotMatch(error.message, /private authentication/);
+      return true;
+    });
   } finally {
     client.close();
     await new Promise(resolve => server.tryShutdown(resolve));

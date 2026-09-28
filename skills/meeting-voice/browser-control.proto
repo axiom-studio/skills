@@ -1,0 +1,8 @@
+syntax = "proto3";
+package axiom.browser.v1;
+import "google/protobuf/wrappers.proto";
+
+// Host-only transport. Not a Skill Execute action and not model-discoverable.
+service BrowserControlService {
+  rpc Control(google.protobuf.BytesValue) returns (google.protobuf.BytesValue);
+}

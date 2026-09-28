@@ -230,7 +230,25 @@ test('reports a Meet access refusal immediately without attempting to join', asy
   assert.equal(closed, true);
 });
 
-test('failed prejoin hands the same browser to a human and confirms their manual admission', async () => {
+test('a failed join without a human-only blocker does not offer handoff', async () => {
+  let closed = false;
+  let requested = false;
+  const page = {
+    goto: async () => {},
+    getByRole: () => ({ waitFor: () => new Promise(() => {}) }),
+    getByText: () => ({ waitFor: async () => {} }),
+  };
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
+    handoff: { request: async () => { requested = true; } },
+    interventionReason: async () => undefined,
+    chromiumAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) },
+  }), /Google Meet refused access/);
+  assert.equal(requested, false);
+  assert.equal(closed, true);
+});
+
+for (const handoffBeforeJoin of [false, true]) {
+test(`handoff retains the same browser and confirms manual admission (explicit setup: ${handoffBeforeJoin})`, async () => {
   let admitted = false;
   let launches = 0;
   let closed = 0;
@@ -250,6 +268,8 @@ test('failed prejoin hands the same browser to a human and confirms their manual
   };
   const context = { pages: () => [page], close: async () => { closed++; } };
   const joining = joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', handoff,
+    handoffBeforeJoin,
+    interventionReason: async () => 'authentication',
     chromiumAPI: { launchPersistentContext: async () => { launches++; return context; } } });
   await ready;
   assert.equal(closed, 0);
@@ -265,6 +285,7 @@ test('failed prejoin hands the same browser to a human and confirms their manual
   await meeting.leave();
   assert.equal(closed, 1);
 });
+}
 
 test('returning from sign-in reopens only the approved meeting once, without reading login fields', async () => {
   let signedIn = false;
@@ -292,6 +313,7 @@ test('returning from sign-in reopens only the approved meeting once, without rea
   };
   const target = 'https://meet.google.com/abc-defg-hij';
   const joining = joinMeet({ url: target, profileDir: '/profile', handoff,
+    interventionReason: async () => 'authentication',
     chromiumAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) } });
   await ready;
   const lease = await handoff.handle(principal, { type: 'claim' });

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { detectBrowserIntervention } from './browser-intervention.mjs';
 
 const MEET_PATH = /^\/[a-z]{3}-[a-z]{4}-[a-z]{3}\/?$/;
 const ZOOM_PATH = /^\/j\/[0-9]{9,11}\/?$/;
@@ -119,7 +120,7 @@ async function joinTeams(page, displayName, timeoutMs, onAdmissionRequested) {
 }
 
 export async function joinMeeting({ url, profileDir, executablePath, displayName = 'Axiom Agent', timeoutMs = 120000,
-  chromiumAPI = chromium, signal, onAdmissionRequested, handoff }) {
+  chromiumAPI = chromium, signal, onAdmissionRequested, handoff, handoffBeforeJoin = false, interventionReason = detectBrowserIntervention }) {
   if (!profileDir) throw new Error('a browser profile directory is required');
   const target = meetingURL(url);
   const platform = meetingPlatform(target);
@@ -138,16 +139,26 @@ export async function joinMeeting({ url, profileDir, executablePath, displayName
   try {
     const page = context.pages()[0] ?? await context.newPage();
     await joinStep('the meeting page could not be loaded', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+    let leave;
+    if (handoffBeforeJoin) {
+      if (!handoff) throw new MeetingJoinError('human browser handoff is unavailable');
+      await joinStep('browser handoff did not complete', () => handoff.request({ page, context, signal, reason: 'manual_confirmation' }));
+      if (signal?.aborted) throw new MeetingJoinError('the meeting was cancelled');
+      const joined = page.getByRole('button', { name: /^(Leave call|Leave meeting|Leave)$/i });
+      if (await visible(joined)) leave = joined;
+      else await joinStep('the meeting page could not be reopened', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+    }
     const attempt = () => platform === 'meet' ? joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested)
       : platform === 'zoom' ? joinZoom(page, displayName, timeoutMs, onAdmissionRequested)
         : joinTeams(page, displayName, timeoutMs, onAdmissionRequested);
-    let leave;
-    try { leave = await attempt(); }
+    try { if (!leave) leave = await attempt(); }
     catch (error) {
       if (!handoff || signal?.aborted) throw error;
+      const reason = await interventionReason(page);
+      if (!reason) throw error;
       // The failed join attempt has finished. No automation, audio capture,
       // transcription or presence polling runs while the human signs in.
-      await joinStep('browser sign-in handoff did not complete', () => handoff.request({ page, context, signal }));
+      await joinStep('browser handoff did not complete', () => handoff.request({ page, context, signal, reason }));
       if (signal?.aborted) throw new MeetingJoinError('the meeting was cancelled');
       // A human may have joined manually. Otherwise return only to the original
       // authorized meeting, never inspect a remaining password or MFA form.

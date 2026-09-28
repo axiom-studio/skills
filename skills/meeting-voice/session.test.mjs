@@ -35,6 +35,7 @@ function service(overrides = {}) {
       && !path.endsWith('/speech/grants')
       ? { sessionId: sessionID, conversationId: 'chat-1', grant: 'signed-meeting-grant',
         controlGrant: overrides.controlGrant,
+        browserGrant: overrides.browserGrant,
         grantExpiresAt: new Date(now + 300000).toISOString(),
         sessionExpiresAt: new Date(now + (body.durationMinutes ?? 240) * 60000).toISOString() }
       : path.endsWith('/speech/grants')
@@ -110,12 +111,14 @@ test('browser handoff is disabled without a host verifier, even if environment r
 
 test('host-authorized control is scoped to the exact pending session and excluded from persisted state', async t => {
   let authorized = 0;
-  const { worker, children, profilesDir } = service({ authorizeBrowserControl: async scope => {
+  const { worker, children, profilesDir } = service({ browserGrant: 'browser-runtime-grant', authorizeBrowserControl: async scope => {
     authorized++;
     assert.equal(scope.tenantID, '7');
     assert.equal(scope.conversationID, 'chat-1');
     if (scope.authorization !== 'host-signed-request') throw new Error('secret failure');
-    return { userID: 'human-1', tenantID: scope.tenantID, agentID: scope.agentID };
+    assert.equal(scope.sessionGrant, 'browser-runtime-grant');
+    return { userID: 'human-1', tenantID: scope.tenantID, agentID: scope.agentID,
+      requestID: randomUUID(), expiresAt: new Date(Date.now() + 15000).toISOString() };
   } });
   t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
   const started = await worker.start({ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
@@ -126,7 +129,11 @@ test('host-authorized control is scoped to the exact pending session and exclude
     authorization: 'host-signed-request', command: { type: 'claim' } };
   await assert.rejects(worker.controlBrowser(input));
   assert.equal(authorized, 0);
-  child.emit('message', { status: 'awaiting_user' });
+  child.emit('message', { status: 'awaiting_user', intervention: { reason: 'authentication' } });
+  const paused = worker.publicState(worker.sessions.get('agent-1'));
+  assert.equal(paused.intervention.type, 'browser_handoff');
+  assert.equal(paused.intervention.actionLabel, 'Take control');
+  assert.equal(paused.intervention.reason, 'authentication');
   await assert.rejects(worker.controlBrowser({ ...input, sessionID: 'foreign-session' }));
   assert.equal(authorized, 0);
   await assert.rejects(worker.controlBrowser({ ...input, authorization: 'invalid' }), error => {
@@ -146,7 +153,22 @@ test('host-authorized control is scoped to the exact pending session and exclude
   assert.doesNotMatch(persisted, /private-lease|host-signed-request|human-1/);
   child.emit('message', { status: 'joining' });
   assert.equal(worker.sessions.get('agent-1').status, 'joining');
+  assert.equal(worker.publicState(worker.sessions.get('agent-1')).intervention, undefined);
   await assert.rejects(worker.controlBrowser(input));
+});
+
+test('a host proof can authorize only one browser request and does not enter persistence', async t => {
+  const { worker, profilesDir } = service({ browserGrant: 'runtime-proof', authorizeBrowserControl: async () => ({
+    tenantID:'7', agentID:'agent-1', userID:'23', requestID:'single-use-proof', expiresAt:new Date(Date.now()+15000).toISOString(),
+  }) });
+  t.after(() => rmSync(profilesDir, { recursive:true, force:true }));
+  const started = await worker.start({ runID:'run-1', agentID:'agent-1', url:'https://meet.google.com/abc-defg-hij',
+    issuerToken:'issuer', speechToken:'speech' });
+  const request = { agentID:'agent-1', sessionID:started.sessionId, authorization:'signed-proof', command:{type:'status'} };
+  assert.equal((await worker.controlBrowser(request)).status, 'joining');
+  await assert.rejects(worker.controlBrowser(request));
+  await worker.pendingWrite;
+  assert.doesNotMatch(readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8'), /single-use-proof|runtime-proof/);
 });
 
 test('ElevenLabs Vault key stays in the parent while the meeting worker requests speech', async t => {

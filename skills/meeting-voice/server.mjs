@@ -2,9 +2,10 @@ import grpc from '@grpc/grpc-js';
 import protoLoader from '@grpc/proto-loader';
 import { fileURLToPath } from 'node:url';
 import { MeetSessionService } from './session.mjs';
+import { browserAuthorizer } from './browser-authorizer.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.6';
+export const SKILL_VERSION = '0.2.7';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
@@ -13,6 +14,7 @@ const schemas = {
     speechModel: { type: 'string', minLength: 1, maxLength: 200 },
     voice: { type: 'string', minLength: 1, maxLength: 100 },
     durationMinutes: { type: 'integer', minimum: 15, maximum: 480, default: 240 },
+    requestBrowserHandoff: { type: 'boolean', default: false },
   } },
   'meet-models': { type: 'object', additionalProperties: false },
   'meet-status': { type: 'object', additionalProperties: false },
@@ -66,7 +68,8 @@ export function handlers(service) {
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
             ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}),
             transcriptionModel: input.transcriptionModel,
-            speechModel: input.speechModel, voice: input.voice, durationMinutes: input.durationMinutes })
+            speechModel: input.speechModel, voice: input.voice, durationMinutes: input.durationMinutes,
+            requestBrowserHandoff: input.requestBrowserHandoff })
           : action === 'meet-models' ? await service.models({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
@@ -93,16 +96,43 @@ export function handlers(service) {
   };
 }
 
+export function browserHandlers(service) {
+  return {
+    async Control(call, callback) {
+      try {
+        const bytes = call.request.value;
+        if (!bytes || bytes.length > 49152) throw new Error();
+        const input = JSON.parse(Buffer.from(bytes).toString('utf8'));
+        if (!input || Array.isArray(input) || Object.keys(input).some(key =>
+          !['agentID', 'sessionID', 'authorization', 'commandJSON'].includes(key)) ||
+          typeof input.commandJSON !== 'string') throw new Error();
+        const result = await service.controlBrowser({ agentID: input.agentID, sessionID: input.sessionID,
+          authorization: { token: input.authorization, commandJSON: input.commandJSON }, command: JSON.parse(input.commandJSON) });
+        // IPC serializes Buffer as an object. Use bounded base64 on the private
+        // wire instead of an integer array that can exceed the relay limit.
+        if (result?.type === 'frame') result.bytes = Buffer.from(result.bytes).toString('base64');
+        callback(null, { value: Buffer.from(JSON.stringify(result)) });
+      } catch { callback({ code: grpc.status.PERMISSION_DENIED, message: 'Browser control request could not be completed' }); }
+    },
+  };
+}
+
 export async function serve() {
   const service = new MeetSessionService({
     baseURL: process.env.CORTEX_MEET_API_URL,
     tenantID: process.env.CORTEX_TENANT_ID,
     profilesDir: process.env.GOOGLE_PROFILES_DIR || '/profile',
+    authorizeBrowserControl: browserAuthorizer({ baseURL: process.env.CORTEX_BROWSER_API_URL ||
+      new URL('../../browser/v1/', process.env.CORTEX_MEET_API_URL.endsWith('/')
+        ? process.env.CORTEX_MEET_API_URL : `${process.env.CORTEX_MEET_API_URL}/`).toString() }),
   });
   const definition = protoLoader.loadSync(fileURLToPath(new URL('./skill.proto', import.meta.url)), { keepCase: true });
   const protocol = grpc.loadPackageDefinition(definition).axiom.skill.v1;
   const server = new grpc.Server();
   server.addService(protocol.SkillService.service, handlers(service));
+  const browserDefinition = protoLoader.loadSync(fileURLToPath(new URL('./browser-control.proto', import.meta.url)), { keepCase: true });
+  const browserProtocol = grpc.loadPackageDefinition(browserDefinition).axiom.browser.v1;
+  server.addService(browserProtocol.BrowserControlService.service, browserHandlers(service));
   const port = Number(process.env.SKILL_PORT || 50051);
   await new Promise((resolve, reject) => server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(),
     (error, bound) => error ? reject(error) : resolve(bound)));

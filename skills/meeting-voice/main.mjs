@@ -35,10 +35,10 @@ async function main() {
   const conversation = new CortexConversation(config.cortex);
   const handoff = process.env.MEET_BROWSER_HANDOFF_ENABLED === 'true' ? new BrowserHandoff({
     tenantID: config.cortex.tenantID, agentID: config.cortex.agentID,
-    onState: async status => {
-      process.send?.({ status });
+    onState: async (status, intervention) => {
+      process.send?.({ status, intervention });
       if (status === 'awaiting_user') {
-        await conversation.postStatus('I need you to take control of my browser to finish signing in. Browser input stays outside this chat. Return control when you are finished.', controller.signal);
+        await conversation.postStatus(`${intervention.summary} Select “Take control” to continue privately, then “Return control” when you are finished.`, controller.signal);
       }
     },
   }) : null;
@@ -125,6 +125,7 @@ async function main() {
     await conversation.attach(controller.signal);
     meeting = await joinMeeting({ url: config.meetURL, profileDir: config.profileDir, executablePath: config.executablePath,
       displayName: config.displayName, signal: controller.signal, handoff,
+      handoffBeforeJoin: process.env.MEET_BROWSER_HANDOFF_REQUESTED === 'true',
       onAdmissionRequested: () => {
         process.send?.({ status: 'awaiting_admission' });
         void conversation.postStatus('I requested to join the meeting and am waiting for the host to admit me.',
