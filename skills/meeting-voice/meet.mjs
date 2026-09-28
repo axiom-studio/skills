@@ -53,6 +53,14 @@ async function enableMicrophone(page, platform) {
 }
 
 async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested) {
+  const prejoin = page.getByRole('button', {
+    name: /^(Join now|Ask to join|Continue without microphone and camera)$/i,
+  }).first();
+  await joinStep('Google Meet did not show its prejoin controls', () => prejoin.waitFor({ timeout: timeoutMs }));
+  const withoutMedia = page.getByRole('button', { name: /^Continue without microphone and camera$/i });
+  if (await visible(withoutMedia)) {
+    await joinStep('the Google Meet media setup dialog could not be dismissed', () => withoutMedia.click({ timeout: timeoutMs }));
+  }
   const join = page.getByRole('button', { name: /^(Join now|Ask to join)$/i });
   await joinStep('Google Meet did not show its join controls', () => join.waitFor({ timeout: timeoutMs }));
   // Meet renders the guest form asynchronously after DOMContentLoaded.

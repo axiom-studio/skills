@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { meetingPlatform, meetingURL, joinMeet } from './meet.mjs';
+import { meetingPlatform, meetingURL, joinMeet as realJoinMeet } from './meet.mjs';
+
+async function joinMeet(options) {
+  const launch = options.chromiumAPI.launchPersistentContext;
+  return realJoinMeet({ ...options, chromiumAPI: { async launchPersistentContext(...args) {
+    const context = await launch(...args);
+    for (const page of context.pages()) {
+      if (!page.getByRole) continue;
+      const getByRole = page.getByRole.bind(page);
+      page.getByRole = (...selector) => {
+        const locator = getByRole(...selector);
+        locator.first ??= () => locator;
+        return locator;
+      };
+    }
+    return context;
+  } } });
+}
 
 test('accepts direct Meet links only', () => {
   assert.equal(meetingURL('https://meet.google.com/abc-defg-hij'), 'https://meet.google.com/abc-defg-hij');
@@ -152,4 +169,35 @@ test('join diagnostics identify the failed stage without exposing browser error 
     assert.doesNotMatch(error.message, /private|secret/);
     return true;
   });
+});
+
+test('dismisses the initial media dialog before entering a guest name and joining', async () => {
+  const actions = [];
+  let dialog = true;
+  const page = {
+    goto: async () => {},
+    getByRole(role, { name }) {
+      if (role === 'textbox') return {
+        isVisible: async () => !dialog,
+        fill: async value => actions.push(value),
+      };
+      if (name.test('Continue without microphone and camera') && !name.test('Join now')) return {
+        isVisible: async () => dialog,
+        click: async () => { dialog = false; actions.push('dismiss media'); },
+      };
+      if (name.test('Join now')) return {
+        waitFor: async () => {
+          if (!name.test('Continue without microphone and camera')) assert.equal(dialog, false);
+        },
+        click: async () => { assert.equal(dialog, false); actions.push('join'); },
+      };
+      if (name.test('Leave call')) return { waitFor: async () => {}, click: async () => {} };
+      return { isVisible: async () => false };
+    },
+  };
+  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
+    displayName: 'Meet Swift', chromiumAPI });
+  assert.deepEqual(actions, ['dismiss media', 'Meet Swift', 'join']);
+  await meeting.leave();
 });
