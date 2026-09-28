@@ -5,7 +5,7 @@ import { MeetSessionService } from './session.mjs';
 import { browserAuthorizer } from './browser-authorizer.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.7';
+export const SKILL_VERSION = '0.2.8';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
@@ -108,9 +108,8 @@ export function browserHandlers(service) {
           typeof input.commandJSON !== 'string') throw new Error();
         const result = await service.controlBrowser({ agentID: input.agentID, sessionID: input.sessionID,
           authorization: { token: input.authorization, commandJSON: input.commandJSON }, command: JSON.parse(input.commandJSON) });
-        // IPC serializes Buffer as an object. Use bounded base64 on the private
-        // wire instead of an integer array that can exceed the relay limit.
-        if (result?.type === 'frame') result.bytes = Buffer.from(result.bytes).toString('base64');
+        // main.mjs already encodes screenshots before crossing the worker IPC
+        // boundary. Preserve that base64 string; encoding it again corrupts JPEGs.
         callback(null, { value: Buffer.from(JSON.stringify(result)) });
       } catch { callback({ code: grpc.status.PERMISSION_DENIED, message: 'Browser control request could not be completed' }); }
     },

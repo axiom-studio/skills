@@ -125,16 +125,20 @@ test('generic browser control has a separate gRPC contract with sanitized author
   const server = new grpc.Server();
   server.addService(protocol.BrowserControlService.service, browserHandlers({ controlBrowser: async input => {
     if (input.authorization.token !== 'host-proof') throw new Error('private authentication detail');
+    if (input.command.type === 'input') return { type: 'frame', mimeType: 'image/jpeg', width: 1, height: 1,
+      bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64') };
     return { id: 'exclusive-lease' };
   } }));
   const port = await new Promise((resolve, reject) => server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(),
     (error, bound) => error ? reject(error) : resolve(bound)));
   const client = new protocol.BrowserControlService(`127.0.0.1:${port}`, grpc.credentials.createInsecure());
-  const call = authorization => new Promise((resolve, reject) => client.Control({ value: Buffer.from(JSON.stringify({
-    agentID:'agent-1', sessionID:'session-1', authorization, commandJSON:'{"type":"claim"}',
+  const call = (authorization, commandJSON = '{"type":"claim"}') => new Promise((resolve, reject) => client.Control({ value: Buffer.from(JSON.stringify({
+    agentID:'agent-1', sessionID:'session-1', authorization, commandJSON,
   })) }, (error, value) => error ? reject(error) : resolve(value)));
   try {
     assert.equal(JSON.parse((await call('host-proof')).value).id, 'exclusive-lease');
+    const frame = JSON.parse((await call('host-proof', '{"type":"input","input":{"type":"frame"}}')).value);
+    assert.deepEqual(Buffer.from(frame.bytes, 'base64'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     await assert.rejects(call('bad-proof'), error => {
       assert.equal(error.code, grpc.status.PERMISSION_DENIED);
       assert.doesNotMatch(error.message, /private authentication/);
