@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: openseal.meeting.voice
-  version: 0.2.3
+  version: 0.2.4
   name: Meeting voice
   description: Join an authorized Google Meet, Zoom, or Teams call as a visible Agent participant, listen, speak, and keep the conversation in Seal Chat.
   category: communication
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: meeting-voice
-    resolvedVersion: 0.2.3
+    resolvedVersion: 0.2.4
   transport:
     kind: tool
     endpoint: openseal.meeting.voice
@@ -20,7 +20,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party meeting voice service
-      package: axiomstudio/skill-meeting-voice:0.2.3
+      package: axiomstudio/skill-meeting-voice:0.2.4
   requirements:
     operatingSystems: [linux]
     compute:
@@ -65,7 +65,7 @@ definition:
       credentials:
         - name: api_key
           kind: elevenlabs_api
-      permissions: [network:http]
+      permissions: [network:http, 'host:meet:models']
       idempotency: supported
       retry: {maxAttempts: 1}
       risk: read
@@ -97,7 +97,7 @@ definition:
       credentials:
         - name: api_key
           kind: elevenlabs_api
-      permissions: [browser:session, audio:capture, audio:playback, network:http]
+      permissions: [browser:session, audio:capture, audio:playback, network:http, 'host:meet:start']
       idempotency: required
       retry: {maxAttempts: 1}
       risk: external
@@ -107,7 +107,7 @@ definition:
       name: meet-status
       description: Read this Agent's current Meet, Zoom, or Teams voice session state.
       inputSchema: {type: object, additionalProperties: false}
-      permissions: [browser:session]
+      permissions: [browser:session, 'host:meet:status']
       idempotency: supported
       retry: {maxAttempts: 1}
       risk: read
@@ -116,7 +116,7 @@ definition:
       name: meet-stop
       description: Make this Agent's voice participant leave its current Meet, Zoom, or Teams call.
       inputSchema: {type: object, additionalProperties: false}
-      permissions: [browser:session, audio:capture, audio:playback]
+      permissions: [browser:session, audio:capture, audio:playback, 'host:meet:stop']
       idempotency: required
       retry: {maxAttempts: 1}
       risk: write

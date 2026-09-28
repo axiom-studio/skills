@@ -75,7 +75,7 @@ browser cookies in an Agent action or command argument.
 | `CHROMIUM_PATH` | Chromium executable, default `/usr/bin/chromium` |
 | `MEET_DISPLAY_NAME` | Visible guest name, default `Axiom Agent` |
 | `CORTEX_MEET_API_URL` | Sentinel API ending in `/orchestrator/agent/meet/v1/`; set by Axiom hosting |
-| `CORTEX_MEET_INVOCATION` | Short-lived per-action assertion supplied by Atlas as a secret Skill binding |
+| `CORTEX_HOST_INVOCATIONS` | JSON map of short-lived, audience-bound host grants supplied by Atlas as a secret binding; this Skill selects `host:meet`. Permissions come from the pinned action manifest and are rechecked against the live action and binding. |
 | `CORTEX_TENANT_ID` | Tenant owning this Skill deployment; set by Axiom hosting |
 | `AXIOM_SPEECH_API_URL` | Base URL ending in `/rest/v1/llm-gateway/v1/`; set by Axiom hosting |
 | `AXIOM_TRANSCRIPTION_MODEL` | Optional deployment default; otherwise select a model from `meet-models` in Seal Chat |

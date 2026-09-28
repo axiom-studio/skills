@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { MeetSessionService } from './session.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.3';
+export const SKILL_VERSION = '0.2.4';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
@@ -30,6 +30,20 @@ function encode(values) {
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, Buffer.from(JSON.stringify(value))]));
 }
 
+function meetingInvocation(binding) {
+  if (binding === undefined) return undefined;
+  try {
+    const grants = typeof binding === 'string' ? JSON.parse(binding) : binding;
+    if (!grants || typeof grants !== 'object' || Array.isArray(grants)) throw new Error();
+    const token = grants['host:meet'];
+    if (typeof token !== 'string' || !token || token.length > 16384) throw new Error();
+    return token;
+  } catch {
+    // Parser diagnostics may contain the secret input. Never return them.
+    throw new Error('Invalid host invocation binding');
+  }
+}
+
 export function handlers(service) {
   return {
     async Execute(call, callback) {
@@ -41,25 +55,26 @@ export function handlers(service) {
       try {
         const input = decode(call.request.config);
         const bindings = decode(call.request.bindings);
+        const invocationToken = meetingInvocation(bindings.CORTEX_HOST_INVOCATIONS);
         // Current manifests use the Vault field slot. Keep older installations
         // working while they still send the legacy type-name slot.
         const elevenLabsAPIKey = bindings.api_key || bindings.elevenlabs_api;
         const common = { runID: context?.run_id, agentID: context?.agent_id };
         const result = action === 'meet-start'
           ? await service.start({ ...common, url: input.url, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
-            invocationToken: bindings.CORTEX_MEET_INVOCATION,
+            invocationToken,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
             ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}),
             transcriptionModel: input.transcriptionModel,
             speechModel: input.speechModel, voice: input.voice, durationMinutes: input.durationMinutes })
           : action === 'meet-models' ? await service.models({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
-            invocationToken: bindings.CORTEX_MEET_INVOCATION,
+            invocationToken,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
             ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}) })
           : action === 'meet-stop' ? await service.stop({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
-            invocationToken: bindings.CORTEX_MEET_INVOCATION })
+            invocationToken })
             : await service.status({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
-              invocationToken: bindings.CORTEX_MEET_INVOCATION });
+              invocationToken });
         callback(null, { output: encode(result) });
       } catch (error) {
         callback(null, { error: { type: 'execution', message: error instanceof Error ? error.message : 'Meet action failed' } });

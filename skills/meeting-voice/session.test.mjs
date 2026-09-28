@@ -27,7 +27,7 @@ function service(overrides = {}) {
     }
     const path = new URL(url).pathname;
     const body = options.body ? JSON.parse(options.body) : undefined;
-    requests.push({ path, token: options.headers.token, invocation: options.headers['X-Cortex-Meet-Invocation'], body });
+    requests.push({ path, token: options.headers.token, invocation: options.headers['X-Cortex-Host-Invocation'], body });
     if (overrides.deny?.(path, body)) return { ok: false, status: 403 };
     const now = Date.now();
     if (path === '/models') return { ok: true, json: async () => ({ data: [], links: {} }) };

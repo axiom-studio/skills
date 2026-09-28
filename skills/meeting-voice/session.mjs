@@ -102,7 +102,7 @@ export class MeetSessionService {
   async issuerPost(path, body, issuerToken, invocationToken, controlGrant) {
     const base = this.baseURL.endsWith('/') ? this.baseURL : `${this.baseURL}/`;
     const headers = { 'X-Tenant-ID': this.tenantID, 'Content-Type': 'application/json' };
-    if (invocationToken) headers['X-Cortex-Meet-Invocation'] = secret(invocationToken, 'Cortex meeting invocation');
+    if (invocationToken) headers['X-Cortex-Host-Invocation'] = secret(invocationToken, 'Cortex host invocation');
     else if (!controlGrant) headers.token = secret(issuerToken, 'Cortex meeting issuer token');
     const response = await this.fetchAPI(new URL(path, base), {
       method: 'POST',
@@ -223,6 +223,7 @@ export class MeetSessionService {
     };
     delete childEnv.CORTEX_MEET_ISSUER_TOKEN;
     delete childEnv.CORTEX_MEET_INVOCATION;
+    delete childEnv.CORTEX_HOST_INVOCATIONS;
     delete childEnv.CORTEX_MEET_CONTROL_GRANT;
     delete childEnv.CORTEX_BOT_TOKEN;
     // Secret bindings are action scoped. A long-lived worker never inherits a

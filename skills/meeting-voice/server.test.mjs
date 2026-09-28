@@ -9,6 +9,19 @@ function invoke(handler, request) {
   return new Promise((resolve, reject) => handler({ request }, (error, result) => error ? reject(error) : resolve(result)));
 }
 
+test('invalid or wrong-audience host grants never reach the meeting service or leak', async () => {
+  for (const binding of ['secret-malformed-json', { 'host:other': 'secret-token' }, [], null]) {
+    let called = false;
+    const result = await invoke(handlers({ status: async () => { called = true; } }).Execute, {
+      node_type: 'meet-status', context: { run_id: 'run', agent_id: 'agent' }, config: {},
+      bindings: { CORTEX_HOST_INVOCATIONS: Buffer.from(JSON.stringify(binding)) },
+    });
+    assert.equal(called, false);
+    assert.equal(result.error.message, 'Invalid host invocation binding');
+    assert.equal(JSON.stringify(result).includes('secret-'), false);
+  }
+});
+
 test('hosted Skill action derives authority from Run context and receives URL from config', async () => {
   const calls = [];
   const service = { start: async input => { calls.push(input); return { sessionId: 'session-1', status: 'joining' }; } };
@@ -16,7 +29,7 @@ test('hosted Skill action derives authority from Run context and receives URL fr
     node_type: 'meet-start', context: { run_id: 'run-1', agent_id: 'agent-1' },
     config: { url: Buffer.from(JSON.stringify('https://meet.google.com/abc-defg-hij')) },
     bindings: { CORTEX_MEET_ISSUER_TOKEN: Buffer.from(JSON.stringify('bot-secret')),
-      CORTEX_MEET_INVOCATION: Buffer.from(JSON.stringify('signed-invocation')),
+      CORTEX_HOST_INVOCATIONS: Buffer.from(JSON.stringify(JSON.stringify({ 'host:meet': 'signed-invocation' }))),
       AXIOM_SPEECH_TOKEN: Buffer.from(JSON.stringify('speech-secret')) },
     input: { conversationId: Buffer.from(JSON.stringify('foreign-chat')) },
   });
@@ -54,7 +67,7 @@ test('meeting actions receive the selected ElevenLabs Vault binding', async () =
   const service = { models: async input => { calls.push(input); return { transcriptionModels: [], speechModels: [] }; } };
   await invoke(handlers(service).Execute, {
     node_type: 'meet-models', context: { run_id: 'run-1', agent_id: 'agent-1' }, config: {},
-    bindings: { CORTEX_MEET_INVOCATION: Buffer.from(JSON.stringify('signed-invocation')),
+    bindings: { CORTEX_HOST_INVOCATIONS: Buffer.from(JSON.stringify(JSON.stringify({ 'host:meet': 'signed-invocation' }))),
       api_key: Buffer.from(JSON.stringify('vault-secret')) },
   });
   assert.equal(calls[0].elevenLabsAPIKey, 'vault-secret');
