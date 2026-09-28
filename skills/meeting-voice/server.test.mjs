@@ -55,11 +55,35 @@ test('meeting actions receive the selected ElevenLabs Vault binding', async () =
   await invoke(handlers(service).Execute, {
     node_type: 'meet-models', context: { run_id: 'run-1', agent_id: 'agent-1' }, config: {},
     bindings: { CORTEX_MEET_INVOCATION: Buffer.from(JSON.stringify('signed-invocation')),
-      elevenlabs_api: Buffer.from(JSON.stringify('vault-secret')) },
+      api_key: Buffer.from(JSON.stringify('vault-secret')) },
   });
   assert.equal(calls[0].elevenLabsAPIKey, 'vault-secret');
   assert.equal(calls[0].invocationToken, 'signed-invocation');
 });
+
+for (const action of ['meet-models', 'meet-start']) {
+  for (const [label, keys, expected] of [
+    ['current Vault field', { api_key: 'current-key' }, 'current-key'],
+    ['legacy installed binding', { elevenlabs_api: 'legacy-key' }, 'legacy-key'],
+    ['current field takes precedence', { api_key: 'current-key', elevenlabs_api: 'legacy-key' }, 'current-key'],
+  ]) {
+    test(`${action} forwards ${label} only to the service`, async () => {
+      const calls = [];
+      const capture = async input => { calls.push(input); return { status: 'joining' }; };
+      const result = await invoke(handlers({ models: capture, start: capture }).Execute, {
+        node_type: action,
+        context: { run_id: 'test-run', agent_id: 'test-agent' },
+        config: { url: Buffer.from(JSON.stringify('https://meet.google.com/abc-defg-hij')) },
+        bindings: Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, Buffer.from(JSON.stringify(value))])),
+      });
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].elevenLabsAPIKey, expected);
+      assert.equal(calls[0].agentID, 'test-agent');
+      const output = Object.values(result.output).map(value => value.toString()).join('');
+      assert.equal(output.includes(expected), false);
+    });
+  }
+}
 
 test('hosted Skill serves the standard gRPC Execute contract', async () => {
   const definition = protoLoader.loadSync(fileURLToPath(new URL('./skill.proto', import.meta.url)), { keepCase: true });

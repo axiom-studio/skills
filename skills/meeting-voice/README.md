@@ -54,7 +54,8 @@ worker revokes the record immediately across Sentinel replicas. Automatic
 meeting rejoin after a restart remains unimplemented.
 
 The `meet-models` and `meet-start` actions bind an `elevenlabs_api` credential
-selected from the tenant's Vault. The Skill parent uses that key to list
+selected from the tenant's Vault through its exact `api_key` field slot.
+The Skill parent uses that key to list
 available voices, transcribe meeting utterances with Scribe v2, and synthesize
 replies with the selected ElevenLabs speech model and voice. The browser worker
 requests these operations over IPC and never receives the reusable API key.
@@ -101,9 +102,9 @@ npm test
 From the `skills` repository root:
 
 ```bash
-docker build -f skills/meeting-voice/Dockerfile -t axiomstudio/skill-meeting-voice:0.2.2 .
-docker run --rm -e MEET_AUDIO_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.2
-docker run --rm -e MEET_BROWSER_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.2
+docker build -f skills/meeting-voice/Dockerfile -t axiomstudio/skill-meeting-voice:0.2.3 .
+docker run --rm -e MEET_AUDIO_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.3
+docker run --rm -e MEET_BROWSER_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.3
 ```
 
 The browser smoke serves an offline fake Meet page to the real packaged

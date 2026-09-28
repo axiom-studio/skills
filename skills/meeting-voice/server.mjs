@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { MeetSessionService } from './session.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.2';
+export const SKILL_VERSION = '0.2.3';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
@@ -41,18 +41,21 @@ export function handlers(service) {
       try {
         const input = decode(call.request.config);
         const bindings = decode(call.request.bindings);
+        // Current manifests use the Vault field slot. Keep older installations
+        // working while they still send the legacy type-name slot.
+        const elevenLabsAPIKey = bindings.api_key || bindings.elevenlabs_api;
         const common = { runID: context?.run_id, agentID: context?.agent_id };
         const result = action === 'meet-start'
           ? await service.start({ ...common, url: input.url, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken: bindings.CORTEX_MEET_INVOCATION,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
-            ...(bindings.elevenlabs_api ? { elevenLabsAPIKey: bindings.elevenlabs_api } : {}),
+            ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}),
             transcriptionModel: input.transcriptionModel,
             speechModel: input.speechModel, voice: input.voice, durationMinutes: input.durationMinutes })
           : action === 'meet-models' ? await service.models({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken: bindings.CORTEX_MEET_INVOCATION,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
-            ...(bindings.elevenlabs_api ? { elevenLabsAPIKey: bindings.elevenlabs_api } : {}) })
+            ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}) })
           : action === 'meet-stop' ? await service.stop({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken: bindings.CORTEX_MEET_INVOCATION })
             : await service.status({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,

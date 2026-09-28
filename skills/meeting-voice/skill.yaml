@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: openseal.meeting.voice
-  version: 0.2.2
+  version: 0.2.3
   name: Meeting voice
   description: Join an authorized Google Meet, Zoom, or Teams call as a visible Agent participant, listen, speak, and keep the conversation in Seal Chat.
   category: communication
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: meeting-voice
-    resolvedVersion: 0.2.2
+    resolvedVersion: 0.2.3
   transport:
     kind: tool
     endpoint: openseal.meeting.voice
@@ -20,7 +20,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party meeting voice service
-      package: axiomstudio/skill-meeting-voice:0.2.2
+      package: axiomstudio/skill-meeting-voice:0.2.3
   requirements:
     operatingSystems: [linux]
     compute:
@@ -63,7 +63,7 @@ definition:
       description: List ElevenLabs transcription models, speech models, and voices available through this Agent's selected Vault credential.
       inputSchema: {type: object, additionalProperties: false}
       credentials:
-        - name: elevenlabs_api
+        - name: api_key
           kind: elevenlabs_api
       permissions: [network:http]
       idempotency: supported
@@ -95,7 +95,7 @@ definition:
           expiresAt: {type: string}
           endedAt: {type: [string, 'null']}
       credentials:
-        - name: elevenlabs_api
+        - name: api_key
           kind: elevenlabs_api
       permissions: [browser:session, audio:capture, audio:playback, network:http]
       idempotency: required
