@@ -13,7 +13,10 @@ export class MeetingJoinError extends Error {
 
 async function joinStep(stage, operation) {
   try { return await operation(); }
-  catch { throw new MeetingJoinError(stage); }
+  catch (error) {
+    if (error instanceof MeetingJoinError) throw error;
+    throw new MeetingJoinError(stage);
+  }
 }
 
 export function meetingPlatform(value) {
@@ -56,7 +59,13 @@ async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested
   const prejoin = page.getByRole('button', {
     name: /^(Join now|Ask to join|Continue without microphone and camera)$/i,
   }).first();
-  await joinStep('Google Meet did not show its prejoin controls', () => prejoin.waitFor({ timeout: timeoutMs }));
+  const refused = page.getByText("You can't join this video call", { exact: true });
+  await joinStep('Google Meet did not show its prejoin controls', () => Promise.race([
+    prejoin.waitFor({ timeout: timeoutMs }),
+    refused.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => {
+      throw new MeetingJoinError('Google Meet refused access to this call; ask the host to confirm the link and guest access');
+    }),
+  ]));
   const withoutMedia = page.getByRole('button', { name: /^Continue without microphone and camera$/i });
   if (await visible(withoutMedia)) {
     await joinStep('the Google Meet media setup dialog could not be dismissed', () => withoutMedia.click({ timeout: timeoutMs }));

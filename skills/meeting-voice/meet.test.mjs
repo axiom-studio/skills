@@ -7,6 +7,7 @@ async function joinMeet(options) {
   return realJoinMeet({ ...options, chromiumAPI: { async launchPersistentContext(...args) {
     const context = await launch(...args);
     for (const page of context.pages()) {
+      page.getByText ??= () => ({ waitFor: () => new Promise(() => {}) });
       if (!page.getByRole) continue;
       const getByRole = page.getByRole.bind(page);
       page.getByRole = (...selector) => {
@@ -200,4 +201,28 @@ test('dismisses the initial media dialog before entering a guest name and joinin
     displayName: 'Meet Swift', chromiumAPI });
   assert.deepEqual(actions, ['dismiss media', 'Meet Swift', 'join']);
   await meeting.leave();
+});
+
+test('reports a Meet access refusal immediately without attempting to join', async () => {
+  let closed = false;
+  let clicked = false;
+  const page = {
+    goto: async () => {},
+    getByRole: () => ({
+      waitFor: () => new Promise(() => {}),
+      click: async () => { clicked = true; },
+    }),
+    getByText: (text, options) => {
+      assert.equal(text, "You can't join this video call");
+      assert.equal(options.exact, true);
+      return { waitFor: async () => {} };
+    },
+  };
+  const chromiumAPI = { launchPersistentContext: async () => ({
+    pages: () => [page], close: async () => { closed = true; },
+  }) };
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij',
+    profileDir: '/profile', chromiumAPI }), /Google Meet refused access.*host.*guest access/);
+  assert.equal(clicked, false);
+  assert.equal(closed, true);
 });
