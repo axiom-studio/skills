@@ -41,6 +41,27 @@ test('provider failures do not expose response bodies or Vault credentials', asy
   await assert.rejects(client.models(), error => error.message === 'ElevenLabs voice request failed (HTTP 403)');
 });
 
+test('provider errors expose only fixed actionable categories, never provider text', async () => {
+  for (const [status, expected] of [
+    ['invalid_api_key', /key was rejected/],
+    ['missing_permissions', /lacks permission/],
+    ['quota_exceeded', /insufficient quota/],
+    ['voice_not_found', /voice is unavailable/],
+    ['vault-secret', /^ElevenLabs voice request failed \(HTTP 401\)$/],
+    ['__proto__', /^ElevenLabs voice request failed \(HTTP 401\)$/],
+  ]) {
+    const client = new ElevenLabsClient({ apiKey: 'vault-secret', fetchAPI: async () => ({
+      ok: false, status: 401,
+      json: async () => ({ detail: { status, message: 'vault-secret and private meeting content' } }),
+    }) });
+    await assert.rejects(client.models(), error => {
+      assert.match(error.message, expected);
+      assert.doesNotMatch(error.message, /vault-secret|private meeting|__proto__/);
+      return true;
+    });
+  }
+});
+
 test('worker speech IPC carries utterances and replies without a provider key', async () => {
   const processRef = new EventEmitter();
   processRef.send = message => {

@@ -4,6 +4,24 @@ const API = 'https://api.elevenlabs.io';
 const VOICE_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const MODEL_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
+// Only fixed, locally owned explanations may cross the provider boundary.
+// In particular, never forward detail.message (it can contain request secrets).
+const PROVIDER_ERRORS = new Map([
+  ['invalid_api_key', 'The saved ElevenLabs API key was rejected. Update the saved connection before retrying.'],
+  ['missing_permissions', 'The saved ElevenLabs API key lacks permission for this operation. Update its permissions before retrying.'],
+  ['quota_exceeded', 'The ElevenLabs account has insufficient quota. Restore quota before retrying.'],
+  ['voice_not_found', 'The selected ElevenLabs voice is unavailable. Select an available voice before retrying.'],
+]);
+
+async function providerFailure(response) {
+  try {
+    const body = await response.json();
+    return PROVIDER_ERRORS.get(body?.detail?.status);
+  } catch {
+    return undefined;
+  }
+}
+
 export class ElevenLabsClient {
   constructor({ apiKey, fetchAPI = fetch }) {
     if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('ElevenLabs Vault credential is required');
@@ -16,8 +34,10 @@ export class ElevenLabsClient {
       ...options,
       headers: { 'xi-api-key': this.apiKey, ...options.headers },
     });
-    // Provider bodies may include request data. Never echo them into an Agent action.
-    if (!response.ok) throw new Error(`ElevenLabs voice request failed (HTTP ${response.status})`);
+    if (!response.ok) {
+      const explanation = await providerFailure(response);
+      throw new Error(`ElevenLabs voice request failed (HTTP ${response.status})${explanation ? `. ${explanation}` : ''}`);
+    }
     return response;
   }
 
