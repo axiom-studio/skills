@@ -4,6 +4,18 @@ const MEET_PATH = /^\/[a-z]{3}-[a-z]{4}-[a-z]{3}\/?$/;
 const ZOOM_PATH = /^\/j\/[0-9]{9,11}\/?$/;
 const TEAMS_PATH = /^\/l\/meetup-join\/[^/]{10,512}\/[^/]{1,80}\/?$/;
 
+export class MeetingJoinError extends Error {
+  constructor(stage) {
+    super(`The meeting could not be joined: ${stage}. No active meeting was confirmed.`);
+    this.name = 'MeetingJoinError';
+  }
+}
+
+async function joinStep(stage, operation) {
+  try { return await operation(); }
+  catch { throw new MeetingJoinError(stage); }
+}
+
 export function meetingPlatform(value) {
   let url;
   try { url = new URL(value); } catch { throw new Error('a direct meeting link is required'); }
@@ -41,17 +53,19 @@ async function enableMicrophone(page, platform) {
 }
 
 async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested) {
+  const join = page.getByRole('button', { name: /^(Join now|Ask to join)$/i });
+  await joinStep('Google Meet did not show its join controls', () => join.waitFor({ timeout: timeoutMs }));
+  // Meet renders the guest form asynchronously after DOMContentLoaded.
+  // Inspect the name field only once the prejoin controls are ready.
   const guestName = page.getByRole('textbox', { name: /^(Your name|Name)$/i });
-  if (await visible(guestName)) await guestName.fill(displayName);
+  if (await visible(guestName)) await joinStep('the guest name could not be entered', () => guestName.fill(displayName));
   const muted = page.getByRole('button', { name: /^Turn on microphone$/i });
   if (await visible(muted)) await muted.click();
-  const join = page.getByRole('button', { name: /^(Join now|Ask to join)$/i });
-  await join.waitFor({ timeout: timeoutMs });
   const admissionRequired = await visible(page.getByRole('button', { name: /^Ask to join$/i }));
-  await join.click();
+  await joinStep('the Google Meet join request could not be submitted', () => join.click({ timeout: timeoutMs }));
   if (admissionRequired) onAdmissionRequested?.();
   const leave = page.getByRole('button', { name: /^(Leave call|Leave meeting)$/i });
-  await leave.waitFor({ timeout: timeoutMs });
+  await joinStep('Google Meet did not confirm admission before the timeout', () => leave.waitFor({ timeout: timeoutMs }));
   await enableMicrophone(page, 'meet');
   return leave;
 }
@@ -104,7 +118,7 @@ export async function joinMeeting({ url, profileDir, executablePath, displayName
   else signal?.addEventListener('abort', abort, { once: true });
   try {
     const page = context.pages()[0] ?? await context.newPage();
-    await page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    await joinStep('the meeting page could not be loaded', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
     const leave = platform === 'meet' ? await joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested)
       : platform === 'zoom' ? await joinZoom(page, displayName, timeoutMs, onAdmissionRequested)
         : await joinTeams(page, displayName, timeoutMs, onAdmissionRequested);

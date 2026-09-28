@@ -80,7 +80,7 @@ test('closes the browser if admission fails', async () => {
     },
   };
   const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) };
-  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', chromiumAPI }), /admission timed out/);
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', chromiumAPI }), /did not confirm admission/);
   assert.equal(closed, true);
 });
 
@@ -118,4 +118,38 @@ test('reports host admission only after requesting it', async () => {
     chromiumAPI, onAdmissionRequested: () => actions.push('waiting') });
   assert.deepEqual(actions, ['requested', 'waiting']);
   await meeting.leave();
+});
+
+test('waits for the asynchronously rendered prejoin form before filling the guest name', async () => {
+  let ready = false;
+  let filled = false;
+  const page = {
+    goto: async () => {},
+    getByRole(role, { name }) {
+      if (role === 'textbox') return {
+        isVisible: async () => ready,
+        fill: async value => { assert.equal(value, 'Meet Swift'); filled = true; },
+      };
+      if (name.test('Leave call')) return { waitFor: async () => {}, click: async () => {} };
+      if (name.test('Join now')) return {
+        waitFor: async () => { ready = true; },
+        click: async () => { assert.equal(filled, true, 'join clicked with an empty guest name'); },
+      };
+      return { isVisible: async () => false };
+    },
+  };
+  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
+    displayName: 'Meet Swift', chromiumAPI });
+  await meeting.leave();
+});
+
+test('join diagnostics identify the failed stage without exposing browser error content', async () => {
+  const page = { goto: async () => { throw new Error('private page body and secret'); } };
+  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', chromiumAPI }), error => {
+    assert.match(error.message, /meeting page could not be loaded/);
+    assert.doesNotMatch(error.message, /private|secret/);
+    return true;
+  });
 });

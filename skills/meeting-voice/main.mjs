@@ -1,4 +1,5 @@
-import { joinMeeting, meetingURL } from './meet.mjs';
+import { joinMeeting, meetingURL, MeetingJoinError } from './meet.mjs';
+import { runWorker } from './worker-lifecycle.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -136,7 +137,8 @@ async function main() {
   } catch (error) {
     if (!controller.signal.aborted) {
       try {
-        await conversation.postStatus('The meeting voice session failed. Check the meeting link, host admission, and audio setup before starting it again.');
+        await conversation.postStatus(error instanceof MeetingJoinError ? error.message
+          : 'The meeting voice session failed. Check the meeting link, host admission, and audio setup before starting it again.');
       } catch (statusError) {
         console.error('Meet failure update failed:', statusError.name);
       }
@@ -151,4 +153,4 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error('Meet voice worker failed:', error.name); process.exitCode = 1; });
+void runWorker(main);
