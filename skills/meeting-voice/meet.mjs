@@ -57,7 +57,7 @@ async function enableMicrophone(page, platform) {
 
 async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested) {
   const prejoin = page.getByRole('button', {
-    name: /^(Join now|Ask to join|Continue without microphone and camera)$/i,
+    name: /^(Join now|Ask to join|Continue without microphone(?: and camera)?)$/i,
   }).first();
   const refused = page.getByText("You can't join this video call", { exact: true });
   await joinStep('Google Meet did not show its prejoin controls', () => Promise.race([
@@ -66,7 +66,7 @@ async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested
       throw new MeetingJoinError('Google Meet refused access to this call; ask the host to confirm the link and guest access');
     }),
   ]));
-  const withoutMedia = page.getByRole('button', { name: /^Continue without microphone and camera$/i });
+  const withoutMedia = page.getByRole('button', { name: /^Continue without microphone(?: and camera)?$/i });
   if (await visible(withoutMedia)) {
     await joinStep('the Google Meet media setup dialog could not be dismissed', () => withoutMedia.click({ timeout: timeoutMs }));
   }

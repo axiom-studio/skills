@@ -172,7 +172,8 @@ test('join diagnostics identify the failed stage without exposing browser error 
   });
 });
 
-test('dismisses the initial media dialog before entering a guest name and joining', async () => {
+for (const mediaLabel of ['Continue without microphone and camera', 'Continue without microphone']) {
+test(`dismisses ${mediaLabel} before entering a guest name and joining`, async () => {
   const actions = [];
   let dialog = true;
   const page = {
@@ -182,13 +183,13 @@ test('dismisses the initial media dialog before entering a guest name and joinin
         isVisible: async () => !dialog,
         fill: async value => actions.push(value),
       };
-      if (name.test('Continue without microphone and camera') && !name.test('Join now')) return {
+      if (name.test(mediaLabel) && !name.test('Join now')) return {
         isVisible: async () => dialog,
         click: async () => { dialog = false; actions.push('dismiss media'); },
       };
       if (name.test('Join now')) return {
         waitFor: async () => {
-          if (!name.test('Continue without microphone and camera')) assert.equal(dialog, false);
+          if (!name.test(mediaLabel)) assert.equal(dialog, false);
         },
         click: async () => { assert.equal(dialog, false); actions.push('join'); },
       };
@@ -202,6 +203,7 @@ test('dismisses the initial media dialog before entering a guest name and joinin
   assert.deepEqual(actions, ['dismiss media', 'Meet Swift', 'join']);
   await meeting.leave();
 });
+}
 
 test('reports a Meet access refusal immediately without attempting to join', async () => {
   let closed = false;
