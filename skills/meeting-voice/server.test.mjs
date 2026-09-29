@@ -9,6 +9,17 @@ function invoke(handler, request) {
   return new Promise((resolve, reject) => handler({ request }, (error, result) => error ? reject(error) : resolve(result)));
 }
 
+test('meet-speak forwards exact speech and session under host authority', async () => {
+  let input;
+  const reply = await invoke(handlers({ speak: async value => { input = value; return { delivery: 'played' }; } }).Execute, {
+    node_type: 'meet-speak', context: { run_id: 'run', agent_id: 'agent' },
+    config: Object.fromEntries(Object.entries({ text: 'Hi Vishnu', sessionId: 'session', requestId: 'utterance' }).map(([k, v]) => [k, Buffer.from(JSON.stringify(v))])),
+    bindings: { CORTEX_HOST_INVOCATIONS: Buffer.from(JSON.stringify({ 'host:meet': 'proof' })) },
+  });
+  assert.deepEqual(input, { runID: 'run', agentID: 'agent', sessionID: 'session', requestID: 'utterance', text: 'Hi Vishnu', invocationToken: 'proof' });
+  assert.equal(JSON.parse(reply.output.delivery), 'played');
+});
+
 test('invalid or wrong-audience host grants never reach the meeting service or leak', async () => {
   for (const binding of ['secret-malformed-json', { 'host:other': 'secret-token' }, [], null]) {
     let called = false;

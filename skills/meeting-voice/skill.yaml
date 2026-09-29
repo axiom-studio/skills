@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: openseal.meeting.voice
-  version: 0.2.10
+  version: 0.2.11
   name: Meeting voice
   description: Join an authorized Google Meet, Zoom, or Teams call as a visible Agent participant, listen, speak, and keep the conversation in Seal Chat.
   category: communication
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: meeting-voice
-    resolvedVersion: 0.2.10
+    resolvedVersion: 0.2.11
   transport:
     kind: tool
     endpoint: openseal.meeting.voice
@@ -20,7 +20,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party meeting voice service
-      package: axiomstudio/skill-meeting-voice:0.2.10
+      package: axiomstudio/skill-meeting-voice:0.2.11
   requirements:
     operatingSystems: [linux]
     compute:
@@ -35,7 +35,7 @@ definition:
         writableGroup: 1000
   prompt:
     userInvocable: true
-    allowedTools: [meet-models, meet-start, meet-status, meet-stop]
+    allowedTools: [meet-models, meet-start, meet-status, meet-stop, meet-speak]
     instructions: >-
       When the user explicitly asks you to join a Google Meet, Zoom, or Teams call
       and supplies a direct meeting link, use meet-models to find speech options available
@@ -65,7 +65,39 @@ definition:
       speaks that reply in the call, and Seal Chat keeps it as the transcript.
       Do not treat the Seal Chat transcript as the delivery channel for a
       meeting reply.
+      When an authenticated user types a request to say something in the call,
+      use meet-status for the current sessionId, then meet-speak with the exact
+      words and a unique requestId. Preserve that requestId for any retry of the
+      same utterance. Never substitute a written chat reply for this action.
+      Report played only as playback to the meeting microphone, not proof that
+      participants heard it. An unconfirmed result may have played partially or
+      fully; do not retry it under a new requestId without a fresh user instruction.
   actions:
+    meet-speak:
+      name: meet-speak
+      description: Speak an explicitly requested short line in this chat's active meeting and return a playback receipt. Only authenticated Seal Chat instructions may invoke this action.
+      inputSchema:
+        type: object
+        additionalProperties: false
+        required: [sessionId, requestId, text]
+        properties:
+          sessionId: {type: string, minLength: 1, maxLength: 128}
+          requestId: {type: string, minLength: 1, maxLength: 128, description: Unique utterance ID; reuse for retries of the same utterance.}
+          text: {type: string, minLength: 1, maxLength: 500}
+      outputSchema:
+        type: object
+        additionalProperties: false
+        required: [sessionId, requestId, delivery]
+        properties:
+          sessionId: {type: string}
+          requestId: {type: string}
+          delivery: {type: string, enum: [played, unconfirmed]}
+      permissions: [audio:playback, 'host:meet:speak']
+      idempotency: required
+      retry: {maxAttempts: 1}
+      risk: external
+      sideEffect: external
+      timeout: 150000000000
     meet-models:
       name: meet-models
       description: List ElevenLabs transcription models, speech models, and voices available through this Agent's selected Vault credential.

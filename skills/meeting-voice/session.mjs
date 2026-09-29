@@ -1,5 +1,5 @@
 import { fork } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { meetingURL } from './meet.mjs';
@@ -81,6 +81,7 @@ export class MeetSessionService {
           status: interrupted ? 'failed' : value.status,
           endedAt: interrupted ? new Date().toISOString() : value.endedAt,
           recoveryPending: interrupted || value.recoveryPending === true,
+          speechReceipts: value.speechReceipts ?? {},
           child: null,
         });
       }
@@ -92,8 +93,8 @@ export class MeetSessionService {
   persist() {
     const snapshot = {
       version: 1, tenantID: this.tenantID,
-      sessions: [...this.sessions.values()].map(({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending }) =>
-        ({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending: recoveryPending === true })),
+      sessions: [...this.sessions.values()].map(({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending, speechReceipts }) =>
+        ({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending: recoveryPending === true, speechReceipts })),
     };
     this.pendingWrite = this.pendingWrite.catch(() => {}).then(async () => {
       await mkdir(this.profilesDir, { recursive: true });
@@ -452,6 +453,52 @@ export class MeetSessionService {
     }, issuerToken, invocationToken)).token;
     return availableSpeechModels({ baseURL: this.speechConfig.AXIOM_SPEECH_API_URL,
       token: secret(token, 'speech token'), fetchAPI: this.fetchAPI });
+  }
+
+  async speak({ runID, agentID, invocationToken, sessionID, requestID, text }) {
+    agentID = validID(agentID, 'agent ID');
+    validID(sessionID, 'session ID');
+    validID(requestID, 'speech request ID');
+    secret(invocationToken, 'Cortex host invocation');
+    if (typeof text !== 'string' || !text.trim() || text.length > 500) throw new Error('Speech requires 1–500 characters');
+    const conversationID = await this.destination({ runID, agentID, invocationToken, action: 'meet-speak' });
+    await this.restore();
+    const session = this.sessions.get(agentID);
+    if (!session || session.id !== sessionID || session.conversationID !== conversationID) throw new Error('Speech requires this chat’s exact meeting session');
+    const digest = createHash('sha256').update(text).digest('hex');
+    session.speechReceipts ??= {};
+    if (Object.hasOwn(session.speechReceipts, requestID)) {
+      const receipt = session.speechReceipts[requestID];
+      if (receipt.digest !== digest) throw new Error('Speech request ID was already used for different text');
+      return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
+    }
+    if (session.status !== 'active' || !session.child || Date.parse(session.expiresAt) <= Date.now()) throw new Error('Speech requires an active meeting');
+    if (Object.keys(session.speechReceipts).length >= 128) throw new Error('Meeting speech request limit reached');
+    // Write the uncertain receipt before dispatch. A crash or retry must never
+    // repeat externally audible speech. No plaintext is stored here.
+    const receipt = { digest, delivery: 'unconfirmed' };
+    Object.defineProperty(session.speechReceipts, requestID, { value: receipt, enumerable: true });
+    await this.persist();
+    if (session.status !== 'active' || !session.child) return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
+    const child = session.child;
+    receipt.delivery = await new Promise(resolve => {
+      const finish = delivery => {
+        clearTimeout(timer); child.off('message', receive); child.off('exit', exited);
+        resolve(delivery);
+      };
+      const exited = () => finish('unconfirmed');
+      const receive = message => {
+        if (message?.type === 'speak-result' && message.id === requestID) {
+          finish(message.delivery === 'played' ? 'played' : 'unconfirmed');
+        }
+      };
+      const timer = setTimeout(exited, 120000);
+      child.on('message', receive); child.once('exit', exited);
+      try { child.send({ type: 'speak', id: requestID, text, deadline: Date.now() + 115000 }, error => { if (error) exited(); }); }
+      catch { exited(); }
+    });
+    await this.persist();
+    return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
   }
 
   async stop({ runID, agentID, issuerToken, invocationToken }) {

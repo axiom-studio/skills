@@ -62,6 +62,69 @@ function service(overrides = {}) {
       AXIOM_TRANSCRIPTION_MODEL: 'transcribe', AXIOM_SPEECH_MODEL: 'speak', AXIOM_SPEECH_VOICE: 'voice' } }), children, requests, profilesDir };
 }
 
+test('chat speech is session-scoped, acknowledged, durable and never replayed', async t => {
+  const { worker, children, profilesDir, requests } = service();
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  const input = { runID: 'run-1', agentID: 'agent-1', issuerToken: 'bound', speechToken: 'speech', url: 'https://meet.google.com/abc-defg-hij' };
+  const started = await worker.start(input);
+  const child = children[0].child;
+  child.emit('message', { status: 'active' });
+  const speech = { ...input, invocationToken: 'host-proof', sessionID: started.sessionId, requestID: 'utterance-1', text: 'Hello Vishnu' };
+  let sends = 0;
+  child.send = message => {
+    if (message.type !== 'speak') return;
+    sends++;
+    const state = JSON.parse(readFileSync(join(profilesDir, '.meet-voice-state.json')));
+    assert.equal(state.sessions[0].speechReceipts['utterance-1'].delivery, 'unconfirmed');
+    assert.doesNotMatch(JSON.stringify(state), /Hello Vishnu/);
+    child.emit('message', { type: 'speak-result', id: message.id, delivery: 'played' });
+  };
+  assert.equal((await worker.speak(speech)).delivery, 'played');
+  assert.equal((await worker.speak(speech)).delivery, 'played');
+  assert.equal(sends, 1);
+  assert.equal(requests.at(-1).body.action, 'meet-speak');
+  await assert.rejects(worker.speak({ ...speech, text: 'different' }), /different text/);
+  await assert.rejects(worker.speak({ ...speech, sessionID: 'other-session' }), /exact meeting session/);
+  await assert.rejects(worker.speak({ ...speech, invocationToken: undefined }), /host invocation/);
+  child.emit('exit', 0);
+  await worker.pendingWrite;
+  const restored = service({ profilesDir }).worker;
+  assert.equal((await restored.speak(speech)).delivery, 'played');
+  await assert.rejects(restored.speak({ ...speech, requestID: 'new' }), /active meeting/);
+});
+
+test('speech authorization failure, foreign chat and inactive session cannot dispatch', async t => {
+  for (const mode of ['denied', 'foreign', 'inactive']) {
+    const { worker, children, profilesDir } = service({
+      deny: (_path, body) => mode === 'denied' && body?.action === 'meet-speak',
+      result: (_path, result, body) => mode === 'foreign' && body?.action === 'meet-speak' ? { conversationId: 'foreign-chat' } : result,
+    });
+    t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+    const input = { runID: 'run-1', agentID: 'agent-1', issuerToken: 'bound', speechToken: 'speech', url: 'https://meet.google.com/abc-defg-hij' };
+    const started = await worker.start(input);
+    const child = children[0].child;
+    child.send = () => assert.fail('must not dispatch');
+    await assert.rejects(worker.speak({ ...input, invocationToken: 'proof', sessionID: started.sessionId, requestID: 'one', text: 'Hello' }));
+    child.emit('exit', 0);
+    await worker.pendingWrite;
+  }
+});
+
+test('uncertain speech after worker exit is not replayed', async t => {
+  const { worker, children, profilesDir } = service();
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  const started = await worker.start({ runID: 'run-1', agentID: 'agent-1', issuerToken: 'bound', speechToken: 'speech', url: 'https://meet.google.com/abc-defg-hij' });
+  const child = children[0].child;
+  child.emit('message', { status: 'active' });
+  let sends = 0;
+  child.send = message => { if (message.type === 'speak') { sends++; child.emit('exit', 1); } };
+  const input = { runID: 'run-1', agentID: 'agent-1', invocationToken: 'proof', sessionID: started.sessionId, requestID: 'one', text: 'Hello' };
+  assert.equal((await worker.speak(input)).delivery, 'unconfirmed');
+  assert.equal((await worker.speak(input)).delivery, 'unconfirmed');
+  assert.equal(sends, 1);
+  await worker.pendingWrite;
+});
+
 test('start derives the Seal Chat from the authenticated Run and persists past that turn', async t => {
   const { worker, children, requests, profilesDir } = service();
   t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
