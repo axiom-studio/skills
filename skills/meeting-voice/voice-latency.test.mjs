@@ -22,6 +22,7 @@ test('short chunks preserve text and prefetch at most one chunk during playback'
   const chunks = [];
   let played = 0;
   await playSpeechChunks(text, {
+    maximum: 240,
     synthesize: async chunk => {
       chunks.push(chunk);
       assert.ok(chunks.length <= played + 2);

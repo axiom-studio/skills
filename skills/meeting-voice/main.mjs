@@ -8,7 +8,7 @@ import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
 import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
-import { playSpeechChunks, timedVoiceStage } from './voice-latency.mjs';
+import { playSpeechChunks, playSpeechStream, timedVoiceStage } from './voice-latency.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, UtteranceDetector } from './bridge.mjs';
 
@@ -83,11 +83,18 @@ async function main() {
   let speaking = false;
   async function playAudioText(text) {
     try {
-      await playSpeechChunks(text, {
+      const onPlaybackStart = () => { speaking = true; detector.reset(); };
+      if (typeof speech.synthesizeStream === 'function') {
+        await playSpeechStream(text, {
+          synthesizeStream: (chunk, signal) => speech.synthesizeStream(chunk, signal),
+          speak: pcm => audio.speak(pcm), signal: controller.signal,
+          maximum: speechChunkCharacters, onPlaybackStart,
+        });
+      } else await playSpeechChunks(text, {
         synthesize: (chunk, signal) => speech.synthesize(chunk, signal), decode: decodeSpeech,
         speak: pcm => audio.speak(pcm), signal: controller.signal,
         maximum: speechChunkCharacters, sampleRate: SAMPLE_RATE,
-        onPlaybackStart: () => { speaking = true; detector.reset(); },
+        onPlaybackStart,
       });
     } finally {
       speaking = false;
