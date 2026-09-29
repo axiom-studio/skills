@@ -109,6 +109,29 @@ accuracy, TTS continuity, real request overhead/rate limits, and end-to-end
 participant-to-bot audibility remain unverified. The previously observed
 12–54 second agent-generation delays are outside this pipeline simulation.
 
-Before claiming near-real-time: address fixed-chunk slow-provider regression,
-then measure capture → transcript → agent reply → first audible speech in an
+## Realtime transcription revision
+
+New ElevenLabs sessions without an explicit transcription selection default to
+`scribe_v2_realtime`; an explicit `scribe_v2` still selects the batch path. Both
+are exposed in `meet-models`. The key stays in the parent process and is sent as
+an authorization header on a fixed-origin WebSocket, never as a child secret or
+URL query parameter. Audio is sent in 100ms frames with bounded queues. Only
+`committed_transcript` enters the existing canonical chat queue; partial and
+timestamp follow-ups do not create duplicate agent turns.
+
+Provider VAD is configured for 500ms of silence. This is a setting, **not a
+measured end-to-end guarantee**; the provider documents an initial processing
+window and live accuracy/latency must still be tested. Provider errors,
+disconnects and queue overflows fail explicitly; no automatic replay/reconnect
+can duplicate speech or spend unbounded requests.
+
+The Node 22 container suite passed **162 tests, zero skipped**, including a real
+loopback WebSocket PCM/transcript exchange. That test proves transport behavior,
+not live ElevenLabs transcription quality. Dependencies are pinned, including
+`ws` 8.22.0.
+
+References: [realtime API](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime),
+[commit events](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/event-reference).
+
+Before claiming near-real-time: measure capture → transcript → agent reply → first audible speech in an
 approved live session, with per-stage p50/p95 and interruption/accuracy checks.
