@@ -18,6 +18,8 @@ test('utterances reach chat in order while an agent reply remains pending', asyn
   assert.deepEqual(replies, ['one']);
   assert.equal(queue.pendingBytes, 0);
   release();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(replies, ['one', 'three']);
 });
 
 test('bounded backlog and transcription failure stop capture explicitly', async () => {
