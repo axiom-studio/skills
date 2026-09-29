@@ -48,10 +48,25 @@ test('provider failures are sanitized and terminate once', async () => {
   const f = fixture();
   f.event({ message_type: 'auth_error', error: 'private-key and transcript' });
   await assert.rejects(f.session.ready, /^Error: Realtime transcription closed$/);
-  assert.deepEqual(f.errors, ['provider']);
+  assert.deepEqual(f.errors, ['provider_auth']);
   assert.equal(f.socket.terminated, true);
   f.socket.emit('error', new Error('private-key'));
   assert.equal(f.errors.length, 1);
+});
+
+test('known provider categories survive without raw error data and unknown events stay generic', async () => {
+  for (const [event, category] of [
+    ['insufficient_audio_activity', 'provider_idle'], ['quota_exceeded', 'provider_quota'],
+    ['session_time_limit_exceeded', 'provider_session_limit'], ['rate_limited', 'provider_rate_limit'],
+    ['private-transcript', 'provider'],
+  ]) {
+    const f = fixture();
+    f.event({ message_type: 'session_started' });
+    await f.session.ready;
+    f.event({ message_type: event, error: 'private-key and private transcript' });
+    assert.deepEqual(f.errors, [category]);
+    assert.equal(f.socket.terminated, true);
+  }
 });
 
 test('bounded provider send buffer and invalid PCM fail explicitly', async () => {
