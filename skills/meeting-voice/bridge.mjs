@@ -40,7 +40,7 @@ export function pcmWav(pcm, sampleRate = SAMPLE_RATE) {
 }
 
 export class UtteranceDetector {
-  constructor(onUtterance, { threshold = 650, silenceMs = 700, minMs = 300, maxMs = 20000 } = {}) {
+  constructor(onUtterance, { threshold = 650, silenceMs = 500, minMs = 300, maxMs = 10000 } = {}) {
     this.onUtterance = onUtterance;
     this.threshold = threshold;
     this.silenceFrames = Math.ceil(silenceMs / 20);
@@ -326,13 +326,15 @@ export class CortexConversation {
     }
   }
 
-  async waitForReply(triggerMessageID, timeoutMs = 90000, signal) {
+  async waitForReply(triggerMessageID, timeoutMs = 90000, signal, afterSequence = this.sequence) {
     requireText(triggerMessageID, 'meeting utterance ID');
+    // This read cursor belongs to this reply, not concurrent transcript writes.
+    let cursor = afterSequence;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline && !signal?.aborted) {
-      const messages = await this.request(`messages?afterSequence=${this.sequence}`, 'GET', undefined, signal);
+      const messages = await this.request(`messages?afterSequence=${cursor}`, 'GET', undefined, signal);
       for (const message of messages) {
-        this.sequence = Math.max(this.sequence, message.sequence);
+        cursor = Math.max(cursor, message.sequence);
         if (message.sender?.type === 'agent' && String(message.sender.id) === this.agentID &&
             message.replyToMessageId === triggerMessageID && message.audience?.kind === 'channel' &&
             typeof message.content === 'string' && message.content.trim()) {

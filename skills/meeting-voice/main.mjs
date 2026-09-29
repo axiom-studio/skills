@@ -8,9 +8,9 @@ import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
 import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
+import { playSpeechChunks, timedVoiceStage } from './voice-latency.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
-import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
-import { setTimeout as delay } from 'node:timers/promises';
+import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, UtteranceDetector } from './bridge.mjs';
 
 async function main() {
   const config = {
@@ -82,15 +82,13 @@ async function main() {
   let presenceCheck;
   let speaking = false;
   async function playAudioText(text) {
-    speaking = true;
-    detector.reset();
     try {
-      for (const chunk of speechChunks(text, speechChunkCharacters)) {
-        const encoded = await speech.synthesize(chunk, controller.signal);
-        const output = await decodeSpeech(encoded);
-        await audio.speak(output);
-        await delay(Math.ceil(output.length / (SAMPLE_RATE * 2) * 1000) + 500, undefined, { signal: controller.signal });
-      }
+      await playSpeechChunks(text, {
+        synthesize: (chunk, signal) => speech.synthesize(chunk, signal), decode: decodeSpeech,
+        speak: pcm => audio.speak(pcm), signal: controller.signal,
+        maximum: speechChunkCharacters, sampleRate: SAMPLE_RATE,
+        onPlaybackStart: () => { speaking = true; detector.reset(); },
+      });
     } finally {
       speaking = false;
       detector.reset();
@@ -104,10 +102,10 @@ async function main() {
   });
   const transcripts = new TranscriptQueue({
     signal: controller.signal,
-    transcribe: pcm => speech.transcribe(pcm, controller.signal),
-    postUtterance: text => conversation.postUtterance(text, controller.signal),
+    transcribe: pcm => timedVoiceStage('transcription', () => speech.transcribe(pcm, controller.signal)),
+    postUtterance: text => timedVoiceStage('transcript_post', () => conversation.postUtterance(text, controller.signal)),
     reply: async utterance => {
-      const reply = await conversation.waitForReply(utterance.id, 90000, controller.signal);
+      const reply = await timedVoiceStage('agent_reply', () => conversation.waitForReply(utterance.id, 90000, controller.signal, utterance.sequence));
       if (!reply || controller.signal.aborted) return;
       try {
         await playText(reply);
@@ -117,7 +115,8 @@ async function main() {
         throw error;
       }
     },
-    onError: async () => {
+    onError: async stage => {
+      console.warn(JSON.stringify({ event: 'meeting_voice_pipeline_failed', stage }));
       try {
         await conversation.postStatus('I stopped because the audio processing pipeline could not keep up or failed. The transcript may be incomplete.', controller.signal);
       } finally { controller.abort(); }

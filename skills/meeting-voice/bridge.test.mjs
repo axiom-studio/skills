@@ -226,3 +226,22 @@ test('spoken reply matches this meeting utterance and is channel visible', async
   });
   assert.equal(await client.waitForReply('meeting-1', 100), 'Meeting answer');
 });
+
+test('reply cursor is isolated from concurrent transcript writes', async () => {
+  const cursors = [];
+  const client = new CortexConversation({
+    baseURL: 'https://cortex.example/orchestrator/agent/meet/v1/sessions/meeting-1/', grant: 'meeting-grant',
+    tenantID: '7', agentID: '42', conversationID: 'conv-1', sessionID: 'meeting-1',
+    fetchAPI: async url => {
+      cursors.push(new URL(url).searchParams.get('afterSequence'));
+      client.sequence = 100;
+      return { ok: true, json: async () => ({ result: cursors.length === 1 ? [] : [
+        { sequence: 9, sender: { type: 'agent', id: '42' }, replyToMessageId: 'trigger', audience: { kind: 'channel' }, content: 'Answer' },
+      ] }) };
+    },
+  });
+  client.sequence = 50;
+  assert.equal(await client.waitForReply('trigger', 2000, undefined, 6), 'Answer');
+  assert.deepEqual(cursors, ['6', '6']);
+  assert.equal(client.sequence, 100);
+});
