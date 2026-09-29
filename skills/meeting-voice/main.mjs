@@ -9,6 +9,7 @@ import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
 import { ReplyInbox } from './reply-inbox.mjs';
 import { RealtimeCapture } from './realtime-transcription.mjs';
+import { realtimeFailureStage, voiceFailureMessage } from './voice-failure.mjs';
 import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
 import { playSpeechChunks, playSpeechStream, timedVoiceStage } from './voice-latency.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
@@ -129,7 +130,7 @@ async function main() {
     onError: async stage => {
       console.warn(JSON.stringify({ event: 'meeting_voice_pipeline_failed', stage }));
       try {
-        await conversation.postStatus('I stopped because the audio processing pipeline could not keep up or failed. The transcript may be incomplete.', controller.signal);
+        await conversation.postStatus(voiceFailureMessage(stage), controller.signal);
       } finally { controller.abort(); }
     },
   });
@@ -137,7 +138,7 @@ async function main() {
   let realtimeCapture;
   process.on('message', message => {
     if (message?.type !== 'speech-transcript' || !realtimeCapture) return;
-    if (message.error) transcripts.fail('realtime_transcription');
+    if (message.error) transcripts.fail(realtimeFailureStage(message.stage));
     else transcripts.enqueueText(message.text);
   });
 
