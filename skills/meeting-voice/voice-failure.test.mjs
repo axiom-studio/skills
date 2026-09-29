@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { realtimeFailureStage, voiceFailureMessage } from './voice-failure.mjs';
+import { realtimeProviderFailureStage, realtimeFailureStage, voiceFailureMessage } from './voice-failure.mjs';
 
 test('known realtime failure categories survive the worker boundary', () => {
   for (const stage of ['startup_timeout', 'connection', 'connection_closed', 'provider', 'invalid_event', 'backlog', 'delivery']) {
@@ -23,4 +23,19 @@ test('only measured backlog is described as inability to keep up', () => {
   for (const stage of ['delivery', 'invalid_event', undefined]) {
     assert.doesNotMatch(voiceFailureMessage(realtimeFailureStage(stage)), /faster than|could not keep up/);
   }
+});
+
+test('provider idle, quota, and lifetime causes survive the complete diagnostic mapping', () => {
+  for (const [event, description] of [
+    ['insufficient_audio_activity', /insufficient audio activity/],
+    ['quota_exceeded', /quota was exhausted/],
+    ['session_time_limit_exceeded', /session time limit/],
+  ]) {
+    const stage = realtimeFailureStage(realtimeProviderFailureStage(event));
+    assert.match(voiceFailureMessage(stage), description);
+    assert.doesNotMatch(voiceFailureMessage(stage), /faster than/);
+  }
+  const unknown = realtimeFailureStage(realtimeProviderFailureStage('private-key'));
+  assert.equal(unknown, 'realtime_transcription_provider');
+  assert.doesNotMatch(voiceFailureMessage(unknown), /private-key/);
 });

@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { realtimeProviderFailureStage } from './voice-failure.mjs';
 
 // Parent-only provider connection. Never forward raw provider errors or keys.
 export class RealtimeTranscription {
@@ -36,7 +37,7 @@ export class RealtimeTranscription {
         const text = message.text.trim();
         if (text) this.onTranscript(text);
       } else if (!['partial_transcript', 'committed_transcript_with_timestamps', 'warning'].includes(message.message_type)) {
-        this.fail('provider');
+        this.fail(realtimeProviderFailureStage(message.message_type));
       }
     } catch { this.fail('invalid_event'); }
   }
