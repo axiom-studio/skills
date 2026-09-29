@@ -13,7 +13,7 @@ export async function openBrowserRFB({ display, signal }) {
   const path = join(directory, 'desktop');
   const child = spawn('x11vnc', ['-display', display, '-unixsock', path, '-rfbport', '0',
     '-no6', '-safer', '-nocmds', '-nosel', '-nosetclipboard', '-nosetprimary',
-    '-nevershared', '-once', '-nopw', '-quiet', '-wait', '10', '-defer', '5'],
+    '-nevershared', '-once', '-nopw', '-quiet', '-noxdamage', '-wait', '10', '-defer', '5'],
   { stdio: 'ignore' });
   let socket, closed = false, killTimer;
   const close = () => {
