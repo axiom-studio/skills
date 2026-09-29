@@ -7,6 +7,7 @@ import { createBrowserDesktop } from './browser-desktop.mjs';
 import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
+import { ReplyInbox } from './reply-inbox.mjs';
 import { RealtimeCapture } from './realtime-transcription.mjs';
 import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
 import { playSpeechChunks, playSpeechStream, timedVoiceStage } from './voice-latency.mjs';
@@ -108,21 +109,23 @@ async function main() {
     void handleSpeak(message, playback, () => Boolean(meeting && audio && !controller.signal.aborted),
       result => { if (process.connected) process.send?.(result); });
   });
+  const replyInbox = new ReplyInbox({
+    agentID: config.cortex.agentID, signal: controller.signal,
+    read: (cursor, signal) => conversation.request(`messages?afterSequence=${cursor}`, 'GET', undefined, signal),
+    deliver: async reply => {
+      try { await playText(reply); }
+      catch (error) {
+        await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal).catch(() => {});
+        throw error;
+      }
+    },
+    onError: stage => transcripts.fail(stage),
+  });
   const transcripts = new TranscriptQueue({
     signal: controller.signal,
     transcribe: pcm => timedVoiceStage('transcription', () => speech.transcribe(pcm, controller.signal)),
     postUtterance: text => timedVoiceStage('transcript_post', () => conversation.postUtterance(text, controller.signal)),
-    reply: async utterance => {
-      const reply = await timedVoiceStage('agent_reply', () => conversation.waitForReply(utterance.id, 90000, controller.signal, utterance.sequence));
-      if (!reply || controller.signal.aborted) return;
-      try {
-        await playText(reply);
-      } catch (error) {
-        await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal)
-          .catch(() => {});
-        throw error;
-      }
-    },
+    reply: utterance => replyInbox.register(utterance),
     onError: async stage => {
       console.warn(JSON.stringify({ event: 'meeting_voice_pipeline_failed', stage }));
       try {
