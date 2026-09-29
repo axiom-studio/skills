@@ -1,4 +1,4 @@
-import { chromium } from 'playwright-core';
+import { meetingBrowser } from './meeting-browser.mjs';
 import { detectBrowserIntervention } from './browser-intervention.mjs';
 
 const MEET_PATH = /^\/[a-z]{3}-[a-z]{4}-[a-z]{3}\/?$/;
@@ -119,22 +119,13 @@ async function joinTeams(page, displayName, timeoutMs, onAdmissionRequested) {
   return leave;
 }
 
-export async function joinMeeting({ url, profileDir, executablePath, displayName = 'Axiom Agent', timeoutMs = 120000,
-  chromiumAPI = chromium, signal, display, onAdmissionRequested, handoff, handoffBeforeJoin = false, interventionReason = detectBrowserIntervention }) {
+export async function joinMeeting({ url, profileDir, displayName = 'Axiom Agent', timeoutMs = 120000,
+  browserAPI = meetingBrowser, signal, display, onAdmissionRequested, handoff, handoffBeforeJoin = false, interventionReason = detectBrowserIntervention }) {
   if (!profileDir) throw new Error('a browser profile directory is required');
   if (display !== undefined && !/^:[0-9]{1,5}$/.test(display)) throw new Error('Invalid browser display');
   const target = meetingURL(url);
   const platform = meetingPlatform(target);
-  const context = await chromiumAPI.launchPersistentContext(profileDir, {
-    executablePath,
-    headless: !display,
-    viewport: display ? null : { width: 1280, height: 800 },
-    ...(display ? { env: { ...process.env, DISPLAY: display } } : {}),
-    acceptDownloads: false,
-    permissions: ['microphone'],
-    args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-fake-ui-for-media-stream',
-      '--autoplay-policy=no-user-gesture-required', ...(display ? ['--ozone-platform=x11', '--start-maximized', '--window-position=0,0', '--window-size=1280,800'] : [])],
-  });
+  const context = await browserAPI.launchPersistentContext(profileDir, { display });
   const abort = () => { void context.close().catch(() => {}); };
   if (signal?.aborted) abort();
   else signal?.addEventListener('abort', abort, { once: true });

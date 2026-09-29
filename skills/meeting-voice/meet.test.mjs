@@ -4,8 +4,8 @@ import { meetingPlatform, meetingURL, joinMeet as realJoinMeet } from './meet.mj
 import { BrowserHandoff } from './browser-handoff.mjs';
 
 async function joinMeet(options) {
-  const launch = options.chromiumAPI.launchPersistentContext;
-  return realJoinMeet({ ...options, chromiumAPI: { async launchPersistentContext(...args) {
+  const launch = options.browserAPI.launchPersistentContext;
+  return realJoinMeet({ ...options, browserAPI: { async launchPersistentContext(...args) {
     const context = await launch(...args);
     for (const page of context.pages()) {
       page.getByText ??= () => ({ waitFor: () => new Promise(() => {}) });
@@ -59,9 +59,9 @@ test('joins a Zoom browser meeting with a visible guest name', async () => {
     },
     getByText: () => ({ isVisible: async () => false }),
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://zoom.us/j/12345678901', profileDir: '/profile',
-    displayName: 'Quorum', chromiumAPI });
+    displayName: 'Quorum', browserAPI });
   assert.equal(meeting.platform, 'zoom');
   assert.deepEqual(actions, ['browser', 'Quorum', 'join']);
   await meeting.leave();
@@ -79,9 +79,9 @@ test('joins Teams through the browser and waits for admission', async () => {
     },
     getByText: () => ({ isVisible: async () => true }),
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0',
-    profileDir: '/profile', displayName: 'Quorum', chromiumAPI,
+    profileDir: '/profile', displayName: 'Quorum', browserAPI,
     onAdmissionRequested: () => actions.push('waiting') });
   assert.equal(meeting.platform, 'teams');
   assert.deepEqual(actions, ['click', 'Quorum', 'click', 'waiting', 'click']);
@@ -98,8 +98,8 @@ test('closes the browser if admission fails', async () => {
       return button;
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) };
-  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', chromiumAPI }), /did not confirm admission/);
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) };
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', browserAPI }), /did not confirm admission/);
   assert.equal(closed, true);
 });
 
@@ -114,9 +114,9 @@ test('fills a visible guest name before requesting admission', async () => {
       return button;
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
-    displayName: 'Axiom Meeting Agent', chromiumAPI });
+    displayName: 'Axiom Meeting Agent', browserAPI });
   assert.deepEqual(actions, ['Axiom Meeting Agent', 'join']);
   await meeting.leave();
 });
@@ -132,9 +132,9 @@ test('reports host admission only after requesting it', async () => {
       return { waitFor: async () => {}, click: async () => { actions.push('requested'); }, isVisible: async () => false };
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
-    chromiumAPI, onAdmissionRequested: () => actions.push('waiting') });
+    browserAPI, onAdmissionRequested: () => actions.push('waiting') });
   assert.deepEqual(actions, ['requested', 'waiting']);
   await meeting.leave();
 });
@@ -157,16 +157,16 @@ test('waits for the asynchronously rendered prejoin form before filling the gues
       return { isVisible: async () => false };
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
-    displayName: 'Meet Swift', chromiumAPI });
+    displayName: 'Meet Swift', browserAPI });
   await meeting.leave();
 });
 
 test('join diagnostics identify the failed stage without exposing browser error content', async () => {
   const page = { goto: async () => { throw new Error('private page body and secret'); } };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
-  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', chromiumAPI }), error => {
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', browserAPI }), error => {
     assert.match(error.message, /meeting page could not be loaded/);
     assert.doesNotMatch(error.message, /private|secret/);
     return true;
@@ -198,9 +198,9 @@ test(`dismisses ${mediaLabel} before entering a guest name and joining`, async (
       return { isVisible: async () => false };
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
+  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
   const meeting = await joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
-    displayName: 'Meet Swift', chromiumAPI });
+    displayName: 'Meet Swift', browserAPI });
   assert.deepEqual(actions, ['dismiss media', 'Meet Swift', 'join']);
   await meeting.leave();
 });
@@ -221,11 +221,11 @@ test('reports a Meet access refusal immediately without attempting to join', asy
       return { waitFor: async () => {} };
     },
   };
-  const chromiumAPI = { launchPersistentContext: async () => ({
+  const browserAPI = { launchPersistentContext: async () => ({
     pages: () => [page], close: async () => { closed = true; },
   }) };
   await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij',
-    profileDir: '/profile', chromiumAPI }), /Google Meet refused access.*host.*guest access/);
+    profileDir: '/profile', browserAPI }), /Google Meet refused access.*host.*guest access/);
   assert.equal(clicked, false);
   assert.equal(closed, true);
 });
@@ -241,7 +241,7 @@ test('a failed join without a human-only blocker does not offer handoff', async 
   await assert.rejects(joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile',
     handoff: { request: async () => { requested = true; } },
     interventionReason: async () => undefined,
-    chromiumAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) },
+    browserAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) },
   }), /Google Meet refused access/);
   assert.equal(requested, false);
   assert.equal(closed, true);
@@ -270,7 +270,7 @@ test(`handoff retains the same browser and confirms manual admission (explicit s
   const joining = joinMeet({ url: 'https://meet.google.com/abc-defg-hij', profileDir: '/profile', handoff,
     handoffBeforeJoin,
     interventionReason: async () => 'authentication',
-    chromiumAPI: { launchPersistentContext: async () => { launches++; return context; } } });
+    browserAPI: { launchPersistentContext: async () => { launches++; return context; } } });
   await ready;
   assert.equal(closed, 0);
   const lease = await handoff.handle(principal, { type: 'claim' });
@@ -314,7 +314,7 @@ test('returning from sign-in reopens only the approved meeting once, without rea
   const target = 'https://meet.google.com/abc-defg-hij';
   const joining = joinMeet({ url: target, profileDir: '/profile', handoff,
     interventionReason: async () => 'authentication',
-    chromiumAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) } });
+    browserAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) } });
   await ready;
   const lease = await handoff.handle(principal, { type: 'claim' });
   await handoff.handle(principal, { type: 'input', leaseID: lease.id, input: { type: 'click', x: 10, y: 10 } });

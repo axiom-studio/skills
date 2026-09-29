@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream';
 import { BrowserControl } from './browser-control.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { createBrowserDesktop } from './browser-desktop.mjs';
-import { chromium } from 'playwright-core';
+import { meetingBrowser } from './meeting-browser.mjs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,9 +67,7 @@ test('native clicks and text reach the visible browser on the isolated video dis
     let display, context, control;
     try {
       display = await createBrowserDesktop({ signal: controller.signal });
-      context = await chromium.launchPersistentContext(profile, { executablePath: process.env.BROWSER_TEST_EXECUTABLE || '/usr/bin/chromium',
-        headless: false, viewport: null, env: { ...process.env, DISPLAY: display.display },
-        args: ['--no-sandbox', '--disable-dev-shm-usage', '--ozone-platform=x11', '--start-maximized', '--window-position=0,0', '--window-size=1280,800'] });
+      context = await meetingBrowser.launchPersistentContext(profile, { display: display.display });
       const page = context.pages()[0];
       await page.setContent('<input aria-label="Test input" style="position:absolute;left:30px;top:40px;width:400px;height:40px"><div style="height:2400px"></div>');
       await page.bringToFront();
@@ -80,7 +78,7 @@ test('native clicks and text reach the visible browser on the isolated video dis
       await page.evaluate(() => document.addEventListener('mousedown', event => {
         document.body.dataset.lastClick = JSON.stringify({ tag: event.target.tagName, x: event.clientX, y: event.clientY });
       }));
-      const geometry = await page.evaluate(() => ({ width: screen.width, height: screen.height,
+      const geometry = await page.evaluate(() => ({ width: outerWidth, height: outerHeight,
         contentOffset: outerHeight - innerHeight }));
       assert.equal(geometry.width, 1280);
       assert.equal(geometry.height, 800);

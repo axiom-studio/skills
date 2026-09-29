@@ -16,7 +16,6 @@ async function main() {
     expiresAt: process.env.MEET_SESSION_EXPIRES_AT,
     profileDir: process.env.GOOGLE_PROFILE_DIR,
     displayName: process.env.MEET_DISPLAY_NAME || 'Axiom Agent',
-    executablePath: process.env.CHROMIUM_PATH,
     cortex: {
       baseURL: process.env.CORTEX_MEET_SESSION_API_URL,
       grant: process.env.CORTEX_MEET_GRANT,
@@ -34,8 +33,8 @@ async function main() {
       voice: process.env.AXIOM_SPEECH_VOICE,
     },
   };
-  if (!config.profileDir || !config.executablePath) {
-    throw new Error('the bot browser profile and Chromium executable are required');
+  if (!config.profileDir) {
+    throw new Error('the bot browser profile is required');
   }
   const conversation = new CortexConversation(config.cortex);
   const controller = new AbortController();
@@ -72,7 +71,7 @@ async function main() {
     }
   });
   const commands = audioCommands();
-  Object.assign(process.env, commands.chromeEnv);
+  Object.assign(process.env, commands.browserEnv);
   const speechChunkCharacters = Number(process.env.AXIOM_SPEECH_CHUNK_CHARACTERS) || 3000;
 
   let meeting;

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from 'playwright-core';
+import { meetingBrowser } from './meeting-browser.mjs';
 import { joinMeet } from './meet.mjs';
 
 const profileDir = await mkdtemp(join(tmpdir(), 'axiom-meet-browser-smoke-'));
@@ -52,16 +52,16 @@ async function microphoneLevel(page) {
 let meeting;
 let admissionRequests = 0;
 try {
-  const chromiumAPI = {
+  const browserAPI = {
     async launchPersistentContext(...args) {
-      const context = await chromium.launchPersistentContext(...args);
+      const context = await meetingBrowser.launchPersistentContext(...args);
       await context.route('https://meet.google.com/**', route => route.fulfill({
         status: 200,
         contentType: 'text/html',
         body: `<!doctype html><html><body>
           <input aria-label="Your name">
-          <button aria-label="Turn on microphone" onclick="window.microphoneEnabled=true">Turn on microphone</button>
-          <button aria-label="Ask to join" onclick="window.joinRequested=true;document.body.insertAdjacentHTML('beforeend','<button aria-label=&quot;Leave call&quot;>Leave call</button>')">Ask to join</button>
+          <button aria-label="Turn on microphone" onclick="document.body.dataset.microphoneEnabled='true'">Turn on microphone</button>
+          <button aria-label="Ask to join" onclick="document.body.dataset.joinRequested='true';document.body.insertAdjacentHTML('beforeend','<button aria-label=&quot;Leave call&quot;>Leave call</button>')">Ask to join</button>
         </body></html>`,
       }));
       await context.route('https://zoom.us/**', route => route.fulfill({
@@ -70,13 +70,13 @@ try {
           <a href="#" onclick="this.hidden=true;document.getElementById('join-form').hidden=false">Join from Your Browser</a>
           <div id="join-form" hidden>
             <input aria-label="Your name">
-            <button aria-label="Join" onclick="window.meetingJoined=true;document.getElementById('in-meeting').hidden=false">Join</button>
+            <button aria-label="Join" onclick="document.body.dataset.meetingJoined='true';document.getElementById('in-meeting').hidden=false">Join</button>
           </div>
           <div id="in-meeting" hidden>
             <button aria-label="Leave">Leave</button>
-            <button aria-label="Join Audio" onclick="window.audioJoined=true;this.hidden=true;document.getElementById('computer-audio').hidden=false">Join Audio</button>
-            <button id="computer-audio" aria-label="Join with Computer Audio" hidden onclick="window.computerAudioJoined=true;this.hidden=true;document.getElementById('unmute').hidden=false">Join with Computer Audio</button>
-            <button id="unmute" aria-label="Unmute" hidden onclick="window.microphoneUnmuted=true;this.hidden=true">Unmute</button>
+            <button aria-label="Join Audio" onclick="document.body.dataset.audioJoined='true';this.hidden=true;document.getElementById('computer-audio').hidden=false">Join Audio</button>
+            <button id="computer-audio" aria-label="Join with Computer Audio" hidden onclick="document.body.dataset.computerAudioJoined='true';this.hidden=true;document.getElementById('unmute').hidden=false">Join with Computer Audio</button>
+            <button id="unmute" aria-label="Unmute" hidden onclick="document.body.dataset.microphoneUnmuted='true';this.hidden=true">Unmute</button>
           </div>
         </body></html>`,
       }));
@@ -88,7 +88,7 @@ try {
           <button aria-label="Join now" onclick="document.getElementById('in-teams').hidden=false">Join now</button>
           <div id="in-teams" hidden>
             <button aria-label="Leave">Leave</button>
-            <button aria-label="Unmute microphone" onclick="window.teamsMicrophoneUnmuted=true;this.hidden=true">Unmute microphone</button>
+            <button aria-label="Unmute microphone" onclick="document.body.dataset.teamsMicrophoneUnmuted='true';this.hidden=true">Unmute microphone</button>
           </div>
         </body></html>`,
       }));
@@ -98,9 +98,8 @@ try {
   meeting = await joinMeet({
     url: 'https://meet.google.com/abc-defg-hij',
     profileDir,
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
     displayName: 'Axiom Test Agent',
-    chromiumAPI,
+    browserAPI,
     timeoutMs: 15000,
     onAdmissionRequested: () => { admissionRequests++; },
   });
@@ -111,8 +110,8 @@ try {
     stream.getTracks().forEach(track => track.stop());
     return {
       displayName: document.querySelector('input')?.value,
-      microphoneEnabled: window.microphoneEnabled === true,
-      joinRequested: window.joinRequested === true,
+      microphoneEnabled: document.body.dataset.microphoneEnabled === 'true',
+      joinRequested: document.body.dataset.joinRequested === 'true',
       microphoneTracks,
     };
   });
@@ -128,9 +127,8 @@ try {
   meeting = await joinMeet({
     url: 'https://meet.google.com/abc-defg-hij',
     profileDir,
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
     displayName: 'Axiom Test Agent',
-    chromiumAPI,
+    browserAPI,
     timeoutMs: 15000,
     onAdmissionRequested: () => { admissionRequests++; },
   });
@@ -140,22 +138,22 @@ try {
   await meeting.leave();
   meeting = undefined;
   meeting = await joinMeet({ url: 'https://zoom.us/j/12345678901', profileDir,
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', displayName: 'Axiom Test Agent',
-    chromiumAPI, timeoutMs: 15000 });
+    displayName: 'Axiom Test Agent',
+    browserAPI, timeoutMs: 15000 });
   assert.equal(meeting.platform, 'zoom');
   assert.equal(await meeting.page.locator('input').inputValue(), 'Axiom Test Agent');
-  assert.deepEqual(await meeting.page.evaluate(() => ({ joined: window.meetingJoined === true,
-    audio: window.audioJoined === true, computerAudio: window.computerAudioJoined === true,
-    unmuted: window.microphoneUnmuted === true })),
+  assert.deepEqual(await meeting.page.evaluate(() => ({ joined: document.body.dataset.meetingJoined === 'true',
+    audio: document.body.dataset.audioJoined === 'true', computerAudio: document.body.dataset.computerAudioJoined === 'true',
+    unmuted: document.body.dataset.microphoneUnmuted === 'true' })),
   { joined: true, audio: true, computerAudio: true, unmuted: true });
   await meeting.leave();
   meeting = undefined;
   meeting = await joinMeet({ url: 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0',
-    profileDir, executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-    displayName: 'Axiom Test Agent', chromiumAPI, timeoutMs: 15000 });
+    profileDir,
+    displayName: 'Axiom Test Agent', browserAPI, timeoutMs: 15000 });
   assert.equal(meeting.platform, 'teams');
   assert.equal(await meeting.page.locator('input').inputValue(), 'Axiom Test Agent');
-  assert.equal(await meeting.page.evaluate(() => window.teamsMicrophoneUnmuted === true), true);
+  assert.equal(await meeting.page.evaluate(() => document.body.dataset.teamsMicrophoneUnmuted === 'true'), true);
   console.log(JSON.stringify({ ...state, microphonePeak, admissionRequests, retainedProfile, zoom: true, teams: true }));
 } finally {
   if (meeting) await meeting.leave();

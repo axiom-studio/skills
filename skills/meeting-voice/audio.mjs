@@ -10,7 +10,7 @@ export function audioCommands({ captureSink = 'axiom_meet_capture', microphoneSi
   return {
     capture: ['parec', ['--device', `${captureSink}.monitor`, '--latency-msec=20', '--format=s16le', `--rate=${SAMPLE_RATE}`, '--channels=1', '--raw']],
     playback: ['pacat', ['--device', microphoneSink, '--latency-msec=20', '--format=s16le', `--rate=${SAMPLE_RATE}`, '--channels=1', '--raw']],
-    chromeEnv: { PULSE_SINK: captureSink, PULSE_SOURCE: 'axiom_bot_source' },
+    browserEnv: { PULSE_SINK: captureSink, PULSE_SOURCE: 'axiom_bot_source' },
   };
 }
 

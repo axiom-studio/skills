@@ -17,7 +17,7 @@ final outcome through a narrow controller route, since the browser's chat grant
 has already been revoked. It speaks only a channel-visible reply from this
 Agent that names the particular meeting utterance as its reply target.
 
-Each Agent has a separate persistent Chromium profile under `/profile`. The
+Each Agent has a separate persistent Camoufox profile under `/profile`. The
 service holds an exclusive lock on the profile workspace, and one Agent can
 join only one meeting at a time. A credential-free state snapshot on the
 retained volume lets Seal Chat report an interrupted call as failed after a
@@ -32,7 +32,7 @@ Run usage lease does not keep a participant and audio devices connected for
 an entire call. This service owns that continuous browser process and its
 meeting-specific session lifetime.
 Every session has a selected lifetime of 15 to 480 minutes (240 by default),
-and the service stops the worker when that deadline arrives. If Chromium does
+and the service stops the worker when that deadline arrives. If Camoufox does
 not exit after a stop request, the service force stops its worker after ten
 seconds so the meeting participant cannot linger indefinitely.
 The container audio smoke check sends a short tone through each path and
@@ -48,7 +48,7 @@ Skill parent for renewal, revocation, and final outcome; the browser never
 receives it. Sentinel
 issues a five-minute grant for one Agent conversation and renews it while the
 bounded session is active. The signed control grant stays in the Skill service process;
-the Chromium worker receives only the scoped grant. Sentinel also keeps a
+the Camoufox worker receives only the scoped grant. Sentinel also keeps a
 durable session record and checks it on every bridge request; stopping the
 worker revokes the record immediately across Sentinel replicas. Automatic
 meeting rejoin after a restart remains unimplemented.
@@ -72,7 +72,7 @@ browser cookies in an Agent action or command argument.
 | Variable | Purpose |
 | --- | --- |
 | `GOOGLE_PROFILES_DIR` | Persistent volume root, default `/profile` |
-| `CHROMIUM_PATH` | Chromium executable, default `/usr/bin/chromium` |
+| `CAMOUFOX_INSTALL_DIR` | Packaged Camoufox installation, default `/opt/camoufox` |
 | `MEET_DISPLAY_NAME` | Visible guest name, default `Axiom Agent` |
 | `CORTEX_MEET_API_URL` | Sentinel API ending in `/orchestrator/agent/meet/v1/`; set by Axiom hosting |
 | `CORTEX_HOST_INVOCATIONS` | JSON map of short-lived, audience-bound host grants supplied by Atlas as a secret binding; this Skill selects `host:meet`. Permissions come from the pinned action manifest and are rechecked against the live action and binding. |
@@ -93,7 +93,7 @@ English controls.
 ### Private browser video transport
 
 When host-verified handoff is enabled, the worker owns an isolated Xvfb/Openbox
-desktop and runs Chromium explicitly on X11. FFmpeg streams VP8/WebM bytes from
+desktop and runs Camoufox explicitly on X11. FFmpeg streams VP8/WebM bytes from
 that display; direct human pointer, text, key and scroll commands use the same
 display. Typed text passes through stdin, not process arguments. These controls
 are not Skill actions and are never offered to the model.
@@ -116,7 +116,7 @@ From `skills/meeting-voice`:
 ```bash
 npm ci
 npm test
-# Requires the packaged Chromium, Xvfb, Openbox, xprop, xdotool and FFmpeg:
+# Requires the packaged Camoufox, Xvfb, Openbox, xprop, xdotool and FFmpeg:
 BROWSER_VIDEO_INTEGRATION=1 node --test browser-desktop-input.test.mjs browser-video.test.mjs
 ```
 
@@ -129,5 +129,5 @@ docker run --rm -e MEET_BROWSER_SMOKE=1 axiomstudio/skill-meeting-voice:0.2.3
 ```
 
 The browser smoke serves an offline fake Meet page to the real packaged
-Chromium. It checks guest entry controls, microphone access, and profile
+Camoufox. It checks guest entry controls, microphone access, and profile
 retention across browser restarts; it does not join a Google meeting.

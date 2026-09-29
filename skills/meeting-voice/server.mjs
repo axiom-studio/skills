@@ -6,7 +6,7 @@ import { browserAuthorizer } from './browser-authorizer.mjs';
 import { browserVideoRPC } from './browser-video-rpc.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.9';
+export const SKILL_VERSION = '0.2.10';
 
 const schemas = {
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
