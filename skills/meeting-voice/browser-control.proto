@@ -6,4 +6,7 @@ import "google/protobuf/wrappers.proto";
 service BrowserControlService {
   rpc Control(google.protobuf.BytesValue) returns (google.protobuf.BytesValue);
   rpc Video(stream google.protobuf.BytesValue) returns (stream google.protobuf.BytesValue);
+  // Inbound: 0 + signed proof JSON, 1 + RFB bytes, or 2 (input barrier).
+  // Outbound: 1 + RFB bytes, or 2 (ordered input acknowledgement).
+  rpc Desktop(stream google.protobuf.BytesValue) returns (stream google.protobuf.BytesValue);
 }

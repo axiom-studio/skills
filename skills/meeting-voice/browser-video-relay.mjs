@@ -5,11 +5,17 @@ import { randomUUID } from 'node:crypto';
 export class BrowserVideoRelay {
   #child; #id = randomUUID(); #owner; #timer; #pending; #wake;
   #closed = false; #failed = false; #receive; #fail;
-  constructor({ child, principal, leaseID }) {
+  #input; #inputSequence = 0; #desktop;
+  constructor({ child, principal, leaseID, desktop = false }) {
     this.#child = child;
+    this.#desktop = desktop;
     this.#owner = { userID: principal.userID, tenantID: principal.tenantID, agentID: principal.agentID };
     this.#receive = message => {
       if (message?.id !== this.#id) return;
+      if (message.type === 'browser-desktop-input-ack') {
+        if (message.sequence === this.#inputSequence) this.#input?.(true);
+        return;
+      }
       if (message.type === 'browser-video-end') return this.close(message.failed);
       if (message.type !== 'browser-video-chunk') return;
       if (this.#pending || !Number.isSafeInteger(message.sequence) || message.sequence < 1 ||
@@ -26,7 +32,15 @@ export class BrowserVideoRelay {
     child.once('exit', this.#fail);
     child.once('error', this.#fail);
     child.once('disconnect', this.#fail);
-    this.#send({ type: 'browser-video-start', principal: this.#owner, leaseID });
+    this.#send({ type: 'browser-video-start', principal: this.#owner, leaseID, desktop });
+  }
+  write(bytes) {
+    if (this.#closed || !this.#desktop || this.#input || !Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 65536) return Promise.reject(new Error('Desktop unavailable'));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => this.close(true), 3000);
+      this.#input = ok => { clearTimeout(timer); this.#input = undefined; ok ? resolve() : reject(new Error('Desktop unavailable')); };
+      this.#send({ type: 'browser-desktop-input', sequence: ++this.#inputSequence, bytes: bytes.toString('base64') });
+    });
   }
   renew(principal) {
     const remaining = Date.parse(principal.expiresAt) - Date.now();
@@ -43,6 +57,7 @@ export class BrowserVideoRelay {
   close(failed = false) {
     if (this.#closed) return;
     this.#closed = true; this.#failed = !!failed;
+    this.#input?.(false);
     clearTimeout(this.#timer);
     this.#child.off('message', this.#receive);
     this.#child.off('exit', this.#fail);

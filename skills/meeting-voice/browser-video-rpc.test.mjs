@@ -17,6 +17,29 @@ function call() {
 const packet = authorization => ({ value: Buffer.from(JSON.stringify({ agentID: 'agent', sessionID: 'session',
   authorization, commandJSON: JSON.stringify({ type: 'video', leaseID: 'lease' }) })) });
 
+test('desktop RPC separates authority from RFB and acknowledges the ordered input barrier', async () => {
+  const rpc = call(), inputs = []; let stop;
+  browserVideoRPC({ async videoBrowser(request, desktop) {
+    assert.equal(desktop, true);
+    return { stream: (async function* () { yield Buffer.from('RFB'); await new Promise(resolve => { stop = resolve; }); })(),
+      write: async bytes => inputs.push(bytes.toString()), close: () => stop?.(), renew: async () => {} };
+  } }, rpc, true);
+  rpc.emit('data', { value: Buffer.concat([Buffer.from([0]), packet('proof').value]) });
+  await setImmediate();
+  assert.deepEqual([...rpc.output[0].value], [1,82,70,66]);
+  rpc.emit('data', { value: Buffer.from([1, 65]) }); await setImmediate();
+  rpc.emit('data', { value: Buffer.from([2]) }); await setImmediate();
+  assert.deepEqual(inputs, ['A']);
+  assert.deepEqual([...rpc.output.at(-1).value], [2]);
+  rpc.emit('cancelled');
+});
+test('desktop rejects native input before authentication', async () => {
+  const rpc = call(); let opened = false;
+  browserVideoRPC({ videoBrowser: async () => { opened = true; } }, rpc, true);
+  rpc.emit('data', { value: Buffer.from([1, 65]) }); await setImmediate();
+  assert.equal(opened, false); assert.equal(rpc.failure.code, 7);
+});
+
 test('video RPC accepts fresh proofs independently while streaming encoded bytes', async () => {
   const rpc = call(), renewals = [];
   let stop, closed = 0;

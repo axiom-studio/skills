@@ -2,6 +2,7 @@ import { joinMeeting, meetingURL, MeetingJoinError } from './meet.mjs';
 import { runWorker } from './worker-lifecycle.mjs';
 import { BrowserHandoff } from './browser-handoff.mjs';
 import { openBrowserVideo } from './browser-video.mjs';
+import { openBrowserRFB } from './browser-rfb.mjs';
 import { createBrowserDesktop } from './browser-desktop.mjs';
 import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
@@ -42,6 +43,7 @@ async function main() {
   const handoff = process.env.MEET_BROWSER_HANDOFF_ENABLED === 'true' ? new BrowserHandoff({
     tenantID: config.cortex.tenantID, agentID: config.cortex.agentID,
     videoFactory: ({ signal }) => openBrowserVideo({ display: display.display, signal }),
+    desktopFactory: ({ signal }) => openBrowserRFB({ display: display.display, signal }),
     inputFactory: ({ control, signal }) => new BrowserDesktopInput({ display: display.display, control, signal }),
     onState: async (status, intervention) => {
       process.send?.({ status, intervention });

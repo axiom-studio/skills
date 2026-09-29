@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends make g++ \
 ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
 RUN npx camoufox-js fetch && chmod -R a+rX /opt/camoufox
 RUN node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=JSON.parse(readFileSync('/opt/camoufox/version.json')); if(v.version!=='152.0.4'||v.release!=='beta.31') throw new Error('Camoufox build changed; review and retest before updating the release pin');"
+RUN apt-get update && apt-get install -y --no-install-recommends x11vnc && rm -rf /var/lib/apt/lists/*
 COPY skills/${SKILL_NAME}/*.mjs skills/${SKILL_NAME}/*.proto skills/${SKILL_NAME}/entrypoint.sh ./
 RUN chmod 755 /app/entrypoint.sh && mkdir -p /profile && chown -R node:node /app /profile
 

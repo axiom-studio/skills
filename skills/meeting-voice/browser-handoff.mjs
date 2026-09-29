@@ -11,8 +11,9 @@ export class BrowserHandoff {
   #timeoutMs;
   #videoFactory;
   #inputFactory;
+  #desktopFactory;
 
-  constructor({ tenantID, agentID, onState = () => {}, timeoutMs = 300000, videoFactory, inputFactory }) {
+  constructor({ tenantID, agentID, onState = () => {}, timeoutMs = 300000, videoFactory, inputFactory, desktopFactory }) {
     if (!tenantID || !agentID || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
       throw new Error('Invalid browser handoff configuration');
     }
@@ -21,6 +22,7 @@ export class BrowserHandoff {
     this.#timeoutMs = timeoutMs;
     this.#videoFactory = videoFactory;
     this.#inputFactory = inputFactory;
+    this.#desktopFactory = desktopFactory;
   }
 
   async request({ page, context, signal, reason = 'manual_confirmation' }) {
@@ -66,17 +68,19 @@ export class BrowserHandoff {
   // Video is not an input command and never holds the serialized input lock
   // while waiting for an encoder or a network consumer. Every yielded chunk
   // still checks the exclusive human lease before leaving the worker.
-  async *stream(principal, leaseID, { signal } = {}) {
+  async *stream(principal, leaseID, { signal, desktop = false } = {}) {
     const pending = this.#pending;
-    if (!pending || !this.#videoFactory || signal?.aborted) throw new Error('Browser video is unavailable');
+    const factory = desktop ? this.#desktopFactory : this.#videoFactory;
+    if (!pending || !factory || signal?.aborted) throw new Error('Browser video is unavailable');
     const controller = new AbortController();
     let video;
     const abort = () => controller.abort();
     try {
-      await pending.control.human(principal, leaseID, () => {
+      await pending.control.human(principal, leaseID, async () => {
         if (pending.video) throw new Error();
         pending.video = controller;
-        video = this.#videoFactory({ signal: controller.signal });
+        video = await factory({ signal: controller.signal });
+        if (desktop) pending.desktop = video;
       });
       signal?.addEventListener('abort', abort, { once: true });
       if (signal?.aborted) controller.abort();
@@ -91,8 +95,15 @@ export class BrowserHandoff {
       signal?.removeEventListener('abort', abort);
       controller.abort();
       video?.close();
+      if (pending.desktop === video) pending.desktop = undefined;
       if (pending.video === controller) pending.video = undefined;
     }
+  }
+
+  async writeDesktop(principal, leaseID, bytes) {
+    const pending = this.#pending;
+    if (!pending?.desktop) throw new Error('Desktop unavailable');
+    await pending.control.human(principal, leaseID, () => pending.desktop.write(bytes));
   }
 
   async handle(principal, command) {

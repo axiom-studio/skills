@@ -12,6 +12,18 @@ function setup(owner = principal()) {
   const relay = new BrowserVideoRelay({ child, principal: owner, leaseID: 'lease' });
   return { child, sent, relay, id: sent[0].id };
 }
+test('desktop input is bounded, acknowledged, and rejected after proof expiry', async () => {
+  const child = new EventEmitter(), sent = [];
+  child.send = (message, callback) => { sent.push(message); callback?.(); };
+  const relay = new BrowserVideoRelay({ child, principal: principal(), leaseID: 'lease', desktop: true });
+  const first = relay.write(Buffer.from('key'));
+  await assert.rejects(relay.write(Buffer.from('second')), /unavailable/);
+  const message = sent.at(-1);
+  child.emit('message', { type: 'browser-desktop-input-ack', id: message.id, sequence: message.sequence });
+  await first;
+  relay.close();
+  await assert.rejects(relay.write(Buffer.from('late')), /unavailable/);
+});
 test('parent stream has one bounded packet and acknowledges only after consumption', async () => {
   const { child, sent, relay, id } = setup();
   const iterator = relay[Symbol.asyncIterator]();

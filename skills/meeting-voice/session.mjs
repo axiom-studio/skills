@@ -329,17 +329,18 @@ export class MeetSessionService {
       return { session, principal };
   }
 
-  async videoBrowser(request) {
+  async videoBrowser(request, desktop = false) {
     try {
       const command = request.command;
-      if (command?.type !== 'video' || typeof command.leaseID !== 'string' || !ID.test(command.leaseID) ||
+      if (command?.type !== (desktop ? 'desktop' : 'video') || typeof command.leaseID !== 'string' || !ID.test(command.leaseID) ||
         Object.keys(command).some(key => !['type', 'leaseID'].includes(key))) throw new Error();
       const { session, principal } = await this.authorizeBrowserRequest(request);
       if (session.browserVideo) throw new Error();
-      const relay = new BrowserVideoRelay({ child: session.child, principal, leaseID: command.leaseID });
+      const relay = new BrowserVideoRelay({ child: session.child, principal, leaseID: command.leaseID, desktop });
       session.browserVideo = relay;
       return {
         stream: relay,
+        write: bytes => relay.write(bytes),
         renew: async renewal => {
           if (renewal.agentID !== request.agentID || renewal.sessionID !== request.sessionID ||
             JSON.stringify(renewal.command) !== JSON.stringify(command)) throw new Error('Browser video authorization failed');

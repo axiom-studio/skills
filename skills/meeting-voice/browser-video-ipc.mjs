@@ -18,6 +18,21 @@ export class BrowserVideoIPC {
   }
 
   handle(message) {
+    if (message?.type === 'browser-desktop-input') {
+      const active = this.#active;
+      if (!active || message.id !== active.id) return;
+      if (!active.desktop || active.writing || typeof message.bytes !== 'string' ||
+        message.bytes.length > 87384 || !/^[A-Za-z0-9+/]+={0,2}$/.test(message.bytes) ||
+        !Number.isSafeInteger(message.sequence) || message.sequence !== (active.inputSequence || 0) + 1) {
+        active.controller.abort(); return;
+      }
+      active.writing = true; active.inputSequence = message.sequence;
+      void this.#handoff.writeDesktop(active.principal, active.leaseID, Buffer.from(message.bytes, 'base64')).then(() => {
+        active.writing = false;
+        if (this.#process.connected) this.#process.send({ type: 'browser-desktop-input-ack', id: active.id, sequence: message.sequence }, () => {});
+      }, () => active.controller.abort());
+      return;
+    }
     if (message?.type === 'browser-video-ack') {
       if (message.id === this.#active?.id && message.sequence === this.#active?.sequence) this.#active.ack?.();
       return;
@@ -29,7 +44,8 @@ export class BrowserVideoIPC {
     if (message?.type !== 'browser-video-start') return;
     if (this.#active || this.#signal.aborted || typeof message.id !== 'string' ||
       !/^[a-zA-Z0-9_-]{1,128}$/.test(message.id)) return;
-    const active = { id: message.id, sequence: 0, controller: new AbortController() };
+    const active = { id: message.id, sequence: 0, controller: new AbortController(),
+      desktop: message.desktop === true, principal: message.principal, leaseID: message.leaseID };
     this.#active = active;
     void this.#run(active, message);
   }
@@ -37,7 +53,7 @@ export class BrowserVideoIPC {
   async #run(active, message) {
     let failed = false;
     try {
-      const video = this.#handoff.stream(message.principal, message.leaseID, { signal: active.controller.signal });
+      const video = this.#handoff.stream(message.principal, message.leaseID, { signal: active.controller.signal, desktop: active.desktop });
       for await (const chunk of video) {
         for (let offset = 0; offset < chunk.length; offset += 65536) {
           const bytes = chunk.subarray(offset, offset + 65536);

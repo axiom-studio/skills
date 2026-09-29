@@ -100,6 +100,7 @@ export function handlers(service) {
 export function browserHandlers(service) {
   return {
     Video(call) { browserVideoRPC(service, call); },
+    Desktop(call) { browserVideoRPC(service, call, true); },
     async Control(call, callback) {
       try {
         const bytes = call.request.value;
