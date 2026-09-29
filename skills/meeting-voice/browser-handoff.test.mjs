@@ -86,3 +86,41 @@ test('failure to publish the handoff closes the browser without an unhandled rej
   await assert.rejects(f.handoff.request(f), /did not complete/);
   assert.equal(f.closed(), 1);
 });
+
+test('streamed video preserves exclusive ownership without blocking keyboard input', async () => {
+  let videoSignal, videoClosed = false, typed = false;
+  const f = fixture({ videoFactory: ({ signal }) => {
+    videoSignal = signal;
+    return { close: () => { videoClosed = true; }, async *[Symbol.asyncIterator]() {
+      yield Buffer.from('encoded-video');
+      await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+    } };
+  } });
+  f.page.keyboard.insertText = async () => { typed = true; };
+  const pending = f.handoff.request(f);
+  const lease = await f.handoff.handle(principal, { type: 'claim' });
+  const forbidden = f.handoff.stream({ ...principal, userID: 'another-human' }, lease.id);
+  await assert.rejects(forbidden.next(), /video is unavailable/);
+  const video = f.handoff.stream(principal, lease.id);
+  assert.equal((await video.next()).value.toString(), 'encoded-video');
+  const next = video.next(); // Video is now waiting; keyboard must still work.
+  await f.handoff.handle(principal, { type: 'input', leaseID: lease.id, input: { type: 'text', text: 'test' } });
+  assert.equal(typed, true);
+  await f.handoff.handle(principal, { type: 'resume', leaseID: lease.id });
+  await pending;
+  assert.equal(videoSignal.aborted, true);
+  assert.equal((await next).done, true);
+  assert.equal(videoClosed, true);
+});
+
+test('stream cannot be opened before takeover or after cancellation', async () => {
+  let opened = 0;
+  const f = fixture({ videoFactory: () => { opened++; throw new Error(); } });
+  const pending = assert.rejects(f.handoff.request(f));
+  await assert.rejects(f.handoff.stream(principal, 'unknown').next());
+  const lease = await f.handoff.handle(principal, { type: 'claim' });
+  await f.handoff.handle(principal, { type: 'cancel', leaseID: lease.id });
+  await pending;
+  await assert.rejects(f.handoff.stream(principal, lease.id).next());
+  assert.equal(opened, 0);
+});

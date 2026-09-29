@@ -9,14 +9,18 @@ export class BrowserHandoff {
   #pending;
   #onState;
   #timeoutMs;
+  #videoFactory;
+  #inputFactory;
 
-  constructor({ tenantID, agentID, onState = () => {}, timeoutMs = 300000 }) {
+  constructor({ tenantID, agentID, onState = () => {}, timeoutMs = 300000, videoFactory, inputFactory }) {
     if (!tenantID || !agentID || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
       throw new Error('Invalid browser handoff configuration');
     }
     this.#scope = { tenantID, agentID };
     this.#onState = onState;
     this.#timeoutMs = timeoutMs;
+    this.#videoFactory = videoFactory;
+    this.#inputFactory = inputFactory;
   }
 
   async request({ page, context, signal, reason = 'manual_confirmation' }) {
@@ -29,11 +33,12 @@ export class BrowserHandoff {
     void completed.catch(() => {});
     const pending = { resolve, reject, expiresAt: Date.now() + this.#timeoutMs };
     const control = new BrowserControl({ ...this.#scope, close: async () => {
+      pending.video?.abort();
       reject(new Error('Browser handoff ended without returning control'));
       await context.close();
     } });
     pending.control = control;
-    pending.view = new BrowserHumanView({ page, control });
+    pending.view = this.#inputFactory ? this.#inputFactory({ control, signal }) : new BrowserHumanView({ page, control });
     this.#pending = pending;
     const cancel = () => { void control.close().catch(() => {}); };
     // The deadline includes time waiting for someone to claim control.
@@ -50,10 +55,43 @@ export class BrowserHandoff {
       await control.close().catch(() => {});
       throw new Error('Browser handoff did not complete');
     } finally {
+      pending.video?.abort();
       clearTimeout(timer);
       signal?.removeEventListener('abort', cancel);
       page.off?.('close', cancel);
       this.#pending = undefined;
+    }
+  }
+
+  // Video is not an input command and never holds the serialized input lock
+  // while waiting for an encoder or a network consumer. Every yielded chunk
+  // still checks the exclusive human lease before leaving the worker.
+  async *stream(principal, leaseID, { signal } = {}) {
+    const pending = this.#pending;
+    if (!pending || !this.#videoFactory || signal?.aborted) throw new Error('Browser video is unavailable');
+    const controller = new AbortController();
+    let video;
+    const abort = () => controller.abort();
+    try {
+      await pending.control.human(principal, leaseID, () => {
+        if (pending.video) throw new Error();
+        pending.video = controller;
+        video = this.#videoFactory({ signal: controller.signal });
+      });
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) controller.abort();
+      for await (const chunk of video) {
+        if (controller.signal.aborted) break;
+        await pending.control.human(principal, leaseID, () => {});
+        if (controller.signal.aborted) break;
+        yield chunk;
+      }
+    } catch { throw new Error('Browser video is unavailable'); }
+    finally {
+      signal?.removeEventListener('abort', abort);
+      controller.abort();
+      video?.close();
+      if (pending.video === controller) pending.video = undefined;
     }
   }
 
@@ -72,6 +110,10 @@ export class BrowserHandoff {
       if (command.type === 'input') return await pending.view.dispatch(principal, command.leaseID, command.input);
       if (command.input !== undefined) throw new Error();
       if (command.type === 'resume') {
+        await pending.control.human(principal, command.leaseID, async () => {
+          await pending.view.release?.();
+          pending.video?.abort();
+        });
         await pending.control.returnControl(principal, command.leaseID);
         pending.resolve();
         return { type: 'ack' };

@@ -1,6 +1,10 @@
 import { joinMeeting, meetingURL, MeetingJoinError } from './meet.mjs';
 import { runWorker } from './worker-lifecycle.mjs';
 import { BrowserHandoff } from './browser-handoff.mjs';
+import { openBrowserVideo } from './browser-video.mjs';
+import { createBrowserDesktop } from './browser-desktop.mjs';
+import { BrowserVideoIPC } from './browser-video-ipc.mjs';
+import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
@@ -34,8 +38,12 @@ async function main() {
     throw new Error('the bot browser profile and Chromium executable are required');
   }
   const conversation = new CortexConversation(config.cortex);
+  const controller = new AbortController();
+  let display;
   const handoff = process.env.MEET_BROWSER_HANDOFF_ENABLED === 'true' ? new BrowserHandoff({
     tenantID: config.cortex.tenantID, agentID: config.cortex.agentID,
+    videoFactory: ({ signal }) => openBrowserVideo({ display: display.display, signal }),
+    inputFactory: ({ control, signal }) => new BrowserDesktopInput({ display: display.display, control, signal }),
     onState: async (status, intervention) => {
       process.send?.({ status, intervention });
       if (status === 'awaiting_user') {
@@ -43,9 +51,11 @@ async function main() {
       }
     },
   }) : null;
+  const video = handoff ? new BrowserVideoIPC({ handoff, processRef: process, signal: controller.signal }) : null;
   const speech = process.env.MEET_SPEECH_PROVIDER === 'elevenlabs'
     ? new ParentSpeechClient({ processRef: process }) : new SpeechClient(config.speech);
   process.on('message', message => {
+    video?.handle(message);
     if (message?.type === 'grant' && typeof message.grant === 'string') conversation.setGrant(message.grant);
     if (message?.type === 'speech-grants') {
       try { speech.setTokens(message); } catch { controller.abort(); }
@@ -65,7 +75,6 @@ async function main() {
   Object.assign(process.env, commands.chromeEnv);
   const speechChunkCharacters = Number(process.env.AXIOM_SPEECH_CHUNK_CHARACTERS) || 3000;
 
-  const controller = new AbortController();
   let meeting;
   let audio;
   let presenceCheck;
@@ -120,8 +129,9 @@ async function main() {
   process.once('SIGINT', stop);
   try {
     await conversation.attach(controller.signal);
+    if (handoff) display = await createBrowserDesktop({ signal: controller.signal });
     meeting = await joinMeeting({ url: config.meetURL, profileDir: config.profileDir, executablePath: config.executablePath,
-      displayName: config.displayName, signal: controller.signal, handoff,
+      displayName: config.displayName, signal: controller.signal, handoff, display: display?.display,
       handoffBeforeJoin: process.env.MEET_BROWSER_HANDOFF_REQUESTED === 'true',
       onAdmissionRequested: () => {
         process.send?.({ status: 'awaiting_admission' });
@@ -164,6 +174,8 @@ async function main() {
     }
   } finally {
     controller.abort();
+    video?.close();
+    display?.close();
     clearTimeout(expiryTimer);
     if (presenceCheck) clearInterval(presenceCheck);
     audio?.close();

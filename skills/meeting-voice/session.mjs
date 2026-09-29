@@ -6,6 +6,7 @@ import { meetingURL } from './meet.mjs';
 import { availableSpeechModels } from './bridge.mjs';
 import { ElevenLabsClient } from './elevenlabs.mjs';
 import { browserIntervention } from './browser-intervention.mjs';
+import { BrowserVideoRelay } from './browser-video-relay.mjs';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
 
@@ -303,8 +304,7 @@ export class MeetSessionService {
   // Host-only RPC entrypoint; deliberately not exposed in the Skill catalog.
   // Authorization must validate current membership and return the principal
   // from a signed host request, never from command fields or model arguments.
-  async controlBrowser({ agentID, sessionID, authorization, command }) {
-    try {
+  async authorizeBrowserRequest({ agentID, sessionID, authorization, command }) {
       if (typeof this.authorizeBrowserControl !== 'function') throw new Error();
       if (!command || typeof command !== 'object' || Array.isArray(command) ||
         Buffer.byteLength(JSON.stringify(command)) > 32768) throw new Error();
@@ -324,6 +324,41 @@ export class MeetSessionService {
       for (const [id, expiry] of session.browserRequests) if (expiry <= Date.now()) session.browserRequests.delete(id);
       if (session.browserRequests.has(principal.requestID) || session.browserRequests.size >= 256) throw new Error();
       session.browserRequests.set(principal.requestID, Date.parse(principal.expiresAt));
+      if (!session.child || ['leaving', 'ended', 'failed'].includes(session.status) ||
+        (command.type !== 'status' && session.status !== 'awaiting_user')) throw new Error();
+      return { session, principal };
+  }
+
+  async videoBrowser(request) {
+    try {
+      const command = request.command;
+      if (command?.type !== 'video' || typeof command.leaseID !== 'string' || !ID.test(command.leaseID) ||
+        Object.keys(command).some(key => !['type', 'leaseID'].includes(key))) throw new Error();
+      const { session, principal } = await this.authorizeBrowserRequest(request);
+      if (session.browserVideo) throw new Error();
+      const relay = new BrowserVideoRelay({ child: session.child, principal, leaseID: command.leaseID });
+      session.browserVideo = relay;
+      return {
+        stream: relay,
+        renew: async renewal => {
+          if (renewal.agentID !== request.agentID || renewal.sessionID !== request.sessionID ||
+            JSON.stringify(renewal.command) !== JSON.stringify(command)) throw new Error('Browser video authorization failed');
+          const verified = await this.authorizeBrowserRequest(renewal);
+          if (verified.session !== session || session.browserVideo !== relay) throw new Error('Browser video authorization failed');
+          relay.renew(verified.principal);
+        },
+        close: () => {
+          relay.close();
+          if (session.browserVideo === relay) session.browserVideo = undefined;
+        },
+      };
+    } catch { throw new Error('Browser video is unavailable'); }
+  }
+
+  async controlBrowser(request) {
+    try {
+      const { session, principal } = await this.authorizeBrowserRequest(request);
+      const { command } = request;
       if (command.type === 'status' && Object.keys(command).length === 1) {
         return { sessionId: session.id, status: session.status, expiresAt: session.expiresAt,
           ...(session.status === 'awaiting_user' ? { intervention: session.intervention } : {}) };

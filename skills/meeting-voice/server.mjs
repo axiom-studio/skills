@@ -3,6 +3,7 @@ import protoLoader from '@grpc/proto-loader';
 import { fileURLToPath } from 'node:url';
 import { MeetSessionService } from './session.mjs';
 import { browserAuthorizer } from './browser-authorizer.mjs';
+import { browserVideoRPC } from './browser-video-rpc.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
 export const SKILL_VERSION = '0.2.9';
@@ -98,6 +99,7 @@ export function handlers(service) {
 
 export function browserHandlers(service) {
   return {
+    Video(call) { browserVideoRPC(service, call); },
     async Control(call, callback) {
       try {
         const bytes = call.request.value;

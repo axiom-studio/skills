@@ -120,18 +120,20 @@ async function joinTeams(page, displayName, timeoutMs, onAdmissionRequested) {
 }
 
 export async function joinMeeting({ url, profileDir, executablePath, displayName = 'Axiom Agent', timeoutMs = 120000,
-  chromiumAPI = chromium, signal, onAdmissionRequested, handoff, handoffBeforeJoin = false, interventionReason = detectBrowserIntervention }) {
+  chromiumAPI = chromium, signal, display, onAdmissionRequested, handoff, handoffBeforeJoin = false, interventionReason = detectBrowserIntervention }) {
   if (!profileDir) throw new Error('a browser profile directory is required');
+  if (display !== undefined && !/^:[0-9]{1,5}$/.test(display)) throw new Error('Invalid browser display');
   const target = meetingURL(url);
   const platform = meetingPlatform(target);
   const context = await chromiumAPI.launchPersistentContext(profileDir, {
     executablePath,
-    headless: true,
-    viewport: { width: 1280, height: 800 },
+    headless: !display,
+    viewport: display ? null : { width: 1280, height: 800 },
+    ...(display ? { env: { ...process.env, DISPLAY: display } } : {}),
     acceptDownloads: false,
     permissions: ['microphone'],
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-fake-ui-for-media-stream',
-      '--autoplay-policy=no-user-gesture-required'],
+      '--autoplay-policy=no-user-gesture-required', ...(display ? ['--ozone-platform=x11', '--start-maximized', '--window-position=0,0', '--window-size=1280,800'] : [])],
   });
   const abort = () => { void context.close().catch(() => {}); };
   if (signal?.aborted) abort();

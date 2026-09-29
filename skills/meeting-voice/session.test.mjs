@@ -171,6 +171,41 @@ test('a host proof can authorize only one browser request and does not enter per
   assert.doesNotMatch(readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8'), /single-use-proof|runtime-proof/);
 });
 
+test('video and input are independent while renewals remain bound to the same human and session', async t => {
+  const { worker, children, profilesDir } = service({ browserGrant: 'runtime-proof',
+    authorizeBrowserControl: async scope => ({ tenantID: '7', agentID: 'agent-1',
+      userID: scope.authorization === 'foreign-proof' ? 'other-human' : 'human',
+      requestID: randomUUID(), expiresAt: new Date(Date.now() + 15000).toISOString() }) });
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  const started = await worker.start({ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
+    issuerToken: 'issuer', speechToken: 'speech' });
+  const { child } = children[0];
+  child.emit('message', { status: 'awaiting_user', intervention: { reason: 'authentication' } });
+  const sent = [];
+  child.send = (message, callback) => {
+    sent.push(message); callback?.();
+    if (message.type === 'browser-control') queueMicrotask(() => child.emit('message', {
+      type: 'browser-result', id: message.id, result: { type: 'ack' },
+    }));
+  };
+  const request = { agentID: 'agent-1', sessionID: started.sessionId, authorization: 'valid-proof',
+    command: { type: 'video', leaseID: 'human-lease' } };
+  const video = await worker.videoBrowser(request);
+  try {
+    await assert.rejects(worker.videoBrowser(request));
+    assert.deepEqual(await worker.controlBrowser({ ...request, command: {
+      type: 'input', leaseID: 'human-lease', input: { type: 'text', text: 'test input' },
+    } }), { type: 'ack' });
+    await video.renew(request);
+    await assert.rejects(video.renew({ ...request, authorization: 'foreign-proof' }));
+    await assert.rejects(video.renew({ ...request, command: { type: 'video', leaseID: 'another-lease' } }));
+    await worker.pendingWrite;
+    assert.doesNotMatch(readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8'), /human-lease|valid-proof|test input/);
+  } finally { video.close(); }
+  assert.equal(sent.at(-1).type, 'browser-video-stop');
+  assert.equal(worker.sessions.get('agent-1').browserVideo, undefined);
+});
+
 test('ElevenLabs Vault key stays in the parent while the meeting worker requests speech', async t => {
   const { worker, children, requests, profilesDir } = service();
   t.after(() => rmSync(profilesDir, { recursive: true, force: true }));

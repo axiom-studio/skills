@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium pulseaudio pulseaudio-utils ffmpeg ca-certificates util-linux \
+    chromium pulseaudio pulseaudio-utils ffmpeg xvfb xdotool openbox x11-utils ca-certificates util-linux \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

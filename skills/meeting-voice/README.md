@@ -90,6 +90,25 @@ worker does not automate sign-in or bypass admission. Live meetings are needed
 to verify join and two-way audio on each platform. Selectors currently expect
 English controls.
 
+### Private browser video transport
+
+When host-verified handoff is enabled, the worker owns an isolated Xvfb/Openbox
+desktop and runs Chromium explicitly on X11. FFmpeg streams VP8/WebM bytes from
+that display; direct human pointer, text, key and scroll commands use the same
+display. Typed text passes through stdin, not process arguments. These controls
+are not Skill actions and are never offered to the model.
+
+The generic `BrowserControlService.Video` bidirectional RPC receives an initial
+signed `{type:"video",leaseID}` command proof and renewed proofs before the
+15-second authority expires. It returns encoded video bytes. The separate
+`Control` RPC carries individually authorized input. The relay allows one
+acknowledged 64 KiB packet at a time; slow transport cannot accumulate unlimited
+video or block input. Expired authority, lost transport, and cancellation close
+human control; only explicit return resumes automation. A host HTTP relay and
+native video UI must implement this protocol before publishing this worker
+version. The old screenshot UI is not compatible with this worker's desktop
+input adapter.
+
 ## Local checks
 
 From `skills/meeting-voice`:
@@ -97,6 +116,8 @@ From `skills/meeting-voice`:
 ```bash
 npm ci
 npm test
+# Requires the packaged Chromium, Xvfb, Openbox, xprop, xdotool and FFmpeg:
+BROWSER_VIDEO_INTEGRATION=1 node --test browser-desktop-input.test.mjs browser-video.test.mjs
 ```
 
 From the `skills` repository root:
