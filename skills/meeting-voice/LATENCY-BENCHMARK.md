@@ -1,0 +1,114 @@
+# Meeting voice latency benchmark — 2026-09-30
+
+Comparison: baseline `2727bb2f` versus implementation `d09d082b`.
+
+## Streaming revision (current worktree)
+
+The revised implementation uses a single ElevenLabs streaming request per
+provider-sized text block, requesting `pcm_16000`. PCM passes through bounded,
+pull-based private IPC directly to microphone playback. There is no whole-file
+decode or per-240-character request. The buffered gateway fallback also respects
+the configured provider text limit again, removing the forced-small-chunk
+regression. Source: [ElevenLabs streaming API](https://elevenlabs.io/docs/api-reference/text-to-speech/stream).
+
+The current benchmark compares baseline, buffered fallback, and streaming. For
+streaming, it assumes the same fixed provider cost before the first packet and
+2ms generation per character thereafter, yielding at most 200ms of PCM per
+packet. **This is an explicit simulation assumption, not a provider latency
+measurement.** The historical table below records the rejected small-chunk
+revision, not the current output of the benchmark.
+
+| Scenario | Baseline completion | Buffered fallback | Streaming completion | Streaming first PCM |
+|---|---:|---:|---:|---:|
+| Short, fast | 3,093ms | 1,669ms | 1,590ms | 210ms |
+| Long, fast | 51,711ms | 29,263ms | 27,870ms | 210ms |
+| Long, slow | 63,511ms | 41,063ms | 39,670ms | 12,010ms |
+| Long, fast, immediate writes | 29,663ms | 29,263ms | 27,870ms | 210ms |
+| Long, slow, immediate writes | 41,463ms | 41,063ms | 39,670ms | 12,010ms |
+
+All current scenarios use one provider request and preserve exactly the same
+submitted characters/audio duration. The fallback non-regression and streaming
+request count are asserted by the executable benchmark. The 12-second slow
+provider case deliberately remains slow: local streaming cannot erase upstream
+time-to-first-byte.
+
+Additional tests cover early PCM delivery, fragmented PCM sample alignment,
+packet bounds, truncated/empty streams, private IPC backpressure, ownership,
+provider cancellation before first audio, terminal-session rejection, selected
+model/voice preservation, network underruns and write backpressure.
+
+Streaming revision verification: **154 passed, 0 failed, 0 skipped** in the
+Node 22 worker container with both browser integration tests enabled and network
+disabled. No live provider request or deployment was made in this run.
+
+Run from the repository root:
+
+```sh
+node skills/meeting-voice/latency-benchmark.mjs
+cd skills/meeting-voice && npm test
+```
+
+## Historical small-chunk pipeline simulation
+
+The harness executes the baseline playback function extracted from Git and the
+current production helper. Both receive identical synthetic TTS and playback
+conditions. These are **not measured ElevenLabs, LLM, or live meeting latencies**.
+First audio means the first PCM write, not remote participant audibility.
+
+Assumptions: 40ms audio per character, 25ms decode, TTS fixed cost of 200ms
+(fast) or 12,000ms (slow), plus 2ms per character. Backpressure consumes 80%
+of audio duration unless immediate writes are specified. Short text is 32
+characters; long text is 689. Chunk boundaries remove two spaces from provider
+requests in the long fixture; reconstructed words and order are asserted intact.
+
+| Scenario | First PCM before → after | Playback completion before → after | TTS requests |
+|---|---:|---:|---:|
+| Short, fast provider | 289 → 289ms | 3,093 → 1,669ms | 1 → 1 |
+| Long, fast provider | 1,603 → 683ms | 51,711 → 28,463ms | 1 → 3 |
+| Long, slow provider | 13,403 → 12,483ms | 63,511 → 46,709ms | 1 → 3 |
+| Long, fast provider, immediate writes | 1,603 → 683ms | 29,663 → 28,463ms | 1 → 3 |
+| Long, slow provider, immediate writes | 13,403 → 12,483ms | 41,463 → 46,709ms | 1 → 3 |
+
+The final scenario is a **12.7% completion-time regression**. Fixed small chunks
+increase request count and can introduce inter-chunk gaps when synthesis takes
+longer than playback. The first-audio improvement is not a universal throughput
+or cost improvement. This benchmark intentionally reports the adverse case;
+there is no release gate asserting that every scenario is faster.
+
+The actual old/new utterance detectors emit a one-second PCM fixture after
+700ms/500ms of trailing silence respectively (200ms improvement). This does not
+measure transcription accuracy or provider processing time.
+
+## Real local FFmpeg decode
+
+Twenty warm samples per fixture on the host, Node v26.9.0, using real
+`decodeSpeech` and in-memory 16kHz mono PCM WAVs:
+
+| Audio duration | p50 | p95 |
+|---|---:|---:|
+| 1 second | 58ms | 107ms |
+| 10 seconds | 52ms | 66ms |
+
+These include process startup and vary with machine load. They do not cover
+provider MP3 payloads, pacat delivery, or a remote meeting microphone.
+
+## Test coverage and limits
+
+Host and production Node 22 container: 144 passing, 2 opt-in browser integration
+tests skipped in the standard suite. Coverage includes isolated reply cursors,
+latest-follow-up retention, bounded prefetch, playback backpressure accounting,
+cancellation, and sanitized timing diagnostics.
+
+With `BROWSER_VIDEO_INTEGRATION=1` in the isolated production container:
+**146 passed, 0 failed, 0 skipped**, including native browser input and real
+VP8 encoding/decoding. The container had networking disabled and used disposable
+test profiles, not an active user meeting.
+
+No deployment or external meeting was started for these benchmarks. Live STT
+accuracy, TTS continuity, real request overhead/rate limits, and end-to-end
+participant-to-bot audibility remain unverified. The previously observed
+12–54 second agent-generation delays are outside this pipeline simulation.
+
+Before claiming near-real-time: address fixed-chunk slow-provider regression,
+then measure capture → transcript → agent reply → first audible speech in an
+approved live session, with per-stage p50/p95 and interruption/accuracy checks.

@@ -140,15 +140,23 @@ export class ParentSpeechClient {
     if (signal?.aborted) return Promise.reject(new Error('voice request cancelled'));
     const id = randomUUID();
     return new Promise((resolve, reject) => {
+      const cancelStream = () => {
+        if (operation === 'stream-start') {
+          try { this.processRef.send?.({ type: 'speech-request', id: randomUUID(), operation: 'stream-cancel', streamID: id }, () => {}); }
+          catch { /* Parent exit already closes its stream. */ }
+        }
+      };
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error('voice service request timed out'));
+        cancelStream();
+        settle.reject(new Error('voice service request timed out'));
       }, 45000);
       this.pending.set(id, { resolve, reject, timer });
       const abort = () => {
         if (this.pending.delete(id)) {
           clearTimeout(timer);
-          reject(new Error('voice request cancelled'));
+          cancelStream();
+          settle.reject(new Error('voice request cancelled'));
         }
       };
       signal?.addEventListener('abort', abort, { once: true });
@@ -174,6 +182,28 @@ export class ParentSpeechClient {
     const result = await this.request('synthesize', { text }, signal);
     if (typeof result.audio !== 'string') throw new Error('voice service response is invalid');
     return Buffer.from(result.audio, 'base64');
+  }
+
+  async *synthesizeStream(text, signal) {
+    let streamID, done = false;
+    try {
+      let result = await this.request('stream-start', { text }, signal);
+      streamID = result.streamID;
+      if (typeof streamID !== 'string' || !streamID) throw new Error('Invalid speech stream');
+      while (!result.done) {
+        if (typeof result.audio !== 'string' || result.audio.length > 8600) throw new Error('Invalid speech packet');
+        const pcm = Buffer.from(result.audio, 'base64');
+        if (!pcm.length || pcm.length > 6400 || pcm.length % 2) throw new Error('Invalid speech PCM');
+        yield pcm;
+        result = await this.request('stream-next', { streamID }, signal);
+      }
+      done = true;
+    } finally {
+      if (streamID && !done) {
+        // A cancellation must reach the parent even when the caller is aborted.
+        void this.request('stream-cancel', { streamID }).catch(() => {});
+      }
+    }
   }
 }
 

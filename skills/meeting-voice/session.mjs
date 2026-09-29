@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { meetingURL } from './meet.mjs';
 import { availableSpeechModels } from './bridge.mjs';
 import { ElevenLabsClient } from './elevenlabs.mjs';
+import { SpeechStreamHost } from './speech-stream.mjs';
 import { browserIntervention } from './browser-intervention.mjs';
 import { BrowserVideoRelay } from './browser-video-relay.mjs';
 
@@ -414,7 +415,12 @@ export class MeetSessionService {
     if (typeof id !== 'string' || !ID.test(id) || !session.child) return;
     try {
       if (['leaving', 'ended', 'failed'].includes(session.status)) throw new Error('meeting has ended');
-      if (message.operation === 'transcribe') {
+      if (['stream-start', 'stream-next', 'stream-cancel'].includes(message.operation)) {
+        session.speechStream ??= new SpeechStreamHost((text, signal) =>
+          session.elevenLabs.synthesizeStream(text, session.speechModel, session.voice, signal));
+        const result = await session.speechStream.handle(message);
+        session.child?.send({ type: 'speech-result', id, ...result });
+      } else if (message.operation === 'transcribe') {
         if (typeof message.audio !== 'string' || message.audio.length > 900000) throw new Error('meeting utterance is too large');
         const pcm = Buffer.from(message.audio, 'base64');
         const text = await session.elevenLabs.transcribe(pcm, session.transcriptionModel);
@@ -516,6 +522,7 @@ export class MeetSessionService {
   }
 
   clearSessionTimers(session) {
+    session.speechStream?.close();
     clearTimeout(session.expiryTimer);
     clearTimeout(session.killTimer);
     clearTimeout(session.renewTimer);
@@ -615,6 +622,7 @@ export class MeetSessionService {
 
   beginStop(session) {
     if (!session.child || ['ended', 'failed', 'leaving'].includes(session.status)) return false;
+    session.speechStream?.close();
     session.status = 'leaving';
     void this.revoke(session).catch(() => {});
     clearTimeout(session.expiryTimer);
