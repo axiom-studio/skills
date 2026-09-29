@@ -7,6 +7,7 @@ import { createBrowserDesktop } from './browser-desktop.mjs';
 import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
+import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -80,7 +81,7 @@ async function main() {
   let audio;
   let presenceCheck;
   let speaking = false;
-  async function playText(text) {
+  async function playAudioText(text) {
     speaking = true;
     detector.reset();
     try {
@@ -95,6 +96,12 @@ async function main() {
       detector.reset();
     }
   }
+  const playback = new SpeechPlayback(playAudioText, controller.signal);
+  const playText = text => playback.enqueue(text);
+  process.on('message', message => {
+    void handleSpeak(message, playback, () => Boolean(meeting && audio && !controller.signal.aborted),
+      result => { if (process.connected) process.send?.(result); });
+  });
   const transcripts = new TranscriptQueue({
     signal: controller.signal,
     transcribe: pcm => speech.transcribe(pcm, controller.signal),
