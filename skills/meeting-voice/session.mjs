@@ -6,6 +6,7 @@ import { meetingURL } from './meet.mjs';
 import { availableSpeechModels } from './bridge.mjs';
 import { ElevenLabsClient } from './elevenlabs.mjs';
 import { SpeechStreamHost } from './speech-stream.mjs';
+import { RealtimeTranscription } from './realtime-transcription.mjs';
 import { browserIntervention } from './browser-intervention.mjs';
 import { BrowserVideoRelay } from './browser-video-relay.mjs';
 
@@ -149,7 +150,7 @@ export class MeetSessionService {
     const elevenLabs = elevenLabsAPIKey ? new ElevenLabsClient({ apiKey: elevenLabsAPIKey, fetchAPI: this.fetchAPI }) : null;
     if (!elevenLabs) required(this.speechConfig.AXIOM_SPEECH_API_URL, 'speech endpoint');
     const selectedTranscriptionModel = selection(transcriptionModel,
-      elevenLabs ? 'scribe_v2' : this.speechConfig.AXIOM_TRANSCRIPTION_MODEL, 'transcription model', 200);
+      elevenLabs ? 'scribe_v2_realtime' : this.speechConfig.AXIOM_TRANSCRIPTION_MODEL, 'transcription model', 200);
     const selectedSpeechModel = selection(speechModel, this.speechConfig.AXIOM_SPEECH_MODEL, 'speech model', 200);
     const selectedVoice = selection(voice, this.speechConfig.AXIOM_SPEECH_VOICE, 'speech voice', 100);
     if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) {
@@ -415,7 +416,19 @@ export class MeetSessionService {
     if (typeof id !== 'string' || !ID.test(id) || !session.child) return;
     try {
       if (['leaving', 'ended', 'failed'].includes(session.status)) throw new Error('meeting has ended');
-      if (['stream-start', 'stream-next', 'stream-cancel'].includes(message.operation)) {
+      if (message.operation === 'transcription-open') {
+        if (session.transcriptionModel !== 'scribe_v2_realtime' || session.realtimeTranscription) throw new Error('Invalid realtime selection');
+        session.realtimeTranscription = new RealtimeTranscription({ apiKey: session.elevenLabs.apiKey,
+          onTranscript: text => session.child?.send({ type: 'speech-transcript', text }),
+          onError: stage => session.child?.send({ type: 'speech-transcript', error: true, stage }),
+        });
+        await session.realtimeTranscription.ready;
+        session.child?.send({ type: 'speech-result', id });
+      } else if (message.operation === 'transcription-audio') {
+        if (!session.realtimeTranscription || typeof message.audio !== 'string' || message.audio.length > 8600) throw new Error('Invalid realtime audio');
+        await session.realtimeTranscription.send(Buffer.from(message.audio, 'base64'));
+        session.child?.send({ type: 'speech-result', id });
+      } else if (['stream-start', 'stream-next', 'stream-cancel'].includes(message.operation)) {
         session.speechStream ??= new SpeechStreamHost((text, signal) =>
           session.elevenLabs.synthesizeStream(text, session.speechModel, session.voice, signal));
         const result = await session.speechStream.handle(message);
@@ -522,6 +535,7 @@ export class MeetSessionService {
   }
 
   clearSessionTimers(session) {
+    session.realtimeTranscription?.close();
     session.speechStream?.close();
     clearTimeout(session.expiryTimer);
     clearTimeout(session.killTimer);
@@ -622,6 +636,7 @@ export class MeetSessionService {
 
   beginStop(session) {
     if (!session.child || ['ended', 'failed', 'leaving'].includes(session.status)) return false;
+    session.realtimeTranscription?.close();
     session.speechStream?.close();
     session.status = 'leaving';
     void this.revoke(session).catch(() => {});

@@ -269,6 +269,16 @@ test('video and input are independent while renewals remain bound to the same hu
   assert.equal(worker.sessions.get('agent-1').browserVideo, undefined);
 });
 
+test('new ElevenLabs sessions default to realtime transcription', async t => {
+  const { worker, children, profilesDir } = service();
+  t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
+  await worker.start({ runID: 'run-1', agentID: 'agent-1', url: 'https://zoom.us/j/12345678901',
+    issuerToken: 'bound-bot-token', elevenLabsAPIKey: 'vault-secret',
+    speechModel: 'eleven_flash_v2_5', voice: 'voice123456' });
+  assert.equal(children[0].options.env.AXIOM_TRANSCRIPTION_MODEL, 'scribe_v2_realtime');
+  assert.equal(JSON.stringify(children[0].options.env).includes('vault-secret'), false);
+});
+
 test('ElevenLabs Vault key stays in the parent while the meeting worker requests speech', async t => {
   const { worker, children, requests, profilesDir } = service();
   t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
@@ -278,6 +288,7 @@ test('ElevenLabs Vault key stays in the parent while the meeting worker requests
   const started = await worker.start(input);
   assert.equal(started.status, 'joining');
   assert.equal(children[0].options.env.MEET_SPEECH_PROVIDER, 'elevenlabs');
+  assert.equal(children[0].options.env.AXIOM_TRANSCRIPTION_MODEL, 'scribe_v2');
   assert.equal(children[0].options.env.AXIOM_SPEECH_CHUNK_CHARACTERS, '1200');
   assert.equal(JSON.stringify(children[0].options.env).includes('vault-secret'), false);
   assert.equal(readFileSync(join(profilesDir, '.meet-voice-state.json'), 'utf8').includes('vault-secret'), false);

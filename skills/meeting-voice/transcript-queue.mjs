@@ -33,6 +33,15 @@ export class TranscriptQueue {
   }
 
   enqueue(pcm) {
+    this.enqueueItem(pcm, false);
+  }
+
+  enqueueText(text) {
+    if (typeof text !== 'string' || text.length > 16000) { this.fail('invalid_transcript'); return; }
+    if (text.trim()) this.enqueueItem(Buffer.from(text.trim()), true);
+  }
+
+  enqueueItem(pcm, committed) {
     if (this.failed || this.signal.aborted) return;
     if (!Buffer.isBuffer(pcm) || this.pendingBytes + pcm.length > this.maxPendingBytes) {
       this.fail('capture_backlog');
@@ -44,8 +53,8 @@ export class TranscriptQueue {
       let stage = 'transcription';
       try {
         if (this.failed || this.signal.aborted) return;
-        console.info(JSON.stringify({ event: 'meeting_voice_stage', stage: 'transcription_queue', durationMs: Math.round(performance.now() - queuedAt) }));
-        const text = await this.transcribe(pcm);
+        console.info(JSON.stringify({ event: 'meeting_voice_stage', stage: committed ? 'transcript_queue' : 'transcription_queue', durationMs: Math.round(performance.now() - queuedAt) }));
+        const text = committed ? pcm.toString() : await this.transcribe(pcm);
         if (!text || this.signal.aborted) return;
         stage = 'transcript_post';
         const utterance = await this.postUtterance(text);

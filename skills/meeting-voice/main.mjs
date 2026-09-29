@@ -7,6 +7,7 @@ import { createBrowserDesktop } from './browser-desktop.mjs';
 import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
+import { RealtimeCapture } from './realtime-transcription.mjs';
 import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
 import { playSpeechChunks, playSpeechStream, timedVoiceStage } from './voice-latency.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
@@ -130,6 +131,12 @@ async function main() {
     },
   });
   const detector = new UtteranceDetector(pcm => transcripts.enqueue(pcm));
+  let realtimeCapture;
+  process.on('message', message => {
+    if (message?.type !== 'speech-transcript' || !realtimeCapture) return;
+    if (message.error) transcripts.fail('realtime_transcription');
+    else transcripts.enqueueText(message.text);
+  });
 
   const stop = () => controller.abort();
   const expiresIn = Date.parse(config.expiresAt) - Date.now();
@@ -160,15 +167,25 @@ async function main() {
       } catch { stop(); }
     }, 5000);
     presenceCheck.unref();
+    if (process.env.MEET_SPEECH_PROVIDER === 'elevenlabs' && config.speech.transcriptionModel === 'scribe_v2_realtime') {
+      realtimeCapture = new RealtimeCapture({ signal: controller.signal,
+        send: pcm => speech.request('transcription-audio', { audio: pcm.toString('base64') }, controller.signal),
+        onError: stage => transcripts.fail(stage),
+      });
+      await speech.request('transcription-open', {}, controller.signal);
+    }
     audio = openAudio(commands);
     audio.input.once('end', stop);
     audio.input.once('error', stop);
+    audio.input.on('data', chunk => {
+      if (realtimeCapture) realtimeCapture.feed(speaking ? Buffer.alloc(chunk.length) : chunk);
+      else if (!speaking) detector.feed(chunk);
+    });
     try {
       await conversation.postStatus('I joined the meeting and am listening. Ask me to leave in this Seal Chat when you are done.', controller.signal);
     } catch (error) {
       console.error('Meet status update failed:', error.name);
     }
-    audio.input.on('data', chunk => { if (!speaking) detector.feed(chunk); });
     process.send?.({ status: 'active' });
     const greeting = 'Hello, I am the Axiom voice assistant. I am listening and can respond to requests.';
     await playText(greeting);

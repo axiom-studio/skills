@@ -73,7 +73,10 @@ export class ElevenLabsClient {
     }
     if (pageToken) throw new Error('ElevenLabs voice catalog exceeds the supported page limit');
     for (const model of speechModels) model.voices = voices.map(voice => voice.id);
-    return { transcriptionModels: [{ id: 'scribe_v2', name: 'Scribe v2', voices: [] }], speechModels, voiceOptions: voices };
+    return { transcriptionModels: [
+      { id: 'scribe_v2', name: 'Scribe v2', voices: [] },
+      { id: 'scribe_v2_realtime', name: 'Scribe v2 Realtime', voices: [] },
+    ], speechModels, voiceOptions: voices };
   }
 
   async transcribe(pcm, model, signal) {
