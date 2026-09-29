@@ -2,6 +2,41 @@
 
 Comparison: baseline `2727bb2f` versus implementation `d09d082b`.
 
+## Native audio finding and local rollout (0.2.12)
+
+A real PulseAudio test uncovered a delay hidden by the simulated pipeline:
+the default null sink starts with a two-second render/rewind window. Setting
+`norewinds=1` on the capture and microphone null sinks uses the module's 50ms
+window instead. See [PulseAudio 16.1 module source](https://github.com/pulseaudio/pulseaudio/blob/v16.1/src/modules/module-null-sink.c).
+
+Measured from the first immediately available synthetic PCM packet to the first
+non-silent sample received through `axiom_bot_source`, including the real
+`pacat` → null sink → remapped microphone → `parec` path:
+
+| Configuration | First microphone sample |
+|---|---:|
+| Default rewind configuration | 1,882ms |
+| `norewinds=1`, three independent cold starts | 4ms, 5ms, 4ms |
+
+The test holds the provider iterator open until the microphone receives audio,
+proving playback does not await provider completion. A 500ms native-delivery
+regression gate is enforced for the optimized configuration. These are local
+virtual-microphone measurements, **not** remote participant audibility or
+STT/LLM/provider timing. The production-entrypoint smoke also confirmed both
+directions deliver audio with zero cross-channel signal.
+
+Run the optional test in the worker image with `AUDIO_INTEGRATION=1`; setting
+`AUDIO_BASELINE=1` recreates the old sink configuration. The built 0.2.12 image
+passed **163 tests, zero failed/skipped**, with audio and browser integration
+enabled. A subsequent mounted-test refinement verified the exact remapped source
+as above; production audio configuration was unchanged.
+
+Local k3d rollout: worker Health returns version 0.2.12 and healthy=true, one
+available replica; both loaded null-sink modules show `norewinds=1`. The tenant-2
+Meet Swift binding converged to 0.2.12, revision 10, with its same five actions.
+No active meeting was interrupted and no new meeting was joined. The installed
+tenant skill record was backed up before the local catalog version/image update.
+
 ## Streaming revision (current worktree)
 
 The revised implementation uses a single ElevenLabs streaming request per
