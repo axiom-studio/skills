@@ -1,5 +1,5 @@
-// Bidirectional host transport: fresh signed proofs in, encoded video out.
-// Browser input continues on the independent, individually authorized RPC.
+// Host-only transport. Legacy Video accepts proofs and emits encoded video;
+// Desktop multiplexes signed proofs and native input, emitting RFB + barriers.
 export function browserVideoRPC(service, call, desktop = false) {
   let session, closed = false;
   const close = () => { if (closed) return; closed = true; session?.close(); };
