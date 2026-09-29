@@ -170,3 +170,32 @@ References: [realtime API](https://elevenlabs.io/docs/api-reference/speech-to-te
 
 Before claiming near-real-time: measure capture → transcript → agent reply → first audible speech in an
 approved live session, with per-stage p50/p95 and interruption/accuracy checks.
+
+## Concurrent reply reader and live follow-up (2026-09-30 local time)
+
+The previous serial reply watcher could spend 90 seconds waiting for a missing
+or canceled reply before inspecting an already-completed follow-up. `ReplyInbox`
+now uses one bounded reader for all pending transcript triggers. Playback stays
+serialized separately. Replies still require the exact trigger, assigned agent,
+and channel audience. A registration/fetch race rewinds the read cursor; recent
+duplicate registrations cannot replay audio. Reads have a 15-second deadline;
+pending triggers expire after 90 seconds and the pending set is capped at 64.
+
+Six regression tests cover missing earlier replies, audience/agent filtering,
+late registration, duplicate suppression, slow playback, expiry, capacity,
+32 rapid committed transcripts, and cancellation. The full Node 22 container
+suite passed **169 tests, zero skipped**, including native audio and browser
+integration. Native first microphone sample in this run was **5 ms**.
+
+The running 0.2.12 worker was not restarted while a real call was active. Its
+observed transcript-post times were **14–40 ms**, first PCM **1,677–1,888 ms**,
+and agent reply wait **41,276 ms**; a subsequent wait reached **90,067 ms**
+without a reply. The old timer labels a returned timeout `ok`; this is not proof
+of successful speech. The new reader distinguishes expiration from success.
+
+The canonical trace for the 41-second reply showed two model turns: provider
+durations **30,181 + 9,677 ms**, input tokens **18,266 + 10,052**, output tokens
+**7,017 + 2,337**, and an intervening meet-status action. Another run failed on
+the provider output allowance. Thus model work—not transcript posting or the
+native audio buffer—is the dominant measured delay. These are individual
+observations, not p50/p95 benchmarks or a completed end-to-end latency claim.
