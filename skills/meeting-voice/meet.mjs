@@ -89,19 +89,55 @@ async function joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested
 }
 
 async function joinZoom(page, displayName, timeoutMs, onAdmissionRequested) {
-  const browserLink = page.getByRole('link', { name: /join from (your )?browser/i });
-  await browserLink.waitFor({ timeout: timeoutMs });
-  await browserLink.click();
-  const name = page.getByRole('textbox', { name: /^(Your name|Name)$/i });
-  if (await visible(name)) await name.fill(displayName);
-  const join = page.getByRole('button', { name: /^Join$/i });
-  await join.waitFor({ timeout: timeoutMs });
-  await join.click();
-  const leave = page.getByRole('button', { name: /^Leave( meeting)?$/i });
-  if (await visible(page.getByText(/waiting for (the )?host|please wait.*admit/i))) onAdmissionRequested?.();
-  await leave.waitFor({ timeout: timeoutMs });
-  await enableMicrophone(page, 'zoom');
-  return leave;
+  const browserLink = page.getByRole('link', { name: /join from (your )?browser/i }).first();
+  const join = page.getByRole('button', { name: /^Join$/i }).first();
+  const leave = page.getByRole('button', { name: /^Leave( meeting)?$/i }).first();
+  const waiting = page.getByText(/waiting for (the )?host|please wait.*(admit|let you in)|host will let you in/i).first();
+  const connecting = page.getByText(/^(Joining(?: meeting)?|Connecting(?: to (?:the )?meeting)?)[.…]*$/i).first();
+  const deadline = Date.now() + timeoutMs;
+  let requested = false;
+  let openedBrowser = false;
+  let admissionReported = false;
+  let stage = 'Zoom did not show recognizable join controls';
+  while (Date.now() < deadline) {
+    if (page.isClosed()) throw new MeetingJoinError('the Zoom browser was closed before admission');
+    // A waiting room may also expose Leave. It is not proof of admission.
+    if (await visible(waiting)) {
+      requested = true;
+      stage = 'Zoom did not confirm host admission before the timeout';
+      if (!admissionReported) { admissionReported = true; onAdmissionRequested?.(); }
+    } else if (await visible(connecting)) {
+      requested = true;
+      stage = 'Zoom remained on its connecting screen before the timeout';
+    } else if (await visible(leave)) {
+      await joinStep('Zoom audio setup could not be completed', () => enableMicrophone(page, 'zoom'));
+      return leave;
+    } else if (!requested && await visible(join)) {
+      const name = page.getByRole('textbox', { name: /^(Your name|Name)$/i }).first();
+      if (await visible(name)) await joinStep('the Zoom guest name could not be entered', () => name.fill(displayName, { timeout: Math.max(1, deadline - Date.now()) }));
+      await joinStep('the Zoom join request could not be submitted', () => join.click({ timeout: Math.max(1, deadline - Date.now()) }));
+      requested = true;
+      stage = 'Zoom did not confirm admission after the join request';
+    } else if (!requested && !openedBrowser && await visible(browserLink)) {
+      await joinStep('the Zoom browser client could not be opened', () => browserLink.click({ timeout: Math.max(1, deadline - Date.now()) }));
+      openedBrowser = true;
+      stage = 'Zoom did not show its browser prejoin controls';
+    }
+    await new Promise(resolve => setTimeout(resolve, Math.min(200, Math.max(1, deadline - Date.now()))));
+  }
+  throw new MeetingJoinError(stage);
+}
+
+// Inspect only a Zoom route for this authorized meeting after private handoff.
+// Never navigate away from an in-progress join or inspect a remaining login form.
+function canResumeZoom(page, target) {
+  try {
+    const current = new URL(page.url());
+    const meetingID = new URL(target).pathname.split('/')[2];
+    return current.protocol === 'https:' && !current.port && !current.username && !current.password &&
+      (current.hostname === 'zoom.us' || /^[a-z0-9-]+\.zoom\.us$/.test(current.hostname)) &&
+      new RegExp(`^/(?:j/${meetingID}|wc/${meetingID}/(?:join|start)|wc/(?:join|start)/${meetingID})/?$`).test(current.pathname);
+  } catch { return false; }
 }
 
 async function joinTeams(page, displayName, timeoutMs, onAdmissionRequested) {
@@ -137,9 +173,13 @@ export async function joinMeeting({ url, profileDir, displayName = 'Axiom Agent'
       if (!handoff) throw new MeetingJoinError('human browser handoff is unavailable');
       await joinStep('browser handoff did not complete', () => handoff.request({ page, context, signal, reason: 'manual_confirmation' }));
       if (signal?.aborted) throw new MeetingJoinError('the meeting was cancelled');
-      const joined = page.getByRole('button', { name: /^(Leave call|Leave meeting|Leave)$/i });
-      if (await visible(joined)) leave = joined;
-      else await joinStep('the meeting page could not be reopened', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+      if (platform === 'zoom') {
+        if (!canResumeZoom(page, target)) throw new MeetingJoinError('return to the authorized Zoom meeting in the browser before returning control');
+      } else {
+        const joined = page.getByRole('button', { name: /^(Leave call|Leave meeting|Leave)$/i });
+        if (await visible(joined)) leave = joined;
+        else await joinStep('the meeting page could not be reopened', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+      }
     }
     const attempt = () => platform === 'meet' ? joinGoogleMeet(page, displayName, timeoutMs, onAdmissionRequested)
       : platform === 'zoom' ? joinZoom(page, displayName, timeoutMs, onAdmissionRequested)
@@ -153,12 +193,17 @@ export async function joinMeeting({ url, profileDir, displayName = 'Axiom Agent'
       // transcription or presence polling runs while the human signs in.
       await joinStep('browser handoff did not complete', () => handoff.request({ page, context, signal, reason }));
       if (signal?.aborted) throw new MeetingJoinError('the meeting was cancelled');
-      // A human may have joined manually. Otherwise return only to the original
-      // authorized meeting, never inspect a remaining password or MFA form.
-      leave = page.getByRole('button', { name: /^(Leave call|Leave meeting|Leave)$/i });
-      if (!await visible(leave)) {
-        await joinStep('the meeting page could not be reopened', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+      if (platform === 'zoom') {
+        if (!canResumeZoom(page, target)) throw new MeetingJoinError('return to the authorized Zoom meeting in the browser before returning control');
         leave = await attempt();
+      } else {
+        // A human may have joined manually. Otherwise return only to the original
+        // authorized meeting, never inspect a remaining password or MFA form.
+        leave = page.getByRole('button', { name: /^(Leave call|Leave meeting|Leave)$/i });
+        if (!await visible(leave)) {
+          await joinStep('the meeting page could not be reopened', () => page.goto(target, { waitUntil: 'domcontentloaded', timeout: timeoutMs }));
+          leave = await attempt();
+        }
       }
     }
     return {
