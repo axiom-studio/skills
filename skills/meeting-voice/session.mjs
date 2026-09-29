@@ -654,6 +654,10 @@ export class MeetSessionService {
 
   publicState(session) {
     return { sessionId: session.id, status: session.status, meetURL: session.meetURL,
+      // Report the actual validated selection, not environment defaults. Restored
+      // terminal sessions may not have it; never guess or expose credentials.
+      ...(session.transcriptionModel ? { transcriptionModel: session.transcriptionModel } : {}),
+      ...(session.speechModel ? { speechModel: session.speechModel } : {}),
       ...(session.status === 'awaiting_user' && session.intervention ? { intervention: session.intervention } : {}),
       startedAt: session.startedAt, expiresAt: session.expiresAt, endedAt: session.endedAt };
   }

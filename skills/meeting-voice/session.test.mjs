@@ -62,6 +62,18 @@ function service(overrides = {}) {
       AXIOM_TRANSCRIPTION_MODEL: 'transcribe', AXIOM_SPEECH_MODEL: 'speak', AXIOM_SPEECH_VOICE: 'voice' } }), children, requests, profilesDir };
 }
 
+test('public session status identifies selected models without disclosing secrets or guessing restored defaults', () => {
+  const state = MeetSessionService.prototype.publicState({ id: 'session', status: 'active',
+    transcriptionModel: 'scribe_v2_realtime', speechModel: 'selected-speech',
+    voice: 'private-voice', grant: 'private-grant', elevenLabsAPIKey: 'private-key' });
+  assert.equal(state.transcriptionModel, 'scribe_v2_realtime');
+  assert.equal(state.speechModel, 'selected-speech');
+  assert.doesNotMatch(JSON.stringify(state), /private/);
+  const restored = MeetSessionService.prototype.publicState({ id: 'old', status: 'failed' });
+  assert.equal(Object.hasOwn(restored, 'transcriptionModel'), false);
+  assert.equal(Object.hasOwn(restored, 'speechModel'), false);
+});
+
 test('chat speech is session-scoped, acknowledged, durable and never replayed', async t => {
   const { worker, children, profilesDir, requests } = service();
   t.after(() => rmSync(profilesDir, { recursive: true, force: true }));
