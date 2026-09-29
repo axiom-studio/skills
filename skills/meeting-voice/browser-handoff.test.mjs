@@ -124,3 +124,29 @@ test('stream cannot be opened before takeover or after cancellation', async () =
   await assert.rejects(f.handoff.stream(principal, lease.id).next());
   assert.equal(opened, 0);
 });
+
+test('desktop teardown during explicit return cannot cancel the resumed browser', async () => {
+  let stopped, lease, transportClosed = false;
+  const f = fixture({ desktopFactory: () => ({
+    write: async () => {},
+    async close() {
+      transportClosed = true; stopped?.();
+      // Simulate IPC stream-finally cancellation while resume awaits cleanup.
+      await assert.rejects(f.handoff.handle(principal, { type: 'cancel', leaseID: lease.id }));
+    },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from('RFB');
+      await new Promise(resolve => { stopped = resolve; });
+    },
+  }) });
+  const pending = f.handoff.request(f);
+  lease = await f.handoff.handle(principal, { type: 'claim' });
+  const stream = f.handoff.stream(principal, lease.id, { desktop: true });
+  await stream.next(); const next = stream.next();
+  await assert.rejects(f.handoff.writeDesktop({ ...principal, tenantID: 'foreign' }, lease.id, Buffer.from('key')));
+  await f.handoff.writeDesktop(principal, lease.id, Buffer.from('key'));
+  await f.handoff.handle(principal, { type: 'resume', leaseID: lease.id });
+  await pending; await next;
+  assert.equal(transportClosed, true); assert.equal(f.closed(), 0);
+  assert.deepEqual(f.states, ['awaiting_user', 'joining']);
+});

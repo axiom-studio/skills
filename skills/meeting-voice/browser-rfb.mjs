@@ -13,8 +13,9 @@ export async function openBrowserRFB({ display, signal }) {
   const path = join(directory, 'desktop');
   const child = spawn('x11vnc', ['-display', display, '-unixsock', path, '-rfbport', '0',
     '-no6', '-safer', '-nocmds', '-nosel', '-nosetclipboard', '-nosetprimary',
-    '-nevershared', '-once', '-nopw', '-quiet', '-noxdamage', '-wait', '10', '-defer', '5'],
+    '-nevershared', '-once', '-nopw', '-quiet', '-clear_keys', '-noxdamage', '-nonap', '-nowait_bog', '-sb', '0', '-wait', '10', '-defer', '5'],
   { stdio: 'ignore' });
+  const stopped = new Promise(resolve => child.once('close', resolve));
   let socket, closed = false, killTimer;
   const close = () => {
     if (closed) return;
@@ -41,7 +42,7 @@ export async function openBrowserRFB({ display, signal }) {
     if (!socket || closed || signal?.aborted) throw new Error();
     socket.on('error', close);
     return {
-      close,
+      async close() { close(); await stopped; },
       async write(bytes) {
         if (closed || !Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 65536) throw new Error('Desktop unavailable');
         await new Promise((resolve, reject) => {

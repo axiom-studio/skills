@@ -123,6 +123,8 @@ export class BrowserHandoff {
       if (command.type === 'resume') {
         await pending.control.human(principal, command.leaseID, async () => {
           await pending.view.release?.();
+          pending.returning = true;
+          await pending.desktop?.close();
           pending.video?.abort();
         });
         await pending.control.returnControl(principal, command.leaseID);
@@ -130,6 +132,9 @@ export class BrowserHandoff {
         return { type: 'ack' };
       }
       if (command.type === 'cancel') {
+        // Stopping the native stream is part of explicit return, not an
+        // ambiguous disconnect. Its IPC cleanup must not race that return.
+        if (pending.returning) throw new Error();
         // Check ownership before closing; an unrelated user cannot terminate
         // another user's sign-in attempt.
         await pending.control.human(principal, command.leaseID, () => {});
