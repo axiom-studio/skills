@@ -2,8 +2,10 @@
 set -eu
 
 pulseaudio --start --exit-idle-time=-1
-pactl load-module module-null-sink sink_name=axiom_meet_capture sink_properties=device.description=AxiomMeetCapture >/dev/null
-pactl load-module module-null-sink sink_name=axiom_bot_microphone sink_properties=device.description=AxiomBotMicrophone >/dev/null
+# Null sinks otherwise default to a two-second rewind/render window. These
+# realtime streams never seek; bound the sink window with norewinds (50ms).
+pactl load-module module-null-sink sink_name=axiom_meet_capture norewinds=1 sink_properties=device.description=AxiomMeetCapture >/dev/null
+pactl load-module module-null-sink sink_name=axiom_bot_microphone norewinds=1 sink_properties=device.description=AxiomBotMicrophone >/dev/null
 pactl load-module module-remap-source master=axiom_bot_microphone.monitor source_name=axiom_bot_source source_properties=device.description=AxiomBotSource >/dev/null
 pactl set-default-sink axiom_meet_capture
 pactl set-default-source axiom_bot_source

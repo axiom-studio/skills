@@ -46,24 +46,87 @@ test('accepts direct Zoom and Teams links without allowing arbitrary hosts', () 
   ]) assert.throws(() => meetingURL(url));
 });
 
-test('joins a Zoom browser meeting with a visible guest name', async () => {
+function zoomFixture(initial = 'landing') {
   const actions = [];
-  const leave = { waitFor: async () => {}, click: async () => {}, isVisible: async () => true };
+  let state = initial;
+  let closed = false;
+  let currentURL = 'https://app.zoom.us/wc/12345678901/join';
+  const locator = (shown, click = async () => {}) => ({
+    first() { return this; }, isVisible: async () => shown(), click,
+    fill: async value => actions.push(value),
+  });
   const page = {
-    goto: async () => {},
+    goto: async () => { actions.push('navigate'); },
+    url: () => currentURL,
+    isClosed: () => closed,
     getByRole(role, { name }) {
-      if (role === 'link') return { waitFor: async () => {}, click: async () => { actions.push('browser'); } };
-      if (role === 'textbox') return { isVisible: async () => true, fill: async value => { actions.push(value); } };
-      if (name.test('Leave')) return leave;
-      return { waitFor: async () => {}, click: async () => { actions.push('join'); } };
+      if (role === 'link') return locator(() => state === 'landing', async () => { actions.push('browser'); state = 'prejoin'; });
+      if (role === 'textbox') return locator(() => state === 'prejoin');
+      if (name.test('Leave')) return locator(() => ['active', 'waiting'].includes(state));
+      if (name.test('Join')) return locator(() => state === 'prejoin', async () => { actions.push('join'); state = 'active'; });
+      return locator(() => false);
     },
-    getByText: () => ({ isVisible: async () => false }),
+    getByText: pattern => locator(() => state === 'waiting' ? pattern.test('waiting for host') : state === 'connecting' && pattern.test('Joining...')),
   };
-  const browserAPI = { launchPersistentContext: async () => ({ pages: () => [page], close: async () => {} }) };
-  const meeting = await joinMeet({ url: 'https://zoom.us/j/12345678901', profileDir: '/profile',
-    displayName: 'Quorum', browserAPI });
+  const options = { url: 'https://zoom.us/j/12345678901', profileDir: '/profile', displayName: 'Quorum', timeoutMs: 1000,
+    browserAPI: { launchPersistentContext: async () => ({ pages: () => [page], close: async () => { closed = true; } }) } };
+  return { actions, options, setState: value => { state = value; }, setURL: value => { currentURL = value; }, closed: () => closed };
+}
+
+test('joins a Zoom browser meeting with a visible guest name', async () => {
+  const { actions, options } = zoomFixture();
+  const meeting = await joinMeet(options);
   assert.equal(meeting.platform, 'zoom');
-  assert.deepEqual(actions, ['browser', 'Quorum', 'join']);
+  assert.deepEqual(actions, ['navigate', 'browser', 'Quorum', 'join']);
+  await meeting.leave();
+});
+
+for (const state of ['connecting', 'waiting', 'active', 'prejoin']) {
+  test(`Zoom handoff resumes ${state} without reopening the meeting`, async () => {
+    const f = zoomFixture();
+    let admissions = 0;
+    const meeting = await joinMeet({ ...f.options, handoffBeforeJoin: true,
+      onAdmissionRequested: () => { admissions++; },
+      handoff: { request: async () => {
+        f.setState(state);
+        if (['waiting', 'connecting'].includes(state)) setTimeout(() => f.setState('active'), 30);
+      } },
+    });
+    assert.deepEqual(f.actions, state === 'prejoin' ? ['navigate', 'Quorum', 'join'] : ['navigate']);
+    assert.equal(admissions, state === 'waiting' ? 1 : 0);
+    await meeting.leave();
+  });
+}
+
+test('Zoom timeout identifies connecting stage without leaking browser content', async () => {
+  const f = zoomFixture('connecting');
+  await assert.rejects(joinMeet({ ...f.options, timeoutMs: 15 }), /Zoom remained on its connecting screen/);
+  assert.equal(f.closed(), true);
+});
+
+test('Zoom waiting room Leave button does not falsely confirm admission', async () => {
+  const f = zoomFixture('waiting');
+  await assert.rejects(joinMeet({ ...f.options, timeoutMs: 15 }), /host admission/);
+});
+
+for (const url of ['https://zoom.us/signin', 'https://evil.test/wc/12345678901/join', 'https://app.zoom.us/wc/99999999999/join']) {
+  test(`Zoom handoff refuses unrelated page: ${url}`, async () => {
+    const f = zoomFixture();
+    await assert.rejects(joinMeet({ ...f.options, handoffBeforeJoin: true,
+      handoff: { request: async () => { f.setURL(url); } },
+    }), /return to the authorized Zoom meeting/);
+    assert.deepEqual(f.actions, ['navigate']);
+    assert.equal(f.closed(), true);
+  });
+}
+
+test('automatic Zoom handoff also resumes without replaying navigation', async () => {
+  const f = zoomFixture('unknown');
+  const meeting = await joinMeet({ ...f.options, timeoutMs: 15,
+    interventionReason: async () => 'authentication',
+    handoff: { request: async () => f.setState('active') },
+  });
+  assert.deepEqual(f.actions, ['navigate']);
   await meeting.leave();
 });
 

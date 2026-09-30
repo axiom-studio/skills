@@ -1,8 +1,29 @@
 # Meeting voice Skill (in development)
 
+## Speaking from Seal Chat
+
+Version 0.2.11 adds `meet-speak` for explicit authenticated chat instructions.
+Read `meet-status`, then supply its exact `sessionId`, a unique `requestId`, and
+up to 500 characters of `text`. Reuse the ID and text for retries. The host
+requires the declared `host:meet:speak` permission and a human tenant member's
+chat origin; meeting observations cannot invoke this control operation.
+
+`played` means synthesis and playback to the meeting microphone completed. It
+does not verify remote audibility. `unconfirmed` can mean partial playback or a
+lost receipt and must not trigger a new automatic request. Receipts survive
+worker-service restart and retain hashes, not speech text. Up to 128 explicit
+utterance receipts are retained per session. Chat speech and meeting replies
+share a bounded, serial audio output queue.
+
+Roll out the Sentinel host permission support and review the new Skill action
+binding before use. Updating the worker restarts its calls: do not roll out
+during an active meeting without the user's approval.
+
+## Runtime
+
 This first-party hosted Skill runs as a long-lived, tenant-scoped service. An
 Agent created in Seal Chat can call `meet-models`, `meet-start`, `meet-status`,
-and `meet-stop`.
+`meet-stop`, and `meet-speak`.
 `meet-start` accepts direct Google Meet, Zoom, and Microsoft Teams links. The service resolves the
 calling Agent Run to its Seal Chat conversation through Cortex, verifies the
 tenant and Agent owner, and keeps the browser and audio process alive after the

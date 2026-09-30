@@ -1,10 +1,12 @@
 import { fork } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { meetingURL } from './meet.mjs';
 import { availableSpeechModels } from './bridge.mjs';
 import { ElevenLabsClient } from './elevenlabs.mjs';
+import { SpeechStreamHost } from './speech-stream.mjs';
+import { RealtimeTranscription } from './realtime-transcription.mjs';
 import { browserIntervention } from './browser-intervention.mjs';
 import { BrowserVideoRelay } from './browser-video-relay.mjs';
 
@@ -81,6 +83,7 @@ export class MeetSessionService {
           status: interrupted ? 'failed' : value.status,
           endedAt: interrupted ? new Date().toISOString() : value.endedAt,
           recoveryPending: interrupted || value.recoveryPending === true,
+          speechReceipts: value.speechReceipts ?? {},
           child: null,
         });
       }
@@ -92,8 +95,8 @@ export class MeetSessionService {
   persist() {
     const snapshot = {
       version: 1, tenantID: this.tenantID,
-      sessions: [...this.sessions.values()].map(({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending }) =>
-        ({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending: recoveryPending === true })),
+      sessions: [...this.sessions.values()].map(({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending, speechReceipts }) =>
+        ({ id, agentID, conversationID, meetURL, status, startedAt, expiresAt, endedAt, recoveryPending: recoveryPending === true, speechReceipts })),
     };
     this.pendingWrite = this.pendingWrite.catch(() => {}).then(async () => {
       await mkdir(this.profilesDir, { recursive: true });
@@ -152,7 +155,7 @@ export class MeetSessionService {
     const elevenLabs = elevenLabsAPIKey ? new ElevenLabsClient({ apiKey: elevenLabsAPIKey, fetchAPI: this.fetchAPI }) : null;
     if (!elevenLabs) required(this.speechConfig.AXIOM_SPEECH_API_URL, 'speech endpoint');
     const selectedTranscriptionModel = selection(transcriptionModel,
-      elevenLabs ? 'scribe_v2' : this.speechConfig.AXIOM_TRANSCRIPTION_MODEL, 'transcription model', 200);
+      elevenLabs ? 'scribe_v2_realtime' : this.speechConfig.AXIOM_TRANSCRIPTION_MODEL, 'transcription model', 200);
     const selectedSpeechModel = selection(speechModel, this.speechConfig.AXIOM_SPEECH_MODEL, 'speech model', 200);
     const selectedVoice = selection(voice, this.speechConfig.AXIOM_SPEECH_VOICE, 'speech voice', 100);
     if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) {
@@ -420,7 +423,24 @@ export class MeetSessionService {
     if (typeof id !== 'string' || !ID.test(id) || !session.child) return;
     try {
       if (['leaving', 'ended', 'failed'].includes(session.status)) throw new Error('meeting has ended');
-      if (message.operation === 'transcribe') {
+      if (message.operation === 'transcription-open') {
+        if (session.transcriptionModel !== 'scribe_v2_realtime' || session.realtimeTranscription) throw new Error('Invalid realtime selection');
+        session.realtimeTranscription = new RealtimeTranscription({ apiKey: session.elevenLabs.apiKey,
+          onTranscript: text => session.child?.send({ type: 'speech-transcript', text }),
+          onError: stage => session.child?.send({ type: 'speech-transcript', error: true, stage }),
+        });
+        await session.realtimeTranscription.ready;
+        session.child?.send({ type: 'speech-result', id });
+      } else if (message.operation === 'transcription-audio') {
+        if (!session.realtimeTranscription || typeof message.audio !== 'string' || message.audio.length > 8600) throw new Error('Invalid realtime audio');
+        await session.realtimeTranscription.send(Buffer.from(message.audio, 'base64'));
+        session.child?.send({ type: 'speech-result', id });
+      } else if (['stream-start', 'stream-next', 'stream-cancel'].includes(message.operation)) {
+        session.speechStream ??= new SpeechStreamHost((text, signal) =>
+          session.elevenLabs.synthesizeStream(text, session.speechModel, session.voice, signal));
+        const result = await session.speechStream.handle(message);
+        session.child?.send({ type: 'speech-result', id, ...result });
+      } else if (message.operation === 'transcribe') {
         if (typeof message.audio !== 'string' || message.audio.length > 900000) throw new Error('meeting utterance is too large');
         const pcm = Buffer.from(message.audio, 'base64');
         const text = await session.elevenLabs.transcribe(pcm, session.transcriptionModel);
@@ -461,6 +481,52 @@ export class MeetSessionService {
       token: secret(token, 'speech token'), fetchAPI: this.fetchAPI });
   }
 
+  async speak({ runID, agentID, invocationToken, sessionID, requestID, text }) {
+    agentID = validID(agentID, 'agent ID');
+    validID(sessionID, 'session ID');
+    validID(requestID, 'speech request ID');
+    secret(invocationToken, 'Cortex host invocation');
+    if (typeof text !== 'string' || !text.trim() || text.length > 500) throw new Error('Speech requires 1–500 characters');
+    const conversationID = await this.destination({ runID, agentID, invocationToken, action: 'meet-speak' });
+    await this.restore();
+    const session = this.sessions.get(agentID);
+    if (!session || session.id !== sessionID || session.conversationID !== conversationID) throw new Error('Speech requires this chat’s exact meeting session');
+    const digest = createHash('sha256').update(text).digest('hex');
+    session.speechReceipts ??= {};
+    if (Object.hasOwn(session.speechReceipts, requestID)) {
+      const receipt = session.speechReceipts[requestID];
+      if (receipt.digest !== digest) throw new Error('Speech request ID was already used for different text');
+      return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
+    }
+    if (session.status !== 'active' || !session.child || Date.parse(session.expiresAt) <= Date.now()) throw new Error('Speech requires an active meeting');
+    if (Object.keys(session.speechReceipts).length >= 128) throw new Error('Meeting speech request limit reached');
+    // Write the uncertain receipt before dispatch. A crash or retry must never
+    // repeat externally audible speech. No plaintext is stored here.
+    const receipt = { digest, delivery: 'unconfirmed' };
+    Object.defineProperty(session.speechReceipts, requestID, { value: receipt, enumerable: true });
+    await this.persist();
+    if (session.status !== 'active' || !session.child) return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
+    const child = session.child;
+    receipt.delivery = await new Promise(resolve => {
+      const finish = delivery => {
+        clearTimeout(timer); child.off('message', receive); child.off('exit', exited);
+        resolve(delivery);
+      };
+      const exited = () => finish('unconfirmed');
+      const receive = message => {
+        if (message?.type === 'speak-result' && message.id === requestID) {
+          finish(message.delivery === 'played' ? 'played' : 'unconfirmed');
+        }
+      };
+      const timer = setTimeout(exited, 120000);
+      child.on('message', receive); child.once('exit', exited);
+      try { child.send({ type: 'speak', id: requestID, text, deadline: Date.now() + 115000 }, error => { if (error) exited(); }); }
+      catch { exited(); }
+    });
+    await this.persist();
+    return { sessionId: sessionID, requestId: requestID, delivery: receipt.delivery };
+  }
+
   async stop({ runID, agentID, issuerToken, invocationToken }) {
     agentID = validID(agentID, 'agent ID');
     const conversationID = await this.destination({ runID, agentID, issuerToken, invocationToken, action: 'meet-stop' });
@@ -476,6 +542,8 @@ export class MeetSessionService {
   }
 
   clearSessionTimers(session) {
+    session.realtimeTranscription?.close();
+    session.speechStream?.close();
     clearTimeout(session.expiryTimer);
     clearTimeout(session.killTimer);
     clearTimeout(session.renewTimer);
@@ -575,6 +643,8 @@ export class MeetSessionService {
 
   beginStop(session) {
     if (!session.child || ['ended', 'failed', 'leaving'].includes(session.status)) return false;
+    session.realtimeTranscription?.close();
+    session.speechStream?.close();
     session.status = 'leaving';
     void this.revoke(session).catch(() => {});
     clearTimeout(session.expiryTimer);
@@ -591,6 +661,10 @@ export class MeetSessionService {
 
   publicState(session) {
     return { sessionId: session.id, status: session.status, meetURL: session.meetURL,
+      // Report the actual validated selection, not environment defaults. Restored
+      // terminal sessions may not have it; never guess or expose credentials.
+      ...(session.transcriptionModel ? { transcriptionModel: session.transcriptionModel } : {}),
+      ...(session.speechModel ? { speechModel: session.speechModel } : {}),
       ...(session.status === 'awaiting_user' && session.intervention ? { intervention: session.intervention } : {}),
       startedAt: session.startedAt, expiresAt: session.expiresAt, endedAt: session.endedAt };
   }

@@ -21,7 +21,8 @@ test('ElevenLabs speech uses the bound Vault key and current transcription and s
   };
   const client = new ElevenLabsClient({ apiKey: 'vault-secret', fetchAPI });
   assert.deepEqual(await client.models(), {
-    transcriptionModels: [{ id: 'scribe_v2', name: 'Scribe v2', voices: [] }],
+    transcriptionModels: [{ id: 'scribe_v2', name: 'Scribe v2', voices: [] },
+      { id: 'scribe_v2_realtime', name: 'Scribe v2 Realtime', voices: [] }],
     speechModels: [{ id: 'eleven_flash_v2_5', name: 'Flash', voices: ['voice123456'], maxCharacters: 1200 }],
     voiceOptions: [{ id: 'voice123456', name: 'Team voice' }],
   });

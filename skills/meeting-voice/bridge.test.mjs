@@ -133,6 +133,25 @@ test('voice turn stays in the selected Seal Chat and uses the authenticated bot 
   assert.ok(requests.every(request => request.options.method !== 'POST' || !new URL(request.url).pathname.endsWith('/conversations')));
 });
 
+test('transcript retries preserve event identity and serialize concurrent bot and participant appends', async () => {
+  const requests = [];
+  let attempt = 0;
+  const client = new CortexConversation({
+    baseURL: 'https://cortex.example/orchestrator/agent/meet/v1/sessions/meeting-1/', grant: 'grant',
+    tenantID: '7', agentID: '42', conversationID: 'conv-1', sessionID: 'meeting-1',
+    fetchAPI: async (url, options) => {
+      assert.equal(new URL(url).pathname.endsWith('/transcript'), true);
+      const body = JSON.parse(options.body); requests.push(body);
+      if (attempt++ === 0) throw new Error('lost response');
+      return { ok: true, json: async () => ({ result: { id: 'transcript', version: body.expectedVersion + 1 } }) };
+    },
+  });
+  await Promise.all([client.appendTranscript('Hello', 'Kevin'), client.appendTranscript('Hello back', 'Agent')]);
+  assert.deepEqual(requests[0], requests[1]);
+  assert.equal(requests[2].expectedVersion, 1);
+  assert.equal(client.transcriptVersion, 2);
+});
+
 test('voice worker reports missing Agent reply without calling Team coordination', async () => {
   const requests = [];
   const client = new CortexConversation({
@@ -225,4 +244,23 @@ test('spoken reply matches this meeting utterance and is channel visible', async
     ] }) }),
   });
   assert.equal(await client.waitForReply('meeting-1', 100), 'Meeting answer');
+});
+
+test('reply cursor is isolated from concurrent transcript writes', async () => {
+  const cursors = [];
+  const client = new CortexConversation({
+    baseURL: 'https://cortex.example/orchestrator/agent/meet/v1/sessions/meeting-1/', grant: 'meeting-grant',
+    tenantID: '7', agentID: '42', conversationID: 'conv-1', sessionID: 'meeting-1',
+    fetchAPI: async url => {
+      cursors.push(new URL(url).searchParams.get('afterSequence'));
+      client.sequence = 100;
+      return { ok: true, json: async () => ({ result: cursors.length === 1 ? [] : [
+        { sequence: 9, sender: { type: 'agent', id: '42' }, replyToMessageId: 'trigger', audience: { kind: 'channel' }, content: 'Answer' },
+      ] }) };
+    },
+  });
+  client.sequence = 50;
+  assert.equal(await client.waitForReply('trigger', 2000, undefined, 6), 'Answer');
+  assert.deepEqual(cursors, ['6', '6']);
+  assert.equal(client.sequence, 100);
 });
