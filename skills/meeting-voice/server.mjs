@@ -6,9 +6,14 @@ import { browserAuthorizer } from './browser-authorizer.mjs';
 import { browserVideoRPC } from './browser-video-rpc.mjs';
 
 export const SKILL_ID = 'openseal.meeting.voice';
-export const SKILL_VERSION = '0.2.10';
+export const SKILL_VERSION = '0.2.14';
 
 const schemas = {
+  'meet-speak': { type: 'object', additionalProperties: false, required: ['sessionId', 'requestId', 'text'], properties: {
+    sessionId: { type: 'string', minLength: 1, maxLength: 128 },
+    requestId: { type: 'string', minLength: 1, maxLength: 128 },
+    text: { type: 'string', minLength: 1, maxLength: 500 },
+  } },
   'meet-start': { type: 'object', additionalProperties: false, required: ['url'], properties: {
     url: { type: 'string', minLength: 25, maxLength: 2048 },
     transcriptionModel: { type: 'string', minLength: 1, maxLength: 200 },
@@ -77,6 +82,8 @@ export function handlers(service) {
             invocationToken,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,
             ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}) })
+          : action === 'meet-speak' ? await service.speak({ ...common, sessionID: input.sessionId,
+            requestID: input.requestId, text: input.text, invocationToken })
           : action === 'meet-stop' ? await service.stop({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken })
             : await service.status({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,

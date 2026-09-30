@@ -8,9 +8,13 @@ import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
 import { isAddressed } from './attention.mjs';
+import { ReplyInbox } from './reply-inbox.mjs';
+import { RealtimeCapture } from './realtime-transcription.mjs';
+import { realtimeFailureStage, voiceFailureMessage } from './voice-failure.mjs';
+import { SpeechPlayback, handleSpeak } from './speech-playback.mjs';
+import { playSpeechChunks, playSpeechStream, timedVoiceStage } from './voice-latency.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
-import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
-import { setTimeout as delay } from 'node:timers/promises';
+import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, UtteranceDetector } from './bridge.mjs';
 
 async function main() {
   const config = {
@@ -82,49 +86,70 @@ async function main() {
   let audio;
   let presenceCheck;
   let speaking = false;
-  async function playText(text) {
-    speaking = true;
-    detector.reset();
+  async function playAudioText(text) {
     try {
-      for (const chunk of speechChunks(text, speechChunkCharacters)) {
-        const encoded = await speech.synthesize(chunk, controller.signal);
-        const output = await decodeSpeech(encoded);
-        await audio.speak(output);
-        await delay(Math.ceil(output.length / (SAMPLE_RATE * 2) * 1000) + 500, undefined, { signal: controller.signal });
-      }
+      const onPlaybackStart = () => { speaking = true; detector.reset(); };
+      if (typeof speech.synthesizeStream === 'function') {
+        await playSpeechStream(text, {
+          synthesizeStream: (chunk, signal) => speech.synthesizeStream(chunk, signal),
+          speak: pcm => audio.speak(pcm), signal: controller.signal,
+          maximum: speechChunkCharacters, onPlaybackStart,
+        });
+      } else await playSpeechChunks(text, {
+        synthesize: (chunk, signal) => speech.synthesize(chunk, signal), decode: decodeSpeech,
+        speak: pcm => audio.speak(pcm), signal: controller.signal,
+        maximum: speechChunkCharacters, sampleRate: SAMPLE_RATE,
+        onPlaybackStart,
+      });
+      await conversation.appendTranscript(text, config.displayName, controller.signal);
     } finally {
       speaking = false;
       detector.reset();
     }
   }
-  const transcripts = new TranscriptQueue({
-    signal: controller.signal,
-    transcribe: pcm => speech.transcribe(pcm, controller.signal),
-    postUtterance: async text => {
-      await conversation.appendTranscript(text, 'Unknown speaker', controller.signal);
-      if (!isAddressed(text, wakePhrases)) return null;
-      return { text };
-    },
-    reply: async utterance => {
-      const message = await conversation.postUtterance(utterance.text, controller.signal);
-      const reply = await conversation.waitForReply(message.id, 90000, controller.signal);
-      if (!reply || controller.signal.aborted) return;
+  const playback = new SpeechPlayback(playAudioText, controller.signal);
+  const playText = text => playback.enqueue(text);
+  process.on('message', message => {
+    void handleSpeak(message, playback, () => Boolean(meeting && audio && !controller.signal.aborted),
+      result => { if (process.connected) process.send?.(result); });
+  });
+  const replyInbox = new ReplyInbox({
+    agentID: config.cortex.agentID, signal: controller.signal,
+    read: (cursor, signal) => conversation.request(`messages?afterSequence=${cursor}`, 'GET', undefined, signal),
+    deliver: async reply => {
       try {
         await playText(reply);
-        await conversation.appendTranscript(reply, config.displayName, controller.signal);
-      } catch (error) {
-        await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal)
-          .catch(() => {});
+      }
+      catch (error) {
+        await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal).catch(() => {});
         throw error;
       }
     },
-    onError: async () => {
+    onError: stage => transcripts.fail(stage),
+  });
+  const transcripts = new TranscriptQueue({
+    signal: controller.signal,
+    transcribe: pcm => timedVoiceStage('transcription', () => speech.transcribe(pcm, controller.signal)),
+    postUtterance: text => timedVoiceStage('transcript_post', async () => {
+      await conversation.appendTranscript(text, 'Unknown speaker', controller.signal);
+      if (!isAddressed(text, wakePhrases)) return null;
+      return conversation.postUtterance(text, controller.signal);
+    }),
+    reply: utterance => replyInbox.register(utterance),
+    onError: async stage => {
+      console.warn(JSON.stringify({ event: 'meeting_voice_pipeline_failed', stage }));
       try {
-        await conversation.postStatus('I stopped because the audio processing pipeline could not keep up or failed. The transcript may be incomplete.', controller.signal);
+        await conversation.postStatus(voiceFailureMessage(stage), controller.signal);
       } finally { controller.abort(); }
     },
   });
   const detector = new UtteranceDetector(pcm => transcripts.enqueue(pcm));
+  let realtimeCapture;
+  process.on('message', message => {
+    if (message?.type !== 'speech-transcript' || !realtimeCapture) return;
+    if (message.error) transcripts.fail(realtimeFailureStage(message.stage));
+    else transcripts.enqueueText(message.text);
+  });
 
   const stop = () => controller.abort();
   const expiresIn = Date.parse(config.expiresAt) - Date.now();
@@ -155,19 +180,28 @@ async function main() {
       } catch { stop(); }
     }, 5000);
     presenceCheck.unref();
+    if (process.env.MEET_SPEECH_PROVIDER === 'elevenlabs' && config.speech.transcriptionModel === 'scribe_v2_realtime') {
+      realtimeCapture = new RealtimeCapture({ signal: controller.signal,
+        send: pcm => speech.request('transcription-audio', { audio: pcm.toString('base64') }, controller.signal),
+        onError: stage => transcripts.fail(stage),
+      });
+      await speech.request('transcription-open', {}, controller.signal);
+    }
     audio = openAudio(commands);
     audio.input.once('end', stop);
     audio.input.once('error', stop);
+    audio.input.on('data', chunk => {
+      if (realtimeCapture) realtimeCapture.feed(speaking ? Buffer.alloc(chunk.length) : chunk);
+      else if (!speaking) detector.feed(chunk);
+    });
     try {
       await conversation.postStatus('I joined the meeting and am listening. Ask me to leave in this Seal Chat when you are done.', controller.signal);
     } catch (error) {
       console.error('Meet status update failed:', error.name);
     }
-    audio.input.on('data', chunk => { if (!speaking) detector.feed(chunk); });
     process.send?.({ status: 'active' });
     const greeting = 'Hello, I am the Axiom voice assistant. I am listening and can respond to requests.';
     await playText(greeting);
-    await conversation.appendTranscript(greeting, config.displayName, controller.signal);
     await conversation.postStatus(`Bot (spoken): ${greeting}`, controller.signal).catch(() => {});
     if (!controller.signal.aborted) {
       await new Promise(resolve => controller.signal.addEventListener('abort', resolve, { once: true }));

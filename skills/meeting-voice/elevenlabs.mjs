@@ -73,7 +73,10 @@ export class ElevenLabsClient {
     }
     if (pageToken) throw new Error('ElevenLabs voice catalog exceeds the supported page limit');
     for (const model of speechModels) model.voices = voices.map(voice => voice.id);
-    return { transcriptionModels: [{ id: 'scribe_v2', name: 'Scribe v2', voices: [] }], speechModels, voiceOptions: voices };
+    return { transcriptionModels: [
+      { id: 'scribe_v2', name: 'Scribe v2', voices: [] },
+      { id: 'scribe_v2_realtime', name: 'Scribe v2 Realtime', voices: [] },
+    ], speechModels, voiceOptions: voices };
   }
 
   async transcribe(pcm, model, signal) {
@@ -101,5 +104,33 @@ export class ElevenLabsClient {
     const audio = Buffer.from(await response.arrayBuffer());
     if (audio.length > 10000000) throw new Error('ElevenLabs speech response is too large');
     return audio;
+  }
+
+  // Raw PCM avoids whole-response buffering and a subprocess decode per reply.
+  // https://elevenlabs.io/docs/api-reference/text-to-speech/stream
+  async *synthesizeStream(text, model, voice, signal) {
+    if (typeof model !== 'string' || !MODEL_ID.test(model) ||
+        typeof voice !== 'string' || !VOICE_ID.test(voice) ||
+        typeof text !== 'string' || !text.trim() || text.length > 3000) {
+      throw new Error('ElevenLabs speech selection is invalid');
+    }
+    const response = await this.request(`/v1/text-to-speech/${encodeURIComponent(voice)}/stream?output_format=pcm_16000`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model_id: model }), signal,
+    });
+    if (!response.body) throw new Error('ElevenLabs speech stream is unavailable');
+    let carry = Buffer.alloc(0), total = 0;
+    for await (const bytes of response.body) {
+      if (signal?.aborted) throw new Error('Speech canceled');
+      total += bytes.length;
+      if (total > 10000000) throw new Error('ElevenLabs speech response is too large');
+      const buffer = Buffer.concat([carry, Buffer.from(bytes)]);
+      const end = buffer.length - buffer.length % 2;
+      for (let offset = 0; offset < end; offset += 6400) {
+        yield buffer.subarray(offset, Math.min(offset + 6400, end));
+      }
+      carry = buffer.subarray(end);
+    }
+    if (!total || carry.length) throw new Error('ElevenLabs PCM stream is incomplete');
   }
 }
