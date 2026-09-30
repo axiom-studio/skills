@@ -1,0 +1,3 @@
+# Local k3d incremental build; reuse the deployed, tested browser/audio stack.
+FROM axiomstudio/skill-meeting-voice:0.2.14
+COPY --chown=node:node skills/meeting-voice/*.mjs skills/meeting-voice/*.proto skills/meeting-voice/package.json /app/
