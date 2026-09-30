@@ -5,7 +5,8 @@ export class TranscriptQueue {
     Object.assign(this, { transcribe, postUtterance, reply, onError, signal, maxPendingBytes });
     this.pendingBytes = 0;
     this.tail = Promise.resolve();
-    this.replyPending = false;
+    this.replyTail = Promise.resolve();
+    this.pendingReplies = 0;
     this.failed = false;
   }
 
@@ -28,12 +29,14 @@ export class TranscriptQueue {
         const text = await this.transcribe(pcm);
         if (!text || this.signal.aborted) return;
         const utterance = await this.postUtterance(text);
-        // All utterances reach chat even while a previous reply is pending.
-        // Do not build an unbounded queue of stale spoken replies.
-        if (!this.replyPending && !this.signal.aborted) {
-          this.replyPending = true;
-          void Promise.resolve().then(() => this.reply(utterance)).catch(() => this.fail())
-            .finally(() => { this.replyPending = false; });
+        // Passive events return null. Addressed turns are delivered in order;
+        // never create a Run whose response will then be silently skipped.
+        if (utterance && !this.signal.aborted) {
+          if (this.pendingReplies >= 8) { this.fail(); return; }
+          this.pendingReplies++;
+          this.replyTail = this.replyTail.then(async () => {
+            if (!this.failed && !this.signal.aborted) await this.reply(utterance);
+          }).catch(() => this.fail()).finally(() => { this.pendingReplies--; });
         }
       } catch { this.fail(); }
       finally { this.pendingBytes -= pcm.length; }

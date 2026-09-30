@@ -16,6 +16,8 @@ const schemas = {
     voice: { type: 'string', minLength: 1, maxLength: 100 },
     durationMinutes: { type: 'integer', minimum: 15, maximum: 480, default: 240 },
     requestBrowserHandoff: { type: 'boolean', default: false },
+    displayName: { type: 'string', minLength: 1, maxLength: 100 },
+    wakePhrases: { type: 'array', maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 100 } },
   } },
   'meet-models': { type: 'object', additionalProperties: false },
   'meet-status': { type: 'object', additionalProperties: false },
@@ -70,7 +72,7 @@ export function handlers(service) {
             ...(elevenLabsAPIKey ? { elevenLabsAPIKey } : {}),
             transcriptionModel: input.transcriptionModel,
             speechModel: input.speechModel, voice: input.voice, durationMinutes: input.durationMinutes,
-            requestBrowserHandoff: input.requestBrowserHandoff })
+            requestBrowserHandoff: input.requestBrowserHandoff, displayName: input.displayName, wakePhrases: input.wakePhrases })
           : action === 'meet-models' ? await service.models({ ...common, issuerToken: bindings.CORTEX_MEET_ISSUER_TOKEN,
             invocationToken,
             speechToken: bindings.AXIOM_SPEECH_TOKEN,

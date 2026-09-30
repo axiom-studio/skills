@@ -125,7 +125,7 @@ test('voice turn stays in the selected Seal Chat and uses the authenticated bot 
   const posted = JSON.parse(requests.find(request => new URL(request.url).pathname.endsWith('/messages')).options.body);
   assert.equal(requests.at(-1).options.headers['X-Tenant-ID'], '7');
   assert.equal(requests.at(-1).options.headers.Authorization, 'Bearer meeting-grant');
-  assert.equal(posted.content, 'A meeting participant said: Please check the deployment');
+  assert.equal(posted.content, 'A meeting participant said (unverified display name: Unknown speaker): Please check the deployment');
   assert.equal(posted.sender, undefined);
   assert.equal(posted.expectedRevision, 2);
   assert.equal(client.sequence, 6);

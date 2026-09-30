@@ -139,7 +139,12 @@ export class MeetSessionService {
   }
 
   async start({ runID, agentID, url, issuerToken, invocationToken, speechToken, elevenLabsAPIKey,
-    transcriptionModel, speechModel, voice, durationMinutes = 240, requestBrowserHandoff = false }) {
+    transcriptionModel, speechModel, voice, durationMinutes = 240, requestBrowserHandoff = false,
+    displayName = 'Axiom Agent', wakePhrases = [] }) {
+    if (typeof displayName !== 'string' || !displayName.trim() || displayName.length > 100 ||
+      !Array.isArray(wakePhrases) || wakePhrases.length > 8 || wakePhrases.some(value => typeof value !== 'string' || !value.trim() || value.length > 100)) {
+      throw new Error('Invalid meeting name or wake phrases');
+    }
     if (typeof requestBrowserHandoff !== 'boolean') throw new Error('browser handoff choice must be a boolean');
     const resolvedIssuerToken = issuerToken ? secret(issuerToken, 'Cortex meeting issuer token') : undefined;
     if (!invocationToken && !resolvedIssuerToken) throw new Error('Cortex meeting invocation is required');
@@ -224,6 +229,8 @@ export class MeetSessionService {
         MEET_URL: meetURL,
         MEET_SESSION_EXPIRES_AT: session.expiresAt,
         MEET_SESSION_ID: session.id,
+        MEET_DISPLAY_NAME: displayName.trim(),
+        MEET_WAKE_PHRASES: JSON.stringify(wakePhrases),
         MEET_BROWSER_HANDOFF_ENABLED: typeof this.authorizeBrowserControl === 'function' && session.browserGrant ? 'true' : 'false',
         MEET_BROWSER_HANDOFF_REQUESTED: requestBrowserHandoff ? 'true' : 'false',
         CORTEX_MEET_SESSION_API_URL: new URL(`sessions/${encodeURIComponent(session.id)}/`,

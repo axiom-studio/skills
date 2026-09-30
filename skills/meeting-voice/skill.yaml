@@ -40,7 +40,8 @@ definition:
       When the user explicitly asks you to join a Google Meet, Zoom, or Teams call
       and supplies a direct meeting link, use meet-models to find speech options available
       through the selected ElevenLabs Vault credential,
-      then use meet-start with the selected transcription model, speech model,
+      then use meet-start with displayName set to your agent name, any user-specified
+      wakePhrases, and the selected transcription model, speech model,
       and voice. Use four hours unless the user chooses a duration between
       15 minutes and eight hours. Report
       its actual joining state; do
@@ -90,6 +91,8 @@ definition:
           transcriptionModel: {type: string, minLength: 1, maxLength: 200}
           speechModel: {type: string, minLength: 1, maxLength: 200}
           voice: {type: string, minLength: 1, maxLength: 100}
+          displayName: {type: string, minLength: 1, maxLength: 100, description: The agent's visible meeting name and wake phrase.}
+          wakePhrases: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 100}, description: Optional additional phrases that address the agent.}
           durationMinutes: {type: integer, minimum: 15, maximum: 480, default: 240}
           requestBrowserHandoff: {type: boolean, default: false, description: Pause for an explicitly requested human browser setup before attempting to join.}
       outputSchema:
