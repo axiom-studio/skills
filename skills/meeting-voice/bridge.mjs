@@ -292,10 +292,30 @@ export class CortexConversation {
     return conversation;
   }
 
-  async postUtterance(text, signal) {
+  async appendTranscript(text, speaker, signal) {
+    // Serialize passive speech and bot playback into one immutable version chain.
+    const event = { eventId: randomUUID(), text, speaker, at: new Date().toISOString() };
+    const append = async () => {
+      const body = { ...event, expectedVersion: this.transcriptVersion ?? 0 };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const result = await this.request('transcript', 'POST', body, signal);
+          this.transcriptVersion = result.version;
+          return result;
+        } catch (error) {
+          if (signal?.aborted || attempt === 2 || (error.status && error.status < 500)) throw error;
+        }
+      }
+    };
+    const pending = (this.transcriptTail ?? Promise.resolve()).then(append);
+    this.transcriptTail = pending;
+    return pending;
+  }
+
+  async postUtterance(text, signal, speaker = 'Unknown speaker') {
     const result = await this.postMessage({
       intent: 'question',
-      content: `A meeting participant said: ${text}`,
+      content: `A meeting participant said (unverified display name: ${speaker}): ${text}`,
     }, signal);
     if (!result.run) throw new Error('Seal Chat did not start an Agent reply for the meeting utterance');
     return result.message;

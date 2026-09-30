@@ -7,6 +7,7 @@ import { createBrowserDesktop } from './browser-desktop.mjs';
 import { BrowserVideoIPC } from './browser-video-ipc.mjs';
 import { BrowserDesktopInput } from './browser-desktop-input.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
+import { isAddressed } from './attention.mjs';
 import { audioCommands, openAudio, SAMPLE_RATE } from './audio.mjs';
 import { CortexConversation, decodeSpeech, ParentSpeechClient, SpeechClient, speechChunks, UtteranceDetector } from './bridge.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -38,6 +39,7 @@ async function main() {
     throw new Error('the bot browser profile is required');
   }
   const conversation = new CortexConversation(config.cortex);
+  const wakePhrases = [config.displayName, ...JSON.parse(process.env.MEET_WAKE_PHRASES || '[]')];
   const controller = new AbortController();
   let display;
   const handoff = process.env.MEET_BROWSER_HANDOFF_ENABLED === 'true' ? new BrowserHandoff({
@@ -98,12 +100,18 @@ async function main() {
   const transcripts = new TranscriptQueue({
     signal: controller.signal,
     transcribe: pcm => speech.transcribe(pcm, controller.signal),
-    postUtterance: text => conversation.postUtterance(text, controller.signal),
+    postUtterance: async text => {
+      await conversation.appendTranscript(text, 'Unknown speaker', controller.signal);
+      if (!isAddressed(text, wakePhrases)) return null;
+      return { text };
+    },
     reply: async utterance => {
-      const reply = await conversation.waitForReply(utterance.id, 90000, controller.signal);
+      const message = await conversation.postUtterance(utterance.text, controller.signal);
+      const reply = await conversation.waitForReply(message.id, 90000, controller.signal);
       if (!reply || controller.signal.aborted) return;
       try {
         await playText(reply);
+        await conversation.appendTranscript(reply, config.displayName, controller.signal);
       } catch (error) {
         await conversation.postStatus('I could not deliver my last reply aloud in the meeting.', controller.signal)
           .catch(() => {});
@@ -159,6 +167,7 @@ async function main() {
     process.send?.({ status: 'active' });
     const greeting = 'Hello, I am the Axiom voice assistant. I am listening and can respond to requests.';
     await playText(greeting);
+    await conversation.appendTranscript(greeting, config.displayName, controller.signal);
     await conversation.postStatus(`Bot (spoken): ${greeting}`, controller.signal).catch(() => {});
     if (!controller.signal.aborted) {
       await new Promise(resolve => controller.signal.addEventListener('abort', resolve, { once: true }));
