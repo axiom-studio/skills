@@ -46,7 +46,8 @@ test('hosted Skill action derives authority from Run context and receives URL fr
   });
   assert.deepEqual(calls, [{ runID: 'run-1', agentID: 'agent-1', url: 'https://meet.google.com/abc-defg-hij',
     issuerToken: 'bot-secret', invocationToken: 'signed-invocation', speechToken: 'speech-secret', transcriptionModel: undefined,
-    speechModel: undefined, voice: undefined, durationMinutes: undefined, requestBrowserHandoff: undefined }]);
+    speechModel: undefined, voice: undefined, durationMinutes: undefined, requestBrowserHandoff: undefined,
+    displayName: undefined, wakePhrases: undefined }]);
   assert.equal(JSON.parse(reply.output.status.toString()), 'joining');
   assert.equal(JSON.parse(reply.output.sessionId.toString()), 'session-1');
 });
