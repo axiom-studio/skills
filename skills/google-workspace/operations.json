@@ -1,0 +1,2604 @@
+[
+  {
+    "name": "google-gmail-list-messages",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages",
+    "description": "List messages in Google Gmail.",
+    "params": {
+      "includeSpamTrash": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "q": {
+        "type": "string",
+        "location": "query"
+      },
+      "maxResults": {
+        "type": "integer",
+        "default": "100",
+        "location": "query"
+      },
+      "labelIds": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-get-message",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages/{id}",
+    "description": "Get message in Google Gmail.",
+    "params": {
+      "format": {
+        "type": "string",
+        "enum": [
+          "minimal",
+          "full",
+          "raw",
+          "metadata"
+        ],
+        "default": "full",
+        "location": "query"
+      },
+      "metadataHeaders": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-get-attachment",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages/{messageId}/attachments/{id}",
+    "description": "Get attachment in Google Gmail.",
+    "params": {
+      "messageId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-list-threads",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/threads",
+    "description": "List threads in Google Gmail.",
+    "params": {
+      "q": {
+        "type": "string",
+        "location": "query"
+      },
+      "maxResults": {
+        "type": "integer",
+        "default": "100",
+        "location": "query"
+      },
+      "includeSpamTrash": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "labelIds": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-get-thread",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/threads/{id}",
+    "description": "Get thread in Google Gmail.",
+    "params": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "metadataHeaders": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "full",
+          "metadata",
+          "minimal"
+        ],
+        "default": "full",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-list-labels",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/labels",
+    "description": "List labels in Google Gmail.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-create-draft",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/drafts",
+    "description": "Create draft in Google Gmail.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-get-draft",
+    "service": "gmail",
+    "method": "GET",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/drafts/{id}",
+    "description": "Get draft in Google Gmail.",
+    "params": {
+      "format": {
+        "type": "string",
+        "enum": [
+          "minimal",
+          "full",
+          "raw",
+          "metadata"
+        ],
+        "default": "full",
+        "location": "query"
+      },
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-update-draft",
+    "service": "gmail",
+    "method": "PUT",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/drafts/{id}",
+    "description": "Update draft in Google Gmail.",
+    "params": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-send-draft",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/drafts/send",
+    "description": "Send draft in Google Gmail.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "external",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-modify-message",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages/{id}/modify",
+    "description": "Modify message in Google Gmail.",
+    "params": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-trash-message",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages/{id}/trash",
+    "description": "Trash message in Google Gmail.",
+    "params": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "destructive",
+    "documentation": "https://developers.google.com/workspace/gmail/api/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-list-files",
+    "service": "drive",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files",
+    "description": "List files in Google Drive.",
+    "params": {
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "driveId": {
+        "type": "string",
+        "location": "query"
+      },
+      "includeItemsFromAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "orderBy": {
+        "type": "string",
+        "location": "query"
+      },
+      "q": {
+        "type": "string",
+        "location": "query"
+      },
+      "corpora": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "includeLabels": {
+        "type": "string",
+        "location": "query"
+      },
+      "spaces": {
+        "type": "string",
+        "default": "drive",
+        "location": "query"
+      },
+      "pageSize": {
+        "type": "integer",
+        "minimum": "1",
+        "maximum": "1000",
+        "default": "100",
+        "location": "query"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-get-file",
+    "service": "drive",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}",
+    "description": "Get file in Google Drive.",
+    "params": {
+      "includeLabels": {
+        "type": "string",
+        "location": "query"
+      },
+      "acknowledgeAbuse": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-create-file",
+    "service": "drive",
+    "method": "POST",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files",
+    "description": "Create file in Google Drive.",
+    "params": {
+      "includeLabels": {
+        "type": "string",
+        "location": "query"
+      },
+      "useContentAsIndexableText": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "keepRevisionForever": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "ocrLanguage": {
+        "type": "string",
+        "location": "query"
+      },
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "ignoreDefaultVisibility": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-update-file",
+    "service": "drive",
+    "method": "PATCH",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}",
+    "description": "Update file in Google Drive.",
+    "params": {
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "addParents": {
+        "type": "string",
+        "location": "query"
+      },
+      "ocrLanguage": {
+        "type": "string",
+        "location": "query"
+      },
+      "removeParents": {
+        "type": "string",
+        "location": "query"
+      },
+      "keepRevisionForever": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "useContentAsIndexableText": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "includeLabels": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-copy-file",
+    "service": "drive",
+    "method": "POST",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}/copy",
+    "description": "Copy file in Google Drive.",
+    "params": {
+      "copyComments": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "keepRevisionForever": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "ocrLanguage": {
+        "type": "string",
+        "location": "query"
+      },
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "ignoreDefaultVisibility": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "includeLabels": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-list-permissions",
+    "service": "drive",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}/permissions",
+    "description": "List permissions in Google Drive.",
+    "params": {
+      "useDomainAdminAccess": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "pageSize": {
+        "type": "integer",
+        "minimum": "1",
+        "maximum": "100",
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "includePermissionsForView": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-create-permission",
+    "service": "drive",
+    "method": "POST",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}/permissions",
+    "description": "Create permission in Google Drive.",
+    "params": {
+      "sendNotificationEmail": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "emailMessage": {
+        "type": "string",
+        "location": "query"
+      },
+      "moveToNewOwnersRoot": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "transferOwnership": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "useDomainAdminAccess": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "supportsAllDrives": {
+        "type": "boolean",
+        "default": "false",
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "external",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-drive-export-file",
+    "service": "drive",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}/export",
+    "description": "Export file in Google Drive.",
+    "params": {
+      "mimeType": {
+        "type": "string",
+        "required": true,
+        "location": "query"
+      },
+      "fileId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/drive/",
+    "responseFormat": "bytes"
+  },
+  {
+    "name": "google-docs-get-document",
+    "service": "docs",
+    "method": "GET",
+    "baseURL": "https://docs.googleapis.com/",
+    "path": "v1/documents/{documentId}",
+    "description": "Get document in Google Docs.",
+    "params": {
+      "documentId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "suggestionsViewMode": {
+        "type": "string",
+        "enum": [
+          "DEFAULT_FOR_CURRENT_ACCESS",
+          "SUGGESTIONS_INLINE",
+          "PREVIEW_SUGGESTIONS_ACCEPTED",
+          "PREVIEW_WITHOUT_SUGGESTIONS"
+        ],
+        "location": "query"
+      },
+      "includeTabsContent": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "commentsViewMode": {
+        "type": "string",
+        "enum": [
+          "COMMENTS_VIEW_MODE_UNSPECIFIED",
+          "COMMENTS_VIEW_MODE_DEFAULT_FOR_CURRENT_ACCESS",
+          "COMMENTS_VIEW_MODE_OMITTED",
+          "COMMENTS_VIEW_MODE_INCLUDED"
+        ],
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/documents"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/docs/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-docs-create-document",
+    "service": "docs",
+    "method": "POST",
+    "baseURL": "https://docs.googleapis.com/",
+    "path": "v1/documents",
+    "description": "Create document in Google Docs.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/documents"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/docs/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-docs-batch-update-document",
+    "service": "docs",
+    "method": "POST",
+    "baseURL": "https://docs.googleapis.com/",
+    "path": "v1/documents/{documentId}:batchUpdate",
+    "description": "Batch update document in Google Docs.",
+    "params": {
+      "documentId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/documents"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/docs/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-get-spreadsheet",
+    "service": "sheets",
+    "method": "GET",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets/{spreadsheetId}",
+    "description": "Get spreadsheet in Google Sheets.",
+    "params": {
+      "ranges": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "spreadsheetId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "commentsViewMode": {
+        "type": "string",
+        "enum": [
+          "COMMENTS_VIEW_MODE_UNSPECIFIED",
+          "COMMENTS_VIEW_MODE_DEFAULT_FOR_CURRENT_ACCESS",
+          "COMMENTS_VIEW_MODE_OMITTED",
+          "COMMENTS_VIEW_MODE_INCLUDED"
+        ],
+        "location": "query"
+      },
+      "includeGridData": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "excludeTablesInBandedRanges": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-create-spreadsheet",
+    "service": "sheets",
+    "method": "POST",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets",
+    "description": "Create spreadsheet in Google Sheets.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-get-values",
+    "service": "sheets",
+    "method": "GET",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets/{spreadsheetId}/values/{range}",
+    "description": "Get values in Google Sheets.",
+    "params": {
+      "majorDimension": {
+        "type": "string",
+        "enum": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "location": "query"
+      },
+      "spreadsheetId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "dateTimeRenderOption": {
+        "type": "string",
+        "enum": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "location": "query"
+      },
+      "range": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "valueRenderOption": {
+        "type": "string",
+        "enum": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-update-values",
+    "service": "sheets",
+    "method": "PUT",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets/{spreadsheetId}/values/{range}",
+    "description": "Update values in Google Sheets.",
+    "params": {
+      "spreadsheetId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "range": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "valueInputOption": {
+        "type": "string",
+        "enum": [
+          "INPUT_VALUE_OPTION_UNSPECIFIED",
+          "RAW",
+          "USER_ENTERED"
+        ],
+        "location": "query"
+      },
+      "includeValuesInResponse": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "responseValueRenderOption": {
+        "type": "string",
+        "enum": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "location": "query"
+      },
+      "responseDateTimeRenderOption": {
+        "type": "string",
+        "enum": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-append-values",
+    "service": "sheets",
+    "method": "POST",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets/{spreadsheetId}/values/{range}:append",
+    "description": "Append values in Google Sheets.",
+    "params": {
+      "includeValuesInResponse": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "insertDataOption": {
+        "type": "string",
+        "enum": [
+          "OVERWRITE",
+          "INSERT_ROWS"
+        ],
+        "location": "query"
+      },
+      "valueInputOption": {
+        "type": "string",
+        "enum": [
+          "INPUT_VALUE_OPTION_UNSPECIFIED",
+          "RAW",
+          "USER_ENTERED"
+        ],
+        "location": "query"
+      },
+      "responseDateTimeRenderOption": {
+        "type": "string",
+        "enum": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "location": "query"
+      },
+      "spreadsheetId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "range": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "responseValueRenderOption": {
+        "type": "string",
+        "enum": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-sheets-batch-update-spreadsheet",
+    "service": "sheets",
+    "method": "POST",
+    "baseURL": "https://sheets.googleapis.com/",
+    "path": "v4/spreadsheets/{spreadsheetId}:batchUpdate",
+    "description": "Batch update spreadsheet in Google Sheets.",
+    "params": {
+      "spreadsheetId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/sheets/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-slides-get-presentation",
+    "service": "slides",
+    "method": "GET",
+    "baseURL": "https://slides.googleapis.com/",
+    "path": "v1/presentations/{+presentationId}",
+    "description": "Get presentation in Google Slides.",
+    "params": {
+      "commentsViewMode": {
+        "type": "string",
+        "enum": [
+          "COMMENTS_VIEW_MODE_UNSPECIFIED",
+          "COMMENTS_VIEW_MODE_DEFAULT_FOR_CURRENT_ACCESS",
+          "COMMENTS_VIEW_MODE_OMITTED",
+          "COMMENTS_VIEW_MODE_INCLUDED"
+        ],
+        "location": "query"
+      },
+      "presentationId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/presentations"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/slides/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-slides-create-presentation",
+    "service": "slides",
+    "method": "POST",
+    "baseURL": "https://slides.googleapis.com/",
+    "path": "v1/presentations",
+    "description": "Create presentation in Google Slides.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/presentations"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/slides/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-slides-batch-update-presentation",
+    "service": "slides",
+    "method": "POST",
+    "baseURL": "https://slides.googleapis.com/",
+    "path": "v1/presentations/{presentationId}:batchUpdate",
+    "description": "Batch update presentation in Google Slides.",
+    "params": {
+      "presentationId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/presentations"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/slides/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-list-calendars",
+    "service": "calendar",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "users/me/calendarList",
+    "description": "List calendars in Google Calendar.",
+    "params": {
+      "showOwnOrganizationOnly": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "showDeleted": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": "1",
+        "location": "query"
+      },
+      "syncToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "showHidden": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "minAccessRole": {
+        "type": "string",
+        "enum": [
+          "freeBusyReader",
+          "owner",
+          "reader",
+          "writer",
+          "writerWithoutPrivateAccess"
+        ],
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-list-events",
+    "service": "calendar",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "calendars/{calendarId}/events",
+    "description": "List events in Google Calendar.",
+    "params": {
+      "timeMax": {
+        "type": "string",
+        "location": "query"
+      },
+      "calendarId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "maxAttendees": {
+        "type": "integer",
+        "minimum": "1",
+        "location": "query"
+      },
+      "timeZone": {
+        "type": "string",
+        "location": "query"
+      },
+      "timeMin": {
+        "type": "string",
+        "location": "query"
+      },
+      "alwaysIncludeEmail": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "syncToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "showDeleted": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "showHiddenInvitations": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "q": {
+        "type": "string",
+        "location": "query"
+      },
+      "eventTypes": {
+        "type": "string",
+        "enum": [
+          "birthday",
+          "default",
+          "focusTime",
+          "fromGmail",
+          "outOfOffice",
+          "workingLocation"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "updatedMin": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "iCalUID": {
+        "type": "string",
+        "location": "query"
+      },
+      "sharedExtendedProperty": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "orderBy": {
+        "type": "string",
+        "enum": [
+          "startTime",
+          "updated"
+        ],
+        "location": "query"
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": "1",
+        "default": "250",
+        "location": "query"
+      },
+      "singleEvents": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "privateExtendedProperty": {
+        "type": "string",
+        "repeated": true,
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-get-event",
+    "service": "calendar",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "calendars/{calendarId}/events/{eventId}",
+    "description": "Get event in Google Calendar.",
+    "params": {
+      "eventId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "alwaysIncludeEmail": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "calendarId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "timeZone": {
+        "type": "string",
+        "location": "query"
+      },
+      "maxAttendees": {
+        "type": "integer",
+        "minimum": "1",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-create-event",
+    "service": "calendar",
+    "method": "POST",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "calendars/{calendarId}/events",
+    "description": "Create event in Google Calendar.",
+    "params": {
+      "sendUpdates": {
+        "type": "string",
+        "enum": [
+          "all",
+          "externalOnly",
+          "none"
+        ],
+        "location": "query"
+      },
+      "conferenceDataVersion": {
+        "type": "integer",
+        "minimum": "0",
+        "maximum": "1",
+        "location": "query"
+      },
+      "calendarId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "eventLabelVersion": {
+        "type": "integer",
+        "minimum": "0",
+        "maximum": "1",
+        "location": "query"
+      },
+      "supportsAttachments": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "sendNotifications": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "maxAttendees": {
+        "type": "integer",
+        "minimum": "1",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ],
+    "risk": "external",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-update-event",
+    "service": "calendar",
+    "method": "PATCH",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "calendars/{calendarId}/events/{eventId}",
+    "description": "Update event in Google Calendar.",
+    "params": {
+      "alwaysIncludeEmail": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "supportsAttachments": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "sendUpdates": {
+        "type": "string",
+        "enum": [
+          "all",
+          "externalOnly",
+          "none"
+        ],
+        "location": "query"
+      },
+      "sendNotifications": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "eventLabelVersion": {
+        "type": "integer",
+        "minimum": "0",
+        "maximum": "1",
+        "location": "query"
+      },
+      "calendarId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "conferenceDataVersion": {
+        "type": "integer",
+        "minimum": "0",
+        "maximum": "1",
+        "location": "query"
+      },
+      "eventId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "maxAttendees": {
+        "type": "integer",
+        "minimum": "1",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ],
+    "risk": "external",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-calendar-delete-event",
+    "service": "calendar",
+    "method": "DELETE",
+    "baseURL": "https://www.googleapis.com/calendar/v3/",
+    "path": "calendars/{calendarId}/events/{eventId}",
+    "description": "Delete event in Google Calendar.",
+    "params": {
+      "sendNotifications": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "calendarId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "eventId": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "sendUpdates": {
+        "type": "string",
+        "enum": [
+          "all",
+          "externalOnly",
+          "none"
+        ],
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ],
+    "risk": "destructive",
+    "documentation": "https://developers.google.com/workspace/calendar/firstapp",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-list-contacts",
+    "service": "people",
+    "method": "GET",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/{+resourceName}/connections",
+    "description": "List contacts in Google People.",
+    "params": {
+      "requestSyncToken": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "syncToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "requestMask.includeField": {
+        "type": "string",
+        "location": "query"
+      },
+      "sortOrder": {
+        "type": "string",
+        "enum": [
+          "LAST_MODIFIED_ASCENDING",
+          "LAST_MODIFIED_DESCENDING",
+          "FIRST_NAME_ASCENDING",
+          "LAST_NAME_ASCENDING"
+        ],
+        "location": "query"
+      },
+      "resourceName": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "personFields": {
+        "type": "string",
+        "location": "query"
+      },
+      "sources": {
+        "type": "string",
+        "enum": [
+          "READ_SOURCE_TYPE_UNSPECIFIED",
+          "READ_SOURCE_TYPE_PROFILE",
+          "READ_SOURCE_TYPE_CONTACT",
+          "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+          "READ_SOURCE_TYPE_OTHER_CONTACT"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-search-contacts",
+    "service": "people",
+    "method": "GET",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/people:searchContacts",
+    "description": "Search contacts in Google People.",
+    "params": {
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "query": {
+        "type": "string",
+        "location": "query"
+      },
+      "readMask": {
+        "type": "string",
+        "location": "query"
+      },
+      "sources": {
+        "type": "string",
+        "enum": [
+          "READ_SOURCE_TYPE_UNSPECIFIED",
+          "READ_SOURCE_TYPE_PROFILE",
+          "READ_SOURCE_TYPE_CONTACT",
+          "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+          "READ_SOURCE_TYPE_OTHER_CONTACT"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-get-contact",
+    "service": "people",
+    "method": "GET",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/{+resourceName}",
+    "description": "Get contact in Google People.",
+    "params": {
+      "requestMask.includeField": {
+        "type": "string",
+        "location": "query"
+      },
+      "sources": {
+        "type": "string",
+        "enum": [
+          "READ_SOURCE_TYPE_UNSPECIFIED",
+          "READ_SOURCE_TYPE_PROFILE",
+          "READ_SOURCE_TYPE_CONTACT",
+          "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+          "READ_SOURCE_TYPE_OTHER_CONTACT"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "resourceName": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "personFields": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-create-contact",
+    "service": "people",
+    "method": "POST",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/people:createContact",
+    "description": "Create contact in Google People.",
+    "params": {
+      "personFields": {
+        "type": "string",
+        "location": "query"
+      },
+      "sources": {
+        "type": "string",
+        "enum": [
+          "READ_SOURCE_TYPE_UNSPECIFIED",
+          "READ_SOURCE_TYPE_PROFILE",
+          "READ_SOURCE_TYPE_CONTACT",
+          "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+          "READ_SOURCE_TYPE_OTHER_CONTACT"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-update-contact",
+    "service": "people",
+    "method": "PATCH",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/{+resourceName}:updateContact",
+    "description": "Update contact in Google People.",
+    "params": {
+      "sources": {
+        "type": "string",
+        "enum": [
+          "READ_SOURCE_TYPE_UNSPECIFIED",
+          "READ_SOURCE_TYPE_PROFILE",
+          "READ_SOURCE_TYPE_CONTACT",
+          "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+          "READ_SOURCE_TYPE_OTHER_CONTACT"
+        ],
+        "repeated": true,
+        "location": "query"
+      },
+      "updatePersonFields": {
+        "type": "string",
+        "location": "query"
+      },
+      "resourceName": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "personFields": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-people-delete-contact",
+    "service": "people",
+    "method": "DELETE",
+    "baseURL": "https://people.googleapis.com/",
+    "path": "v1/{+resourceName}:deleteContact",
+    "description": "Delete contact in Google People.",
+    "params": {
+      "resourceName": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/contacts"
+    ],
+    "risk": "destructive",
+    "documentation": "https://developers.google.com/people/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-list-tasklists",
+    "service": "tasks",
+    "method": "GET",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/users/@me/lists",
+    "description": "List tasklists in Google Tasks.",
+    "params": {
+      "maxResults": {
+        "type": "integer",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-create-tasklist",
+    "service": "tasks",
+    "method": "POST",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/users/@me/lists",
+    "description": "Create tasklist in Google Tasks.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-list-tasks",
+    "service": "tasks",
+    "method": "GET",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/lists/{tasklist}/tasks",
+    "description": "List tasks in Google Tasks.",
+    "params": {
+      "completedMin": {
+        "type": "string",
+        "location": "query"
+      },
+      "tasklist": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "showDeleted": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "showHidden": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "showCompleted": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "completedMax": {
+        "type": "string",
+        "location": "query"
+      },
+      "maxResults": {
+        "type": "integer",
+        "location": "query"
+      },
+      "dueMax": {
+        "type": "string",
+        "location": "query"
+      },
+      "showAssigned": {
+        "type": "boolean",
+        "location": "query"
+      },
+      "dueMin": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "updatedMin": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-get-task",
+    "service": "tasks",
+    "method": "GET",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+    "description": "Get task in Google Tasks.",
+    "params": {
+      "tasklist": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "task": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-create-task",
+    "service": "tasks",
+    "method": "POST",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/lists/{tasklist}/tasks",
+    "description": "Create task in Google Tasks.",
+    "params": {
+      "parent": {
+        "type": "string",
+        "location": "query"
+      },
+      "tasklist": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "previous": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-update-task",
+    "service": "tasks",
+    "method": "PATCH",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+    "description": "Update task in Google Tasks.",
+    "params": {
+      "task": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "tasklist": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-tasks-delete-task",
+    "service": "tasks",
+    "method": "DELETE",
+    "baseURL": "https://tasks.googleapis.com/",
+    "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+    "description": "Delete task in Google Tasks.",
+    "params": {
+      "task": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "tasklist": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/tasks"
+    ],
+    "risk": "destructive",
+    "documentation": "https://developers.google.com/workspace/tasks/",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-create-space",
+    "service": "meet",
+    "method": "POST",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/spaces",
+    "description": "Create space in Google Meet.",
+    "params": {
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.created"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-get-space",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+name}",
+    "description": "Get space in Google Meet.",
+    "params": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-update-space",
+    "service": "meet",
+    "method": "PATCH",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+name}",
+    "description": "Update space in Google Meet.",
+    "params": {
+      "updateMask": {
+        "type": "string",
+        "location": "query"
+      },
+      "name": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": true,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.created"
+    ],
+    "risk": "write",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-list-conferences",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/conferenceRecords",
+    "description": "List conferences in Google Meet.",
+    "params": {
+      "filter": {
+        "type": "string",
+        "location": "query"
+      },
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-get-conference",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+name}",
+    "description": "Get conference in Google Meet.",
+    "params": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-list-participants",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+parent}/participants",
+    "description": "List participants in Google Meet.",
+    "params": {
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "parent": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "filter": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-list-recordings",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+parent}/recordings",
+    "description": "List recordings in Google Meet.",
+    "params": {
+      "parent": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-list-transcripts",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+parent}/transcripts",
+    "description": "List transcripts in Google Meet.",
+    "params": {
+      "parent": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-meet-list-transcript-entries",
+    "service": "meet",
+    "method": "GET",
+    "baseURL": "https://meet.googleapis.com/",
+    "path": "v2/{+parent}/entries",
+    "description": "List transcript entries in Google Meet.",
+    "params": {
+      "pageToken": {
+        "type": "string",
+        "location": "query"
+      },
+      "parent": {
+        "type": "string",
+        "required": true,
+        "location": "path"
+      },
+      "pageSize": {
+        "type": "integer",
+        "location": "query"
+      },
+      "fields": {
+        "location": "query",
+        "type": "string",
+        "description": "Google partial response fields projection."
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/meetings.space.readonly"
+    ],
+    "risk": "read",
+    "documentation": "https://developers.google.com/workspace/meet/api",
+    "responseFormat": "json"
+  },
+  {
+    "name": "google-gmail-send-email",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/messages/send",
+    "description": "Send email with a plain-text body.",
+    "params": {},
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "external",
+    "responseFormat": "json",
+    "bodyFormat": "email"
+  },
+  {
+    "name": "google-gmail-draft-email",
+    "service": "gmail",
+    "method": "POST",
+    "baseURL": "https://gmail.googleapis.com/",
+    "path": "gmail/v1/users/{userId}/drafts",
+    "description": "Draft email with a plain-text body.",
+    "params": {},
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "risk": "write",
+    "responseFormat": "json",
+    "bodyFormat": "email"
+  },
+  {
+    "name": "google-drive-upload-file",
+    "service": "drive",
+    "method": "POST",
+    "baseURL": "https://www.googleapis.com/upload/drive/v3/",
+    "path": "files",
+    "description": "Upload file with bounded file content.",
+    "params": {},
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "write",
+    "responseFormat": "json",
+    "bodyFormat": "multipart"
+  },
+  {
+    "name": "google-drive-download-file",
+    "service": "drive",
+    "method": "GET",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}",
+    "description": "Download file with bounded file content.",
+    "params": {
+      "fileId": {
+        "type": "string",
+        "location": "path",
+        "required": true
+      }
+    },
+    "body": false,
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "read",
+    "responseFormat": "bytes",
+    "bodyFormat": ""
+  },
+  {
+    "name": "google-drive-trash-file",
+    "service": "drive",
+    "method": "PATCH",
+    "baseURL": "https://www.googleapis.com/drive/v3/",
+    "path": "files/{fileId}",
+    "description": "Move an existing Drive file to trash.",
+    "params": {
+      "fileId": {
+        "type": "string",
+        "location": "path",
+        "required": true
+      }
+    },
+    "body": false,
+    "bodyFormat": "trash",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "risk": "destructive",
+    "responseFormat": "json"
+  }
+]

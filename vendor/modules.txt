@@ -544,7 +544,7 @@ github.com/aws/smithy-go/tracing
 github.com/aws/smithy-go/transport/http
 github.com/aws/smithy-go/transport/http/internal/io
 github.com/aws/smithy-go/waiter
-# github.com/axiom-studio/skills.sdk v0.0.0-20260723070638-c4230511fa22 => /home/k/skills/skills.sdk
+# github.com/axiom-studio/skills.sdk v0.0.0-20260923173003-cf5c109378fe
 ## explicit; go 1.25
 github.com/axiom-studio/skills.sdk/executor
 github.com/axiom-studio/skills.sdk/grpc
@@ -2294,4 +2294,3 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
-# github.com/axiom-studio/skills.sdk => /home/k/skills/skills.sdk
