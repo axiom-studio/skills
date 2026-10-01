@@ -12,10 +12,16 @@ Configure a Google **Web application** OAuth client on the Sentinel host:
 
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `GOOGLE_OAUTH_CLIENT_SECRET` (a server-side secret, never a Skill binding)
-- `OAUTH_PUBLIC_CALLBACK_URL` (the public frontend `/oauth/callback` route)
+- `OAUTH_PUBLIC_CALLBACK_URL` (the public frontend `/connections/oauth/callback` route)
+
+The Helm chart accepts `components.sentinel.googleOAuth` with `enabled: true`,
+`clientID`, `clientSecret`, and `callbackURL` in a private values file. It creates
+`sentinel-google-oauth` and injects these three environment variables into
+Sentinel. Alternatively, set `enabled: true` and `existingSecret` to reference
+a Secret containing these keys. Keep credential values out of Git.
 
 Register that exact redirect URL with the OAuth client. Local development may
-use `http://localhost:8084/oauth/callback`; production uses HTTPS. Enable Gmail,
+use `http://localhost:8084/connections/oauth/callback`; production uses HTTPS. Enable Gmail,
 Drive, Docs, Sheets, Slides, Calendar, People, Tasks and Meet APIs in the Google
 Cloud project. Configure the consent screen and add test accounts when the app
 is in testing. Public access to sensitive/restricted scopes requires Google's
