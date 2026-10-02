@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.70.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.5
-	github.com/axiom-studio/skills.sdk v0.0.0-20260723070638-c4230511fa22
+	github.com/axiom-studio/skills.sdk v0.0.0-20260923173003-cf5c109378fe
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/go-git/go-git/v5 v5.18.0
@@ -36,6 +36,7 @@ require (
 	github.com/nats-io/nats.go v1.39.1
 	github.com/okta/okta-sdk-golang/v5 v5.0.0
 	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/snowflakedb/gosnowflake v1.11.2
 	github.com/xanzy/go-gitlab v0.105.0
 	github.com/xdg-go/scram v1.1.2
@@ -229,7 +230,6 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect

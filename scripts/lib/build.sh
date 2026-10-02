@@ -18,8 +18,8 @@ run_build_validation() {
         local skill_name
         skill_name="$(basename "$skill_dir")"
 
-        if [ ! -f "$skill_dir/main.go" ] && [ ! -f "$skill_dir/pyproject.toml" ]; then
-            log_warn "Skipping $skill_name - no supported Go or Python entrypoint found"
+        if [ ! -f "$skill_dir/main.go" ] && [ ! -f "$skill_dir/pyproject.toml" ] && [ ! -f "$skill_dir/package.json" ]; then
+            log_warn "Skipping $skill_name - no supported Go, Python, or Node entrypoint found"
             SKIPPED=$((SKIPPED + 1))
             TOTAL=$((TOTAL + 1))
             continue
@@ -30,8 +30,10 @@ run_build_validation() {
 
         if [ -f "$skill_dir/main.go" ]; then
             build_command=(go build -mod=mod -buildvcs=false -o /dev/null "./skills/${skill_name}/...")
-        else
+        elif [ -f "$skill_dir/pyproject.toml" ]; then
             build_command=(python3 -m unittest discover -s "$skill_dir" -p 'test_*.py')
+        else
+            build_command=(npm --prefix "$skill_dir" test)
         fi
 
         if (cd "$MONOREPO_DIR" && "${build_command[@]}" 2>&1); then

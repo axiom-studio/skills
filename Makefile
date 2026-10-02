@@ -10,9 +10,9 @@ REGISTRY := axiomstudio
 # mongodb: has go.mod but no Go source files (incomplete)
 SKIP_SKILLS := mongodb
 
-# Discover all buildable skills (Go via main.go, Python via pyproject.toml, excluding skipped)
+# Discover buildable Go, Python, and Node Skill services.
 ALL_SKILL_DIRS := $(filter-out $(addprefix $(SKILLS_DIR)/,$(SKIP_SKILLS)),\
-                   $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go) $(wildcard $(SKILLS_DIR)/*/pyproject.toml))))
+                   $(sort $(dir $(wildcard $(SKILLS_DIR)/*/main.go) $(wildcard $(SKILLS_DIR)/*/pyproject.toml) $(wildcard $(SKILLS_DIR)/*/package.json))))
 SKILL_NAMES := $(notdir $(patsubst %/,%,$(ALL_SKILL_DIRS)))
 
 .PHONY: docker-build docker-push clean help
@@ -20,7 +20,7 @@ SKILL_NAMES := $(notdir $(patsubst %/,%,$(ALL_SKILL_DIRS)))
 docker-build: ## Build Docker images for all skills
 	@echo "Building $(words $(SKILL_NAMES)) skill images..."
 	@echo ""
-	@for skill in $(SKILL_NAMES); do \
+	@failed=0; for skill in $(SKILL_NAMES); do \
 		port=50051; \
 		image=$$(awk '/^[[:space:]]+installers:/{f=1} f&&/^[[:space:]]+package:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
 		echo "  Building $$image..."; \
@@ -32,23 +32,25 @@ docker-build: ## Build Docker images for all skills
 			-t $$image \
 			. && \
 		echo "    ✓ $$skill" || \
-		echo "    ✗ $$skill FAILED"; \
-	done
-	@echo ""
-	@echo "Build complete."
+		{ echo "    ✗ $$skill FAILED"; failed=1; }; \
+	done; \
+	echo ""; \
+	echo "Build complete."; \
+	test "$$failed" = 0
 
 docker-push: ## Push Docker images to registry
 	@echo "Pushing images..."
 	@echo ""
-	@for skill in $(SKILL_NAMES); do \
+	@failed=0; for skill in $(SKILL_NAMES); do \
 		image=$$(awk '/^[[:space:]]+installers:/{f=1} f&&/^[[:space:]]+package:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
 		echo "  Pushing $$image..."; \
 		docker push $$image && \
 		echo "    ✓ $$skill" || \
-		echo "    ✗ $$skill FAILED"; \
-	done
-	@echo ""
-	@echo "Push complete."
+		{ echo "    ✗ $$skill FAILED"; failed=1; }; \
+	done; \
+	echo ""; \
+	echo "Push complete."; \
+	test "$$failed" = 0
 
 clean: ## Remove built binaries and dangling images
 	@echo "Cleaning..."
