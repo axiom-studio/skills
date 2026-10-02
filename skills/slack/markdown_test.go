@@ -4,6 +4,8 @@ import "testing"
 
 func TestMarkdownToSlack(t *testing.T) {
 	cases := []struct{ in, want string }{
+		{"> First\n> Second", "> First\n> Second"},
+		{"| Name | Value |\n| --- | --- |\n| `code` | **bold** |", "```\nName | Value\ncode | bold\n```"},
 		{"**Bold** and *italic* and ~~gone~~", "*Bold* and _italic_ and ~gone~"},
 		{"[Yahoo](https://finance.yahoo.com/?a=1&b=2)", "<https://finance.yahoo.com/?a=1&amp;b=2|Yahoo>"},
 		{"# Heading\n\n- First\n- Second", "*Heading*\n\n• First\n• Second"},

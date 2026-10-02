@@ -16,6 +16,7 @@ func markdownToSlack(source string) string {
 	var out strings.Builder
 	tree := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions)).Parse([]byte(source))
 	ordered := map[*blackfriday.Node]int{}
+	quotes := map[*blackfriday.Node]int{}
 	tree.Walk(func(n *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 		write := func(s string) { _, _ = io.WriteString(&out, s) }
 		switch n.Type {
@@ -85,7 +86,13 @@ func markdownToSlack(source string) string {
 			}
 		case blackfriday.BlockQuote:
 			if entering {
-				write("> ")
+				quotes[n] = out.Len()
+			} else {
+				content := out.String()
+				start := quotes[n]
+				quoted := strings.TrimRight(content[start:], "\n")
+				out.Reset()
+				write(content[:start] + "> " + strings.ReplaceAll(quoted, "\n", "\n> ") + "\n\n")
 			}
 		case blackfriday.HorizontalRule:
 			if entering {
@@ -99,7 +106,7 @@ func markdownToSlack(source string) string {
 			if entering {
 				write("```\n")
 				n.Walk(func(cell *blackfriday.Node, enter bool) blackfriday.WalkStatus {
-					if cell.Type == blackfriday.Text && enter {
+					if (cell.Type == blackfriday.Text || cell.Type == blackfriday.Code) && enter {
 						write(slackEscape(string(cell.Literal)))
 					}
 					if cell.Type == blackfriday.TableCell && !enter && cell.Next != nil {
