@@ -54,7 +54,7 @@ func TestSlackChannelListProjectsSearchableCursorPage(t *testing.T) {
 }
 
 func TestSlackSendMessageUsesGovernedBindingWithoutConfigSecret(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+	slackActionHTTPFixture(t, func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer xoxb-governed" {
 			t.Fatalf("authorization = %q", request.Header.Get("Authorization"))
 		}
@@ -64,17 +64,12 @@ func TestSlackSendMessageUsesGovernedBindingWithoutConfigSecret(t *testing.T) {
 		if err := request.ParseForm(); err != nil {
 			t.Fatal(err)
 		}
-		if request.Form.Get("channel") != "C-approvals" || request.Form.Get("text") != "Review this action" {
+		if request.Form.Get("channel") != "CAPPROVALS" || request.Form.Get("text") != "Review this action" {
 			t.Fatalf("form = %#v", request.Form)
 		}
-		_ = json.NewEncoder(response).Encode(map[string]interface{}{"ok": true, "ts": "123.456"})
-	}))
-	defer server.Close()
-
-	previousBaseURL := slackBaseURLOverride
-	slackBaseURLOverride = server.URL
-	t.Cleanup(func() { slackBaseURLOverride = previousBaseURL })
-	config := map[string]interface{}{"channel": "C-approvals", "message": "Review this action"}
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{"ok": true, "channel": "CAPPROVALS", "ts": "123.456"})
+	})
+	config := map[string]interface{}{"channel": "CAPPROVALS", "message": "Review this action"}
 	result, err := (&SlackSendMessageExecutor{}).Execute(context.Background(), &executor.StepDefinition{Config: config},
 		slackBindingResolver{bindings: map[string]interface{}{slackBotTokenCredential: "xoxb-governed"}})
 	if err != nil {

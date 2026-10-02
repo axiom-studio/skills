@@ -195,7 +195,7 @@ func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.S
 		return nil, fmt.Errorf("message is required")
 	}
 
-	channelID, err := resolveChannelID(ctx, token, channel)
+	channelID, err := resolveSlackMessageRecipient(ctx, token, channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve channel: %w", err)
 	}
@@ -213,18 +213,25 @@ func (e *SlackSendMessageExecutor) Execute(ctx context.Context, step *executor.S
 	}
 
 	var result struct {
-		OK    bool   `json:"ok"`
-		Error string `json:"error"`
-		TS    string `json:"ts"`
+		OK      bool   `json:"ok"`
+		Error   string `json:"error"`
+		Channel string `json:"channel"`
+		TS      string `json:"ts"`
 	}
 	if err := parseSlackResponse(resp, &result); err != nil {
 		return nil, err
+	}
+	if !slackConversationID.MatchString(result.Channel) {
+		return nil, fmt.Errorf("Slack send response did not return a valid conversation channel receipt")
+	}
+	if !slackHistoryTimestamp.MatchString(result.TS) {
+		return nil, fmt.Errorf("Slack send response did not return a valid message timestamp receipt")
 	}
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
 			"success":   true,
-			"channel":   channelID,
+			"channel":   result.Channel,
 			"timestamp": result.TS,
 			"message":   "Message sent successfully",
 		},
@@ -306,7 +313,8 @@ type SlackSearchMessagesExecutor struct{}
 
 func (e *SlackSearchMessagesExecutor) Type() string { return "slack-search-messages" }
 
-var slackSearchChannelID = regexp.MustCompile(`^[CGD][A-Z0-9]+$`)
+var slackConversationID = regexp.MustCompile(`^[CGD][A-Z0-9]+$`)
+var slackRecipientUserID = regexp.MustCompile(`^[UW][A-Z0-9]+$`)
 var slackHistoryTimestamp = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
 
 func (e *SlackSearchMessagesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
@@ -318,7 +326,7 @@ func (e *SlackSearchMessagesExecutor) Execute(ctx context.Context, step *executo
 	if token == "" {
 		return nil, fmt.Errorf("Slack connection is required")
 	}
-	if !slackSearchChannelID.MatchString(channel) {
+	if !slackConversationID.MatchString(channel) {
 		return nil, fmt.Errorf("channel must be one exact Slack channel or DM ID")
 	}
 	if query == "" || utf8.RuneCountInString(query) > 512 {
@@ -1200,13 +1208,26 @@ func parseSlackResponse(body []byte, out interface{}) error {
 	return nil
 }
 
+// chat.postMessage accepts a user recipient and returns the DM conversation ID
+// in its receipt. Other conversation operations must use that returned ID.
+func resolveSlackMessageRecipient(ctx context.Context, token, recipient string) (string, error) {
+	recipient = strings.TrimSpace(recipient)
+	if slackRecipientUserID.MatchString(recipient) {
+		return recipient, nil
+	}
+	return resolveChannelID(ctx, token, recipient)
+}
+
 func resolveChannelID(ctx context.Context, token, channel string) (string, error) {
 	channel = strings.TrimSpace(channel)
 	if channel == "" {
 		return "", fmt.Errorf("channel is required")
 	}
-	if strings.HasPrefix(channel, "C") || strings.HasPrefix(channel, "G") || strings.HasPrefix(channel, "D") || strings.HasPrefix(channel, "U") {
+	if slackConversationID.MatchString(channel) {
 		return channel, nil
+	}
+	if slackRecipientUserID.MatchString(channel) {
+		return "", fmt.Errorf("a Slack user ID is not a conversation ID; use the channel returned by slack-send-message for a DM")
 	}
 	if strings.HasPrefix(channel, "#") {
 		channel = strings.TrimPrefix(channel, "#")
@@ -1229,6 +1250,9 @@ func resolveChannelID(ctx context.Context, token, channel string) (string, error
 
 	for _, conv := range resp.Channels {
 		if strings.EqualFold(conv.Name, channel) {
+			if !slackConversationID.MatchString(conv.ID) {
+				return "", fmt.Errorf("Slack channel lookup did not return a valid conversation ID")
+			}
 			return conv.ID, nil
 		}
 	}
@@ -1297,9 +1321,9 @@ var SlackSendMessageSchema = resolver.NewSchemaBuilder("slack-send-message").
 	WithName("Send Message").
 	WithCategory("action").
 	WithIcon(iconSlack).
-	WithDescription("Send a message to a Slack channel").
+	WithDescription("Send a Slack message and return Slack's canonical conversation channel and message timestamp").
 	AddSection("Message").
-	AddExpressionField("channel", "Channel", resolver.WithPlaceholder("Uses the configured destination when omitted")).
+	AddExpressionField("channel", "Channel or Recipient", resolver.WithPlaceholder("Uses the configured destination when omitted"), resolver.WithHint("Accepts a channel name, conversation ID, or user ID for a DM; use the returned channel for follow-up reads and waits")).
 	AddTextareaField("message", "Message Text", resolver.WithRequired()).
 	EndSection().
 	Build()
@@ -1310,7 +1334,7 @@ var SlackReadMessagesSchema = resolver.NewSchemaBuilder("slack-read-messages").
 	WithIcon(iconSlack).
 	WithDescription("Read a page of recent Slack channel messages or a specific thread").
 	AddSection("Filters").
-	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
+	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123..., D123..., or #general"), resolver.WithHint("Use a conversation ID or channel name; a user ID is not a DM conversation ID")).
 	AddExpressionField("threadTs", "Thread Timestamp", resolver.WithHint("Read the root message and replies of this exact thread when supplied")).
 	AddTextField("cursor", "Page Cursor", resolver.WithHint("Opaque cursor from the preceding page")).
 	AddTextField("oldest", "Oldest Timestamp").
