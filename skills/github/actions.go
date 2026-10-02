@@ -34,6 +34,8 @@ func registerExtendedGitHubActions(server *grpc.SkillServer) {
 	}{
 		{"github-repository-content-get", repositoryContentGetSchema, executeRepositoryContentGet},
 		{"github-branch-list", branchListSchema, executeBranchList},
+		{"github-branch-create", branchCreateSchema, executeBranchCreate},
+		{"github-commit-create", commitCreateSchema, executeCommitCreate},
 		{"github-commit-list", commitListSchema, executeCommitList},
 		{"github-issue-list", issueListSchema, executeIssueList},
 		{"github-issue-get", issueGetSchema, executeIssueGet},
