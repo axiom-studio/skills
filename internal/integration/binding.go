@@ -12,6 +12,15 @@ import (
 )
 
 const RuntimeVersion = "0.2.0"
+const MCPruntimeVersion = "0.3.0"
+
+func runtimeVersion(transport string) string {
+	if transport == "mcp" {
+		return MCPruntimeVersion
+	}
+	return RuntimeVersion
+}
+
 const AccessBinding = "integration-access"
 
 // BindingPlan uses OpenSeal's existing governed upsert_binding action. The
@@ -46,7 +55,7 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 		names[entrypoint] = append(names[entrypoint], op.Name)
 		blocks = append(blocks, map[string]interface{}{
 			"name": op.Name, "description": op.Description, "inputSchema": op.InputSchema,
-			"skillId": "skill-" + p.Transport, "skillVersion": RuntimeVersion, "bindingId": p.ID,
+			"skillId": "skill-" + p.Transport, "skillVersion": runtimeVersion(p.Transport), "bindingId": p.ID,
 			"action": entrypoint, "arguments": map[string]interface{}{"profileHash": hash, "operation": op.Name},
 		})
 	}
@@ -68,7 +77,7 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 	}
 	sort.Strings(allowed)
 	arguments := map[string]interface{}{
-		"bindingId": p.ID, "expectedRevision": 0, "skillId": "skill-" + p.Transport, "skillVersion": RuntimeVersion,
+		"bindingId": p.ID, "expectedRevision": 0, "skillId": "skill-" + p.Transport, "skillVersion": runtimeVersion(p.Transport),
 		"allowedActions": allowed, "enablePrompt": false, "maximumRisk": risk, "argumentRestrictions": restrictions,
 		"config": map[string]interface{}{"integration": integration},
 	}
@@ -78,6 +87,9 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 		result["requiresAccessReference"] = true
 	} else {
 		result["requiresAccessReference"] = false
+	}
+	if p.MCP != nil && p.MCP.ValuesBinding != "" {
+		result["requiredSettings"] = map[string]interface{}{"binding": "integration-settings", "kind": "integration-settings"}
 	}
 	return result, nil
 }
@@ -203,6 +215,45 @@ func boundProfile(value interface{}) (*Profile, error) {
 	return decodeProfile(encoded)
 }
 func boundToken(p *Profile, cfg map[string]interface{}, res executor.TemplateResolver) (string, error) {
+	primary, err := boundPrimaryToken(p, cfg, res)
+	if err != nil {
+		return "", err
+	}
+	if p.MCP == nil || p.MCP.ValuesBinding == "" {
+		return primary, nil
+	}
+	var value interface{}
+	if br, ok := res.(executor.BindingResolver); ok {
+		value = br.GetBinding("integration-settings")
+	}
+	if value == nil {
+		value = cfg["integration-settings"]
+	}
+	if object, ok := value.(map[string]interface{}); ok {
+		value = object["settings"]
+	}
+	raw, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("MCP settings binding is missing")
+	}
+	var settings map[string]string
+	if json.Unmarshal([]byte(raw), &settings) != nil || len(settings) == 0 {
+		return "", fmt.Errorf("invalid MCP settings binding")
+	}
+	merged := mcpSecrets(primary)
+	if primary == "" {
+		merged = map[string]string{}
+	}
+	for key, value := range settings {
+		if _, exists := merged[key]; exists {
+			return "", fmt.Errorf("MCP settings cannot override primary authentication")
+		}
+		merged[key] = value
+	}
+	encoded, _ := json.Marshal(merged)
+	return string(encoded), nil
+}
+func boundPrimaryToken(p *Profile, cfg map[string]interface{}, res executor.TemplateResolver) (string, error) {
 	if p.Credential == nil {
 		return "", nil
 	}

@@ -38,7 +38,7 @@ Both transports use JSON with these fields (unknown fields are rejected):
 | `version` | Integer `1` |
 | `id` | Lowercase stable integration name; letters, digits, hyphens |
 | `transport` | `api` or `mcp` |
-| `endpoint` | Fixed HTTPS origin for API, complete HTTPS URL for MCP; port 443 only, no userinfo/query/fragment |
+| `endpoint` | Fixed HTTPS origin for API, complete HTTPS URL for MCP; API port 443; MCP HTTPS ports allowed with `mcp` options; no userinfo/query/fragment |
 | `sources` | Authoritative documentation/discovery URLs; archive evidence separately |
 | `credential` | Optional `{binding, field, header, prefix}`; contains references, never secret values |
 | `fixedQuery` | Optional fixed, nonsecret account/scope parameters; operations cannot override them |
@@ -49,8 +49,7 @@ Examples of prefixes are `Bearer `, `Token `, or the empty string. The named bin
 must contain an object whose specified field holds the secret string. The binding
 name also serves as the generated manifest's credential kind. An already-issued
 OAuth access token works as a bearer credential; acquiring/refreshing it remains
-the host credential broker's responsibility. Compound authentication needs an
-adapter extension. Never place secrets in `fixedQuery` or schema constants.
+the host credential broker's responsibility. MCP compound authentication uses the options and separate secure values below. Never place secrets in `fixedQuery` or schema constants.
 
 Each operation has `name`, `description`, `effect` (`read` or `write`), `inputSchema`,
 and optional `outputSchema`. Use bounded schemas and explicit success-envelope
@@ -88,11 +87,67 @@ MCP output is `{data, profileHash, operation}`, with the original successful MCP
 result in `data`. The local and advertised input schemas are both checked. Advertised
 outputSchema and local outputSchema check `structuredContent`. Discovery includes
 all pages (max 20 pages / 1,000 tools) and rejects repeated cursors and duplicate
-names. Connections are initialized per action; negotiated session/protocol headers
-are preserved and sessions are closed best-effort. Supported protocol versions are
-2025-03-26, 2025-06-18, and 2025-11-25. POST responses may be JSON or SSE. No package
-execution, stdio, legacy SSE transport, OAuth bootstrap, server-initiated requests,
-task-required tools, or resumable streams are implemented.
+names. Legacy connections initialize per action and close sessions best-effort.
+Supported versions: 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25, and
+2026-07-28. The latter uses per-request `_meta` and required HTTP request headers,
+including validated `x-mcp-header` parameter annotations. Legacy SSE does not
+support the 2026 revision. No automatic write replay or session resumption.
+
+### MCP server connection options
+
+`mcp` is an optional Profile object (older remote profiles remain valid):
+
+| Field | Meaning |
+|---|---|
+| `transport` | `streamable-http`, `sse` (legacy), or `stdio` |
+| `command`, `args`, `directory` | stdio executable, literal argument array, optional container working directory |
+| `environment` | stdio `{name,field}` references into secure values |
+| `headers` | HTTP `{name,field}` references into secure values; protocol headers are owned by the runtime |
+| `authentication` | `none`, `bearer`, `api-key` (`header`, optional `prefix`), `basic`, or `oauth2` |
+| `valuesBinding` | `integration-settings` when extra secure values are present |
+| `timeoutSeconds` | 1–300; omitted defaults to 60 |
+| `protocolVersion` | Exact supported revision; omitted defaults to 2025-11-25 |
+| `clientName`, `clientVersion` | Optional client identity |
+
+The encrypted `mcp_configuration` credential stores a `settings` JSON object with
+keys `access`, `user`, `pass`, `client`, `refresh`, and the chosen header/environment
+field aliases. This credential has kind `integration-settings`. It cannot override
+an `integration-access` token. Anonymous servers need neither credential.
+
+Managed browser OAuth lives in the host's existing OAuth connection lifecycle:
+RFC 9728 protected-resource discovery, RFC 8414/OIDC issuer metadata, S256 PKCE,
+resource indicators, registered client IDs or optional dynamic registration, durable
+callback state and refresh-token rotation. A registered client-ID metadata document
+URL can be supplied as the client ID when accepted by the authorization server.
+MCP bearer grants are bound to that exact protected resource; changing the endpoint
+requires a grant for the new server. Custom signing/JWT client authentication is not
+implemented and is rejected explicitly.
+
+Manual `oauth2` options include `grant` (`client_credentials` or `refresh_token`),
+`tokenUrl`, `clientId`, `clientAuth` (`client_secret_post`, `client_secret_basic`,
+`none`), `scopes`, and `resource`. Short-lived access tokens are reused within the
+bound runtime. If a manual refresh token rotates, use managed browser OAuth so the
+new refresh token is persisted by the host.
+
+Stdio is explicitly enabled by the tenant runtime's `INTEGRATION_STDIO_ALLOWED=1`.
+No serving-process environment or credentials are inherited. Node/npx and Python/uvx
+are available in the MCP runtime image; other executables must be provisioned in it.
+A command on the user's laptop is not reachable from K3D. Remote destinations must
+be public HTTPS; private services require a separately governed network adapter.
+
+`mcpServers` is a client configuration convention, not a universal MCP wire schema.
+The form imports one server's URL/type, command/args/env/cwd, headers, and
+`timeoutSeconds`, and rejects unknown keys instead of discarding them. Roots,
+sampling, elicitation, resources/prompts, subscriptions, task execution and MCP Apps
+are client/server capabilities rather than arbitrary connection fields. This
+runtime intentionally advertises none of the unsupported client capabilities.
+
+Research sources (checked 2026-10-03):
+- https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
+- https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio
+- https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning
+- https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
+- https://modelcontextprotocol.io/specification/2024-11-05/basic/transports
 
 ## Schemas and execution limits
 
@@ -146,7 +201,7 @@ service, learn a new profile from its actual docs.
 
 ## Platform activation without per-service deployments
 
-Install the `skill-api` / `skill-mcp` 0.2.0 base manifest and runtime image once using
+Install the `skill-api` 0.2.0 / `skill-mcp` 0.3.0 base manifest and runtime image once using
 the existing platform installation flow. With no `INTEGRATION_PROFILE` environment
 variable, the service registers compilation, inspection, and effect-specific
 execution actions. It does not accept a model-controlled endpoint or profile.

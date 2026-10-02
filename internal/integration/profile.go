@@ -36,6 +36,7 @@ type Profile struct {
 	Credential *Credential       `json:"credential,omitempty"`
 	FixedQuery map[string]string `json:"fixedQuery,omitempty"`
 	Operations []Operation       `json:"operations"`
+	MCP        *MCPOptions       `json:"mcp,omitempty"`
 }
 type Operation struct {
 	Name             string                 `json:"name"`
@@ -98,9 +99,23 @@ func (p *Profile) Validate() error {
 	if p.Version != 1 || !identifier.MatchString(p.ID) || (p.Transport != "api" && p.Transport != "mcp") {
 		return fmt.Errorf("invalid profile version, id, or transport")
 	}
-	u, err := endpoint(p.Endpoint)
+	var u *url.URL
+	var err error
+	if p.Transport == "mcp" && p.MCP != nil {
+		if err = p.MCP.Validate(p); err != nil {
+			return err
+		}
+		if p.MCP.Transport != "stdio" {
+			u, err = mcpEndpoint(p.Endpoint)
+		}
+	} else {
+		u, err = endpoint(p.Endpoint)
+	}
 	if err != nil {
 		return err
+	}
+	if p.Transport == "api" && p.MCP != nil {
+		return fmt.Errorf("MCP options are not API options")
 	}
 	if p.Transport == "api" && u.Path != "" && u.Path != "/" {
 		return fmt.Errorf("API endpoint must be an origin; put paths on operations")
@@ -227,6 +242,10 @@ func checkSchema(s map[string]interface{}) error {
 		case "$schema":
 			if v != "http://json-schema.org/draft-07/schema#" && v != "https://json-schema.org/draft/2020-12/schema" {
 				return fmt.Errorf("unsupported schema dialect")
+			}
+		case "x-mcp-header":
+			if name, ok := v.(string); !ok || !headerName.MatchString(name) {
+				return fmt.Errorf("invalid MCP parameter header")
 			}
 		case "type", "title", "description", "default", "examples", "enum", "const", "required", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties":
 		case "properties", "patternProperties":
