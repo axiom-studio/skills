@@ -11,6 +11,8 @@ Repository and source inspection:
 - `github-repository-content-get`
 - `github-branch-list`
 - `github-commit-list`
+- `github-branch-create` — create a branch from an inspected commit SHA
+- `github-commit-create` — add/update/delete files, commit them together and publish without force-pushing
 
 Issues and conversation:
 
@@ -41,8 +43,23 @@ GitHub Actions:
 - `github-workflow-runs-list`
 - `github-workflow-dispatch`
 
-Deployments should narrow `owner` and `repository` with binding argument
-restrictions. Writes are external side effects. Pull-request merge is marked
+Bindings can narrow `owner` and `repository` with argument restrictions; the
+connected GitHub account always enforces its own repository permissions. Writes are external side effects. Pull-request merge is marked
 destructive and should always use the host's configured approval policy. Pass
 the `headSha` returned by `github-pull-request-get` when merging so an Agent
 cannot merge a revision it did not inspect.
+
+Repository writing uses the GitHub Git data API, not sandbox Git. Commit publishing
+requires `github:contents:write`, an explicit branch and `expectedHeadSha`. It
+creates blobs, a complete tree and a single-parent commit, then advances the
+branch with `force: false`. Concurrent head changes are rejected. Retries recognize
+an already published commit only when its parent, message and resulting tree
+match. File contents preserve whitespace and may use UTF-8 or base64; deletion
+is explicit. Existing action grants are not silently expanded by upgrading.
+
+Workspace Git is separate framework authority. A connected GitHub account enables
+clone, local commit and push by default for repositories it can access. Configure
+repository limits or disable workspace Git from that agent's GitHub configuration;
+prompt requests use the reviewed `configure_workspace` action. Repository access
+does not elevate GitHub token permissions, bypass branch protection or enable
+arbitrary workspace commands.

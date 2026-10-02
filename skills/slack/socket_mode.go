@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -147,6 +148,7 @@ func runSlackSocketModeConnector(ctx context.Context, config slackSocketModeConf
 		if ctx.Err() != nil {
 			return nil
 		}
+		log.Printf("Slack Socket Mode reconnecting: %v", err)
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
@@ -184,7 +186,12 @@ func openSlackSocketModeConnection(ctx context.Context, config slackSocketModeCo
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 || json.Unmarshal(body, &result) != nil ||
 		!result.OK || !strings.HasPrefix(result.URL, "wss://") && !strings.HasPrefix(result.URL, "ws://") {
-		return "", errors.New("Slack rejected Socket Mode connection")
+		switch result.Error {
+		case "invalid_auth", "not_authed", "token_revoked", "account_inactive", "missing_scope", "not_allowed_token_type":
+			return "", fmt.Errorf("Slack rejected Socket Mode connection: %s", result.Error)
+		default:
+			return "", fmt.Errorf("Slack rejected Socket Mode connection (HTTP %d)", response.StatusCode)
+		}
 	}
 	return result.URL, nil
 }
@@ -195,6 +202,7 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 		return errors.New("connect Socket Mode websocket")
 	}
 	defer connection.Close()
+	log.Print("Slack Socket Mode connected")
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = connection.SetReadDeadline(deadline)
 	}
@@ -221,6 +229,7 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 			}
 			acknowledgement, err := forwardSlackSocketInteraction(ctx, config, envelope)
 			if err != nil {
+				log.Printf("Slack interaction ingress failed: %v", err)
 				// Do not acknowledge failed ingress. Slack will retry the envelope;
 				// the callback receipt store deduplicates successful retries.
 				continue
@@ -233,6 +242,7 @@ func consumeSlackSocketModeConnection(ctx context.Context, config slackSocketMod
 				return errors.New("Events API Socket Mode envelope is invalid")
 			}
 			if err := forwardSlackSocketEvents(ctx, config, envelope); err != nil {
+				log.Printf("Slack message ingress failed: %v", err)
 				// A failed durable ingress is deliberately left unacknowledged so
 				// Slack retries the envelope. OpenSeal deduplicates accepted events.
 				continue
@@ -315,6 +325,13 @@ func setSlackSocketAssistantStatus(ctx context.Context, config slackSocketModeCo
 }
 
 func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeConfig, envelope slackSocketModeEnvelope) (slackSocketModeAcknowledgement, error) {
+	var navigation slackInteraction
+	if json.Unmarshal(envelope.Payload, &navigation) == nil && isSlackWebReviewNavigation(navigation) {
+		// This authenticated Socket Mode interaction opens the canonical web UI.
+		// It performs no decision or state change, so there is nothing to route
+		// or persist before acknowledging the click to Slack.
+		return slackSocketModeAcknowledgement{EnvelopeID: envelope.EnvelopeID}, nil
+	}
 	callbackURL, err := slackSocketCallbackURL(envelope.Payload, config.CallbackRoutes)
 	if err != nil {
 		return slackSocketModeAcknowledgement{}, err
@@ -357,7 +374,7 @@ func forwardSlackSocketPayload(ctx context.Context, config slackSocketModeConfig
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, maximumSocketEnvelopeBytes+1))
 	if err != nil || len(responseBody) > maximumSocketEnvelopeBytes || response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, errors.New("callback ingress rejected Socket Mode envelope")
+		return nil, fmt.Errorf("callback ingress rejected Socket Mode envelope (HTTP %d)", response.StatusCode)
 	}
 	return responseBody, nil
 }
@@ -390,6 +407,12 @@ func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (
 	default:
 		return "", errors.New("Socket Mode interaction type is unsupported")
 	}
+	if reviewed.OriginReview {
+		if callbackURL := strings.TrimSpace(routes["conversation_endpoint:"+reviewed.DestinationID]); callbackURL != "" {
+			return callbackURL, nil
+		}
+		return "", errors.New("origin review endpoint is unavailable")
+	}
 	if callbackURL := strings.TrimSpace(routes[reviewed.DestinationID]); callbackURL != "" {
 		return callbackURL, nil
 	}
@@ -398,7 +421,7 @@ func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (
 	if strings.TrimSpace(reviewed.DestinationID) == "" {
 		callbackURL := ""
 		for destinationID, candidate := range routes {
-			if strings.HasPrefix(destinationID, "conversation_gateway:") {
+			if strings.HasPrefix(destinationID, "conversation_gateway:") || strings.HasPrefix(destinationID, "conversation_endpoint:") {
 				continue
 			}
 			if callbackURL != "" {

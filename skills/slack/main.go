@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 	"github.com/axiom-studio/skills.sdk/grpc"
@@ -24,7 +26,7 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.3.1"
+	slackSkillVersion       = "2.3.2"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -49,6 +51,7 @@ func main() {
 	server := grpc.NewSkillServer(slackSkillID, slackSkillVersion)
 	server.RegisterExecutorWithSchema("slack-send-message", &SlackSendMessageExecutor{}, SlackSendMessageSchema)
 	server.RegisterExecutorWithSchema("slack-read-messages", &SlackReadMessagesExecutor{}, SlackReadMessagesSchema)
+	server.RegisterExecutorWithSchema("slack-search-messages", &SlackSearchMessagesExecutor{}, SlackSearchMessagesSchema)
 	server.RegisterExecutorWithSchema("slack-channel-list", &SlackChannelListExecutor{}, SlackChannelListSchema)
 	server.RegisterExecutorWithSchema("slack-add-reaction", &SlackAddReactionExecutor{}, SlackAddReactionSchema)
 	server.RegisterExecutorWithSchema("slack-remove-reaction", &SlackRemoveReactionExecutor{}, SlackRemoveReactionSchema)
@@ -112,6 +115,7 @@ type SlackMessagesResponse struct {
 	Channels         []SlackChannel `json:"channels"`
 	Messages         []SlackMessage `json:"messages"`
 	HasMore          bool           `json:"has_more"`
+	IsLimited        bool           `json:"is_limited"`
 	ResponseMetadata struct {
 		NextCursor string `json:"next_cursor"`
 	} `json:"response_metadata"`
@@ -241,6 +245,9 @@ func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.
 	token := slackConnectionToken(config, resolver)
 	channel := getString(config, "channel")
 	limit := getInt(config, "limit", 10)
+	if limit < 1 || limit > 200 {
+		return nil, fmt.Errorf("limit must be between 1 and 200")
+	}
 
 	if token == "" {
 		return nil, fmt.Errorf("Slack connection is required")
@@ -254,17 +261,8 @@ func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.
 		return nil, fmt.Errorf("failed to resolve channel: %w", err)
 	}
 
-	params := url.Values{}
-	params.Set("channel", channelID)
-	params.Set("limit", strconv.Itoa(limit))
-
-	resp, err := doSlackRequest(ctx, token, "GET", "/conversations.history", params)
+	result, err := readSlackHistoryPage(ctx, token, channelID, config, limit)
 	if err != nil {
-		return nil, err
-	}
-
-	var result SlackMessagesResponse
-	if err := parseSlackResponse(resp, &result); err != nil {
 		return nil, err
 	}
 
@@ -288,13 +286,130 @@ func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"success":  true,
-			"channel":  channelID,
-			"messages": messages,
-			"count":    len(messages),
-			"hasMore":  result.HasMore,
+			"success":                true,
+			"channel":                channelID,
+			"threadTs":               strings.TrimSpace(getString(config, "threadTs")),
+			"messages":               messages,
+			"count":                  len(messages),
+			"hasMore":                result.HasMore || result.ResponseMetadata.NextCursor != "",
+			"nextCursor":             result.ResponseMetadata.NextCursor,
+			"nextLatest":             slackHistoryNextLatest(result, config),
+			"providerHistoryLimited": result.IsLimited,
 		},
 	}, nil
+}
+
+// SlackSearchMessagesExecutor filters one bounded page from a single authorized
+// conversation. Slack's bot-token history API works for the configured channel
+// and DM scopes without exposing a user's private workspace search authority.
+type SlackSearchMessagesExecutor struct{}
+
+func (e *SlackSearchMessagesExecutor) Type() string { return "slack-search-messages" }
+
+var slackSearchChannelID = regexp.MustCompile(`^[CGD][A-Z0-9]+$`)
+var slackHistoryTimestamp = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+
+func (e *SlackSearchMessagesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
+	config := step.Config
+	token := slackConnectionToken(config, resolver)
+	channel := strings.TrimSpace(getString(config, "channel"))
+	query := strings.TrimSpace(getString(config, "query"))
+	limit := getInt(config, "limit", 100)
+	if token == "" {
+		return nil, fmt.Errorf("Slack connection is required")
+	}
+	if !slackSearchChannelID.MatchString(channel) {
+		return nil, fmt.Errorf("channel must be one exact Slack channel or DM ID")
+	}
+	if query == "" || utf8.RuneCountInString(query) > 512 {
+		return nil, fmt.Errorf("query must contain between 1 and 512 characters of search text")
+	}
+	if limit < 1 || limit > 200 {
+		return nil, fmt.Errorf("limit must be between 1 and 200")
+	}
+	result, err := readSlackHistoryPage(ctx, token, channel, config, limit)
+	if err != nil {
+		return nil, err
+	}
+	terms := strings.Fields(strings.ToLower(query))
+	messages := make([]map[string]interface{}, 0)
+	for _, message := range result.Messages {
+		text := strings.ToLower(message.Text)
+		matches := true
+		for _, term := range terms {
+			if !strings.Contains(text, term) {
+				matches = false
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+		messages = append(messages, map[string]interface{}{
+			"channel": channel, "timestamp": message.Timestamp, "threadTs": message.ThreadTs,
+			"user": message.User, "text": message.Text, "replyCount": message.ReplyCount,
+			"isBot": message.BotID != "",
+		})
+	}
+	threadTs := strings.TrimSpace(getString(config, "threadTs"))
+	coverage := "channel_history_page"
+	if threadTs != "" {
+		coverage = "thread_history_page"
+	}
+	return &executor.StepResult{Output: map[string]interface{}{
+		"success": true, "channel": channel, "threadTs": threadTs, "query": query,
+		"messages": messages, "count": len(messages), "scannedCount": len(result.Messages),
+		"hasMore":    result.HasMore || result.ResponseMetadata.NextCursor != "",
+		"nextCursor": result.ResponseMetadata.NextCursor,
+		"nextLatest": slackHistoryNextLatest(result, config),
+		"coverage":   coverage, "includesThreadReplies": threadTs != "",
+		"providerHistoryLimited": result.IsLimited,
+	}}, nil
+}
+
+func readSlackHistoryPage(ctx context.Context, token, channel string, config map[string]interface{}, limit int) (SlackMessagesResponse, error) {
+	var result SlackMessagesResponse
+	params := url.Values{"channel": {channel}, "limit": {strconv.Itoa(limit)}}
+	endpoint := "/conversations.history"
+	threadTs := strings.TrimSpace(getString(config, "threadTs"))
+	if threadTs != "" {
+		if !slackHistoryTimestamp.MatchString(threadTs) {
+			return result, fmt.Errorf("threadTs must be a Slack message timestamp")
+		}
+		endpoint = "/conversations.replies"
+		params.Set("ts", threadTs)
+	}
+	for _, key := range []string{"oldest", "latest"} {
+		value := strings.TrimSpace(getString(config, key))
+		if value != "" {
+			if !slackHistoryTimestamp.MatchString(value) {
+				return result, fmt.Errorf("%s must be a Slack message timestamp", key)
+			}
+			params.Set(key, value)
+		}
+	}
+	if cursor := strings.TrimSpace(getString(config, "cursor")); cursor != "" {
+		if len(cursor) > 2048 {
+			return result, fmt.Errorf("cursor is too long")
+		}
+		params.Set("cursor", cursor)
+	}
+	body, err := doSlackRequest(ctx, token, http.MethodGet, endpoint, params)
+	if err != nil {
+		return result, err
+	}
+	err = parseSlackResponse(body, &result)
+	return result, err
+}
+
+// Channel history is newest-first, so a timestamp can continue a page if Slack
+// supplies has_more without a cursor. Thread history is oldest-first; callers
+// continue threads with the provider cursor instead of reversing their range.
+func slackHistoryNextLatest(result SlackMessagesResponse, config map[string]interface{}) string {
+	if result.HasMore && result.ResponseMetadata.NextCursor == "" && len(result.Messages) > 0 && strings.TrimSpace(getString(config, "threadTs")) == "" {
+		return result.Messages[len(result.Messages)-1].Timestamp
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------
@@ -1193,13 +1308,33 @@ var SlackReadMessagesSchema = resolver.NewSchemaBuilder("slack-read-messages").
 	WithName("Read Messages").
 	WithCategory("action").
 	WithIcon(iconSlack).
-	WithDescription("Read recent messages from a Slack channel").
+	WithDescription("Read a page of recent Slack channel messages or a specific thread").
 	AddSection("Filters").
 	AddExpressionField("channel", "Channel", resolver.WithRequired(), resolver.WithPlaceholder("C123... or #general")).
+	AddExpressionField("threadTs", "Thread Timestamp", resolver.WithHint("Read the root message and replies of this exact thread when supplied")).
+	AddTextField("cursor", "Page Cursor", resolver.WithHint("Opaque cursor from the preceding page")).
+	AddTextField("oldest", "Oldest Timestamp").
+	AddTextField("latest", "Latest Timestamp").
 	AddNumberField("limit", "Limit",
 		resolver.WithDefault(10),
 		resolver.WithMinMax(1, 200),
 	).
+	EndSection().
+	Build()
+
+var SlackSearchMessagesSchema = resolver.NewSchemaBuilder("slack-search-messages").
+	WithName("Search Messages").
+	WithCategory("action").
+	WithIcon(iconSlack).
+	WithDescription("Search one page of an accessible Slack channel or thread using literal, case-insensitive keywords").
+	AddSection("Search").
+	AddExpressionField("channel", "Channel ID", resolver.WithRequired(), resolver.WithHint("Use the originating channel or DM ID by default")).
+	AddTextField("query", "Keywords", resolver.WithRequired(), resolver.WithHint("Every whitespace-separated keyword must appear; Slack search modifiers are treated literally")).
+	AddExpressionField("threadTs", "Thread Timestamp").
+	AddTextField("cursor", "Page Cursor").
+	AddTextField("oldest", "Oldest Timestamp").
+	AddTextField("latest", "Latest Timestamp").
+	AddNumberField("limit", "Messages to Scan", resolver.WithDefault(100), resolver.WithMinMax(1, 200)).
 	EndSection().
 	Build()
 

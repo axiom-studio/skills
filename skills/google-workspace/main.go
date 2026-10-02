@@ -127,7 +127,7 @@ func (e *workspaceExecutor) Execute(ctx context.Context, step *executor.StepDefi
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("Google %s request rejected (%d); check account access, consent scopes and enabled APIs", e.op.Service, resp.StatusCode)
+		return nil, googleResponseError(e.op.Service, resp.StatusCode, resp.Body)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxContentBytes+1))
 	if err != nil || len(data) > maxContentBytes {
@@ -476,4 +476,47 @@ func uploadPayload(config map[string]any) ([]byte, string, error) {
 		return nil, "", err
 	}
 	return out.Bytes(), "multipart/related; boundary=" + writer.Boundary(), nil
+}
+
+// Google error messages and metadata may contain identifiers or user content.
+// Expose only recognized machine reasons and reviewed corrective guidance.
+func googleResponseError(service string, status int, body io.Reader) error {
+	var envelope struct {
+		Error struct {
+			Errors []struct {
+				Reason string `json:"reason"`
+			} `json:"errors"`
+			Details []struct {
+				Reason string `json:"reason"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	data, _ := io.ReadAll(io.LimitReader(body, 64*1024))
+	_ = json.Unmarshal(data, &envelope)
+	reasons := make([]string, 0, len(envelope.Error.Errors)+len(envelope.Error.Details))
+	for _, value := range envelope.Error.Details {
+		reasons = append(reasons, value.Reason)
+	}
+	for _, value := range envelope.Error.Errors {
+		reasons = append(reasons, value.Reason)
+	}
+	for _, reason := range reasons {
+		guidance := ""
+		switch reason {
+		case "SERVICE_DISABLED", "accessNotConfigured":
+			guidance = "enable the service API in the OAuth application's Google Cloud project; reconnecting the account will not enable the API"
+		case "ACCESS_TOKEN_SCOPE_INSUFFICIENT", "insufficientPermissions":
+			guidance = "the access token lacks the required consent scope; authorize the requested scope"
+		case "domainPolicy", "ORG_RESTRICTION_VIOLATION":
+			guidance = "Google Workspace organization policy blocks this operation; an administrator must review the policy"
+		case "rateLimitExceeded", "userRateLimitExceeded", "RATE_LIMIT_EXCEEDED":
+			guidance = "Google rate limited the operation; wait before retrying"
+		case "authError", "ACCESS_TOKEN_EXPIRED":
+			guidance = "the access token is invalid or expired; refresh the saved authorization"
+		}
+		if guidance != "" {
+			return fmt.Errorf("Google %s request rejected (%d, %s): %s", service, status, reason, guidance)
+		}
+	}
+	return fmt.Errorf("Google %s request rejected (%d); the response does not establish whether the cause is account access, consent scopes, organization policy or API configuration", service, status)
 }
