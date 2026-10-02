@@ -561,7 +561,7 @@ definition:
             provider: slack
             endpointModes: [channel, direct]
             inboundEventTypes: [conversation.message.received]
-            features: [mentions, threads, typing, context_history]
+            features: [context_history, mentions, threads, typing]
             credentials:
                 - name: slack_bot_token
                   kind: slack_bot_token
