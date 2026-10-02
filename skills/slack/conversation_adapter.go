@@ -662,9 +662,30 @@ func (a *slackAdapter) setThreadStatus(ctx context.Context, token string, envelo
 	if threadID == "" || len(statusText) > 100 {
 		return failedDelivery("invalid_status", "The Slack thread status is invalid."), nil
 	}
-	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/assistant.threads.setStatus", nil, map[string]interface{}{
-		"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": statusText,
+	state, _ := envelope.Delivery.Parameters["state"].(string)
+	if state == "" {
+		state = "processing"
+		if statusText == "" {
+			state = "active"
+		}
+	}
+	if state != "processing" && state != "active" && state != "suspended" {
+		return failedDelivery("invalid_status", "The Slack session state is invalid."), nil
+	}
+	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/agents.sessions.setStatus", nil, map[string]interface{}{
+		"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": state,
 	})
+	// Workspaces without agent sessions still support the legacy indicator.
+	// The shared outbox restores it after each public commentary message.
+	var capabilityResult slackDeliveryResponse
+	if err == nil && json.Unmarshal(response, &capabilityResult) == nil && (capabilityResult.Error == "feature_disabled" || capabilityResult.Error == "unknown_method") {
+		if state != "active" && statusText == "" {
+			return map[string]interface{}{"outcome": "delivered", "providerMessageId": threadID, "summary": "Native session status is unavailable in this workspace."}, nil
+		}
+		response, status, retryAfter, err = a.slackJSON(ctx, token, http.MethodPost, "/assistant.threads.setStatus", nil, map[string]interface{}{
+			"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": statusText,
+		})
+	}
 	if err != nil || status >= 500 {
 		return retryDelivery("slack_unavailable", "Slack could not update the thread status.", retryAfter), nil
 	}

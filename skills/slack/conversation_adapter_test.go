@@ -204,7 +204,7 @@ func TestSlackDeliveryUsesOAuthMetadataAndAcknowledgementLookup(t *testing.T) {
 func TestSlackDeliveryProjectsNativeAssistantThreadStatus(t *testing.T) {
 	var posted map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/assistant.threads.setStatus" {
+		if request.URL.Path != "/agents.sessions.setStatus" {
 			t.Fatalf("path = %q", request.URL.Path)
 		}
 		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
@@ -224,7 +224,7 @@ func TestSlackDeliveryProjectsNativeAssistantThreadStatus(t *testing.T) {
 	if err != nil || result["outcome"] != "delivered" || result["providerMessageId"] != "1720000000.123" {
 		t.Fatalf("status result = %#v, %v", result, err)
 	}
-	if posted["channel_id"] != "C123" || posted["thread_ts"] != "1720000000.123" || posted["status"] != "Reviewing the workspace…" {
+	if posted["channel_id"] != "C123" || posted["thread_ts"] != "1720000000.123" || posted["status"] != "processing" {
 		t.Fatalf("status body = %#v", posted)
 	}
 }
@@ -492,4 +492,71 @@ func signedSlackRequest(secret string, timestamp int64, body []byte) string {
 	_, _ = fmt.Fprintf(mac, "v0:%d:", timestamp)
 	_, _ = mac.Write(body)
 	return "v0=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestSlackThreadStatusFallsBackWhenAgentSessionsAreDisabled(t *testing.T) {
+	for _, state := range []string{"processing", "active"} {
+		t.Run(state, func(t *testing.T) {
+			var paths []string
+			text := "Checking the pull request"
+			if state == "active" {
+				text = ""
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				paths = append(paths, req.URL.Path)
+				if req.URL.Path == "/agents.sessions.setStatus" {
+					_, _ = io.WriteString(w, `{"ok":false,"error":"feature_disabled"}`)
+					return
+				}
+				if req.URL.Path != "/assistant.threads.setStatus" {
+					t.Errorf("unexpected path %s", req.URL.Path)
+				}
+				var body map[string]interface{}
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				if body["status"] != text {
+					t.Errorf("fallback text: %#v", body)
+				}
+				_, _ = io.WriteString(w, `{"ok":true}`)
+			}))
+			defer server.Close()
+			adapter := newSlackAdapter("", server.URL, server.Client())
+			config := deliveryConfig("deliver")
+			delivery := config[adapterEnvelopeKey].(map[string]interface{})["delivery"].(*conversationDelivery)
+			delivery.Operation = "typing.set"
+			delivery.Parameters = map[string]interface{}{"state": state, "status": text}
+			result, err := adapter.delivery(t.Context(), config)
+			if err != nil || result["outcome"] != "delivered" || len(paths) != 2 {
+				t.Fatalf("fallback: %#v %v %v", result, err, paths)
+			}
+		})
+	}
+}
+
+func TestSlackThreadStatusExplicitLifecycleDoesNotDependOnCommentary(t *testing.T) {
+	for _, state := range []string{"processing", "suspended", "active"} {
+		t.Run(state, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				var body map[string]interface{}
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				if req.URL.Path != "/agents.sessions.setStatus" || body["status"] != state {
+					t.Errorf("state body %#v", body)
+				}
+				_, _ = io.WriteString(w, `{"ok":true}`)
+			}))
+			defer server.Close()
+			adapter := newSlackAdapter("", server.URL, server.Client())
+			config := deliveryConfig("deliver")
+			delivery := config[adapterEnvelopeKey].(map[string]interface{})["delivery"].(*conversationDelivery)
+			delivery.Operation = "typing.set"
+			delivery.Parameters = map[string]interface{}{"state": state, "status": ""}
+			result, err := adapter.delivery(t.Context(), config)
+			if err != nil || result["outcome"] != "delivered" {
+				t.Fatalf("lifecycle: %#v %v", result, err)
+			}
+		})
+	}
 }
