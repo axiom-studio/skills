@@ -733,7 +733,9 @@ func (a *slackAdapter) setThreadStatus(ctx context.Context, token string, envelo
 	// Workspaces without agent sessions still support the legacy indicator.
 	// The shared outbox restores it after each public commentary message.
 	var capabilityResult slackDeliveryResponse
-	if err == nil && json.Unmarshal(response, &capabilityResult) == nil && (capabilityResult.Error == "feature_disabled" || capabilityResult.Error == "unknown_method") {
+	if err == nil && json.Unmarshal(response, &capabilityResult) == nil &&
+		(capabilityResult.Error == "feature_disabled" || capabilityResult.Error == "unknown_method" ||
+			(state == "active" && capabilityResult.OK)) {
 		if state != "active" && statusText == "" {
 			return map[string]interface{}{"outcome": "delivered", "providerMessageId": threadID, "summary": "Native session status is unavailable in this workspace."}, nil
 		}

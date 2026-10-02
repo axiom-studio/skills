@@ -570,12 +570,18 @@ func TestSlackThreadStatusFallsBackWhenAgentSessionsAreDisabled(t *testing.T) {
 func TestSlackThreadStatusExplicitLifecycleDoesNotDependOnCommentary(t *testing.T) {
 	for _, state := range []string{"processing", "suspended", "active"} {
 		t.Run(state, func(t *testing.T) {
+			var paths []string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				var body map[string]interface{}
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 					t.Error(err)
 				}
-				if req.URL.Path != "/agents.sessions.setStatus" || body["status"] != state {
+				paths = append(paths, req.URL.Path)
+				if req.URL.Path == "/assistant.threads.setStatus" {
+					if state != "active" || body["status"] != "" {
+						t.Errorf("legacy completion body %#v", body)
+					}
+				} else if req.URL.Path != "/agents.sessions.setStatus" || body["status"] != state {
 					t.Errorf("state body %#v", body)
 				}
 				_, _ = io.WriteString(w, `{"ok":true}`)
@@ -589,6 +595,9 @@ func TestSlackThreadStatusExplicitLifecycleDoesNotDependOnCommentary(t *testing.
 			result, err := adapter.delivery(t.Context(), config)
 			if err != nil || result["outcome"] != "delivered" {
 				t.Fatalf("lifecycle: %#v %v", result, err)
+			}
+			if state == "active" && (len(paths) != 2 || paths[1] != "/assistant.threads.setStatus") {
+				t.Fatalf("legacy working status not cleared: %v", paths)
 			}
 		})
 	}
