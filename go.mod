@@ -36,6 +36,7 @@ require (
 	github.com/nats-io/nats.go v1.39.1
 	github.com/okta/okta-sdk-golang/v5 v5.0.0
 	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/snowflakedb/gosnowflake v1.11.2
 	github.com/xanzy/go-gitlab v0.105.0
 	github.com/xdg-go/scram v1.1.2
@@ -229,7 +230,6 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect

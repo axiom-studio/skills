@@ -233,3 +233,23 @@ func TestGoogleErrorsAndOversizedResponsesDoNotExposeTokens(t *testing.T) {
 		t.Fatal("accepted unbounded response")
 	}
 }
+
+func TestGoogleErrorsExposeOnlyReviewedReasons(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{`{"error":{"message":"private-content token-secret","details":[{"reason":"SERVICE_DISABLED","metadata":{"consumer":"private-project"}}]}}`, "enable the service API"},
+		{`{"error":{"errors":[{"reason":"insufficientPermissions"}]}}`, "required consent scope"},
+		{`{"error":{"errors":[{"reason":"domainPolicy"}]}}`, "organization policy"},
+		{`{"error":{"errors":[{"reason":"private-unknown"}],"message":"private-content token-secret"}}`, "does not establish"},
+		{`not json private-content token-secret`, "does not establish"},
+	} {
+		err := googleResponseError("gmail", 403, strings.NewReader(tc.body))
+		if !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("missing safe guidance: %v", err)
+		}
+		for _, secret := range []string{"private-content", "token-secret", "private-project", "private-unknown"} {
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("provider content leaked: %v", err)
+			}
+		}
+	}
+}

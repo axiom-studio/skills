@@ -12,20 +12,26 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 )
 
 const (
-	slackIngressNodeType  = "slack.conversation.ingress"
-	slackDeliveryNodeType = "slack.conversation.deliver"
-	adapterEnvelopeKey    = "_opensealConversationAdapterRequest"
-	slackConnectionKey    = "slack_bot_token"
-	slackSigningSecretKey = "slack_signing_secret"
-	maxSlackResponseBytes = 1 << 20
+	slackIngressNodeType     = "slack.conversation.ingress"
+	slackDeliveryNodeType    = "slack.conversation.deliver"
+	adapterEnvelopeKey       = "_opensealConversationAdapterRequest"
+	slackConnectionKey       = "slack_bot_token"
+	slackSigningSecretKey    = "slack_signing_secret"
+	maxSlackResponseBytes    = 1 << 20
+	maxSlackContextMessages  = 50
+	maxSlackContextPages     = 2
+	maxSlackContextTextBytes = 64 * 1024
+	maxSlackContextBytes     = 256 * 1024
 )
 
 type slackAdapter struct {
@@ -113,12 +119,13 @@ func clearSlackAdapterConfig(config map[string]interface{}, credentials ...strin
 }
 
 type adapterEnvelope struct {
-	Operation string                      `json:"operation"`
-	Endpoint  *conversationEndpoint       `json:"endpoint"`
-	Gateway   *conversationIngressGateway `json:"gateway,omitempty"`
-	Request   *conversationIngressRequest `json:"request,omitempty"`
-	Delivery  *conversationDelivery       `json:"delivery,omitempty"`
-	Message   *conversationMessage        `json:"message,omitempty"`
+	Operation string                       `json:"operation"`
+	Endpoint  *conversationEndpoint        `json:"endpoint"`
+	Gateway   *conversationIngressGateway  `json:"gateway,omitempty"`
+	Request   *conversationIngressRequest  `json:"request,omitempty"`
+	Delivery  *conversationDelivery        `json:"delivery,omitempty"`
+	Message   *conversationMessage         `json:"message,omitempty"`
+	Event     *normalizedConversationEvent `json:"event,omitempty"`
 }
 
 // These DTOs implement the versioned JSON wire protocol declared by the
@@ -253,8 +260,9 @@ type slackInteraction struct {
 		ThreadTS  string `json:"thread_ts"`
 	} `json:"container"`
 	Message struct {
-		Text   string            `json:"text"`
-		Blocks []json.RawMessage `json:"blocks"`
+		Text     string            `json:"text"`
+		ThreadTS string            `json:"thread_ts"`
+		Blocks   []json.RawMessage `json:"blocks"`
 	} `json:"message"`
 	Actions []struct {
 		ActionID string `json:"action_id"`
@@ -281,6 +289,7 @@ type slackApprovalValue struct {
 	InvocationDigest string    `json:"invocationDigest"`
 	ExpiresAt        time.Time `json:"expiresAt"`
 	DestinationID    string    `json:"destinationId,omitempty"`
+	OriginReview     bool      `json:"originReview,omitempty"`
 }
 
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
@@ -357,10 +366,11 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 	}, nil
 }
 
+func isSlackWebReviewNavigation(payload slackInteraction) bool {
+	return payload.Type == "block_actions" && len(payload.Actions) == 1 && payload.Actions[0].ActionID == "openseal_review_web_open"
+}
+
 func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{}, error) {
-	if envelope.Operation != "ingress" || envelope.Endpoint == nil {
-		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
-	}
 	form, err := url.ParseQuery(string(envelope.Request.Body))
 	if err != nil || strings.TrimSpace(form.Get("payload")) == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -369,7 +379,15 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 	if json.Unmarshal([]byte(form.Get("payload")), &payload) != nil || payload.Type != "block_actions" || len(payload.Actions) != 1 {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
-	if envelope.Endpoint.Address != payload.Channel.ID ||
+	// The ingress signature was already verified. Navigation has no authority
+	// or durable side effect and also needs acknowledgement on gateway routes.
+	if isSlackWebReviewNavigation(payload) {
+		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+	}
+	if envelope.Operation != "ingress" || envelope.Endpoint == nil {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	if (envelope.Endpoint.Address != "" && envelope.Endpoint.Address != payload.Channel.ID) ||
 		(stringConfiguration(envelope.Endpoint.Configuration, "teamId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "teamId") != payload.Team.ID) ||
 		(stringConfiguration(envelope.Endpoint.Configuration, "appId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "appId") != payload.APIAppID) {
 		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
@@ -384,13 +402,16 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	principal, ok := slackApprovalPrincipal(envelope.Endpoint.Configuration, payload.User.ID)
+	if reviewed.OriginReview {
+		principal, ok = map[string]string{"type": "external_participant", "id": payload.User.ID}, strings.TrimSpace(payload.User.ID) != ""
+	}
 	if !ok {
-		return map[string]interface{}{"statusCode": http.StatusForbidden, "contentType": "text/plain", "body": []byte("Slack user is not authorized to decide this approval")}, nil
+		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"response_type":"ephemeral","text":"You do not have approval access for this connection. Use Learn more to review the request in the app."}`, "events": []interface{}{}}, nil
 	}
 	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID
 	event := normalizedConversationEvent{
 		ID: eventID, Type: "conversation.approval.decided", ExternalConversationID: payload.Channel.ID,
-		ExternalThreadID: payload.Container.ThreadTS, ExternalMessageID: payload.Container.MessageTS,
+		ExternalThreadID: firstNonEmpty(payload.Container.ThreadTS, payload.Message.ThreadTS), ExternalMessageID: payload.Container.MessageTS,
 		ExternalParticipantID: payload.User.ID, OrderingKey: payload.Channel.ID + ":" + payload.Container.MessageTS,
 		OccurredAt: slackTimestamp(firstNonEmpty(action.ActionTS, payload.ActionTS)),
 		Attributes: map[string]interface{}{
@@ -528,7 +549,7 @@ func normalizeSlackEvent(payload slackEventsEnvelope) (normalizedConversationEve
 		ExternalConversationID: source.Channel, ExternalThreadID: threadID,
 		ExternalMessageID: source.Timestamp, ExternalParticipantID: participantID,
 		ParticipantIsBot: source.BotID != "" || source.Subtype == "bot_message",
-		Text:             text, MentionsEndpoint: mentionsEndpoint, Direct: source.ChannelType == "im",
+		Text:             slackToMarkdown(text), MentionsEndpoint: mentionsEndpoint, Direct: source.ChannelType == "im",
 		OrderingKey: source.Channel + ":" + source.Timestamp, OccurredAt: occurredAt,
 		Attributes: map[string]interface{}{
 			"teamId": payload.TeamID, "appId": payload.APIAppID, "channelType": source.ChannelType,
@@ -567,6 +588,13 @@ type slackDeliveryResponse struct {
 type slackMessage struct {
 	Timestamp string        `json:"ts"`
 	Metadata  slackMetadata `json:"metadata"`
+	Type      string        `json:"type"`
+	Subtype   string        `json:"subtype"`
+	Channel   string        `json:"channel"`
+	ThreadTS  string        `json:"thread_ts"`
+	User      string        `json:"user"`
+	BotID     string        `json:"bot_id"`
+	Text      string        `json:"text"`
 }
 
 type slackMetadata struct {
@@ -576,11 +604,14 @@ type slackMetadata struct {
 
 func (a *slackAdapter) delivery(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	envelope, err := decodeAdapterEnvelope(config)
-	if err != nil || envelope.Delivery == nil || envelope.Message == nil ||
-		(envelope.Operation != "lookup" && envelope.Operation != "deliver") {
+	if err != nil || (envelope.Operation != "lookup" && envelope.Operation != "deliver" && envelope.Operation != "context") ||
+		(envelope.Operation != "context" && (envelope.Delivery == nil || envelope.Message == nil)) {
 		return nil, errors.New("Slack delivery request is invalid")
 	}
 	token, _ := config[slackConnectionKey].(string)
+	if envelope.Operation == "context" {
+		return a.readThreadContext(ctx, token, envelope), nil
+	}
 	if strings.TrimSpace(token) == "" {
 		return nil, errors.New("Slack OAuth connection is unavailable")
 	}
@@ -590,6 +621,199 @@ func (a *slackAdapter) delivery(ctx context.Context, config map[string]interface
 	return a.deliver(ctx, token, envelope)
 }
 
+type slackContextMessage struct {
+	Source                 *slackMessageSource `json:"source,omitempty"`
+	ParticipantDisplayName string              `json:"participantDisplayName,omitempty"`
+	ExternalConversationID string              `json:"externalConversationId"`
+	ExternalThreadID       string              `json:"externalThreadId"`
+	ExternalMessageID      string              `json:"externalMessageId"`
+	ExternalParticipantID  string              `json:"externalParticipantId"`
+	Text                   string              `json:"text"`
+	OccurredAt             time.Time           `json:"occurredAt"`
+}
+
+// Thread context is a read-only lookup after ingress has been authenticated and
+// routed. It uses only the bound destination and stops before the triggering
+// message, so unrelated conversations and later replies cannot enter the run.
+func (a *slackAdapter) readThreadContext(ctx context.Context, token string, envelope *adapterEnvelope) map[string]interface{} {
+	messages := make([]slackContextMessage, 0)
+	var source *slackMessageSource
+	errorCode := ""
+	result := func(status string) map[string]interface{} {
+		if source != nil {
+			for i := range messages {
+				copy := *source
+				copy.ParticipantID = messages[i].ExternalParticipantID
+				copy.MessageID = messages[i].ExternalMessageID
+				copy.OccurredAt = messages[i].OccurredAt
+				copy.ParticipantDisplayName = ""
+				if copy.ParticipantID == source.ParticipantID {
+					copy.ParticipantDisplayName = source.ParticipantDisplayName
+				}
+				messages[i].ParticipantDisplayName = copy.ParticipantDisplayName
+				messages[i].Source = &copy
+			}
+		}
+		output := map[string]interface{}{"status": status, "messages": messages, "source": source}
+		if status == "unavailable" && errorCode == "" {
+			errorCode = "unavailable"
+		}
+		if errorCode != "" {
+			output["errorCode"] = errorCode
+		}
+		return output
+	}
+	if strings.TrimSpace(token) == "" || envelope.Endpoint == nil || envelope.Event == nil ||
+		envelope.Endpoint.Provider != "slack" || envelope.Endpoint.Address == "" ||
+		envelope.Endpoint.Address != envelope.Event.ExternalConversationID {
+		return result("unavailable")
+	}
+	event := envelope.Event
+	rootTime, validRoot := slackContextTimestamp(event.ExternalThreadID)
+	triggerTime, validTrigger := slackContextTimestamp(event.ExternalMessageID)
+	if !validRoot || !validTrigger || rootTime.After(triggerTime) {
+		return result("unavailable")
+	}
+	source = a.readMessageIdentity(ctx, token, envelope)
+	if rootTime.Equal(triggerTime) {
+		return result("complete")
+	}
+	query := url.Values{
+		"channel": {envelope.Endpoint.Address}, "ts": {event.ExternalThreadID},
+		"latest": {event.ExternalMessageID}, "inclusive": {"false"}, "limit": {"100"},
+	}
+	seen := make(map[string]bool)
+	seenCursors := make(map[string]bool)
+	status := "complete"
+	for page := 0; page < maxSlackContextPages; page++ {
+		response, httpStatus, _, err := a.slackJSON(ctx, token, http.MethodGet, "/conversations.replies", query, nil)
+		var history struct {
+			OK               bool           `json:"ok"`
+			Error            string         `json:"error"`
+			HasMore          bool           `json:"has_more"`
+			Messages         []slackMessage `json:"messages"`
+			ResponseMetadata struct {
+				NextCursor string `json:"next_cursor"`
+			} `json:"response_metadata"`
+		}
+		decodeErr := json.Unmarshal(response, &history)
+		if err != nil || httpStatus < 200 || httpStatus >= 300 || decodeErr != nil || !history.OK {
+			errorCode = "unavailable"
+			if httpStatus == http.StatusTooManyRequests {
+				errorCode = "rate_limited"
+			} else if err == nil && httpStatus >= 200 && httpStatus < 300 && decodeErr == nil {
+				errorCode = slackContextErrorCode(history.Error)
+			}
+			if len(messages) == 0 {
+				return result("unavailable")
+			}
+			status = "partial"
+			break
+		}
+		for _, message := range history.Messages {
+			occurredAt, valid := slackContextTimestamp(message.Timestamp)
+			if !valid || occurredAt.Before(rootTime) || !occurredAt.Before(triggerTime) || seen[message.Timestamp] ||
+				(message.Channel != "" && message.Channel != envelope.Endpoint.Address) ||
+				(message.ThreadTS != "" && message.ThreadTS != event.ExternalThreadID) ||
+				(message.Timestamp != event.ExternalThreadID && message.ThreadTS == "") ||
+				(message.Type != "" && message.Type != "message") {
+				continue
+			}
+			switch message.Subtype {
+			case "", "bot_message", "thread_broadcast":
+			default:
+				continue
+			}
+			text := strings.TrimSpace(slackToMarkdown(message.Text))
+			if len(text) > maxSlackContextTextBytes {
+				text = truncateSlackContextText(text, maxSlackContextTextBytes)
+				status = "partial"
+			}
+			participantID := strings.TrimSpace(firstNonEmpty(message.User, message.BotID))
+			if text == "" || participantID == "" {
+				continue
+			}
+			seen[message.Timestamp] = true
+			messages = append(messages, slackContextMessage{
+				ExternalConversationID: envelope.Endpoint.Address, ExternalThreadID: event.ExternalThreadID,
+				ExternalMessageID: message.Timestamp, ExternalParticipantID: participantID,
+				Text: text, OccurredAt: occurredAt,
+			})
+		}
+		sort.Slice(messages, func(i, j int) bool { return messages[i].OccurredAt.Before(messages[j].OccurredAt) })
+		if len(messages) > maxSlackContextMessages {
+			// Keep the root that establishes the topic and the most recent replies.
+			root := messages[0]
+			if root.ExternalMessageID == event.ExternalThreadID {
+				messages = append([]slackContextMessage{root}, messages[len(messages)-(maxSlackContextMessages-1):]...)
+			} else {
+				messages = messages[len(messages)-maxSlackContextMessages:]
+			}
+			status = "partial"
+		}
+		bytes := 0
+		for _, message := range messages {
+			bytes += len(message.Text)
+		}
+		for bytes > maxSlackContextBytes {
+			remove := 0
+			if messages[0].ExternalMessageID == event.ExternalThreadID && len(messages) > 1 {
+				remove = 1
+			}
+			bytes -= len(messages[remove].Text)
+			messages = append(messages[:remove], messages[remove+1:]...)
+			status = "partial"
+		}
+		cursor := strings.TrimSpace(history.ResponseMetadata.NextCursor)
+		if cursor == "" && !history.HasMore {
+			break
+		}
+		if page+1 == maxSlackContextPages || cursor == "" || seenCursors[cursor] {
+			status = "partial"
+			break
+		}
+		seenCursors[cursor] = true
+		query.Set("cursor", cursor)
+	}
+	if len(messages) == 0 || messages[0].ExternalMessageID != event.ExternalThreadID {
+		status = "partial"
+	}
+	return result(status)
+}
+
+// Expose only stable context states, never Slack response details or tokens.
+func slackContextErrorCode(providerCode string) string {
+	switch strings.TrimSpace(providerCode) {
+	case "missing_scope", "not_in_channel", "channel_not_found", "thread_not_found":
+		return strings.TrimSpace(providerCode)
+	case "ratelimited", "rate_limited":
+		return "rate_limited"
+	default:
+		return "unavailable"
+	}
+}
+
+func truncateSlackContextText(text string, maximum int) string {
+	for maximum > 0 && !utf8.ValidString(text[:maximum]) {
+		maximum--
+	}
+	return text[:maximum]
+}
+
+func slackContextTimestamp(value string) (time.Time, bool) {
+	whole, fraction, hasFraction := strings.Cut(value, ".")
+	if whole == "" || (hasFraction && (fraction == "" || len(fraction) > 9)) {
+		return time.Time{}, false
+	}
+	for _, digit := range whole + fraction {
+		if digit < '0' || digit > '9' {
+			return time.Time{}, false
+		}
+	}
+	valueTime := slackTimestamp(value)
+	return valueTime, valueTime.After(time.Unix(0, 0))
+}
+
 func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
 	if envelope.Delivery.Operation == "typing.set" {
 		return a.setThreadStatus(ctx, token, envelope)
@@ -597,11 +821,52 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	path := "/chat.postMessage"
 	body := map[string]interface{}{
 		"channel": envelope.Endpoint.Address,
-		"text":    envelope.Message.Content,
+		"text":    markdownToSlack(envelope.Message.Content),
 		"metadata": map[string]interface{}{
 			"event_type":    "openseal_conversation_delivery",
 			"event_payload": map[string]string{"delivery_id": envelope.Delivery.ID},
 		},
+	}
+	if review, ok := envelope.Delivery.Parameters["reviewRequest"].(map[string]interface{}); ok {
+		label, _ := review["label"].(string)
+		reason, _ := review["reason"].(string)
+		link, _ := review["url"].(string)
+		if (label != "Review approval" && label != "Complete setup") || !safeSlackLink(link) || !strings.HasPrefix(link, "http") {
+			return failedDelivery("invalid_review_link", "The review link is invalid."), nil
+		}
+		buttons := []map[string]interface{}{}
+		if raw, ok := review["approval"].(map[string]interface{}); ok {
+			encoded, _ := json.Marshal(raw)
+			var approval struct {
+				ID               string    `json:"id"`
+				Revision         int64     `json:"revision"`
+				ActionCallID     string    `json:"actionCallId"`
+				InvocationDigest string    `json:"invocationDigest"`
+				ExpiresAt        time.Time `json:"expiresAt"`
+				Status           string    `json:"status"`
+			}
+			if json.Unmarshal(encoded, &approval) != nil || approval.ID == "" || approval.Revision < 1 || approval.ActionCallID == "" || approval.InvocationDigest == "" || approval.ExpiresAt.IsZero() {
+				return failedDelivery("invalid_approval", "The approval card is invalid."), nil
+			}
+			if approval.Status == "pending" {
+				value, _ := json.Marshal(slackApprovalValue{ApprovalID: approval.ID, ApprovalRevision: approval.Revision, ActionCallID: approval.ActionCallID, InvocationDigest: approval.InvocationDigest, ExpiresAt: approval.ExpiresAt, DestinationID: envelope.Endpoint.ID, OriginReview: true})
+				buttons = append(buttons,
+					map[string]interface{}{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
+					map[string]interface{}{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Decline"}, "value": string(value)})
+			} else {
+				state := map[string]string{"approved": "Approved", "rejected": "Declined", "expired": "Expired", "canceled": "Canceled"}[approval.Status]
+				if state == "" {
+					return failedDelivery("invalid_approval", "The approval status is invalid."), nil
+				}
+				reason += "\n\n" + state
+			}
+			label = "Learn more"
+		}
+		buttons = append(buttons, map[string]interface{}{"type": "button", "action_id": "openseal_review_web_open", "text": map[string]interface{}{"type": "plain_text", "text": label}, "url": link})
+		body["blocks"] = []map[string]interface{}{
+			{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": markdownToSlack(reason)}},
+			{"type": "actions", "elements": buttons},
+		}
 	}
 	if approval, ok := envelope.Delivery.Parameters["approval"].(map[string]interface{}); ok {
 		blocks, err := slackApprovalBlocks(approval, envelope.Endpoint.ID)
@@ -662,9 +927,32 @@ func (a *slackAdapter) setThreadStatus(ctx context.Context, token string, envelo
 	if threadID == "" || len(statusText) > 100 {
 		return failedDelivery("invalid_status", "The Slack thread status is invalid."), nil
 	}
-	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/assistant.threads.setStatus", nil, map[string]interface{}{
-		"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": statusText,
+	state, _ := envelope.Delivery.Parameters["state"].(string)
+	if state == "" {
+		state = "processing"
+		if statusText == "" {
+			state = "active"
+		}
+	}
+	if state != "processing" && state != "active" && state != "suspended" {
+		return failedDelivery("invalid_status", "The Slack session state is invalid."), nil
+	}
+	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/agents.sessions.setStatus", nil, map[string]interface{}{
+		"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": state,
 	})
+	// Workspaces without agent sessions still support the legacy indicator.
+	// The shared outbox restores it after each public commentary message.
+	var capabilityResult slackDeliveryResponse
+	if err == nil && json.Unmarshal(response, &capabilityResult) == nil &&
+		(capabilityResult.Error == "feature_disabled" || capabilityResult.Error == "unknown_method" ||
+			(state == "active" && capabilityResult.OK)) {
+		if state != "active" && statusText == "" {
+			return map[string]interface{}{"outcome": "delivered", "providerMessageId": threadID, "summary": "Native session status is unavailable in this workspace."}, nil
+		}
+		response, status, retryAfter, err = a.slackJSON(ctx, token, http.MethodPost, "/assistant.threads.setStatus", nil, map[string]interface{}{
+			"channel_id": envelope.Endpoint.Address, "thread_ts": threadID, "status": statusText,
+		})
+	}
 	if err != nil || status >= 500 {
 		return retryDelivery("slack_unavailable", "Slack could not update the thread status.", retryAfter), nil
 	}

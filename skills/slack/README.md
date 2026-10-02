@@ -12,7 +12,8 @@ or product UI.
 ## Node Types
 
 - **slack-send-message** — Send messages to channels or threads
-- **slack-read-messages** — Read recent messages from a channel
+- **slack-read-messages** — Read a page of channel history, or a specific thread
+- **slack-search-messages** — Search keywords in one page of channel or thread history
 - **slack-channel-list** — Search and page through authorized channels
 - **slack-add-reaction** — Add a reaction to a message
 - **slack-remove-reaction** — Remove a reaction from a message
@@ -51,3 +52,41 @@ or product UI.
    subscribed Agent endpoint. Legacy HTTP-mode apps may still use the
    registration's public callback URL. Registrations begin paused and activate
    only after the exact Skill binding and credentials have been reviewed.
+
+## Thread context and search
+
+The conversations adapter advertises `context_history` so the host can retrieve
+the originating thread's root and earlier messages before the agent answers.
+That retrieval stays inside the exact incoming channel and thread. Existing
+connection credentials are reused; message text cannot select another account.
+
+Each incoming message also carries its Slack user ID and display name, workspace
+ID, channel ID and name, channel type, thread ID, message timestamp, and provider.
+Name lookups use `users.info` (`users:read`) and `conversations.info` with the
+applicable conversation read scope. They run after acknowledgement; missing
+permissions retain stable IDs without guessing names. Names describe the source
+and never grant permissions or identify the sender as the agent's owner.
+
+The read action accepts `threadTs` to retrieve a root message and its replies.
+Both read and search actions accept `cursor`, `oldest`, and `latest`, and return
+`hasMore`, `nextCursor`, and `nextLatest` for bounded pagination. Search matches
+every whitespace-separated keyword without interpreting Slack search modifiers.
+The channel must be an exact Slack channel or DM ID, and the agent uses the
+originating conversation by default. Searching another channel requires an
+explicit authorized request.
+
+Search returns `coverage`, `scannedCount`, `includesThreadReplies`, and
+`providerHistoryLimited`. A single page without matches is not proof of absence.
+Channel history does not include replies inside other threads; supply that
+thread's `threadTs` to search its replies. Slack retention and plan restrictions
+still apply. The bot needs the applicable `channels:history`, `groups:history`,
+`im:history`, or `mpim:history` scope and access to the conversation. If Slack
+rejects a read, the action returns the provider error instead of an empty result.
+
+This action uses the bot-compatible Conversations API rather than pretending
+that `search.messages` accepts bot tokens. Slack's native Real-time Search API
+is a separate integration: bot requests require `search:read.public` and a
+short-lived `action_token` from the initiating event; native private-channel and
+DM search requires user authorization. See the official
+[Conversations history reference](https://docs.slack.dev/reference/methods/conversations.history/)
+and [Real-time Search guide](https://docs.slack.dev/apis/web-api/real-time-search-api/).

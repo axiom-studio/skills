@@ -85,7 +85,7 @@ func TestManifestMatchesCompleteGitHubSurface(t *testing.T) {
 	if err = yaml.Unmarshal(raw, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Definition.Version != skillVersion || len(manifest.Definition.Actions) != 24 || len(manifest.Definition.Prompt.AllowedTools) != 24 {
+	if manifest.Definition.Version != skillVersion || len(manifest.Definition.Actions) != 26 || len(manifest.Definition.Prompt.AllowedTools) != 26 {
 		t.Fatalf("manifest version=%q actions=%d allowed=%d", manifest.Definition.Version, len(manifest.Definition.Actions), len(manifest.Definition.Prompt.AllowedTools))
 	}
 	for _, action := range manifest.Definition.Prompt.AllowedTools {
