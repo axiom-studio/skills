@@ -375,6 +375,9 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
 	}
 	action := payload.Actions[0]
+	if action.ActionID == "openseal_review_web_open" {
+		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+	}
 	decision := strings.TrimPrefix(strings.TrimSpace(action.ActionID), "openseal_approval_")
 	if decision != "approve" && decision != "reject" && decision != "request_changes" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -528,7 +531,7 @@ func normalizeSlackEvent(payload slackEventsEnvelope) (normalizedConversationEve
 		ExternalConversationID: source.Channel, ExternalThreadID: threadID,
 		ExternalMessageID: source.Timestamp, ExternalParticipantID: participantID,
 		ParticipantIsBot: source.BotID != "" || source.Subtype == "bot_message",
-		Text:             text, MentionsEndpoint: mentionsEndpoint, Direct: source.ChannelType == "im",
+		Text:             slackToMarkdown(text), MentionsEndpoint: mentionsEndpoint, Direct: source.ChannelType == "im",
 		OrderingKey: source.Channel + ":" + source.Timestamp, OccurredAt: occurredAt,
 		Attributes: map[string]interface{}{
 			"teamId": payload.TeamID, "appId": payload.APIAppID, "channelType": source.ChannelType,
@@ -597,11 +600,23 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	path := "/chat.postMessage"
 	body := map[string]interface{}{
 		"channel": envelope.Endpoint.Address,
-		"text":    envelope.Message.Content,
+		"text":    markdownToSlack(envelope.Message.Content),
 		"metadata": map[string]interface{}{
 			"event_type":    "openseal_conversation_delivery",
 			"event_payload": map[string]string{"delivery_id": envelope.Delivery.ID},
 		},
+	}
+	if review, ok := envelope.Delivery.Parameters["reviewRequest"].(map[string]interface{}); ok {
+		label, _ := review["label"].(string)
+		reason, _ := review["reason"].(string)
+		link, _ := review["url"].(string)
+		if (label != "Review approval" && label != "Complete setup") || !safeSlackLink(link) || !strings.HasPrefix(link, "http") {
+			return failedDelivery("invalid_review_link", "The review link is invalid."), nil
+		}
+		body["blocks"] = []map[string]interface{}{
+			{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": markdownToSlack(reason)}},
+			{"type": "actions", "elements": []map[string]interface{}{{"type": "button", "action_id": "openseal_review_web_open", "text": map[string]interface{}{"type": "plain_text", "text": label}, "url": link}}},
+		}
 	}
 	if approval, ok := envelope.Delivery.Parameters["approval"].(map[string]interface{}); ok {
 		blocks, err := slackApprovalBlocks(approval, envelope.Endpoint.ID)

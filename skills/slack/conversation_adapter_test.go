@@ -560,3 +560,32 @@ func TestSlackThreadStatusExplicitLifecycleDoesNotDependOnCommentary(t *testing.
 		})
 	}
 }
+
+func TestSlackReviewButtonOpensCanonicalWebRequest(t *testing.T) {
+	var body map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		_, _ = io.WriteString(w, `{"ok":true,"channel":"C123","ts":"1720000001.123"}`)
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	envelope := config[adapterEnvelopeKey].(map[string]interface{})
+	delivery := envelope["delivery"].(*conversationDelivery)
+	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"label": "Complete setup", "reason": "Connect **GitHub**.", "url": "https://seal.example/chat/agent?setup=request&conversation=chat"}}
+	result, err := adapter.delivery(t.Context(), config)
+	if err != nil || result["outcome"] != "delivered" {
+		t.Fatalf("button delivery %#v %v", result, err)
+	}
+	blocks := body["blocks"].([]interface{})
+	section := blocks[0].(map[string]interface{})["text"].(map[string]interface{})
+	if section["text"] != "Connect *GitHub*." {
+		t.Fatalf("format: %#v", section)
+	}
+	button := blocks[1].(map[string]interface{})["elements"].([]interface{})[0].(map[string]interface{})
+	if button["url"] != "https://seal.example/chat/agent?setup=request&conversation=chat" || button["action_id"] != "openseal_review_web_open" {
+		t.Fatalf("button %#v", button)
+	}
+}
