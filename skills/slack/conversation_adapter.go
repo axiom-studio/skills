@@ -282,6 +282,7 @@ type slackApprovalValue struct {
 	InvocationDigest string    `json:"invocationDigest"`
 	ExpiresAt        time.Time `json:"expiresAt"`
 	DestinationID    string    `json:"destinationId,omitempty"`
+	OriginReview     bool      `json:"originReview,omitempty"`
 }
 
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
@@ -394,6 +395,9 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	principal, ok := slackApprovalPrincipal(envelope.Endpoint.Configuration, payload.User.ID)
+	if reviewed.OriginReview {
+		principal, ok = map[string]string{"type": "external_participant", "id": payload.User.ID}, strings.TrimSpace(payload.User.ID) != ""
+	}
 	if !ok {
 		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"response_type":"ephemeral","text":"You do not have approval access for this connection. Use Learn more to review the request in the app."}`, "events": []interface{}{}}, nil
 	}
@@ -635,7 +639,7 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 				return failedDelivery("invalid_approval", "The approval card is invalid."), nil
 			}
 			if approval.Status == "pending" {
-				value, _ := json.Marshal(slackApprovalValue{ApprovalID: approval.ID, ApprovalRevision: approval.Revision, ActionCallID: approval.ActionCallID, InvocationDigest: approval.InvocationDigest, ExpiresAt: approval.ExpiresAt, DestinationID: envelope.Endpoint.ID})
+				value, _ := json.Marshal(slackApprovalValue{ApprovalID: approval.ID, ApprovalRevision: approval.Revision, ActionCallID: approval.ActionCallID, InvocationDigest: approval.InvocationDigest, ExpiresAt: approval.ExpiresAt, DestinationID: envelope.Endpoint.ID, OriginReview: true})
 				buttons = append(buttons,
 					map[string]interface{}{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
 					map[string]interface{}{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Decline"}, "value": string(value)})

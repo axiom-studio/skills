@@ -447,6 +447,39 @@ func TestSlackApprovalInteractionRequiresMappedPrincipalAndPreservesReviewedDige
 	}
 }
 
+func TestSlackOriginApprovalInteractionAllowsUnmappedMember(t *testing.T) {
+	now := time.Unix(1_720_000_000, 0).UTC()
+	adapter := newSlackAdapter("signing-secret", "", nil)
+	adapter.now = func() time.Time { return now }
+	value, _ := json.Marshal(slackApprovalValue{ApprovalID: "approval-1", ApprovalRevision: 4, ActionCallID: "call-1", InvocationDigest: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour), OriginReview: true})
+	payload, _ := json.Marshal(map[string]interface{}{
+		"type": "block_actions", "api_app_id": "A123", "action_ts": "1720000000.2",
+		"team": map[string]string{"id": "T123"}, "user": map[string]string{"id": "U123", "username": "alice"},
+		"channel": map[string]string{"id": "C123"}, "container": map[string]string{"message_ts": "1720000000.1"},
+		"actions": []map[string]string{{"action_id": "openseal_approval_approve", "value": string(value), "action_ts": "1720000000.2"}},
+	})
+	body := []byte(url.Values{"payload": []string{string(payload)}}.Encode())
+	config := ingressConfig(now, body, &conversationEndpoint{ID: "endpoint", Provider: "slack", Address: "C123", Configuration: map[string]interface{}{
+		"teamId": "T123", "appId": "A123",
+	}})
+	request := config[adapterEnvelopeKey].(map[string]interface{})["request"].(*conversationIngressRequest)
+	request.Headers["Content-Type"] = []string{"application/x-www-form-urlencoded"}
+	output, err := adapter.ingress(context.Background(), config)
+	if err != nil || output["statusCode"] != http.StatusOK {
+		t.Fatalf("interaction = %#v, %v", output, err)
+	}
+	encoded, _ := json.Marshal(output["events"])
+	var events []normalizedConversationEvent
+	if json.Unmarshal(encoded, &events) != nil || len(events) != 1 {
+		t.Fatalf("events = %s", encoded)
+	}
+	attrs := events[0].Attributes
+	if events[0].Type != "conversation.approval.decided" || attrs["approvalId"] != "approval-1" || attrs["invocationDigest"] != strings.Repeat("a", 64) || attrs["principalId"] != "U123" || attrs["principalType"] != "external_participant" {
+		t.Fatalf("decision = %#v", events[0])
+	}
+
+}
+
 func ingressConfig(
 	timestamp time.Time,
 	body []byte,

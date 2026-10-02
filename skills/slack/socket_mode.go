@@ -397,6 +397,12 @@ func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (
 	default:
 		return "", errors.New("Socket Mode interaction type is unsupported")
 	}
+	if reviewed.OriginReview {
+		if callbackURL := strings.TrimSpace(routes["conversation_endpoint:"+reviewed.DestinationID]); callbackURL != "" {
+			return callbackURL, nil
+		}
+		return "", errors.New("origin review endpoint is unavailable")
+	}
 	if callbackURL := strings.TrimSpace(routes[reviewed.DestinationID]); callbackURL != "" {
 		return callbackURL, nil
 	}
@@ -405,7 +411,7 @@ func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (
 	if strings.TrimSpace(reviewed.DestinationID) == "" {
 		callbackURL := ""
 		for destinationID, candidate := range routes {
-			if strings.HasPrefix(destinationID, "conversation_gateway:") {
+			if strings.HasPrefix(destinationID, "conversation_gateway:") || strings.HasPrefix(destinationID, "conversation_endpoint:") {
 				continue
 			}
 			if callbackURL != "" {

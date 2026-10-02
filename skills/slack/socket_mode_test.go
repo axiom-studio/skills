@@ -224,3 +224,15 @@ func TestSlackWebReviewFastAckDoesNotAcceptDecisionsOrMalformedActions(t *testin
 		}
 	}
 }
+
+func TestSlackOriginReviewUsesConversationRouteWithoutBorrowingPolicyCallback(t *testing.T) {
+	routes := map[string]string{"endpoint": "http://sentinel/policy", "conversation_endpoint:endpoint": "http://sentinel/origin"}
+	payload := json.RawMessage(`{"type":"block_actions","actions":[{"value":"{\"destinationId\":\"endpoint\",\"originReview\":true}"}]}`)
+	if route, err := slackSocketCallbackURL(payload, routes); err != nil || route != routes["conversation_endpoint:endpoint"] {
+		t.Fatalf("origin route %q %v", route, err)
+	}
+	delete(routes, "conversation_endpoint:endpoint")
+	if _, err := slackSocketCallbackURL(payload, routes); err == nil {
+		t.Fatal("origin approval borrowed policy callback")
+	}
+}
