@@ -442,7 +442,7 @@ func TestSlackApprovalInteractionRequiresMappedPrincipalAndPreservesReviewedDige
 
 	config[adapterEnvelopeKey].(map[string]interface{})["endpoint"].(*conversationEndpoint).Configuration["approvalPrincipals"] = map[string]interface{}{}
 	denied, err := adapter.ingress(context.Background(), config)
-	if err != nil || denied["statusCode"] != http.StatusForbidden {
+	if err != nil || denied["statusCode"] != http.StatusOK || !strings.Contains(denied["body"].(string), "approval access") {
 		t.Fatalf("unauthorized = %#v, %v", denied, err)
 	}
 }
@@ -587,5 +587,72 @@ func TestSlackReviewButtonOpensCanonicalWebRequest(t *testing.T) {
 	button := blocks[1].(map[string]interface{})["elements"].([]interface{})[0].(map[string]interface{})
 	if button["url"] != "https://seal.example/chat/agent?setup=request&conversation=chat" || button["action_id"] != "openseal_review_web_open" {
 		t.Fatalf("button %#v", button)
+	}
+}
+
+func TestSlackOriginApprovalButtonsAndResolvedCard(t *testing.T) {
+	var bodies []map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		bodies = append(bodies, body)
+		_, _ = w.Write([]byte(`{"ok":true,"ts":"1720000000.1"}`))
+	}))
+	defer server.Close()
+	adapter := newSlackAdapter("", server.URL, server.Client())
+	config := deliveryConfig("deliver")
+	delivery := config[adapterEnvelopeKey].(map[string]interface{})["delivery"].(*conversationDelivery)
+	approval := map[string]interface{}{"id": "approval", "revision": int64(1), "actionCallId": "call", "invocationDigest": strings.Repeat("a", 64), "expiresAt": time.Now().Add(time.Hour), "status": "pending"}
+	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"kind": "approval", "label": "Review approval", "reason": "Post this comment?", "url": "https://seal.example/chat/agent?approval=approval", "approval": approval}}
+	if out, err := adapter.delivery(t.Context(), config); err != nil || out["outcome"] != "delivered" {
+		t.Fatalf("delivery %v %v", out, err)
+	}
+	buttons := bodies[0]["blocks"].([]interface{})[1].(map[string]interface{})["elements"].([]interface{})
+	if len(buttons) != 3 {
+		t.Fatalf("buttons %#v", buttons)
+	}
+	for i, label := range []string{"Approve", "Decline", "Learn more"} {
+		if buttons[i].(map[string]interface{})["text"].(map[string]interface{})["text"] != label {
+			t.Fatalf("button %d", i)
+		}
+	}
+	var reviewed slackApprovalValue
+	if json.Unmarshal([]byte(buttons[0].(map[string]interface{})["value"].(string)), &reviewed) != nil || reviewed.DestinationID != "endpoint" || reviewed.InvocationDigest != strings.Repeat("a", 64) {
+		t.Fatalf("review metadata %#v", reviewed)
+	}
+	approval["status"] = "approved"
+	approval["revision"] = int64(2)
+	delivery.Operation = "message.update"
+	delivery.Parameters["providerMessageId"] = "1720000000.1"
+	if out, err := adapter.delivery(t.Context(), config); err != nil || out["outcome"] != "delivered" {
+		t.Fatalf("update %v %v", out, err)
+	}
+	buttons = bodies[1]["blocks"].([]interface{})[1].(map[string]interface{})["elements"].([]interface{})
+	if len(buttons) != 1 || buttons[0].(map[string]interface{})["url"] == nil {
+		t.Fatalf("resolved card still accepts decisions %#v", buttons)
+	}
+	if !strings.Contains(bodies[1]["blocks"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["text"].(string), "Approved") {
+		t.Fatal("missing resolved state")
+	}
+}
+
+func TestSlackReviewNavigationAcknowledgesSignedGatewayAndRejectsUnsigned(t *testing.T) {
+	now := time.Now().UTC()
+	adapter := newSlackAdapter("secret", "", nil)
+	adapter.now = func() time.Time { return now }
+	payload := `{"type":"block_actions","actions":[{"action_id":"openseal_review_web_open"}]}`
+	body := []byte(url.Values{"payload": {payload}}.Encode())
+	request := &conversationIngressRequest{Body: body, Headers: map[string][]string{"Content-Type": {"application/x-www-form-urlencoded"}, "X-Slack-Request-Timestamp": {strconv.FormatInt(now.Unix(), 10)}, "X-Slack-Signature": {signedSlackRequest("secret", now.Unix(), body)}}}
+	config := map[string]interface{}{adapterEnvelopeKey: map[string]interface{}{"operation": "gateway_ingress", "gateway": &conversationIngressGateway{}, "request": request}}
+	out, err := adapter.ingress(t.Context(), config)
+	if err != nil || out["statusCode"] != http.StatusOK {
+		t.Fatalf("navigation acknowledgement %v %v", out, err)
+	}
+	request.Headers["X-Slack-Signature"] = []string{"bad"}
+	out, err = adapter.ingress(t.Context(), config)
+	if err != nil || out["statusCode"] != http.StatusUnauthorized {
+		t.Fatalf("unsigned navigation accepted %v %v", out, err)
 	}
 }

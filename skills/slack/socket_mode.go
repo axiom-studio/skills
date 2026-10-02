@@ -315,6 +315,13 @@ func setSlackSocketAssistantStatus(ctx context.Context, config slackSocketModeCo
 }
 
 func forwardSlackSocketInteraction(ctx context.Context, config slackSocketModeConfig, envelope slackSocketModeEnvelope) (slackSocketModeAcknowledgement, error) {
+	var navigation slackInteraction
+	if json.Unmarshal(envelope.Payload, &navigation) == nil && isSlackWebReviewNavigation(navigation) {
+		// This authenticated Socket Mode interaction opens the canonical web UI.
+		// It performs no decision or state change, so there is nothing to route
+		// or persist before acknowledging the click to Slack.
+		return slackSocketModeAcknowledgement{EnvelopeID: envelope.EnvelopeID}, nil
+	}
 	callbackURL, err := slackSocketCallbackURL(envelope.Payload, config.CallbackRoutes)
 	if err != nil {
 		return slackSocketModeAcknowledgement{}, err

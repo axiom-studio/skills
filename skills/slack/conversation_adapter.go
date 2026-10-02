@@ -253,8 +253,9 @@ type slackInteraction struct {
 		ThreadTS  string `json:"thread_ts"`
 	} `json:"container"`
 	Message struct {
-		Text   string            `json:"text"`
-		Blocks []json.RawMessage `json:"blocks"`
+		Text     string            `json:"text"`
+		ThreadTS string            `json:"thread_ts"`
+		Blocks   []json.RawMessage `json:"blocks"`
 	} `json:"message"`
 	Actions []struct {
 		ActionID string `json:"action_id"`
@@ -357,10 +358,11 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 	}, nil
 }
 
+func isSlackWebReviewNavigation(payload slackInteraction) bool {
+	return payload.Type == "block_actions" && len(payload.Actions) == 1 && payload.Actions[0].ActionID == "openseal_review_web_open"
+}
+
 func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{}, error) {
-	if envelope.Operation != "ingress" || envelope.Endpoint == nil {
-		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
-	}
 	form, err := url.ParseQuery(string(envelope.Request.Body))
 	if err != nil || strings.TrimSpace(form.Get("payload")) == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -369,15 +371,20 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 	if json.Unmarshal([]byte(form.Get("payload")), &payload) != nil || payload.Type != "block_actions" || len(payload.Actions) != 1 {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
-	if envelope.Endpoint.Address != payload.Channel.ID ||
+	// The ingress signature was already verified. Navigation has no authority
+	// or durable side effect and also needs acknowledgement on gateway routes.
+	if isSlackWebReviewNavigation(payload) {
+		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
+	}
+	if envelope.Operation != "ingress" || envelope.Endpoint == nil {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	if (envelope.Endpoint.Address != "" && envelope.Endpoint.Address != payload.Channel.ID) ||
 		(stringConfiguration(envelope.Endpoint.Configuration, "teamId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "teamId") != payload.Team.ID) ||
 		(stringConfiguration(envelope.Endpoint.Configuration, "appId") != "" && stringConfiguration(envelope.Endpoint.Configuration, "appId") != payload.APIAppID) {
 		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
 	}
 	action := payload.Actions[0]
-	if action.ActionID == "openseal_review_web_open" {
-		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
-	}
 	decision := strings.TrimPrefix(strings.TrimSpace(action.ActionID), "openseal_approval_")
 	if decision != "approve" && decision != "reject" && decision != "request_changes" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -388,12 +395,12 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 	}
 	principal, ok := slackApprovalPrincipal(envelope.Endpoint.Configuration, payload.User.ID)
 	if !ok {
-		return map[string]interface{}{"statusCode": http.StatusForbidden, "contentType": "text/plain", "body": []byte("Slack user is not authorized to decide this approval")}, nil
+		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"response_type":"ephemeral","text":"You do not have approval access for this connection. Use Learn more to review the request in the app."}`, "events": []interface{}{}}, nil
 	}
 	eventID := "slack:approval:" + payload.Team.ID + ":" + strings.TrimSpace(action.ActionTS) + ":" + payload.User.ID
 	event := normalizedConversationEvent{
 		ID: eventID, Type: "conversation.approval.decided", ExternalConversationID: payload.Channel.ID,
-		ExternalThreadID: payload.Container.ThreadTS, ExternalMessageID: payload.Container.MessageTS,
+		ExternalThreadID: firstNonEmpty(payload.Container.ThreadTS, payload.Message.ThreadTS), ExternalMessageID: payload.Container.MessageTS,
 		ExternalParticipantID: payload.User.ID, OrderingKey: payload.Channel.ID + ":" + payload.Container.MessageTS,
 		OccurredAt: slackTimestamp(firstNonEmpty(action.ActionTS, payload.ActionTS)),
 		Attributes: map[string]interface{}{
@@ -613,9 +620,38 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 		if (label != "Review approval" && label != "Complete setup") || !safeSlackLink(link) || !strings.HasPrefix(link, "http") {
 			return failedDelivery("invalid_review_link", "The review link is invalid."), nil
 		}
+		buttons := []map[string]interface{}{}
+		if raw, ok := review["approval"].(map[string]interface{}); ok {
+			encoded, _ := json.Marshal(raw)
+			var approval struct {
+				ID               string    `json:"id"`
+				Revision         int64     `json:"revision"`
+				ActionCallID     string    `json:"actionCallId"`
+				InvocationDigest string    `json:"invocationDigest"`
+				ExpiresAt        time.Time `json:"expiresAt"`
+				Status           string    `json:"status"`
+			}
+			if json.Unmarshal(encoded, &approval) != nil || approval.ID == "" || approval.Revision < 1 || approval.ActionCallID == "" || approval.InvocationDigest == "" || approval.ExpiresAt.IsZero() {
+				return failedDelivery("invalid_approval", "The approval card is invalid."), nil
+			}
+			if approval.Status == "pending" {
+				value, _ := json.Marshal(slackApprovalValue{ApprovalID: approval.ID, ApprovalRevision: approval.Revision, ActionCallID: approval.ActionCallID, InvocationDigest: approval.InvocationDigest, ExpiresAt: approval.ExpiresAt, DestinationID: envelope.Endpoint.ID})
+				buttons = append(buttons,
+					map[string]interface{}{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
+					map[string]interface{}{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Decline"}, "value": string(value)})
+			} else {
+				state := map[string]string{"approved": "Approved", "rejected": "Declined", "expired": "Expired", "canceled": "Canceled"}[approval.Status]
+				if state == "" {
+					return failedDelivery("invalid_approval", "The approval status is invalid."), nil
+				}
+				reason += "\n\n" + state
+			}
+			label = "Learn more"
+		}
+		buttons = append(buttons, map[string]interface{}{"type": "button", "action_id": "openseal_review_web_open", "text": map[string]interface{}{"type": "plain_text", "text": label}, "url": link})
 		body["blocks"] = []map[string]interface{}{
 			{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": markdownToSlack(reason)}},
-			{"type": "actions", "elements": []map[string]interface{}{{"type": "button", "action_id": "openseal_review_web_open", "text": map[string]interface{}{"type": "plain_text", "text": label}, "url": link}}},
+			{"type": "actions", "elements": buttons},
 		}
 	}
 	if approval, ok := envelope.Delivery.Parameters["approval"].(map[string]interface{}); ok {

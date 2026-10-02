@@ -194,3 +194,33 @@ func TestSlackSocketModeForwardsEventsAPIToConversationGateway(t *testing.T) {
 		t.Fatalf("forward events called=%d status=%d err=%v", called, statusCalled, err)
 	}
 }
+
+func TestSlackWebReviewNavigationAcknowledgesWithoutCallback(t *testing.T) {
+	callback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("navigation must not invoke approval or conversation ingress")
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer callback.Close()
+	for _, routes := range []map[string]string{nil, {"one": callback.URL}, {"one": callback.URL, "two": callback.URL}} {
+		result, err := forwardSlackSocketInteraction(t.Context(), slackSocketModeConfig{CallbackRoutes: routes}, slackSocketModeEnvelope{
+			EnvelopeID: "web-review", AcceptsResponsePayload: true,
+			Payload: json.RawMessage(`{"type":"block_actions","actions":[{"action_id":"openseal_review_web_open"}]}`),
+		})
+		if err != nil || result.EnvelopeID != "web-review" || len(result.Payload) != 0 {
+			t.Fatalf("navigation acknowledgement = %#v, %v", result, err)
+		}
+	}
+}
+func TestSlackWebReviewFastAckDoesNotAcceptDecisionsOrMalformedActions(t *testing.T) {
+	for _, body := range []string{
+		`{"type":"block_actions","actions":[{"action_id":"openseal_approval_approve"}]}`,
+		`{"type":"view_submission","actions":[{"action_id":"openseal_review_web_open"}]}`,
+		`{"type":"block_actions","actions":[{"action_id":"openseal_review_web_open"},{"action_id":"openseal_approval_approve"}]}`,
+		`{"type":"block_actions","actions":[{"action_id":"unknown"}]}`,
+	} {
+		result, err := forwardSlackSocketInteraction(t.Context(), slackSocketModeConfig{}, slackSocketModeEnvelope{EnvelopeID: "bad", Payload: json.RawMessage(body)})
+		if err == nil || result.EnvelopeID != "" {
+			t.Fatalf("non-navigation bypassed decision routing: %s", body)
+		}
+	}
+}
