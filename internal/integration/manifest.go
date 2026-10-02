@@ -21,12 +21,12 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 	for _, effect := range []string{"read", "write"} {
 		name := transport + "-" + effect
 		entry := action(name, "Execute a pinned "+effect+" operation from this binding", effect, call, nil)
-		entry["credentials"] = optionalAccess()
+		entry["credentials"] = integrationCredentials(transport)
 		actions[name] = entry
 	}
 	if transport == "mcp" {
 		entry := action("mcp-discover-bound", "Discover tool contracts on this binding's MCP endpoint", "read", object(map[string]interface{}{"profileHash": hash}, "profileHash"), nil)
-		entry["credentials"] = optionalAccess()
+		entry["credentials"] = integrationCredentials(transport)
 		actions["mcp-discover-bound"] = entry
 	}
 	reference := object(map[string]interface{}{"binding": map[string]interface{}{"type": "string"}, "field": map[string]interface{}{"type": "string"}, "header": map[string]interface{}{"type": "string"}, "prefix": map[string]interface{}{"type": "string"}}, "binding", "field", "header", "prefix")
@@ -34,15 +34,23 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 	// Optional for compilation-only bindings; execution fails without configuration.
 	config := object(map[string]interface{}{"integration": integration})
 	definition := map[string]interface{}{
-		"id": "skill-" + transport, "version": RuntimeVersion, "name": "Generic " + transport + " Skill", "description": "Learn service contracts and execute governed provider-neutral blocks",
+		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": "Generic " + transport + " Skill", "description": "Learn service contracts and execute governed provider-neutral blocks",
 		"category": "integration", "tags": []string{"generic", transport, "integration"}, "bindingConfigSchema": config, "actions": actions,
 		"prompt":     map[string]interface{}{"instructions": instructions, "userInvocable": true},
 		"transport":  map[string]interface{}{"kind": "tool", "endpoint": compileName},
-		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":" + RuntimeVersion}},
-		"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": "skill-" + transport, "resolvedVersion": RuntimeVersion, "publisher": "Axiom Studio", "license": "MIT"},
+		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":" + runtimeVersion(transport)}},
+		"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": "skill-" + transport, "resolvedVersion": runtimeVersion(transport), "publisher": "Axiom Studio", "license": "MIT"},
 	}
 	return map[string]interface{}{"apiVersion": "openseal.dev/v1alpha1", "kind": "SkillDefinition", "definition": definition}, nil
 }
 func optionalAccess() []interface{} {
 	return []interface{}{map[string]interface{}{"name": AccessBinding, "kind": AccessBinding, "optional": true}}
+}
+
+func integrationCredentials(transport string) []interface{} {
+	result := optionalAccess()
+	if transport == "mcp" {
+		result = append(result, map[string]interface{}{"name": "integration-settings", "kind": "integration-settings", "optional": true})
+	}
+	return result
 }

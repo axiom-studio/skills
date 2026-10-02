@@ -10,7 +10,9 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -19,11 +21,17 @@ type ToolSnapshot struct {
 	Hash string                 `json:"hash"`
 }
 type mcpSession struct {
-	r       *Runtime
-	token   string
-	id      string
-	version string
-	seq     int
+	r            *Runtime
+	token        string
+	id           string
+	version      string
+	seq          int
+	process      *exec.Cmd
+	input        io.WriteCloser
+	stream       io.ReadCloser
+	messages     chan []byte
+	postEndpoint string
+	toolInput    map[string]interface{}
 }
 
 func (s *mcpSession) send(ctx context.Context, method string, params interface{}, notification bool) (map[string]interface{}, error) {
@@ -32,9 +40,36 @@ func (s *mcpSession) send(ctx context.Context, method string, params interface{}
 	if !notification {
 		msg["id"] = s.seq
 	}
+	if s.version == "2026-07-28" {
+		values, ok := params.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("MCP parameters must be an object")
+		}
+		copy := map[string]interface{}{}
+		for k, v := range values {
+			copy[k] = v
+		}
+		name, version := "axiom-generic-mcp", MCPruntimeVersion
+		if m := s.r.Profile.MCP; m != nil {
+			if m.ClientName != "" {
+				name = m.ClientName
+			}
+			if m.ClientVersion != "" {
+				version = m.ClientVersion
+			}
+		}
+		copy["_meta"] = map[string]interface{}{"io.modelcontextprotocol/protocolVersion": s.version, "io.modelcontextprotocol/clientInfo": map[string]interface{}{"name": name, "version": version}, "io.modelcontextprotocol/clientCapabilities": map[string]interface{}{}}
+		msg["params"] = copy
+	}
 	data, err := json.Marshal(msg)
 	if err != nil || len(data) > MaxBytes {
 		return nil, fmt.Errorf("invalid or oversized MCP request")
+	}
+	if s.process != nil {
+		return s.sendProcess(ctx, data, notification)
+	}
+	if s.postEndpoint != "" {
+		return s.sendSSE(ctx, data, notification)
 	}
 	headers := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json, text/event-stream"}}
 	if s.id != "" {
@@ -42,6 +77,21 @@ func (s *mcpSession) send(ctx context.Context, method string, params interface{}
 	}
 	if s.version != "" {
 		headers.Set("MCP-Protocol-Version", s.version)
+	}
+	if s.version == "2026-07-28" {
+		headers.Set("Mcp-Method", method)
+		if values, ok := params.(map[string]interface{}); ok {
+			if name, ok := values["name"].(string); ok {
+				headers.Set("Mcp-Name", mcpHeaderValue(name))
+			}
+		}
+		if method == "tools/call" {
+			values, _ := params.(map[string]interface{})
+			args, _ := values["arguments"].(map[string]interface{})
+			if err := mirrorMCPHeaders(s.toolInput, args, headers); err != nil {
+				return nil, err
+			}
+		}
 	}
 	target := s.r.Profile.Endpoint
 	if len(s.r.Profile.FixedQuery) > 0 {
@@ -151,28 +201,70 @@ func rpcResponse(b []byte, id int) (map[string]interface{}, bool, error) {
 }
 func (r *Runtime) startMCP(ctx context.Context, token string) (*mcpSession, error) {
 	s := &mcpSession{r: r, token: token}
-	result, err := s.send(ctx, "initialize", map[string]interface{}{"protocolVersion": "2025-11-25", "capabilities": map[string]interface{}{}, "clientInfo": map[string]interface{}{"name": "axiom-generic-mcp", "version": RuntimeVersion}}, false)
+	version, name, clientVersion := "2025-11-25", "axiom-generic-mcp", MCPruntimeVersion
+	if m := r.Profile.MCP; m != nil {
+		if m.ProtocolVersion != "" {
+			version = m.ProtocolVersion
+		}
+		if m.ClientName != "" {
+			name = m.ClientName
+		}
+		if m.ClientVersion != "" {
+			clientVersion = m.ClientVersion
+		}
+		var err error
+		if m.Transport == "stdio" {
+			err = s.startProcess(ctx)
+		} else if m.Transport == "sse" {
+			err = s.startSSE(ctx)
+		}
+		if err != nil {
+			s.close()
+			return nil, err
+		}
+	}
+	if version == "2026-07-28" {
+		s.version = version
+		return s, nil
+	}
+	result, err := s.send(ctx, "initialize", map[string]interface{}{"protocolVersion": version, "capabilities": map[string]interface{}{}, "clientInfo": map[string]interface{}{"name": name, "version": clientVersion}}, false)
 	if err != nil {
+		s.close()
 		return nil, err
 	}
 	s.version, _ = result["protocolVersion"].(string)
 	switch s.version {
-	case "2025-03-26", "2025-06-18", "2025-11-25":
+	case "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25":
 	default:
+		s.close()
 		return nil, fmt.Errorf("unsupported negotiated MCP version")
 	}
 	caps, _ := result["capabilities"].(map[string]interface{})
 	if _, ok := caps["tools"]; !ok {
+		s.close()
 		return nil, fmt.Errorf("MCP server does not advertise tools")
 	}
 	_, err = s.send(ctx, "notifications/initialized", map[string]interface{}{}, true)
 	if err != nil {
+		s.close()
 		return nil, err
 	}
 	return s, nil
 }
 func (s *mcpSession) close() {
-	if s.id == "" {
+	if s.process != nil && s.process.Process != nil {
+		s.input.Close()
+		_ = syscall.Kill(-s.process.Process.Pid, syscall.SIGKILL)
+		_ = s.process.Wait()
+		s.process = nil
+		return
+	}
+	if s.stream != nil {
+		s.stream.Close()
+		return
+	}
+
+	if s.id == "" || s.version == "2026-07-28" {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -219,6 +311,12 @@ func (s *mcpSession) list(ctx context.Context) ([]ToolSnapshot, error) {
 				return nil, fmt.Errorf("missing or duplicate MCP tool name")
 			}
 			names[name] = true
+			if s.version == "2026-07-28" && s.process == nil {
+				schema, _ := tool["inputSchema"].(map[string]interface{})
+				if err := validateMCPHeaderSchema(schema); err != nil {
+					continue
+				}
+			}
 			result = append(result, ToolSnapshot{Tool: tool, Hash: Digest(tool)})
 			if len(result) > 1000 {
 				return nil, fmt.Errorf("MCP discovery exceeds tool limit")
@@ -238,7 +336,7 @@ func (s *mcpSession) list(ctx context.Context) ([]ToolSnapshot, error) {
 	return nil, fmt.Errorf("MCP discovery exceeds page limit")
 }
 func (r *Runtime) Discover(ctx context.Context, token string) ([]ToolSnapshot, error) {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, r.mcpTimeout())
 	defer cancel()
 	s, err := r.startMCP(ctx, token)
 	if err != nil {
@@ -250,7 +348,7 @@ func (r *Runtime) Discover(ctx context.Context, token string) ([]ToolSnapshot, e
 		return nil, err
 	}
 	for i := range snapshots {
-		snapshots[i].Tool = redactValue(snapshots[i].Tool, token, false).(map[string]interface{})
+		snapshots[i].Tool = r.redactMCP(snapshots[i].Tool, token, false).(map[string]interface{})
 	}
 	return snapshots, nil
 }
@@ -293,6 +391,7 @@ func (r *Runtime) callMCP(ctx context.Context, op Operation, args map[string]int
 	if execution, ok := tool["execution"].(map[string]interface{}); ok && execution["taskSupport"] == "required" {
 		return nil, fmt.Errorf("task-required MCP tools are not supported")
 	}
+	s.toolInput = input
 	result, err := s.send(ctx, "tools/call", map[string]interface{}{"name": op.Tool, "arguments": args}, false)
 	if err != nil {
 		return nil, err
@@ -319,5 +418,5 @@ func (r *Runtime) callMCP(ctx context.Context, op Operation, args map[string]int
 			return nil, fmt.Errorf("pinned output schema mismatch; execution may already have completed")
 		}
 	}
-	return map[string]interface{}{"data": redact(result, token)}, nil
+	return map[string]interface{}{"data": r.redactMCP(result, token, true)}, nil
 }
