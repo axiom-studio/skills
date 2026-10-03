@@ -50,6 +50,11 @@ skill definition versions remain explicit for contract and binding compatibility
 Kubernetes deployments use `imagePullPolicy: Always` for this mutable tag. Updating
 the tag takes effect when a pod starts; it does not restart an already running pod.
 
+For local K3D, publish built images to its local registry before a rollout:
+`./scripts/publish-k3d.sh axiomstudio/skill-mcp:latest`. The script verifies actual
+container-runtime pulls; importing an image into the node cache alone is
+insufficient for `Always`. Set `K3D_CLUSTER` to select a different local cluster.
+
 ## Contributing
 
 1. Create a new branch from `main`
