@@ -30,7 +30,7 @@ import (
 )
 
 const skillID = "skill-google-workspace"
-const skillVersion = "1.0.0"
+const skillVersion = "1.0.1"
 const credentialName = "google_access_token"
 const maxContentBytes = 2 * 1024 * 1024
 
