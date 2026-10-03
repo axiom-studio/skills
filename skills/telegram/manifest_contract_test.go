@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -27,7 +28,11 @@ func TestTelegramConversationAdapterManifestContract(t *testing.T) {
 				Provider          string   `yaml:"provider"`
 				EndpointModes     []string `yaml:"endpointModes"`
 				InboundEventTypes []string `yaml:"inboundEventTypes"`
-				Credentials       []struct {
+				SubjectEvidence   []struct {
+					Action      string `yaml:"action"`
+					SubjectPath string `yaml:"subjectPath"`
+				} `yaml:"subjectEvidence"`
+				Credentials []struct {
 					Name string `yaml:"name"`
 					Kind string `yaml:"kind"`
 				} `yaml:"credentials"`
@@ -71,5 +76,19 @@ func TestTelegramConversationAdapterManifestContract(t *testing.T) {
 	if manifest.Definition.Version != telegramSkillVersion || manifest.Definition.Source.ResolvedVersion != telegramSkillVersion ||
 		len(manifest.Definition.Installers) != 1 || manifest.Definition.Installers[0].Package != "axiomstudio/skill-telegram:latest" {
 		t.Fatalf("version contract = %#v", manifest.Definition)
+	}
+	// The SDK rejects manifests whose adapter lists differ from canonical order.
+	// Keep subject evidence sorted by action, as NormalizeConversationAdapter does.
+	var evidenceActions []string
+	for _, evidence := range adapter.SubjectEvidence {
+		if evidence.SubjectPath != "chatId" {
+			t.Fatalf("subject evidence must identify the Telegram chat: %#v", evidence)
+		}
+		evidenceActions = append(evidenceActions, evidence.Action)
+	}
+	if !sort.StringsAreSorted(evidenceActions) || !reflect.DeepEqual(evidenceActions, []string{
+		"telegram-get-chat", "telegram-send-document", "telegram-send-message", "telegram-send-photo",
+	}) {
+		t.Fatalf("subject evidence must use SDK canonical action ordering: %v", evidenceActions)
 	}
 }
