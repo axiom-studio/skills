@@ -1136,12 +1136,18 @@ func (a *slackAdapter) slackJSON(
 	body interface{},
 ) ([]byte, int, time.Duration, error) {
 	var reader io.Reader
+	contentType := "application/json"
 	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			return nil, 0, 0, err
+		if form, ok := body.(url.Values); ok {
+			reader = strings.NewReader(form.Encode())
+			contentType = "application/x-www-form-urlencoded"
+		} else {
+			encoded, err := json.Marshal(body)
+			if err != nil {
+				return nil, 0, 0, err
+			}
+			reader = bytes.NewReader(encoded)
 		}
-		reader = bytes.NewReader(encoded)
 	}
 	endpoint := a.baseURL + path
 	if len(query) > 0 {
@@ -1154,7 +1160,7 @@ func (a *slackAdapter) slackJSON(
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Accept", "application/json")
 	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Content-Type", contentType)
 	}
 	response, err := a.client.Do(request)
 	if err != nil {
