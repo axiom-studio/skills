@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -23,7 +20,7 @@ import (
 
 const (
 	iconTelegram          = "send"
-	telegramSkillVersion  = "1.1.0"
+	telegramSkillVersion  = "1.2.0"
 	telegramCredentialKey = "telegram_bot"
 )
 
@@ -44,6 +41,8 @@ const TelegramAPIBase = "https://api.telegram.org/bot"
 // MAIN
 // ============================================================================
 
+var telegramAPIBaseOverride = os.Getenv("TELEGRAM_API_BASE_URL")
+
 func main() {
 	// Get port from env or use default
 	port := os.Getenv("SKILL_PORT")
@@ -60,11 +59,11 @@ func main() {
 	server.RegisterExecutorWithSchema("telegram-delete-message", &DeleteMessageExecutor{}, DeleteMessageSchema)
 	server.RegisterExecutorWithSchema("telegram-send-photo", &SendPhotoExecutor{}, SendPhotoSchema)
 	server.RegisterExecutorWithSchema("telegram-send-document", &SendDocumentExecutor{}, SendDocumentSchema)
-	server.RegisterExecutorWithSchema("telegram-get-updates", &GetUpdatesExecutor{}, GetUpdatesSchema)
+	server.RegisterExecutorWithSchema("telegram-get-me", &GetMeExecutor{}, GetMeSchema)
 	server.RegisterExecutorWithSchema("telegram-get-chat", &GetChatExecutor{}, GetChatSchema)
 	server.RegisterExecutorWithSchema("telegram-set-webhook", &SetWebhookExecutor{}, SetWebhookSchema)
 
-	conversationAdapter := newTelegramConversationAdapter(TelegramAPIBase, httpClient)
+	conversationAdapter := newTelegramConversationAdapter(os.Getenv("TELEGRAM_API_BASE_URL"), httpClient)
 	server.RegisterExecutor(telegramIngressNodeType, &telegramIngressExecutor{adapter: conversationAdapter})
 	server.RegisterExecutor(telegramDeliveryNodeType, &telegramDeliveryExecutor{adapter: conversationAdapter})
 
@@ -148,87 +147,30 @@ type TelegramResponse struct {
 	Description string          `json:"description,omitempty"`
 	ErrorCode   int             `json:"error_code,omitempty"`
 	Parameters  struct {
-		RetryAfter      int `json:"retry_after,omitempty"`
-		MigrateToChatID int `json:"migrate_to_chat_id,omitempty"`
+		RetryAfter      int   `json:"retry_after,omitempty"`
+		MigrateToChatID int64 `json:"migrate_to_chat_id,omitempty"`
 	} `json:"parameters,omitempty"`
 }
 
 // makeTelegramRequest makes a POST request to the Telegram Bot API
-func makeTelegramRequest(botToken, method string, params map[string]interface{}) ([]byte, error) {
-	url := TelegramAPIBase + botToken + "/" + method
-
-	jsonData, err := json.Marshal(params)
+func makeTelegramRequest(ctx context.Context, botToken, method string, params map[string]interface{}) ([]byte, error) {
+	response, _, err := newTelegramConversationAdapter(telegramAPIBaseOverride, httpClient).telegramJSON(ctx, botToken, method, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal params: %w", err)
+		return nil, err
 	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	return body, nil
+	return json.Marshal(response)
 }
 
 // makeTelegramMultipartRequest makes a multipart POST request for file uploads
-func makeTelegramMultipartRequest(botToken, method string, params map[string]string, fileField, fileName string, fileData []byte) ([]byte, error) {
-	url := TelegramAPIBase + botToken + "/" + method
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// Add text fields
-	for key, value := range params {
-		if err := writer.WriteField(key, value); err != nil {
-			return nil, fmt.Errorf("failed to write field %s: %w", key, err)
-		}
+func makeTelegramMultipartRequest(ctx context.Context, botToken, method string, params map[string]string, fileField, fileName string, fileData []byte) ([]byte, error) {
+	if len(fileData) > maximumTelegramFileBytes {
+		return nil, fmt.Errorf("Telegram file exceeds the size limit")
 	}
-
-	// Add file
-	if fileData != nil {
-		part, err := writer.CreateFormFile(fileField, fileName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create form file: %w", err)
-		}
-		if _, err := part.Write(fileData); err != nil {
-			return nil, fmt.Errorf("failed to write file data: %w", err)
-		}
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close multipart writer: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", url, body)
+	response, _, err := newTelegramConversationAdapter(telegramAPIBaseOverride, httpClient).telegramUpload(ctx, botToken, method, fileField, stringMapToInterface(params), telegramConversationFileContent{Name: fileName, Data: fileData})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	return respBody, nil
+	return json.Marshal(response)
 }
 
 // parseTelegramResponse parses a Telegram API response
@@ -243,15 +185,15 @@ func parseTelegramResponse(body []byte, result interface{}) error {
 			return fmt.Errorf("invalid bot token")
 		}
 		if resp.ErrorCode == 400 {
-			return fmt.Errorf("bad request: %s", resp.Description)
+			return fmt.Errorf("Telegram rejected the request")
 		}
 		if resp.ErrorCode == 403 {
-			return fmt.Errorf("forbidden: %s", resp.Description)
+			return fmt.Errorf("Telegram bot is not permitted to perform this operation")
 		}
 		if resp.ErrorCode == 429 {
 			return fmt.Errorf("rate limited, retry after %d seconds", resp.Parameters.RetryAfter)
 		}
-		return fmt.Errorf("telegram API error (%d): %s", resp.ErrorCode, resp.Description)
+		return fmt.Errorf("Telegram API rejected the request (code %d)", resp.ErrorCode)
 	}
 
 	if result != nil && len(resp.Result) > 0 {
@@ -630,6 +572,12 @@ func (e *SendMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 		"text":    text,
 	}
 
+	if topic := getInt(config, "messageThreadId", 0); topic > 0 {
+		params["message_thread_id"] = topic
+	}
+	if topic := getInt(config, "directMessagesTopicId", 0); topic > 0 {
+		params["direct_messages_topic_id"] = topic
+	}
 	parseMode := resolver.ResolveString(getString(config, "parseMode"))
 	if parseMode != "" {
 		params["parse_mode"] = parseMode
@@ -645,7 +593,7 @@ func (e *SendMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 
 	replyToMessageId := getInt(config, "replyToMessageId", 0)
 	if replyToMessageId > 0 {
-		params["reply_to_message_id"] = replyToMessageId
+		params["reply_parameters"] = map[string]interface{}{"message_id": replyToMessageId}
 	}
 
 	replyMarkup := getString(config, "replyMarkup")
@@ -657,7 +605,7 @@ func (e *SendMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 		}
 	}
 
-	body, err := makeTelegramRequest(botToken, "sendMessage", params)
+	body, err := makeTelegramRequest(ctx, botToken, "sendMessage", params)
 	if err != nil {
 		return nil, err
 	}
@@ -667,14 +615,7 @@ func (e *SendMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 		return nil, err
 	}
 
-	return &executor.StepResult{
-		Output: map[string]interface{}{
-			"success":   true,
-			"message":   message,
-			"chatId":    chatId,
-			"messageId": int(message["message_id"].(float64)),
-		},
-	}, nil
+	return telegramSentMessageResult(body, chatId)
 }
 
 // EditMessageExecutor handles telegram-edit-message
@@ -711,6 +652,12 @@ func (e *EditMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 		"text":       text,
 	}
 
+	if topic := getInt(config, "messageThreadId", 0); topic > 0 {
+		params["message_thread_id"] = topic
+	}
+	if topic := getInt(config, "directMessagesTopicId", 0); topic > 0 {
+		params["direct_messages_topic_id"] = topic
+	}
 	parseMode := resolver.ResolveString(getString(config, "parseMode"))
 	if parseMode != "" {
 		params["parse_mode"] = parseMode
@@ -725,7 +672,7 @@ func (e *EditMessageExecutor) Execute(ctx context.Context, step *executor.StepDe
 		}
 	}
 
-	body, err := makeTelegramRequest(botToken, "editMessageText", params)
+	body, err := makeTelegramRequest(ctx, botToken, "editMessageText", params)
 	if err != nil {
 		return nil, err
 	}
@@ -773,7 +720,7 @@ func (e *DeleteMessageExecutor) Execute(ctx context.Context, step *executor.Step
 		"message_id": messageId,
 	}
 
-	body, err := makeTelegramRequest(botToken, "deleteMessage", params)
+	body, err := makeTelegramRequest(ctx, botToken, "deleteMessage", params)
 	if err != nil {
 		return nil, err
 	}
@@ -812,6 +759,9 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 
 	photoUrl := resolver.ResolveString(getString(config, "photoUrl"))
 	photoFileId := resolver.ResolveString(getString(config, "photoFileId"))
+	if photoFileId == "" && photoUrl == "" {
+		photoFileId = resolver.ResolveString(getString(config, "photo"))
+	}
 	photoBase64 := resolver.ResolveString(getString(config, "photoBase64"))
 
 	params := map[string]string{
@@ -823,6 +773,12 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 		params["caption"] = caption
 	}
 
+	if topic := getInt(config, "messageThreadId", 0); topic > 0 {
+		params["message_thread_id"] = strconv.Itoa(topic)
+	}
+	if topic := getInt(config, "directMessagesTopicId", 0); topic > 0 {
+		params["direct_messages_topic_id"] = strconv.Itoa(topic)
+	}
 	parseMode := resolver.ResolveString(getString(config, "parseMode"))
 	if parseMode != "" {
 		params["parse_mode"] = parseMode
@@ -834,7 +790,8 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 
 	replyToMessageId := getInt(config, "replyToMessageId", 0)
 	if replyToMessageId > 0 {
-		params["reply_to_message_id"] = fmt.Sprintf("%d", replyToMessageId)
+		encoded, _ := json.Marshal(map[string]interface{}{"message_id": replyToMessageId})
+		params["reply_parameters"] = string(encoded)
 	}
 
 	var body []byte
@@ -845,11 +802,11 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 	if photoFileId != "" {
 		// Use existing file ID
 		params["photo"] = photoFileId
-		body, err = makeTelegramRequest(botToken, "sendPhoto", stringMapToInterface(params))
+		body, err = makeTelegramRequest(ctx, botToken, "sendPhoto", stringMapToInterface(params))
 	} else if photoUrl != "" {
 		// Use URL
 		params["photo"] = photoUrl
-		body, err = makeTelegramRequest(botToken, "sendPhoto", stringMapToInterface(params))
+		body, err = makeTelegramRequest(ctx, botToken, "sendPhoto", stringMapToInterface(params))
 	} else if photoBase64 != "" {
 		// Use base64 data
 		photoData, err = decodeBase64File(photoBase64)
@@ -857,7 +814,7 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 			return nil, fmt.Errorf("failed to decode photo: %w", err)
 		}
 		fileName = "photo.jpg"
-		body, err = makeTelegramMultipartRequest(botToken, "sendPhoto", params, "photo", fileName, photoData)
+		body, err = makeTelegramMultipartRequest(ctx, botToken, "sendPhoto", params, "photo", fileName, photoData)
 	} else {
 		return nil, fmt.Errorf("photo URL, file ID, or base64 data is required")
 	}
@@ -871,14 +828,7 @@ func (e *SendPhotoExecutor) Execute(ctx context.Context, step *executor.StepDefi
 		return nil, err
 	}
 
-	return &executor.StepResult{
-		Output: map[string]interface{}{
-			"success":   true,
-			"message":   message,
-			"chatId":    chatId,
-			"messageId": int(getFloat64(message, "message_id")),
-		},
-	}, nil
+	return telegramSentMessageResult(body, chatId)
 }
 
 // SendDocumentExecutor handles telegram-send-document
@@ -901,6 +851,9 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 
 	documentUrl := resolver.ResolveString(getString(config, "documentUrl"))
 	documentFileId := resolver.ResolveString(getString(config, "documentFileId"))
+	if documentFileId == "" && documentUrl == "" {
+		documentFileId = resolver.ResolveString(getString(config, "document"))
+	}
 	documentBase64 := resolver.ResolveString(getString(config, "documentBase64"))
 	fileName := resolver.ResolveString(getString(config, "fileName"))
 
@@ -913,6 +866,12 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 		params["caption"] = caption
 	}
 
+	if topic := getInt(config, "messageThreadId", 0); topic > 0 {
+		params["message_thread_id"] = strconv.Itoa(topic)
+	}
+	if topic := getInt(config, "directMessagesTopicId", 0); topic > 0 {
+		params["direct_messages_topic_id"] = strconv.Itoa(topic)
+	}
 	parseMode := resolver.ResolveString(getString(config, "parseMode"))
 	if parseMode != "" {
 		params["parse_mode"] = parseMode
@@ -924,7 +883,8 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 
 	replyToMessageId := getInt(config, "replyToMessageId", 0)
 	if replyToMessageId > 0 {
-		params["reply_to_message_id"] = fmt.Sprintf("%d", replyToMessageId)
+		encoded, _ := json.Marshal(map[string]interface{}{"message_id": replyToMessageId})
+		params["reply_parameters"] = string(encoded)
 	}
 
 	var body []byte
@@ -934,11 +894,11 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 	if documentFileId != "" {
 		// Use existing file ID
 		params["document"] = documentFileId
-		body, err = makeTelegramRequest(botToken, "sendDocument", stringMapToInterface(params))
+		body, err = makeTelegramRequest(ctx, botToken, "sendDocument", stringMapToInterface(params))
 	} else if documentUrl != "" {
 		// Use URL
 		params["document"] = documentUrl
-		body, err = makeTelegramRequest(botToken, "sendDocument", stringMapToInterface(params))
+		body, err = makeTelegramRequest(ctx, botToken, "sendDocument", stringMapToInterface(params))
 	} else if documentBase64 != "" {
 		// Use base64 data
 		documentData, err = decodeBase64File(documentBase64)
@@ -948,7 +908,7 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 		if fileName == "" {
 			fileName = "document"
 		}
-		body, err = makeTelegramMultipartRequest(botToken, "sendDocument", params, "document", fileName, documentData)
+		body, err = makeTelegramMultipartRequest(ctx, botToken, "sendDocument", params, "document", fileName, documentData)
 	} else {
 		return nil, fmt.Errorf("document URL, file ID, or base64 data is required")
 	}
@@ -962,14 +922,7 @@ func (e *SendDocumentExecutor) Execute(ctx context.Context, step *executor.StepD
 		return nil, err
 	}
 
-	return &executor.StepResult{
-		Output: map[string]interface{}{
-			"success":   true,
-			"message":   message,
-			"chatId":    chatId,
-			"messageId": int(getFloat64(message, "message_id")),
-		},
-	}, nil
+	return telegramSentMessageResult(body, chatId)
 }
 
 // GetUpdatesExecutor handles telegram-get-updates
@@ -978,52 +931,7 @@ type GetUpdatesExecutor struct{}
 func (e *GetUpdatesExecutor) Type() string { return "telegram-get-updates" }
 
 func (e *GetUpdatesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
-	config := resolver.ResolveMap(step.Config)
-
-	botToken, err := getBotToken(config, resolver)
-	if err != nil {
-		return nil, err
-	}
-
-	params := map[string]interface{}{}
-
-	offset := getInt(config, "offset", 0)
-	if offset > 0 {
-		params["offset"] = offset
-	}
-
-	limit := getInt(config, "limit", 100)
-	if limit > 0 {
-		params["limit"] = limit
-	}
-
-	timeout := getInt(config, "timeout", 30)
-	if timeout > 0 {
-		params["timeout"] = timeout
-	}
-
-	allowedUpdates := getStringSlice(config, "allowedUpdates")
-	if len(allowedUpdates) > 0 {
-		params["allowed_updates"] = allowedUpdates
-	}
-
-	body, err := makeTelegramRequest(botToken, "getUpdates", params)
-	if err != nil {
-		return nil, err
-	}
-
-	var updates []map[string]interface{}
-	if err := parseTelegramResponse(body, &updates); err != nil {
-		return nil, err
-	}
-
-	return &executor.StepResult{
-		Output: map[string]interface{}{
-			"success": true,
-			"updates": updates,
-			"count":   len(updates),
-		},
-	}, nil
+	return nil, fmt.Errorf("Telegram updates belong to the managed channel transport and cannot be consumed by an agent action")
 }
 
 // GetChatExecutor handles telegram-get-chat
@@ -1048,7 +956,7 @@ func (e *GetChatExecutor) Execute(ctx context.Context, step *executor.StepDefini
 		"chat_id": chatId,
 	}
 
-	body, err := makeTelegramRequest(botToken, "getChat", params)
+	body, err := makeTelegramRequest(ctx, botToken, "getChat", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1058,13 +966,11 @@ func (e *GetChatExecutor) Execute(ctx context.Context, step *executor.StepDefini
 		return nil, err
 	}
 
-	return &executor.StepResult{
-		Output: map[string]interface{}{
-			"success": true,
-			"chat":    chat,
-			"chatId":  chatId,
-		},
-	}, nil
+	canonicalID := int64(getFloat64(chat, "id"))
+	if canonicalID == 0 || (!strings.HasPrefix(chatId, "@") && strconv.FormatInt(canonicalID, 10) != chatId) {
+		return nil, fmt.Errorf("Telegram returned an invalid chat receipt")
+	}
+	return &executor.StepResult{Output: map[string]interface{}{"success": true, "chat": chat, "chatId": strconv.FormatInt(canonicalID, 10)}}, nil
 }
 
 // SetWebhookExecutor handles telegram-set-webhook
@@ -1104,7 +1010,7 @@ func (e *SetWebhookExecutor) Execute(ctx context.Context, step *executor.StepDef
 		params["drop_pending_updates"] = true
 	}
 
-	body, err := makeTelegramRequest(botToken, "setWebhook", params)
+	body, err := makeTelegramRequest(ctx, botToken, "setWebhook", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1168,6 +1074,9 @@ func decodeBase64File(data string) ([]byte, error) {
 
 // base64Decode decodes a base64 string
 func base64Decode(data string) ([]byte, error) {
+	if len(data) > ((maximumTelegramFileBytes+2)/3)*4 {
+		return nil, fmt.Errorf("Telegram file exceeds the size limit")
+	}
 	// Standard base64
 	decoded, err := base64.StdEncoding.DecodeString(data)
 	if err == nil {
@@ -1175,4 +1084,22 @@ func base64Decode(data string) ([]byte, error) {
 	}
 	// URL-safe base64
 	return base64.URLEncoding.DecodeString(data)
+}
+
+// Sends return provider canonical chat and message identities. @aliases are not
+// proof that a subsequent read/update targets the same conversation.
+func telegramSentMessageResult(body []byte, target string) (*executor.StepResult, error) {
+	var response TelegramResponse
+	if json.Unmarshal(body, &response) != nil || !response.OK {
+		return nil, fmt.Errorf("Telegram did not acknowledge the send")
+	}
+	id, err := telegramAcknowledgement(response, target)
+	if err != nil {
+		return nil, err
+	}
+	var message telegramMessage
+	if json.Unmarshal(response.Result, &message) != nil {
+		return nil, fmt.Errorf("Telegram message receipt is invalid")
+	}
+	return &executor.StepResult{Output: map[string]interface{}{"success": true, "message": message, "chatId": strconv.FormatInt(message.Chat.ID, 10), "messageId": id}}, nil
 }
