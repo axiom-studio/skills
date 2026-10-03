@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v3"
 )
 
@@ -90,5 +91,36 @@ func TestTelegramConversationAdapterManifestContract(t *testing.T) {
 		"telegram-get-chat", "telegram-send-document", "telegram-send-message", "telegram-send-photo",
 	}) {
 		t.Fatalf("subject evidence must use SDK canonical action ordering: %v", evidenceActions)
+	}
+}
+
+// Exercise real executor receipts against the published schemas. These fields
+// establish connection identity and destination evidence in the host.
+func requireTelegramActionOutputSchema(t *testing.T, action string, output interface{}) {
+	t.Helper()
+	data, err := os.ReadFile("skill.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Definition struct {
+			Actions map[string]struct {
+				OutputSchema map[string]interface{} `yaml:"outputSchema"`
+			} `yaml:"actions"`
+		} `yaml:"definition"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	schema := manifest.Definition.Actions[action].OutputSchema
+	if schema["type"] != "object" {
+		t.Fatalf("%s must declare its output object schema", action)
+	}
+	result, err := gojsonschema.Validate(gojsonschema.NewGoLoader(schema), gojsonschema.NewGoLoader(output))
+	if err != nil {
+		t.Fatalf("validate %s output schema: %v", action, err)
+	}
+	if !result.Valid() {
+		t.Fatalf("%s receipt violates its published output schema: %v", action, result.Errors())
 	}
 }
