@@ -323,7 +323,7 @@ definition:
         - id: oci
           kind: oci
           label: Grafana Skill service image
-          package: axiomstudio/skill-grafana:1.0.0
+          package: axiomstudio/skill-grafana:latest
     name: Grafana Skill
     source:
         format: axiom.skill/v1

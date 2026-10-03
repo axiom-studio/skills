@@ -229,7 +229,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Drive Skill service image
-          package: axiomstudio/skill-google-drive:1.0.0
+          package: axiomstudio/skill-google-drive:latest
     name: Google Drive Skill
     source:
         format: axiom.skill/v1

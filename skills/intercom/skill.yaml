@@ -238,7 +238,7 @@ definition:
         - id: oci
           kind: oci
           label: Intercom Skill service image
-          package: axiomstudio/skill-intercom:1.0.0
+          package: axiomstudio/skill-intercom:latest
     name: Intercom Skill
     source:
         format: axiom.skill/v1

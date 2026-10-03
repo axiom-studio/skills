@@ -236,7 +236,7 @@ definition:
         - id: oci
           kind: oci
           label: PayPal Skill service image
-          package: axiomstudio/skill-paypal:1.0.0
+          package: axiomstudio/skill-paypal:latest
     name: PayPal Skill
     source:
         format: axiom.skill/v1

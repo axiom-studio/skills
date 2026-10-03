@@ -268,7 +268,7 @@ definition:
         - id: oci
           kind: oci
           label: Netlify Skill service image
-          package: axiomstudio/skill-netlify:1.0.0
+          package: axiomstudio/skill-netlify:latest
     name: Netlify Skill
     source:
         format: axiom.skill/v1

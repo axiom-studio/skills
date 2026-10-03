@@ -21,7 +21,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party meeting voice service
-      package: axiomstudio/skill-meeting-voice:0.2.15
+      package: axiomstudio/skill-meeting-voice:latest
   requirements:
     operatingSystems: [linux]
     compute:

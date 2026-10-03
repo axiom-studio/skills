@@ -242,7 +242,7 @@ definition:
         - id: oci
           kind: oci
           label: SonarQube Skill service image
-          package: axiomstudio/skill-sonarqube:1.0.0
+          package: axiomstudio/skill-sonarqube:latest
     name: SonarQube Skill
     source:
         format: axiom.skill/v1

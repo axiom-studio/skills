@@ -470,7 +470,7 @@ definition:
         - id: oci
           kind: oci
           label: MongoDB Skill service image
-          package: axiomstudio/skill-mongodb:1.0.0
+          package: axiomstudio/skill-mongodb:latest
     name: MongoDB Skill
     source:
         format: axiom.skill/v1

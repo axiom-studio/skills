@@ -45,12 +45,17 @@ make docker-build
 make docker-push
 ```
 
+All skill OCI installers use `:latest`. Build and push targets publish that tag;
+skill definition versions remain explicit for contract and binding compatibility.
+Kubernetes deployments use `imagePullPolicy: Always` for this mutable tag. Updating
+the tag takes effect when a pod starts; it does not restart an already running pod.
+
 ## Contributing
 
 1. Create a new branch from `main`
 2. Add your canonical Skill under `skills/<skill-name>/`
 3. Run validation: `./scripts/validate.sh`
-4. Submit a pull request
+4. Push authorized changes directly to the target branch
 
 ## Learning new API and MCP integrations
 

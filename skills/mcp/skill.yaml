@@ -170,7 +170,7 @@ definition:
     installers:
         - id: oci
           kind: oci
-          package: axiomstudio/skill-mcp:0.3.0
+          package: axiomstudio/skill-mcp:latest
     name: Generic mcp Skill
     prompt:
         instructions: |

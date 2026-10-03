@@ -254,7 +254,7 @@ definition:
         - id: oci
           kind: oci
           label: Trello Skill service image
-          package: axiomstudio/skill-trello:1.0.0
+          package: axiomstudio/skill-trello:latest
     name: Trello Skill
     source:
         format: axiom.skill/v1

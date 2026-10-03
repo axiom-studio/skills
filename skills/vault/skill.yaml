@@ -647,7 +647,7 @@ definition:
         - id: oci
           kind: oci
           label: HashiCorp Vault Skill service image
-          package: axiomstudio/skill-vault:1.0.0
+          package: axiomstudio/skill-vault:latest
     name: HashiCorp Vault Skill
     source:
         format: axiom.skill/v1

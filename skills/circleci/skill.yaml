@@ -282,7 +282,7 @@ definition:
         - id: oci
           kind: oci
           label: CircleCI Skill service image
-          package: axiomstudio/skill-circleci:1.0.0
+          package: axiomstudio/skill-circleci:latest
     name: CircleCI Skill
     source:
         format: axiom.skill/v1

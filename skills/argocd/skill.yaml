@@ -719,7 +719,7 @@ definition:
         - id: oci
           kind: oci
           label: ArgoCD Skill service image
-          package: axiomstudio/skill-argocd:1.0.0
+          package: axiomstudio/skill-argocd:latest
     name: ArgoCD Skill
     source:
         format: axiom.skill/v1

@@ -258,7 +258,7 @@ definition:
         - id: oci
           kind: oci
           label: Calendly Skill service image
-          package: axiomstudio/skill-calendly:1.0.0
+          package: axiomstudio/skill-calendly:latest
     name: Calendly Skill
     source:
         format: axiom.skill/v1

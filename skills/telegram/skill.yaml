@@ -262,7 +262,7 @@ definition:
         - id: oci
           kind: oci
           label: Telegram Skill service image
-          package: axiomstudio/skill-telegram:1.1.0
+          package: axiomstudio/skill-telegram:latest
     name: Telegram Skill
     source:
         format: axiom.skill/v1

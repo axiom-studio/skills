@@ -219,7 +219,7 @@ definition:
         - id: oci
           kind: oci
           label: Figma Skill service image
-          package: axiomstudio/skill-figma:1.0.0
+          package: axiomstudio/skill-figma:latest
     name: Figma Skill
     source:
         format: axiom.skill/v1

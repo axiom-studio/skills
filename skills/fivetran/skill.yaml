@@ -174,7 +174,7 @@ definition:
         - id: oci
           kind: oci
           label: Fivetran Skill service image
-          package: axiomstudio/skill-fivetran:1.0.0
+          package: axiomstudio/skill-fivetran:latest
     name: Fivetran Skill
     source:
         format: axiom.skill/v1

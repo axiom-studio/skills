@@ -456,7 +456,7 @@ definition:
         - id: oci
           kind: oci
           label: Cloudflare Skill service image
-          package: axiomstudio/skill-cloudflare:1.0.0
+          package: axiomstudio/skill-cloudflare:latest
     name: Cloudflare Skill
     source:
         format: axiom.skill/v1

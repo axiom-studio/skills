@@ -444,7 +444,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda and Camoufox
-          package: axiomstudio/skill-browser:2.0.49
+          package: axiomstudio/skill-browser:latest
     name: Browser Skill
     prompt:
         allowedTools:

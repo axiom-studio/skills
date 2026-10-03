@@ -363,7 +363,7 @@ definition:
         - id: oci
           kind: oci
           label: DigitalOcean Skill service image
-          package: axiomstudio/skill-digitalocean:1.0.0
+          package: axiomstudio/skill-digitalocean:latest
     name: DigitalOcean Skill
     source:
         format: axiom.skill/v1

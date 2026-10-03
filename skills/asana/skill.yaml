@@ -277,7 +277,7 @@ definition:
         - id: oci
           kind: oci
           label: Asana Skill service image
-          package: axiomstudio/skill-asana:1.0.0
+          package: axiomstudio/skill-asana:latest
     name: Asana Skill
     source:
         format: axiom.skill/v1

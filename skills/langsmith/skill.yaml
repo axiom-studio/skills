@@ -239,7 +239,7 @@ definition:
         - id: oci
           kind: oci
           label: LangSmith Skill service image
-          package: axiomstudio/skill-langsmith:1.0.0
+          package: axiomstudio/skill-langsmith:latest
     name: LangSmith Skill
     source:
         format: axiom.skill/v1

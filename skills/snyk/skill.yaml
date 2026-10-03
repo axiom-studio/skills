@@ -205,7 +205,7 @@ definition:
         - id: oci
           kind: oci
           label: Snyk Skill service image
-          package: axiomstudio/skill-snyk:1.0.0
+          package: axiomstudio/skill-snyk:latest
     name: Snyk Skill
     source:
         format: axiom.skill/v1

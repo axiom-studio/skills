@@ -43,7 +43,7 @@ definition:
         - id: oci
           kind: oci
           label: Ideogram Skill service image
-          package: axiomstudio/skill-ideogram:1.0.0
+          package: axiomstudio/skill-ideogram:latest
     name: Ideogram Skill
     source:
         format: axiom.skill/v1

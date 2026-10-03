@@ -270,7 +270,7 @@ definition:
         - id: oci
           kind: oci
           label: Apache Airflow Skill service image
-          package: axiomstudio/skill-airflow:1.0.0
+          package: axiomstudio/skill-airflow:latest
     name: Apache Airflow Skill
     source:
         format: axiom.skill/v1

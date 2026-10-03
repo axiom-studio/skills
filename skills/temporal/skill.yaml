@@ -303,7 +303,7 @@ definition:
         - id: oci
           kind: oci
           label: Temporal Skill service image
-          package: axiomstudio/skill-temporal:1.0.0
+          package: axiomstudio/skill-temporal:latest
     name: Temporal Skill
     source:
         format: axiom.skill/v1

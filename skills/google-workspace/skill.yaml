@@ -2971,7 +2971,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Workspace Skill service
-          package: axiomstudio/skill-google-workspace:1.0.0
+          package: axiomstudio/skill-google-workspace:latest
     name: Google Workspace
     prompt:
         allowedTools:

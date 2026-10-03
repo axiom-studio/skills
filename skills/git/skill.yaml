@@ -205,7 +205,7 @@ definition:
         - id: oci
           kind: oci
           label: Git Skill service image
-          package: axiomstudio/skill-git:1.0.0
+          package: axiomstudio/skill-git:latest
     name: Git Skill
     source:
         format: axiom.skill/v1

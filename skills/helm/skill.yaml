@@ -438,7 +438,7 @@ definition:
         - id: oci
           kind: oci
           label: Helm Skill service image
-          package: axiomstudio/skill-helm:1.0.0
+          package: axiomstudio/skill-helm:latest
     name: Helm Skill
     source:
         format: axiom.skill/v1

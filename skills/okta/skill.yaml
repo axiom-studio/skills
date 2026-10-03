@@ -330,7 +330,7 @@ definition:
         - id: oci
           kind: oci
           label: Okta Skill service image
-          package: axiomstudio/skill-okta:1.0.0
+          package: axiomstudio/skill-okta:latest
     name: Okta Skill
     source:
         format: axiom.skill/v1

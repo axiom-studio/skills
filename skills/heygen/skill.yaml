@@ -117,7 +117,7 @@ definition:
         - id: oci
           kind: oci
           label: HeyGen Skill service image
-          package: axiomstudio/skill-heygen:1.0.0
+          package: axiomstudio/skill-heygen:latest
     name: HeyGen Skill
     source:
         format: axiom.skill/v1

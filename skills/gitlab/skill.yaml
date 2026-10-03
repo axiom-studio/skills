@@ -522,7 +522,7 @@ definition:
         - id: oci
           kind: oci
           label: GitLab Skill service image
-          package: axiomstudio/skill-gitlab:1.0.0
+          package: axiomstudio/skill-gitlab:latest
     name: GitLab Skill
     source:
         format: axiom.skill/v1

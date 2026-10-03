@@ -293,7 +293,7 @@ definition:
         - id: oci
           kind: oci
           label: Auth0 Skill service image
-          package: axiomstudio/skill-auth0:1.0.0
+          package: axiomstudio/skill-auth0:latest
     name: Auth0 Skill
     source:
         format: axiom.skill/v1

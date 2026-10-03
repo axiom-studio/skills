@@ -449,7 +449,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Cloud Skill service image
-          package: axiomstudio/skill-gcp:1.0.0
+          package: axiomstudio/skill-gcp:latest
     name: Google Cloud Skill
     source:
         format: axiom.skill/v1

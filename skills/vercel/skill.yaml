@@ -246,7 +246,7 @@ definition:
         - id: oci
           kind: oci
           label: Vercel Skill service image
-          package: axiomstudio/skill-vercel:1.0.0
+          package: axiomstudio/skill-vercel:latest
     name: Vercel Skill
     source:
         format: axiom.skill/v1

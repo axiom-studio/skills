@@ -236,7 +236,7 @@ definition:
         - id: oci
           kind: oci
           label: Hugging Face Skill service image
-          package: axiomstudio/skill-huggingface:1.0.0
+          package: axiomstudio/skill-huggingface:latest
     name: Hugging Face Skill
     source:
         format: axiom.skill/v1

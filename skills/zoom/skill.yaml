@@ -256,7 +256,7 @@ definition:
         - id: oci
           kind: oci
           label: Zoom Skill service image
-          package: axiomstudio/skill-zoom:1.0.0
+          package: axiomstudio/skill-zoom:latest
     name: Zoom Skill
     source:
         format: axiom.skill/v1

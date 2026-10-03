@@ -243,7 +243,7 @@ definition:
         - id: oci
           kind: oci
           label: Braintree Skill service image
-          package: axiomstudio/skill-braintree:1.0.0
+          package: axiomstudio/skill-braintree:latest
     name: Braintree Skill
     source:
         format: axiom.skill/v1
