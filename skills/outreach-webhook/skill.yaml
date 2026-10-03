@@ -77,7 +77,7 @@ definition:
   - id: oci
     kind: oci
     label: Governed outreach service image
-    package: axiomstudio/skill-openseal-outreach:1.0.2
+    package: axiomstudio/skill-openseal-outreach:latest
   name: Governed source outreach
   prompt:
     allowedTools:

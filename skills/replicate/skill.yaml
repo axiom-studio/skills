@@ -184,7 +184,7 @@ definition:
         - id: oci
           kind: oci
           label: Replicate Skill service image
-          package: axiomstudio/skill-replicate:1.0.0
+          package: axiomstudio/skill-replicate:latest
     name: Replicate Skill
     source:
         format: axiom.skill/v1

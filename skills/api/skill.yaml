@@ -137,7 +137,7 @@ definition:
     installers:
         - id: oci
           kind: oci
-          package: axiomstudio/skill-api:0.2.0
+          package: axiomstudio/skill-api:latest
     name: Generic api Skill
     prompt:
         instructions: |

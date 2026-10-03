@@ -163,7 +163,7 @@ definition:
         - id: oci
           kind: oci
           label: Database Skill service image
-          package: axiomstudio/skill-database:1.0.0
+          package: axiomstudio/skill-database:latest
     name: Database Skill
     source:
         format: axiom.skill/v1

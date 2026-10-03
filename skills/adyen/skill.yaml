@@ -272,7 +272,7 @@ definition:
         - id: oci
           kind: oci
           label: Adyen Skill service image
-          package: axiomstudio/skill-adyen:1.0.0
+          package: axiomstudio/skill-adyen:latest
     name: Adyen Skill
     source:
         format: axiom.skill/v1

@@ -268,7 +268,7 @@ definition:
         - id: oci
           kind: oci
           label: NATS Skill service image
-          package: axiomstudio/skill-nats:1.0.0
+          package: axiomstudio/skill-nats:latest
     name: NATS Skill
     source:
         format: axiom.skill/v1

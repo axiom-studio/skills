@@ -312,7 +312,7 @@ definition:
         - id: oci
           kind: oci
           label: Jenkins Skill service image
-          package: axiomstudio/skill-jenkins:1.0.0
+          package: axiomstudio/skill-jenkins:latest
     name: Jenkins Skill
     source:
         format: axiom.skill/v1

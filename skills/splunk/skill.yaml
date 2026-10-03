@@ -966,7 +966,7 @@ definition:
         - id: oci
           kind: oci
           label: Splunk Skill service image
-          package: axiomstudio/skill-splunk:1.0.0
+          package: axiomstudio/skill-splunk:latest
     name: Splunk Skill
     source:
         format: axiom.skill/v1

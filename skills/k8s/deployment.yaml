@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: skill-k8s
-          image: axiomstudio/skill-k8s:v1.0.1
+          image: axiomstudio/skill-k8s:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 50051
           env:

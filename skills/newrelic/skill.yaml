@@ -206,7 +206,7 @@ definition:
         - id: oci
           kind: oci
           label: New Relic Skill service image
-          package: axiomstudio/skill-newrelic:1.0.0
+          package: axiomstudio/skill-newrelic:latest
     name: New Relic Skill
     source:
         format: axiom.skill/v1

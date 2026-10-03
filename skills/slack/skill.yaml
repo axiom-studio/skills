@@ -659,7 +659,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.3.3
+          package: axiomstudio/skill-slack:latest
     name: Slack Skill
     source:
         format: axiom.skill/v1

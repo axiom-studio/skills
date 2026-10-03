@@ -256,7 +256,7 @@ definition:
         - id: oci
           kind: oci
           label: Airbyte Skill service image
-          package: axiomstudio/skill-airbyte:1.0.0
+          package: axiomstudio/skill-airbyte:latest
     name: Airbyte Skill
     source:
         format: axiom.skill/v1

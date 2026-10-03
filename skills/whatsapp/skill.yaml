@@ -212,7 +212,7 @@ definition:
         - id: oci
           kind: oci
           label: WhatsApp Skill service image
-          package: axiomstudio/skill-whatsapp:1.0.0
+          package: axiomstudio/skill-whatsapp:latest
     name: WhatsApp Skill
     source:
         format: axiom.skill/v1

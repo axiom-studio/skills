@@ -199,7 +199,7 @@ definition:
         - id: oci
           kind: oci
           label: Salesforce Skill service image
-          package: axiomstudio/skill-salesforce:1.0.0
+          package: axiomstudio/skill-salesforce:latest
     name: Salesforce Skill
     source:
         format: axiom.skill/v1

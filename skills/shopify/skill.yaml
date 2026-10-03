@@ -190,7 +190,7 @@ definition:
         - id: oci
           kind: oci
           label: Shopify Skill service image
-          package: axiomstudio/skill-shopify:1.0.0
+          package: axiomstudio/skill-shopify:latest
     name: Shopify Skill
     source:
         format: axiom.skill/v1

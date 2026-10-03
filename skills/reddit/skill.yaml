@@ -143,7 +143,7 @@ definition:
         - id: oci
           kind: oci
           label: Reddit Skill service image
-          package: axiomstudio/skill-reddit:1.0.0
+          package: axiomstudio/skill-reddit:latest
     name: Reddit Skill
     source:
         format: axiom.skill/v1

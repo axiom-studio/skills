@@ -56,6 +56,11 @@ run_manifest_validation() {
             valid=false
         fi
 
+        if ! awk '/^[[:space:]]+package:/ { if ($2 !~ /:latest$/) bad=1 } END { exit bad }' "$manifest_file"; then
+            log_fail "$skill_name: OCI installer images must use :latest"
+            valid=false
+        fi
+
         if [ "$valid" = true ]; then
             log_pass "$skill_name manifest valid"
             PASSED=$((PASSED + 1))

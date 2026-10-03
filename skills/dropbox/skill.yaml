@@ -181,7 +181,7 @@ definition:
         - id: oci
           kind: oci
           label: Dropbox Skill service image
-          package: axiomstudio/skill-dropbox:1.0.0
+          package: axiomstudio/skill-dropbox:latest
     name: Dropbox Skill
     source:
         format: axiom.skill/v1

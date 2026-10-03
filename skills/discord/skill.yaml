@@ -292,7 +292,7 @@ definition:
         - id: oci
           kind: oci
           label: Discord Skill service image
-          package: axiomstudio/skill-discord:1.0.0
+          package: axiomstudio/skill-discord:latest
     name: Discord Skill
     source:
         format: axiom.skill/v1

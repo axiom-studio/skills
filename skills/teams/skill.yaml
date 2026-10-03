@@ -204,7 +204,7 @@ definition:
         - id: oci
           kind: oci
           label: Microsoft Teams Skill service image
-          package: axiomstudio/skill-teams:1.0.0
+          package: axiomstudio/skill-teams:latest
     name: Microsoft Teams Skill
     source:
         format: axiom.skill/v1

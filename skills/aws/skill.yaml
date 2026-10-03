@@ -344,7 +344,7 @@ definition:
         - id: oci
           kind: oci
           label: AWS Skill service image
-          package: axiomstudio/skill-aws:1.0.0
+          package: axiomstudio/skill-aws:latest
     name: AWS Skill
     source:
         format: axiom.skill/v1

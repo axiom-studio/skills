@@ -338,7 +338,7 @@ definition:
         - id: oci
           kind: oci
           label: Apache Kafka Skill service image
-          package: axiomstudio/skill-kafka:1.0.0
+          package: axiomstudio/skill-kafka:latest
     name: Apache Kafka Skill
     source:
         format: axiom.skill/v1

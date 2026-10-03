@@ -106,7 +106,7 @@ definition:
         - id: oci
           kind: oci
           label: QuickBooks Skill service image
-          package: axiomstudio/skill-quickbooks:1.0.0
+          package: axiomstudio/skill-quickbooks:latest
     name: QuickBooks Skill
     source:
         format: axiom.skill/v1

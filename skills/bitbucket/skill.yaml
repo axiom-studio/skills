@@ -286,7 +286,7 @@ definition:
         - id: oci
           kind: oci
           label: Bitbucket Skill service image
-          package: axiomstudio/skill-bitbucket:1.0.0
+          package: axiomstudio/skill-bitbucket:latest
     name: Bitbucket Skill
     source:
         format: axiom.skill/v1

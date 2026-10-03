@@ -65,7 +65,7 @@ definition:
         - id: oci
           kind: oci
           label: Built-in Agent Tools service image
-          package: axiomstudio/skill-builtin:1.0.0
+          package: axiomstudio/skill-builtin:latest
     name: Built-in Agent Tools
     source:
         format: axiom.skill/v1

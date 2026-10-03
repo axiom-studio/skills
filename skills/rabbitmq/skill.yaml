@@ -355,7 +355,7 @@ definition:
         - id: oci
           kind: oci
           label: RabbitMQ Skill service image
-          package: axiomstudio/skill-rabbitmq:1.0.0
+          package: axiomstudio/skill-rabbitmq:latest
     name: RabbitMQ Skill
     source:
         format: axiom.skill/v1

@@ -223,7 +223,7 @@ definition:
         - id: oci
           kind: oci
           label: Box Skill service image
-          package: axiomstudio/skill-box:1.0.0
+          package: axiomstudio/skill-box:latest
     name: Box Skill
     source:
         format: axiom.skill/v1

@@ -421,7 +421,7 @@ definition:
         - id: oci
           kind: oci
           label: Azure Skill service image
-          package: axiomstudio/skill-azure:1.0.0
+          package: axiomstudio/skill-azure:latest
     name: Azure Skill
     source:
         format: axiom.skill/v1

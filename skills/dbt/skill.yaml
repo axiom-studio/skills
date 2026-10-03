@@ -272,7 +272,7 @@ definition:
         - id: oci
           kind: oci
           label: dbt Skill service image
-          package: axiomstudio/skill-dbt:1.0.0
+          package: axiomstudio/skill-dbt:latest
     name: dbt Skill
     source:
         format: axiom.skill/v1

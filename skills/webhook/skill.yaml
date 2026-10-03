@@ -142,7 +142,7 @@ definition:
         - id: oci
           kind: oci
           label: Webhook Skill service image
-          package: axiomstudio/skill-webhook:1.0.0
+          package: axiomstudio/skill-webhook:latest
     name: Webhook Skill
     source:
         format: axiom.skill/v1

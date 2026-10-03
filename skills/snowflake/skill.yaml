@@ -277,7 +277,7 @@ definition:
         - id: oci
           kind: oci
           label: Snowflake Skill service image
-          package: axiomstudio/skill-snowflake:1.0.0
+          package: axiomstudio/skill-snowflake:latest
     name: Snowflake Skill
     source:
         format: axiom.skill/v1

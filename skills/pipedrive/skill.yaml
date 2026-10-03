@@ -405,7 +405,7 @@ definition:
         - id: oci
           kind: oci
           label: Pipedrive Skill service image
-          package: axiomstudio/skill-pipedrive:1.0.0
+          package: axiomstudio/skill-pipedrive:latest
     name: Pipedrive Skill
     source:
         format: axiom.skill/v1

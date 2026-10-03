@@ -218,7 +218,7 @@ definition:
         - id: oci
           kind: oci
           label: Monday.com Skill service image
-          package: axiomstudio/skill-monday:1.0.0
+          package: axiomstudio/skill-monday:latest
     name: Monday.com Skill
     source:
         format: axiom.skill/v1

@@ -180,7 +180,7 @@ definition:
         - id: oci
           kind: oci
           label: Airtable Skill service image
-          package: axiomstudio/skill-airtable:1.0.0
+          package: axiomstudio/skill-airtable:latest
     name: Airtable Skill
     source:
         format: axiom.skill/v1

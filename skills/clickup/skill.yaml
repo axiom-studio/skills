@@ -265,7 +265,7 @@ definition:
         - id: oci
           kind: oci
           label: ClickUp Skill service image
-          package: axiomstudio/skill-clickup:1.0.0
+          package: axiomstudio/skill-clickup:latest
     name: ClickUp Skill
     source:
         format: axiom.skill/v1

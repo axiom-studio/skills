@@ -357,7 +357,7 @@ definition:
         - id: oci
           kind: oci
           label: Kubernetes Skill service image
-          package: axiomstudio/skill-k8s:1.0.0
+          package: axiomstudio/skill-k8s:latest
     name: Kubernetes Skill
     source:
         format: axiom.skill/v1

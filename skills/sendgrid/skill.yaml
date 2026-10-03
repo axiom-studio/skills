@@ -223,7 +223,7 @@ definition:
         - id: oci
           kind: oci
           label: SendGrid Skill service image
-          package: axiomstudio/skill-sendgrid:1.0.0
+          package: axiomstudio/skill-sendgrid:latest
     name: SendGrid Skill
     source:
         format: axiom.skill/v1

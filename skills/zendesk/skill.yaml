@@ -278,7 +278,7 @@ definition:
         - id: oci
           kind: oci
           label: Zendesk Skill service image
-          package: axiomstudio/skill-zendesk:1.0.0
+          package: axiomstudio/skill-zendesk:latest
     name: Zendesk Skill
     source:
         format: axiom.skill/v1

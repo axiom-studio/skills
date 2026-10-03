@@ -38,7 +38,7 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 		"category": "integration", "tags": []string{"generic", transport, "integration"}, "bindingConfigSchema": config, "actions": actions,
 		"prompt":     map[string]interface{}{"instructions": instructions, "userInvocable": true},
 		"transport":  map[string]interface{}{"kind": "tool", "endpoint": compileName},
-		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":" + runtimeVersion(transport)}},
+		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":latest"}},
 		"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": "skill-" + transport, "resolvedVersion": runtimeVersion(transport), "publisher": "Axiom Studio", "license": "MIT"},
 	}
 	return map[string]interface{}{"apiVersion": "openseal.dev/v1alpha1", "kind": "SkillDefinition", "definition": definition}, nil

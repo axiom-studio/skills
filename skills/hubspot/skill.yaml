@@ -364,7 +364,7 @@ definition:
         - id: oci
           kind: oci
           label: HubSpot Skill service image
-          package: axiomstudio/skill-hubspot:1.0.0
+          package: axiomstudio/skill-hubspot:latest
     name: HubSpot Skill
     source:
         format: axiom.skill/v1

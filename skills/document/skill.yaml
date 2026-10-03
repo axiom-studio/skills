@@ -78,7 +78,7 @@ definition:
   - id: oci
     kind: oci
     label: Document renderer service image
-    package: axiomstudio/skill-openseal-document:1.0.2
+    package: axiomstudio/skill-openseal-document:latest
   name: Document renderer
   prompt:
     allowedTools:

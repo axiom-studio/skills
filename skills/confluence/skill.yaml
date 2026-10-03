@@ -518,7 +518,7 @@ definition:
         - id: oci
           kind: oci
           label: Confluence Skill service image
-          package: axiomstudio/skill-confluence:1.0.0
+          package: axiomstudio/skill-confluence:latest
     name: Confluence Skill
     source:
         format: axiom.skill/v1

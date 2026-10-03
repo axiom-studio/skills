@@ -20,7 +20,7 @@ definition:
     - id: oci
       kind: oci
       label: First-party Google Meet voice service
-      package: axiomstudio/skill-meet-voice:0.1.0
+      package: axiomstudio/skill-meet-voice:latest
   requirements:
     operatingSystems: [linux]
     compute:

@@ -269,7 +269,7 @@ definition:
         - id: oci
           kind: oci
           label: Freshdesk Skill service image
-          package: axiomstudio/skill-freshdesk:1.0.0
+          package: axiomstudio/skill-freshdesk:latest
     name: Freshdesk Skill
     source:
         format: axiom.skill/v1

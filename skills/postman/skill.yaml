@@ -188,7 +188,7 @@ definition:
         - id: oci
           kind: oci
           label: Postman Skill service image
-          package: axiomstudio/skill-postman:1.0.0
+          package: axiomstudio/skill-postman:latest
     name: Postman Skill
     source:
         format: axiom.skill/v1

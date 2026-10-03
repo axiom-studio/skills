@@ -292,7 +292,7 @@ definition:
         - id: oci
           kind: oci
           label: AWS SQS Skill service image
-          package: axiomstudio/skill-sqs:1.0.0
+          package: axiomstudio/skill-sqs:latest
     name: AWS SQS Skill
     source:
         format: axiom.skill/v1

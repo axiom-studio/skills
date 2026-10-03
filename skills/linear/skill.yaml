@@ -205,7 +205,7 @@ definition:
         - id: oci
           kind: oci
           label: Linear Skill service image
-          package: axiomstudio/skill-linear:1.0.0
+          package: axiomstudio/skill-linear:latest
     name: Linear Skill
     source:
         format: axiom.skill/v1

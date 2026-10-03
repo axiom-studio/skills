@@ -266,7 +266,7 @@ definition:
         - id: oci
           kind: oci
           label: Cohere Skill service image
-          package: axiomstudio/skill-cohere:1.0.0
+          package: axiomstudio/skill-cohere:latest
     name: Cohere Skill
     source:
         format: axiom.skill/v1

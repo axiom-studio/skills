@@ -310,7 +310,7 @@ definition:
         - id: oci
           kind: oci
           label: Docker Skill service image
-          package: axiomstudio/skill-docker:1.0.0
+          package: axiomstudio/skill-docker:latest
     name: Docker Skill
     source:
         format: axiom.skill/v1
