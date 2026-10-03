@@ -72,6 +72,9 @@ func TestSlackUploadsCheckpointBeforeShareAndRecoversLostAcknowledgement(t *test
 		switch r.URL.Path {
 		case "/files.getUploadURLExternal":
 			allocated++
+			if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" || r.ParseForm() != nil || r.PostForm.Get("filename") != "picture.png" || r.PostForm.Get("length") != "11" {
+				t.Fatal("upload URL allocation must use encoded filename and byte length")
+			}
 			if r.Header.Get("Authorization") != "Bearer bot-secret" {
 				t.Error("missing API authentication")
 			}
@@ -147,5 +150,25 @@ func TestSlackFilePermissionFailuresAreExplicit(t *testing.T) {
 	result, err = adapter.deliverFiles(t.Context(), "bot", &adapterEnvelope{Endpoint: &conversationEndpoint{Address: "C1"}, Delivery: &conversationDelivery{ID: "d1"}, Message: &conversationMessage{}, Attachments: []conversationFileContent{{ID: "a1", Name: "file.txt", Data: []byte("hello")}}})
 	if err != nil || result["outcome"] != "failed" || result["errorCode"] != "missing_scope" {
 		t.Fatalf("write = %#v %v", result, err)
+	}
+}
+
+func TestSlackUploadRejectionsPreserveProviderCode(t *testing.T) {
+	for _, code := range []string{"invalid_arguments", "file_uploads_disabled", "ratelimited"} {
+		t.Run(code, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": code})
+			}))
+			defer server.Close()
+			adapter := newSlackAdapter("", server.URL, server.Client())
+			result, err := adapter.deliverFiles(t.Context(), "bot", &adapterEnvelope{Endpoint: &conversationEndpoint{Address: "C1"}, Delivery: &conversationDelivery{ID: "d1"}, Message: &conversationMessage{}, Attachments: []conversationFileContent{{ID: "a1", Name: "image.png", Data: []byte("image")}}})
+			outcome := "failed"
+			if code == "ratelimited" {
+				outcome = "retry"
+			}
+			if err != nil || result["outcome"] != outcome || result["errorCode"] != code {
+				t.Fatalf("upload rejection = %#v %v", result, err)
+			}
+		})
 	}
 }

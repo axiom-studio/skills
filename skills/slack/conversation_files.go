@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -247,16 +248,22 @@ func (a *slackAdapter) deliverFiles(ctx context.Context, token string, envelope 
 	}
 	if len(checkpoint.Files) < len(envelope.Attachments) {
 		for _, file := range envelope.Attachments[len(checkpoint.Files):] {
-			raw, status, _, err := a.slackJSON(ctx, token, http.MethodPost, "/files.getUploadURLExternal", nil, map[string]interface{}{"filename": file.Name, "length": len(file.Data)})
+			raw, status, _, err := a.slackJSON(ctx, token, http.MethodPost, "/files.getUploadURLExternal", nil, url.Values{"filename": {file.Name}, "length": {strconv.Itoa(len(file.Data))}})
 			var response slackFileResponse
 			if err != nil || status == 429 || status >= 500 {
 				return fileRetry(checkpoint, "slack_unavailable"), nil
 			}
-			if json.Unmarshal(raw, &response) != nil || !response.OK {
+			if json.Unmarshal(raw, &response) != nil {
+				return fileRetry(checkpoint, "slack_unavailable"), nil
+			}
+			if !response.OK {
 				if response.Error == "missing_scope" {
 					return failedDelivery("missing_scope", "Slack requires files:write to send attachments."), nil
 				}
-				return fileRetry(checkpoint, "slack_unavailable"), nil
+				if transientSlackError(response.Error) {
+					return fileRetry(checkpoint, safeSlackError(response.Error)), nil
+				}
+				return failedDelivery(safeSlackError(response.Error), "Slack rejected the file upload request."), nil
 			}
 			if !a.allowedFileURL(response.UploadURL) || response.FileID == "" {
 				return failedDelivery("invalid_response", "Slack returned an invalid file upload target."), nil
