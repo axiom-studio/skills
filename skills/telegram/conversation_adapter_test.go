@@ -43,7 +43,7 @@ func TestTelegramIngressVerifiesWebhookAndNormalizesDirectMessage(t *testing.T) 
 	}
 	event := events[0]
 	if event.ID != "telegram:update:42" || event.ExternalConversationID != "99" ||
-		event.ExternalThreadID != "7" || event.ExternalMessageID != "7" ||
+		event.ExternalThreadID != "reply:7" || event.ExternalMessageID != "99:7" ||
 		event.ExternalParticipantID != "99" || event.Text != "hello" ||
 		!event.Direct || !event.MentionsEndpoint || event.ParticipantIsBot ||
 		event.OccurredAt.Unix() != 1720000000 {
@@ -73,7 +73,14 @@ func TestTelegramIngressRejectsWrongSecretAndEndpoint(t *testing.T) {
 }
 
 func TestTelegramGatewayIngressReturnsBotInstallationRoute(t *testing.T) {
-	adapter := newTelegramConversationAdapter("", nil)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/getMe") {
+			t.Error("unexpected provider operation")
+		}
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"id":123456789,"is_bot":true,"username":"opensealbot"}}`)
+	}))
+	defer server.Close()
+	adapter := newTelegramConversationAdapter(server.URL+"/bot", server.Client())
 	config := telegramIngressConfig(`{"update_id":42,"message":{"message_id":7,"date":1720000000,"text":"hello","from":{"id":99},"chat":{"id":100,"type":"group","title":"Ops"}}}`, nil)
 	request := config[telegramAdapterEnvelope].(*telegramAdapterRequest)
 	request.Operation = "gateway_ingress"
@@ -107,13 +114,13 @@ func TestTelegramDeliverySendsAndUpdatesMessages(t *testing.T) {
 			t.Errorf("update body = %#v", body)
 		}
 		response.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(response, `{"ok":true,"result":{"message_id":77}}`)
+		_, _ = io.WriteString(response, `{"ok":true,"result":{"message_id":77,"chat":{"id":99,"type":"private"}}}`)
 	}))
 	defer server.Close()
 	adapter := newTelegramConversationAdapter(server.URL+"/bot", server.Client())
 
 	delivered, err := adapter.delivery(context.Background(), telegramDeliveryConfig("message.send", ""))
-	if err != nil || delivered["outcome"] != "delivered" || delivered["providerMessageId"] != "77" {
+	if err != nil || delivered["outcome"] != "delivered" || delivered["providerMessageId"] != "99:77" {
 		t.Fatalf("delivery = %#v, %v", delivered, err)
 	}
 	updated, err := adapter.delivery(context.Background(), telegramDeliveryConfig("message.update", "77"))
@@ -165,7 +172,7 @@ func telegramDeliveryConfig(operation, providerMessageID string) map[string]inte
 		telegramCredentialKey: testTelegramBotToken,
 		telegramAdapterEnvelope: &telegramAdapterRequest{
 			Operation: "deliver", Endpoint: &telegramConversationEndpoint{Provider: "telegram", Address: "99"},
-			Delivery: &telegramConversationDelivery{ID: "delivery-1", Operation: operation, ExternalThreadID: "7", ProviderMessageID: providerMessageID},
+			Delivery: &telegramConversationDelivery{Attempt: 1, ID: "delivery-1", Operation: operation, ExternalThreadID: "7", ProviderMessageID: providerMessageID},
 			Message:  &telegramConversationMessage{ID: "message-1", Content: "answer", CreatedAt: time.Unix(1720000001, 0).UTC()},
 		},
 	}

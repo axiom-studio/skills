@@ -6,11 +6,11 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
@@ -25,8 +25,12 @@ const (
 )
 
 type telegramConversationAdapter struct {
-	baseURL string
-	client  *http.Client
+	baseURL             string
+	client              *http.Client
+	identityMu          sync.Mutex
+	identityTokenDigest string
+	identity            telegramUser
+	identityExpires     time.Time
 }
 
 func newTelegramConversationAdapter(baseURL string, client *http.Client) *telegramConversationAdapter {
@@ -34,7 +38,7 @@ func newTelegramConversationAdapter(baseURL string, client *http.Client) *telegr
 		baseURL = TelegramAPIBase
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: 45 * time.Second}
 	}
 	return &telegramConversationAdapter{baseURL: strings.TrimRight(baseURL, "/"), client: client}
 }
@@ -42,7 +46,6 @@ func newTelegramConversationAdapter(baseURL string, client *http.Client) *telegr
 type telegramIngressExecutor struct{ adapter *telegramConversationAdapter }
 
 func (e *telegramIngressExecutor) Type() string { return telegramIngressNodeType }
-
 func (e *telegramIngressExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := telegramAdapterConfig(step.Config, resolver)
 	defer clearTelegramAdapterConfig(config)
@@ -56,7 +59,6 @@ func (e *telegramIngressExecutor) Execute(ctx context.Context, step *executor.St
 type telegramDeliveryExecutor struct{ adapter *telegramConversationAdapter }
 
 func (e *telegramDeliveryExecutor) Type() string { return telegramDeliveryNodeType }
-
 func (e *telegramDeliveryExecutor) Execute(ctx context.Context, step *executor.StepDefinition, resolver executor.TemplateResolver) (*executor.StepResult, error) {
 	config := telegramAdapterConfig(step.Config, resolver)
 	defer clearTelegramAdapterConfig(config)
@@ -66,7 +68,6 @@ func (e *telegramDeliveryExecutor) Execute(ctx context.Context, step *executor.S
 	}
 	return &executor.StepResult{Output: output}, nil
 }
-
 func telegramAdapterConfig(config map[string]interface{}, resolver executor.TemplateResolver) map[string]interface{} {
 	resolved := make(map[string]interface{}, len(config)+1)
 	for key, value := range config {
@@ -79,41 +80,43 @@ func telegramAdapterConfig(config map[string]interface{}, resolver executor.Temp
 	}
 	return resolved
 }
-
 func clearTelegramAdapterConfig(config map[string]interface{}) {
-	if _, ok := config[telegramCredentialKey]; ok {
-		config[telegramCredentialKey] = ""
-		delete(config, telegramCredentialKey)
-	}
+	config[telegramCredentialKey] = ""
+	delete(config, telegramCredentialKey)
 }
 
 type telegramAdapterRequest struct {
-	Operation string                        `json:"operation"`
-	Endpoint  *telegramConversationEndpoint `json:"endpoint,omitempty"`
-	Gateway   *telegramIngressGateway       `json:"gateway,omitempty"`
-	Request   *telegramIngressRequest       `json:"request,omitempty"`
-	Delivery  *telegramConversationDelivery `json:"delivery,omitempty"`
-	Message   *telegramConversationMessage  `json:"message,omitempty"`
+	Webhook     *telegramWebhookRequest           `json:"webhook,omitempty"`
+	Operation   string                            `json:"operation"`
+	Endpoint    *telegramConversationEndpoint     `json:"endpoint,omitempty"`
+	Gateway     *telegramIngressGateway           `json:"gateway,omitempty"`
+	Request     *telegramIngressRequest           `json:"request,omitempty"`
+	Delivery    *telegramConversationDelivery     `json:"delivery,omitempty"`
+	Message     *telegramConversationMessage      `json:"message,omitempty"`
+	Event       *telegramNormalizedEvent          `json:"event,omitempty"`
+	Attachment  *telegramConversationFile         `json:"attachment,omitempty"`
+	Attachments []telegramConversationFileContent `json:"attachments,omitempty"`
 }
-
 type telegramConversationEndpoint struct {
-	ID            string                 `json:"id"`
-	Provider      string                 `json:"provider"`
-	Address       string                 `json:"address"`
-	Configuration map[string]interface{} `json:"configuration,omitempty"`
+	ID               string                 `json:"id"`
+	Provider         string                 `json:"provider"`
+	Address          string                 `json:"address"`
+	InstallationID   string                 `json:"installationId,omitempty"`
+	ApplicationID    string                 `json:"applicationId,omitempty"`
+	InstallationWide bool                   `json:"installationWide,omitempty"`
+	Configuration    map[string]interface{} `json:"configuration,omitempty"`
 }
-
 type telegramConversationScope struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
-
 type telegramIngressGateway struct {
-	Scope        telegramConversationScope `json:"scope"`
-	DeploymentID string                    `json:"deploymentId"`
-	Provider     string                    `json:"provider"`
+	InstallationID string                    `json:"installationId,omitempty"`
+	ApplicationID  string                    `json:"applicationId,omitempty"`
+	Scope          telegramConversationScope `json:"scope"`
+	DeploymentID   string                    `json:"deploymentId"`
+	Provider       string                    `json:"provider"`
 }
-
 type telegramIngressRequest struct {
 	Scope      telegramConversationScope `json:"scope"`
 	EndpointID string                    `json:"endpointId"`
@@ -121,37 +124,40 @@ type telegramIngressRequest struct {
 	Headers    map[string][]string       `json:"headers,omitempty"`
 	Body       []byte                    `json:"body"`
 }
-
 type telegramConversationDelivery struct {
-	ID                string                 `json:"id"`
-	Operation         string                 `json:"operation"`
-	ExternalThreadID  string                 `json:"externalThreadId,omitempty"`
-	ProviderMessageID string                 `json:"providerMessageId,omitempty"`
-	Parameters        map[string]interface{} `json:"parameters,omitempty"`
+	Attempt                int                    `json:"attempt"`
+	ID                     string                 `json:"id"`
+	Operation              string                 `json:"operation"`
+	ExternalConversationID string                 `json:"externalConversationId,omitempty"`
+	ExternalThreadID       string                 `json:"externalThreadId,omitempty"`
+	ProviderMessageID      string                 `json:"providerMessageId,omitempty"`
+	Parameters             map[string]interface{} `json:"parameters,omitempty"`
+	Progress               map[string]interface{} `json:"progress,omitempty"`
 }
-
 type telegramConversationMessage struct {
 	ID        string    `json:"id"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"createdAt"`
 }
-
 type telegramNormalizedEvent struct {
-	ID                     string                 `json:"id"`
-	Type                   string                 `json:"type"`
-	ExternalConversationID string                 `json:"externalConversationId"`
-	ExternalThreadID       string                 `json:"externalThreadId,omitempty"`
-	ExternalMessageID      string                 `json:"externalMessageId,omitempty"`
-	ExternalParticipantID  string                 `json:"externalParticipantId,omitempty"`
-	ParticipantIsBot       bool                   `json:"participantIsBot,omitempty"`
-	Text                   string                 `json:"text,omitempty"`
-	MentionsEndpoint       bool                   `json:"mentionsEndpoint,omitempty"`
-	Direct                 bool                   `json:"direct,omitempty"`
-	OrderingKey            string                 `json:"orderingKey"`
-	OccurredAt             time.Time              `json:"occurredAt"`
-	Attributes             map[string]interface{} `json:"attributes,omitempty"`
+	Source                   *telegramMessageSource     `json:"source,omitempty"`
+	ParticipantDisplayName   string                     `json:"participantDisplayName,omitempty"`
+	ReplyToExternalMessageID string                     `json:"replyToExternalMessageId,omitempty"`
+	ID                       string                     `json:"id"`
+	Type                     string                     `json:"type"`
+	ExternalConversationID   string                     `json:"externalConversationId"`
+	ExternalThreadID         string                     `json:"externalThreadId,omitempty"`
+	ExternalMessageID        string                     `json:"externalMessageId,omitempty"`
+	ExternalParticipantID    string                     `json:"externalParticipantId,omitempty"`
+	ParticipantIsBot         bool                       `json:"participantIsBot,omitempty"`
+	Text                     string                     `json:"text,omitempty"`
+	MentionsEndpoint         bool                       `json:"mentionsEndpoint,omitempty"`
+	Direct                   bool                       `json:"direct,omitempty"`
+	OrderingKey              string                     `json:"orderingKey"`
+	OccurredAt               time.Time                  `json:"occurredAt"`
+	Attributes               map[string]interface{}     `json:"attributes,omitempty"`
+	Attachments              []telegramConversationFile `json:"attachments,omitempty"`
 }
-
 type telegramGatewayEvent struct {
 	InstallationID string                  `json:"installationId"`
 	ApplicationID  string                  `json:"applicationId,omitempty"`
@@ -174,77 +180,62 @@ func decodeTelegramAdapterRequest(config map[string]interface{}) (*telegramAdapt
 	}
 	return &request, nil
 }
-
-type telegramUpdate struct {
-	UpdateID int64           `json:"update_id"`
-	Message  telegramMessage `json:"message"`
-}
-
-type telegramMessage struct {
-	MessageID       int64        `json:"message_id"`
-	MessageThreadID int64        `json:"message_thread_id"`
-	Date            int64        `json:"date"`
-	Text            string       `json:"text"`
-	Caption         string       `json:"caption"`
-	From            telegramUser `json:"from"`
-	Chat            telegramChat `json:"chat"`
-}
-
-type telegramUser struct {
-	ID       int64  `json:"id"`
-	IsBot    bool   `json:"is_bot"`
-	Username string `json:"username"`
-}
-
-type telegramChat struct {
-	ID       int64  `json:"id"`
-	Type     string `json:"type"`
-	Title    string `json:"title"`
-	Username string `json:"username"`
-}
-
-func (a *telegramConversationAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
+func (a *telegramConversationAdapter) ingress(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	request, err := decodeTelegramAdapterRequest(config)
-	if err != nil || request.Request == nil ||
-		(request.Operation != "ingress" && request.Operation != "gateway_ingress") ||
-		(request.Operation == "ingress" && request.Endpoint == nil) ||
-		(request.Operation == "gateway_ingress" && request.Gateway == nil) {
+	token, _ := config[telegramCredentialKey].(string)
+	if err == nil && (request.Operation == "webhook.configure" || request.Operation == "webhook.status" || request.Operation == "webhook.remove") {
+		return a.manageWebhook(ctx, token, request)
+	}
+	if err != nil || request.Request == nil || (request.Operation != "ingress" && request.Operation != "gateway_ingress") || (request.Operation == "ingress" && request.Endpoint == nil) || (request.Operation == "gateway_ingress" && (request.Gateway == nil || request.Gateway.Provider != "telegram")) {
 		return nil, errors.New("Telegram ingress request is invalid")
 	}
-	botToken, _ := config[telegramCredentialKey].(string)
-	if !verifyTelegramWebhook(request.Request.Headers, botToken) {
+	if request.Gateway != nil && ((request.Gateway.InstallationID != "" && request.Gateway.InstallationID != telegramBotID(token)) || (request.Gateway.ApplicationID != "" && request.Gateway.ApplicationID != telegramBotID(token))) {
+		return map[string]interface{}{"statusCode": http.StatusUnauthorized, "body": "Telegram installation does not match the reviewed gateway"}, nil
+	}
+	if request.Request.Method != http.MethodPost || !verifyTelegramWebhook(request.Request.Headers, token) {
 		return map[string]interface{}{"statusCode": http.StatusUnauthorized, "contentType": "text/plain", "body": "invalid Telegram webhook secret"}, nil
 	}
 	var update telegramUpdate
-	if json.Unmarshal(request.Request.Body, &update) != nil || update.UpdateID < 1 {
+	if len(request.Request.Body) > maxTelegramAdapterBytes || json.Unmarshal(request.Request.Body, &update) != nil || update.UpdateID < 1 {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest, "contentType": "text/plain", "body": "invalid Telegram update"}, nil
 	}
-	event, accepted := normalizeTelegramUpdate(update, request.Endpoint)
+	normalizationEndpoint := request.Endpoint
+	if normalizationEndpoint == nil {
+		bot, identityErr := a.getTelegramIdentity(ctx, token)
+		if identityErr != nil {
+			return map[string]interface{}{"statusCode": http.StatusServiceUnavailable, "contentType": "text/plain", "body": "Telegram bot identity is temporarily unavailable"}, nil
+		}
+		normalizationEndpoint = &telegramConversationEndpoint{Provider: "telegram", Address: "*", InstallationID: strconv.FormatInt(bot.ID, 10), Configuration: map[string]interface{}{"botId": strconv.FormatInt(bot.ID, 10), "botUsername": bot.Username}}
+	}
+	event, accepted := normalizeTelegramUpdate(update, normalizationEndpoint)
+	if accepted {
+		event.Attributes["botId"] = telegramBotID(token)
+		if event.Source != nil {
+			event.Source.WorkspaceID = telegramBotID(token)
+		}
+	}
 	if !accepted {
 		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`, "events": []interface{}{}}, nil
 	}
 	if request.Operation == "gateway_ingress" {
-		installationID := telegramBotID(botToken)
+		installationID := telegramBotID(token)
 		if installationID == "" {
 			return map[string]interface{}{"statusCode": http.StatusUnauthorized}, nil
 		}
-		return map[string]interface{}{
-			"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`,
-			"events": []telegramGatewayEvent{{InstallationID: installationID, ApplicationID: installationID, Address: event.ExternalConversationID, Event: event}},
-		}, nil
+		// Credentials are verified with getMe before the managed connector starts;
+		// the installation key is the same numeric Bot API user ID, never a chat ID.
+		return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`, "events": []telegramGatewayEvent{{InstallationID: installationID, ApplicationID: installationID, Address: event.ExternalConversationID, Event: event}}}, nil
 	}
-	return map[string]interface{}{
-		"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`,
-		"events": []telegramNormalizedEvent{event},
-	}, nil
+	return map[string]interface{}{"statusCode": http.StatusOK, "contentType": "application/json", "body": `{"ok":true}`, "events": []telegramNormalizedEvent{event}}, nil
 }
-
-func verifyTelegramWebhook(headers map[string][]string, botToken string) bool {
+func verifyTelegramWebhook(headers map[string][]string, token string) bool {
+	if strings.TrimSpace(token) == "" {
+		return false
+	}
 	provided := telegramHeader(headers, telegramSecretHeader)
-	expected := telegramWebhookSecret(botToken)
+	expected := telegramWebhookSecret(token)
 	return provided != "" && subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
 }
-
 func telegramHeader(headers map[string][]string, wanted string) string {
 	for name, values := range headers {
 		if strings.EqualFold(name, wanted) && len(values) > 0 {
@@ -253,130 +244,70 @@ func telegramHeader(headers map[string][]string, wanted string) string {
 	}
 	return ""
 }
-
-func normalizeTelegramUpdate(update telegramUpdate, endpoint *telegramConversationEndpoint) (telegramNormalizedEvent, bool) {
-	message := update.Message
-	if message.MessageID < 1 || message.Chat.ID == 0 || strings.TrimSpace(firstTelegramText(message)) == "" {
-		return telegramNormalizedEvent{}, false
-	}
-	chatID := strconv.FormatInt(message.Chat.ID, 10)
-	if endpoint != nil {
-		if endpoint.Provider != "telegram" || (strings.TrimSpace(endpoint.Address) != "" && strings.TrimSpace(endpoint.Address) != chatID) {
-			return telegramNormalizedEvent{}, false
-		}
-	}
-	messageID := strconv.FormatInt(message.MessageID, 10)
-	threadID := messageID
-	if message.MessageThreadID > 0 {
-		threadID = strconv.FormatInt(message.MessageThreadID, 10)
-	}
-	direct := message.Chat.Type == "private"
-	text := strings.TrimSpace(firstTelegramText(message))
-	botUsername := ""
-	if endpoint != nil {
-		botUsername, _ = endpoint.Configuration["botUsername"].(string)
-		botUsername = strings.TrimPrefix(strings.TrimSpace(botUsername), "@")
-	}
-	mentioned := direct || (botUsername != "" && strings.Contains(strings.ToLower(text), "@"+strings.ToLower(botUsername)))
-	if botUsername != "" {
-		text = strings.TrimSpace(strings.ReplaceAll(text, "@"+botUsername, ""))
-	}
-	occurredAt := time.Unix(message.Date, 0).UTC()
-	if message.Date <= 0 {
-		occurredAt = time.Now().UTC()
-	}
-	return telegramNormalizedEvent{
-		ID: "telegram:update:" + strconv.FormatInt(update.UpdateID, 10), Type: "conversation.message.received",
-		ExternalConversationID: chatID, ExternalThreadID: threadID, ExternalMessageID: messageID,
-		ExternalParticipantID: strconv.FormatInt(message.From.ID, 10), ParticipantIsBot: message.From.IsBot,
-		Text: text, MentionsEndpoint: mentioned, Direct: direct, OrderingKey: chatID + ":" + threadID,
-		OccurredAt: occurredAt,
-		Attributes: map[string]interface{}{"chatType": message.Chat.Type, "chatTitle": message.Chat.Title, "chatUsername": message.Chat.Username, "participantUsername": message.From.Username},
-	}, true
-}
-
-func firstTelegramText(message telegramMessage) string {
-	if strings.TrimSpace(message.Text) != "" {
-		return message.Text
-	}
-	return message.Caption
-}
-
-func telegramBotID(botToken string) string {
-	id, _, found := strings.Cut(strings.TrimSpace(botToken), ":")
+func telegramBotID(token string) string {
+	id, _, found := strings.Cut(strings.TrimSpace(token), ":")
 	if !found {
 		return ""
 	}
-	if _, err := strconv.ParseInt(id, 10, 64); err != nil {
+	parsed, err := strconv.ParseInt(id, 10, 64)
+	if err != nil || parsed < 1 {
 		return ""
 	}
-	return id
+	return strconv.FormatInt(parsed, 10)
 }
-
 func (a *telegramConversationAdapter) delivery(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	request, err := decodeTelegramAdapterRequest(config)
-	if err != nil || request.Endpoint == nil || request.Delivery == nil || request.Message == nil ||
-		(request.Operation != "lookup" && request.Operation != "deliver") {
+	if err != nil || request.Endpoint == nil || request.Endpoint.Provider != "telegram" {
 		return nil, errors.New("Telegram delivery request is invalid")
 	}
-	botToken, _ := config[telegramCredentialKey].(string)
-	if strings.TrimSpace(botToken) == "" {
+	token, _ := config[telegramCredentialKey].(string)
+	if strings.TrimSpace(token) == "" {
 		return nil, errors.New("Telegram bot credential is unavailable")
 	}
-	if request.Operation == "lookup" {
-		return map[string]interface{}{"status": "unknown"}, nil
+	if request.Endpoint.InstallationID != "" && request.Endpoint.InstallationID != telegramBotID(token) {
+		return nil, errors.New("Telegram bot does not match the reviewed installation")
 	}
-	method := "sendMessage"
-	parameters := map[string]interface{}{"chat_id": request.Endpoint.Address, "text": request.Message.Content}
-	if request.Delivery.Operation == "message.update" {
-		method = "editMessageText"
-		messageID := strings.TrimSpace(request.Delivery.ProviderMessageID)
-		if messageID == "" {
-			messageID, _ = request.Delivery.Parameters["providerMessageId"].(string)
+	if request.Endpoint.ApplicationID != "" && request.Endpoint.ApplicationID != telegramBotID(token) {
+		return nil, errors.New("Telegram bot does not match the reviewed application")
+	}
+	switch request.Operation {
+	case "attachment":
+		return a.readAttachment(ctx, token, request)
+	case "context":
+		return telegramReadContext(request), nil
+	case "deliver", "lookup":
+		if request.Delivery == nil || request.Message == nil {
+			return nil, errors.New("Telegram delivery request is invalid")
 		}
-		parsed, parseErr := strconv.ParseInt(strings.TrimSpace(messageID), 10, 64)
-		if parseErr != nil || parsed < 1 {
-			return telegramFailedDelivery("invalid_update", "The Telegram message update target is unavailable."), nil
-		}
-		parameters["message_id"] = parsed
-	} else if replyID, parseErr := strconv.ParseInt(strings.TrimSpace(request.Delivery.ExternalThreadID), 10, 64); parseErr == nil && replyID > 0 {
-		parameters["reply_to_message_id"] = replyID
+		return a.deliverTelegram(ctx, token, request)
+	default:
+		return nil, errors.New("Telegram delivery operation is invalid")
 	}
-	response, status, err := a.telegramJSON(ctx, botToken, method, parameters)
-	if err != nil {
-		return telegramRetryDelivery("telegram_unavailable", "Telegram could not be reached.", 0), nil
-	}
-	if status >= 500 {
-		return telegramRetryDelivery("telegram_unavailable", "Telegram is temporarily unavailable.", 0), nil
-	}
-	if !response.OK {
-		if response.ErrorCode == http.StatusTooManyRequests {
-			return telegramRetryDelivery("rate_limited", "Telegram asked the Skill to retry later.", time.Duration(response.Parameters.RetryAfter)*time.Second), nil
-		}
-		return telegramFailedDelivery("telegram_rejected", "Telegram rejected the message."), nil
-	}
-	var result struct {
-		MessageID int64 `json:"message_id"`
-	}
-	if json.Unmarshal(response.Result, &result) != nil || result.MessageID < 1 {
-		return telegramRetryDelivery("missing_acknowledgement", "Telegram did not acknowledge the message.", 0), nil
-	}
-	return map[string]interface{}{"outcome": "delivered", "providerMessageId": strconv.FormatInt(result.MessageID, 10), "summary": "Telegram accepted the message."}, nil
 }
 
-func (a *telegramConversationAdapter) telegramJSON(ctx context.Context, botToken, method string, parameters map[string]interface{}) (TelegramResponse, int, error) {
+// Provider URLs contain the bot token. Never return raw request/network errors,
+// provider descriptions, response bodies, or redirects to logs or user output.
+func (a *telegramConversationAdapter) telegramJSON(ctx context.Context, token, method string, parameters map[string]interface{}) (TelegramResponse, int, error) {
+	if telegramBotID(token) == "" || strings.ContainsAny(token, "/?# \t\r\n") {
+		return TelegramResponse{}, 0, errors.New("Telegram bot credential is invalid")
+	}
 	encoded, err := json.Marshal(parameters)
 	if err != nil {
-		return TelegramResponse{}, 0, err
+		return TelegramResponse{}, 0, errors.New("Telegram request is invalid")
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+strings.TrimSpace(botToken)+"/"+method, bytes.NewReader(encoded))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+strings.TrimSpace(token)+"/"+method, bytes.NewReader(encoded))
 	if err != nil {
-		return TelegramResponse{}, 0, err
+		return TelegramResponse{}, 0, errors.New("Telegram request is invalid")
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := a.client.Do(request)
+	return a.telegramRequest(request)
+}
+func (a *telegramConversationAdapter) telegramRequest(request *http.Request) (TelegramResponse, int, error) {
+	client := *a.client
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return errors.New("Telegram redirects are refused") }
+	response, err := client.Do(request)
 	if err != nil {
-		return TelegramResponse{}, 0, err
+		return TelegramResponse{}, 0, errors.New("Telegram request outcome could not be confirmed")
 	}
 	defer response.Body.Close()
 	payload, err := io.ReadAll(io.LimitReader(response.Body, maxTelegramAdapterBytes+1))
@@ -385,11 +316,10 @@ func (a *telegramConversationAdapter) telegramJSON(ctx context.Context, botToken
 	}
 	var result TelegramResponse
 	if json.Unmarshal(payload, &result) != nil {
-		return TelegramResponse{}, response.StatusCode, fmt.Errorf("Telegram response is invalid")
+		return TelegramResponse{}, response.StatusCode, errors.New("Telegram response is invalid")
 	}
 	return result, response.StatusCode, nil
 }
-
 func telegramRetryDelivery(code, summary string, retryAfter time.Duration) map[string]interface{} {
 	result := map[string]interface{}{"outcome": "retry", "errorCode": code, "summary": summary}
 	if retryAfter > 0 {
@@ -397,7 +327,6 @@ func telegramRetryDelivery(code, summary string, retryAfter time.Duration) map[s
 	}
 	return result
 }
-
 func telegramFailedDelivery(code, summary string) map[string]interface{} {
 	return map[string]interface{}{"outcome": "failed", "errorCode": code, "summary": summary}
 }
