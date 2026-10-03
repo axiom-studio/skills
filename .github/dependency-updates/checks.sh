@@ -16,6 +16,10 @@ export CI=true
 export GOMAXPROCS="${GOMAXPROCS:-2}"
 export GOFLAGS="${GOFLAGS:+${GOFLAGS} }-p=2"
 
+# Publication refusal and cleanup regressions are mandatory and use local
+# fixtures only; they do not build, publish, or deploy actual images.
+bash scripts/tests/test-release-health.sh
+
 # Install the exact checked-in npm/Python dependency inputs before invoking the
 # existing validator. All lifecycle code runs without repository write access.
 npm --prefix skills/meeting-voice ci --no-audit --no-fund
@@ -31,11 +35,12 @@ go test -mod=vendor -timeout=15m ./...
 # The platform module has local binding/authorization contract tests and
 # explicitly opt-in external-service tests. Do not enable live provider calls.
 (cd tests/platform && go test -mod=readonly -race -timeout=15m ./...)
-bash scripts/validate.sh
 
 # Build every supported Skill image with its real Dockerfile. The repository
 # Makefile propagates any image failure; no registry publishing takes place.
 make docker-build
+# Real Health validation needs the images built above on a fresh CI runner.
+bash scripts/validate.sh
 # This alternate Dockerfile is a dependency input outside Makefile discovery.
 docker build --pull --platform linux/amd64 \
   -f skills/meeting-voice/Dockerfile.local-transcript \
