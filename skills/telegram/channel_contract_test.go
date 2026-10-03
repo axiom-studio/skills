@@ -142,6 +142,7 @@ func TestTelegramGetMeDiscoveryIsBotIdentityNotChatEnumeration(t *testing.T) {
 	if err != nil || calls != 1 || !reflect.DeepEqual(result.Output["items"], []interface{}{}) || result.Output["connection"].(map[string]interface{})["installationId"] != "123456789" {
 		t.Fatal(result, err, calls)
 	}
+	requireTelegramActionOutputSchema(t, "telegram-get-me", result.Output)
 }
 func TestTelegramAgentCannotConsumeManagedUpdates(t *testing.T) {
 	if result, err := (&GetUpdatesExecutor{}).Execute(context.Background(), nil, nil); err == nil || result != nil {
@@ -252,8 +253,28 @@ func TestTelegramSendActionCanonicalReceiptAndTopicArguments(t *testing.T) {
 			if err != nil || result.Output["chatId"] != "-1001234567890" || result.Output["messageId"] != "9007199254740991" {
 				t.Fatal(result, err)
 			}
+			requireTelegramActionOutputSchema(t, test.action.Type(), result.Output)
 		})
 	}
+}
+
+func TestTelegramGetChatCanonicalEvidenceMatchesManifest(t *testing.T) {
+	previousClient, previousBase := httpClient, telegramAPIBaseOverride
+	t.Cleanup(func() { httpClient = previousClient; telegramAPIBaseOverride = previousBase })
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/getChat") {
+			t.Error("unexpected Telegram identity action")
+		}
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"id":-1001234567890,"type":"supergroup","title":"Lifting"}}`)
+	}))
+	defer server.Close()
+	httpClient = server.Client()
+	telegramAPIBaseOverride = server.URL + "/bot"
+	result, err := (&GetChatExecutor{}).Execute(t.Context(), &executor.StepDefinition{Config: map[string]interface{}{"chatId": "-1001234567890"}}, telegramLiteralResolver{telegramBindingResolver{bindings: map[string]interface{}{telegramCredentialKey: testTelegramBotToken}}})
+	if err != nil || result.Output["chatId"] != "-1001234567890" {
+		t.Fatal(result, err)
+	}
+	requireTelegramActionOutputSchema(t, "telegram-get-chat", result.Output)
 }
 
 func TestTelegramAddressedCommandMentionsOnlyExactBot(t *testing.T) {
