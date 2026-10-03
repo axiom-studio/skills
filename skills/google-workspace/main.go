@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,14 +40,15 @@ var client = &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(*http.R
 var placeholder = regexp.MustCompile(`\{(\+?)([A-Za-z0-9_]+)\}`)
 
 type parameter struct {
-	Type     string   `json:"type"`
-	Location string   `json:"location"`
-	Required bool     `json:"required"`
-	Repeated bool     `json:"repeated"`
-	Enum     []string `json:"enum,omitempty"`
-	Minimum  string   `json:"minimum,omitempty"`
-	Maximum  string   `json:"maximum,omitempty"`
-	Default  string   `json:"default,omitempty"`
+	Type        string   `json:"type"`
+	Description string   `json:"description,omitempty"`
+	Location    string   `json:"location"`
+	Required    bool     `json:"required"`
+	Repeated    bool     `json:"repeated"`
+	Enum        []string `json:"enum,omitempty"`
+	Minimum     string   `json:"minimum,omitempty"`
+	Maximum     string   `json:"maximum,omitempty"`
+	Default     string   `json:"default,omitempty"`
 }
 type operation struct {
 	Name           string               `json:"name"`
@@ -61,6 +63,7 @@ type operation struct {
 	Scopes         []string             `json:"scopes"`
 	Risk           string               `json:"risk"`
 	ResponseFormat string               `json:"responseFormat"`
+	ResponseSchema map[string]any       `json:"responseSchema,omitempty"`
 }
 
 func operations() []operation {
@@ -127,7 +130,7 @@ func (e *workspaceExecutor) Execute(ctx context.Context, step *executor.StepDefi
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, googleResponseError(e.op.Service, resp.StatusCode, resp.Body)
+		return nil, googleResponseError(e.op, resp.StatusCode, resp.Body)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxContentBytes+1))
 	if err != nil || len(data) > maxContentBytes {
@@ -480,10 +483,12 @@ func uploadPayload(config map[string]any) ([]byte, string, error) {
 
 // Google error messages and metadata may contain identifiers or user content.
 // Expose only recognized machine reasons and reviewed corrective guidance.
-func googleResponseError(service string, status int, body io.Reader) error {
+func googleResponseError(op operation, status int, body io.Reader) error {
 	var envelope struct {
 		Error struct {
-			Errors []struct {
+			Message string `json:"message"`
+			Status  string `json:"status"`
+			Errors  []struct {
 				Reason string `json:"reason"`
 			} `json:"errors"`
 			Details []struct {
@@ -491,8 +496,13 @@ func googleResponseError(service string, status int, body io.Reader) error {
 			} `json:"details"`
 		} `json:"error"`
 	}
-	data, _ := io.ReadAll(io.LimitReader(body, 64*1024))
-	_ = json.Unmarshal(data, &envelope)
+	data, err := io.ReadAll(io.LimitReader(body, 64*1024+1))
+	if err == nil && len(data) <= 64*1024 {
+		parsed := envelope
+		if json.Unmarshal(data, &parsed) == nil {
+			envelope = parsed
+		}
+	}
 	reasons := make([]string, 0, len(envelope.Error.Errors)+len(envelope.Error.Details))
 	for _, value := range envelope.Error.Details {
 		reasons = append(reasons, value.Reason)
@@ -500,6 +510,12 @@ func googleResponseError(service string, status int, body io.Reader) error {
 	for _, value := range envelope.Error.Errors {
 		reasons = append(reasons, value.Reason)
 	}
+	if status == http.StatusBadRequest && envelope.Error.Status == "INVALID_ARGUMENT" {
+		reasons = append(reasons, envelope.Error.Status)
+	}
+	// A provider message is untrusted, even when it names a rejected field. Use
+	// it only as a signal; corrective field names come from our reviewed catalog.
+	invalidFields := status == http.StatusBadRequest && strings.HasPrefix(envelope.Error.Message, "Invalid field selection ")
 	for _, reason := range reasons {
 		guidance := ""
 		switch reason {
@@ -513,10 +529,46 @@ func googleResponseError(service string, status int, body io.Reader) error {
 			guidance = "Google rate limited the operation; wait before retrying"
 		case "authError", "ACCESS_TOKEN_EXPIRED":
 			guidance = "the access token is invalid or expired; refresh the saved authorization"
+		case "invalid", "badRequest", "INVALID_ARGUMENT":
+			guidance = "the request arguments are invalid; correct them using this action's input and output schemas"
+			if invalidFields {
+				guidance = fieldSelectionGuidance(op)
+			}
 		}
 		if guidance != "" {
-			return fmt.Errorf("Google %s request rejected (%d, %s): %s", service, status, reason, guidance)
+			return fmt.Errorf("Google %s request rejected (%d, %s): %s", op.Service, status, reason, guidance)
 		}
 	}
-	return fmt.Errorf("Google %s request rejected (%d); the response does not establish whether the cause is account access, consent scopes, organization policy or API configuration", service, status)
+	if status == http.StatusBadRequest {
+		guidance := "Google rejected this request; inspect the action's argument types, required parameters and response fields before correcting it; this does not establish a credential or consent problem"
+		if invalidFields {
+			guidance = fieldSelectionGuidance(op)
+		}
+		return fmt.Errorf("Google %s request rejected (%d): %s", op.Service, status, guidance)
+	}
+	return fmt.Errorf("Google %s request rejected (%d); the response does not establish whether the cause is account access, consent scopes, organization policy or API configuration", op.Service, status)
+}
+
+func fieldSelectionGuidance(op operation) string {
+	guidance := "the fields projection is invalid for this operation's response; select documented response fields, rather than request arguments or metadata values"
+	properties, _ := op.ResponseSchema["properties"].(map[string]any)
+	if len(properties) == 0 {
+		return guidance + "; consult this action's documented response contract"
+	}
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	guidance += "; top-level response fields: " + strings.Join(names, ", ")
+	// Descriptions are checked-in Google Discovery metadata, never provider
+	// response content. Include bounded array guidance such as ID-only results.
+	for _, name := range names {
+		property, _ := properties[name].(map[string]any)
+		description, _ := property["description"].(string)
+		if property["type"] == "array" && description != "" && len(description) <= 512 {
+			guidance += "; " + name + ": " + description
+		}
+	}
+	return guidance
 }
