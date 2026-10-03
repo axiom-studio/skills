@@ -669,7 +669,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.3.5
+        resolvedVersion: 2.3.6
     tags:
         - chat
         - messaging
@@ -678,7 +678,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.3.5
+    version: 2.3.6
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
