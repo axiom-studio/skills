@@ -1,6 +1,6 @@
 # Telegram Skill
 
-Telegram Bot API channel support for OpenSeal agents: direct messages, groups, forum topics and channel posts, with sender/chat context and image/document exchange. Runtime version `1.2.0`; OCI installation reference `axiomstudio/skill-telegram:latest`.
+Telegram Bot API channel support for OpenSeal agents: direct messages, groups, forum topics and channel posts, with sender/chat context and image/document exchange. Runtime version `1.2.1`; OCI installation reference `axiomstudio/skill-telegram:latest`.
 
 ## Connect a bot
 
