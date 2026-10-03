@@ -26,7 +26,6 @@ const (
 	slackBaseURL            = "https://slack.com/api"
 	slackHTTPPort           = "50054"
 	slackSkillID            = "skill-slack"
-	slackSkillVersion       = "2.3.2"
 	slackBotTokenCredential = "slack_bot_token"
 )
 
@@ -34,6 +33,11 @@ var slackHTTPClient = &http.Client{Timeout: 30 * time.Second}
 var slackBaseURLOverride string
 
 func main() {
+	server, err := newSlackSkillServer()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid embedded Slack skill manifest: %v\n", err)
+		os.Exit(1)
+	}
 	if strings.TrimSpace(os.Getenv("OPENSEAL_CONNECTOR_ENDPOINT")) == slackSocketModeConnectorEndpoint {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -48,7 +52,19 @@ func main() {
 		port = slackHTTPPort
 	}
 
-	server := grpc.NewSkillServer(slackSkillID, slackSkillVersion)
+	fmt.Printf("Starting skill-slack gRPC server on port %s\n", port)
+	if err := server.Serve(port); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to serve: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func newSlackSkillServer() (*grpc.SkillServer, error) {
+	identity, err := slackRuntimeIdentityFromManifest(slackSkillManifest)
+	if err != nil {
+		return nil, err
+	}
+	server := grpc.NewSkillServer(identity.ID, identity.Version)
 	server.RegisterExecutorWithSchema("slack-send-message", &SlackSendMessageExecutor{}, SlackSendMessageSchema)
 	server.RegisterExecutorWithSchema("slack-read-messages", &SlackReadMessagesExecutor{}, SlackReadMessagesSchema)
 	server.RegisterExecutorWithSchema("slack-search-messages", &SlackSearchMessagesExecutor{}, SlackSearchMessagesSchema)
@@ -69,11 +85,7 @@ func main() {
 	server.RegisterExecutor(slackDeliveryNodeType, &slackDeliveryExecutor{adapter: conversationAdapter})
 	server.RegisterExecutor(slackCallbackNodeType, &slackCallbackExecutor{adapter: conversationAdapter})
 
-	fmt.Printf("Starting skill-slack gRPC server on port %s\n", port)
-	if err := server.Serve(port); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to serve: %v\n", err)
-		os.Exit(1)
-	}
+	return server, nil
 }
 
 type SlackChannel struct {

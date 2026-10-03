@@ -56,8 +56,12 @@ run_manifest_validation() {
             valid=false
         fi
 
-        if ! awk '/^[[:space:]]+package:/ { if ($2 !~ /:latest$/) bad=1 } END { exit bad }' "$manifest_file"; then
-            log_fail "$skill_name: OCI installer images must use :latest"
+        # A published version tag is immutable and must name this definition's
+        # exact release. Existing definitions may retain their declared latest.
+        local version
+        version="$(awk '/^definition:/ {f=1; next} f&&/^[^[:space:]]/ {f=0} f&&/^[[:space:]]+version:/ {match($0, /[^[:space:]]/); if (!indent || RSTART < indent) {indent=RSTART; version=$2}} END {print version}' "$manifest_file")"
+        if ! awk -v version="$version" '/^[[:space:]]+package:/ { if ($2 !~ /^axiomstudio\/skill-[a-zA-Z0-9-]+:/ || ($2 !~ /:latest$/ && $2 != substr($2, 1, index($2, ":")) version)) bad=1 } END { exit bad }' "$manifest_file"; then
+            log_fail "$skill_name: OCI installer images must use the declared :latest or exact definition version tag"
             valid=false
         fi
 

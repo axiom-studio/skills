@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,33 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+type slackSocketTestTransport func(*http.Request) (*http.Response, error)
+
+func (transport slackSocketTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
+func TestSlackSocketCallbackFailurePreservesCancellationWithoutPrivateURL(t *testing.T) {
+	const privateURL = "https://callback.invalid/private-ticket"
+	for _, cause := range []error{context.DeadlineExceeded, context.Canceled, errors.New("private transport details")} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			config := slackSocketModeConfig{
+				SigningSecret: "signing-secret", Now: time.Now,
+				HTTPClient: &http.Client{Transport: slackSocketTestTransport(func(*http.Request) (*http.Response, error) {
+					return nil, &url.Error{Op: "Post", URL: privateURL, Err: cause}
+				})},
+			}
+			_, err := forwardSlackSocketPayload(t.Context(), config, privateURL, "application/json", []byte(`{}`))
+			if err == nil || strings.Contains(err.Error(), privateURL) || strings.Contains(err.Error(), "private transport details") {
+				t.Fatalf("callback failure leaked private transport details: %v", err)
+			}
+			if (cause == context.DeadlineExceeded || cause == context.Canceled) && !errors.Is(err, cause) {
+				t.Fatalf("callback cancellation cause was lost: %v", err)
+			}
+		})
+	}
+}
 
 func TestSlackSocketModeConnectorForwardsSignedInteractionAndAcknowledgesResponse(t *testing.T) {
 	fixedNow := time.Date(2026, 8, 24, 5, 0, 0, 0, time.UTC)

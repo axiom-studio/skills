@@ -31,6 +31,7 @@ docker-build: ## Build Docker images for all skills
 			--build-arg SKILL_PORT=$$port \
 			-t $$image \
 			. && \
+		./scripts/verify-image.sh "$$image" "$(SKILLS_DIR)/$$skill/skill.yaml" >/dev/null && \
 		echo "    ✓ $$skill" || \
 		{ echo "    ✗ $$skill FAILED"; failed=1; }; \
 	done; \
@@ -41,12 +42,19 @@ docker-build: ## Build Docker images for all skills
 docker-push: ## Push Docker images to registry
 	@echo "Pushing images..."
 	@echo ""
-	@failed=0; for skill in $(SKILL_NAMES); do \
+	@failed=0; images=(); verified=(); for skill in $(SKILL_NAMES); do \
 		image=$$(awk '/^[[:space:]]+installers:/{f=1} f&&/^[[:space:]]+package:/{print $$2; exit}' $(SKILLS_DIR)/$$skill/skill.yaml); \
+		if image_id=$$(./scripts/verify-image.sh "$$image" "$(SKILLS_DIR)/$$skill/skill.yaml"); then \
+			images+=("$$image"); verified+=("$$image_id"); \
+		else failed=1; fi; \
+	done; \
+	test "$$failed" = 0 || exit 1; \
+	for index in "$${!images[@]}"; do \
+		image="$${images[$$index]}"; \
 		echo "  Pushing $$image..."; \
-		docker push $$image && \
-		echo "    ✓ $$skill" || \
-		{ echo "    ✗ $$skill FAILED"; failed=1; }; \
+		docker tag "$${verified[$$index]}" "$$image" && docker push "$$image" && \
+		echo "    ✓ $$image" || \
+		{ echo "    ✗ $$image FAILED"; failed=1; }; \
 	done; \
 	echo ""; \
 	echo "Push complete."; \

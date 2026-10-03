@@ -196,9 +196,13 @@ func TestSlackSearchManifestUsesReadAuthorityAndHistoryFeature(t *testing.T) {
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		t.Fatal(err)
 	}
+	identity, err := slackRuntimeIdentityFromManifest(slackSkillManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
 	search, ok := manifest.Definition.Actions["slack-search-messages"]
 	if !ok || !reflect.DeepEqual(search.Permissions, []string{"slack:read"}) || search.Risk != "read" || search.SideEffect != "read" ||
-		len(search.Credentials) != 1 || search.Credentials[0].Name != slackBotTokenCredential || manifest.Definition.Version != slackSkillVersion {
+		len(search.Credentials) != 1 || search.Credentials[0].Name != slackBotTokenCredential || manifest.Definition.Version != identity.Version {
 		t.Fatalf("invalid search authority: %#v version=%s", search, manifest.Definition.Version)
 	}
 	if !containsSlackTestString(manifest.Definition.ConversationAdapters["conversations"].Features, "context_history") ||

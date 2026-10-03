@@ -34,7 +34,7 @@ skills/
 ## Build Instructions
 
 ```bash
-# Validate Go implementations and manifest structure
+# Validate implementations, manifests, and previously built image Health
 ./scripts/validate.sh
 
 # Validate one manifest with the OpenSeal CLI
@@ -45,15 +45,20 @@ make docker-build
 make docker-push
 ```
 
-All skill OCI installers use `:latest`. Build and push targets publish that tag;
-skill definition versions remain explicit for contract and binding compatibility.
-Kubernetes deployments use `imagePullPolicy: Always` for this mutable tag. Updating
-the tag takes effect when a pod starts; it does not restart an already running pod.
+Build and push targets use the exact OCI package declared in each definition.
+Versioned releases use their definition version as the image tag; existing skills
+may retain `:latest`. Before a build succeeds or an image is published, the shared
+release gate starts the inspected image in a temporary container without external
+network access and calls SDK Health. It requires a healthy service with the exact
+canonical skill ID and version. No provider credentials or actions are used.
+Kubernetes deployments using `:latest` retain `imagePullPolicy: Always`; updating
+that tag takes effect when a pod starts and does not restart an existing pod.
 
 For local K3D, publish built images to its local registry before a rollout:
-`./scripts/publish-k3d.sh axiomstudio/skill-mcp:latest`. The script verifies actual
-container-runtime pulls; importing an image into the node cache alone is
-insufficient for `Always`. Set `K3D_CLUSTER` to select a different local cluster.
+`./scripts/publish-k3d.sh axiomstudio/skill-slack:2.3.4`. The script verifies the
+entire batch before publishing, then tags each verified immutable image ID and
+checks actual container-runtime pulls. Importing an image into the node cache
+alone is insufficient for `Always`. Set `K3D_CLUSTER` to select a different local cluster.
 
 ## Contributing
 

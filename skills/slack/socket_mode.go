@@ -369,6 +369,14 @@ func forwardSlackSocketPayload(ctx context.Context, config slackSocketModeConfig
 	request.Header.Set("X-Slack-Signature", signature)
 	response, err := config.HTTPClient.Do(request)
 	if err != nil {
+		// The transport error can include the private callback URL. Preserve
+		// cancellation causes without copying that URL into connector logs.
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(requestContext.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("deliver callback ingress request: %w", context.DeadlineExceeded)
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(requestContext.Err(), context.Canceled) {
+			return nil, fmt.Errorf("deliver callback ingress request: %w", context.Canceled)
+		}
 		return nil, errors.New("deliver callback ingress request")
 	}
 	defer response.Body.Close()

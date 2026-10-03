@@ -10,8 +10,9 @@ import (
 )
 
 // Check the actual published definitions, including skills with hand-authored
-// manifests, so a new skill cannot silently reintroduce an immutable image tag.
-func TestPublishedSkillImagesUseLatest(t *testing.T) {
+// manifests. An immutable release tag must identify the exact definition
+// version; existing mutable installers may retain their declared latest tag.
+func TestPublishedSkillImagesUseDeclaredTags(t *testing.T) {
 	paths, err := filepath.Glob("../../skills/*/skill.yaml")
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("find published manifests: %v", err)
@@ -38,8 +39,8 @@ func TestPublishedSkillImagesUseLatest(t *testing.T) {
 				t.Fatal("contract version must remain explicit")
 			}
 			for _, installer := range manifest.Definition.Installers {
-				if installer.Kind == "oci" && !strings.HasSuffix(installer.Package, ":latest") {
-					t.Errorf("OCI installer %q must use :latest", installer.Package)
+				if installer.Kind == "oci" && !strings.HasSuffix(installer.Package, ":latest") && !strings.HasSuffix(installer.Package, ":"+manifest.Definition.Version) {
+					t.Errorf("OCI installer %q must use its exact definition version or declared :latest", installer.Package)
 				}
 			}
 		})
