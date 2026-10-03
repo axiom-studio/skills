@@ -1199,6 +1199,58 @@ class SourceConfigurationFixture(unittest.TestCase):
                 self.assertIn("set -euo pipefail", checks)
                 self.assertIn(test_commands[policy["repository"]], checks)
 
+    def test_skills_ci_builds_images_before_health_and_requires_release_regressions(self) -> None:
+        checkouts = [checkout for checkout in self.checkouts if self._policy(checkout)["repository"] == "axiom-studio/skills"]
+        if not checkouts:
+            self.skipTest("Skills checkout is not present in this isolated repository job")
+        for checkout in checkouts:
+            for reject_release in (False, True):
+                with self.subTest(checkout=checkout.name, reject_release=reject_release), tempfile.TemporaryDirectory(prefix="skills-ci-order-") as directory:
+                    fixture = Path(directory)
+                    tools = fixture / "bin"
+                    tools.mkdir()
+                    (fixture / "tests/platform").mkdir(parents=True)
+                    (fixture / "scripts/tests").mkdir(parents=True)
+                    log = fixture / "steps"
+                    tool = tools / "fixture-tool"
+                    tool.write_text("""#!/usr/bin/env bash
+set -euo pipefail
+case "${0##*/}" in
+  git) printf '%s\\n' "$SKILLS_CI_FIXTURE" ;;
+  python3) if [[ "$*" == '-m venv '* ]]; then mkdir -p "$3/bin"; fi ;;
+  go) printf 'source-tests\\n' >> "$SKILLS_CI_STEPS" ;;
+  make) touch "$SKILLS_CI_FIXTURE/images-built"; printf 'images-built\\n' >> "$SKILLS_CI_STEPS" ;;
+  docker) if [[ "${1:-}" == build ]]; then printf 'alternate-image-built\\n' >> "$SKILLS_CI_STEPS"; fi ;;
+  node|npm) : ;;
+  *) exit 99 ;;
+esac
+""")
+                    tool.chmod(0o755)
+                    for name in ("git", "python3", "go", "make", "docker", "node", "npm"):
+                        (tools / name).symlink_to(tool.name)
+                    (fixture / "scripts/tests/test-release-health.sh").write_text("""#!/usr/bin/env bash
+printf 'release-regressions\\n' >> "$SKILLS_CI_STEPS"
+[[ "$SKILLS_CI_REJECT_RELEASE" == 0 ]]
+""")
+                    (fixture / "scripts/validate.sh").write_text("""#!/usr/bin/env bash
+[[ -f "$SKILLS_CI_FIXTURE/images-built" ]] || exit 47
+printf 'image-health\\n' >> "$SKILLS_CI_STEPS"
+""")
+                    result = subprocess.run(
+                        ["bash", str(checkout / ".github/dependency-updates/checks.sh")],
+                        cwd=fixture, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        timeout=20, env={**os.environ, "PATH": str(tools) + os.pathsep + os.environ["PATH"],
+                                         "SKILLS_CI_FIXTURE": str(fixture), "SKILLS_CI_STEPS": str(log),
+                                         "SKILLS_CI_REJECT_RELEASE": "1" if reject_release else "0"},
+                    )
+                    steps = log.read_text().splitlines() if log.exists() else []
+                    if reject_release:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(steps, ["release-regressions"], "Release regressions must hold CI before source/image work")
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(steps, ["release-regressions", "source-tests", "source-tests", "images-built", "image-health", "alternate-image-built"])
+
     def test_sdk_prepares_supported_tauri_sidecar_before_locked_cargo_check(self) -> None:
         sdk_checkouts = [checkout for checkout in self.checkouts if self._policy(checkout)["repository"] == "axiom-studio/openseal"]
         if not sdk_checkouts:
