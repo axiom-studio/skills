@@ -64,8 +64,8 @@ func TestTelegramConversationAdapterManifestContract(t *testing.T) {
 		t.Fatalf("conversation credentials = %#v, transport = %#v", adapter.Credentials, adapter.Transport)
 	}
 	if adapter.Transport.Kind != "plugin" || adapter.Transport.IngressEndpoint != telegramIngressNodeType || adapter.Transport.DeliveryEndpoint != telegramDeliveryNodeType ||
-		!reflect.DeepEqual(adapter.Delivery.Operations, []string{"message.send", "message.update"}) ||
-		adapter.Delivery.Ordering != "conversation" || adapter.Delivery.Idempotency != "supported" {
+		!reflect.DeepEqual(adapter.Delivery.Operations, []string{"message.send", "message.update", "typing.set"}) ||
+		adapter.Delivery.Ordering != "thread" || adapter.Delivery.Idempotency != "supported" {
 		t.Fatalf("conversation delivery = %#v, transport = %#v", adapter.Delivery, adapter.Transport)
 	}
 	if manifest.Definition.Version != telegramSkillVersion || manifest.Definition.Source.ResolvedVersion != telegramSkillVersion ||
