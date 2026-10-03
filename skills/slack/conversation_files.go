@@ -168,10 +168,11 @@ func (a *slackAdapter) allowedFileURL(value string) bool {
 }
 
 type slackUploadCheckpoint struct {
-	DeliveryID string              `json:"deliveryId"`
-	Channel    string              `json:"channel"`
-	Thread     string              `json:"thread"`
-	Files      []slackUploadedFile `json:"files"`
+	DeliveryID          string              `json:"deliveryId"`
+	Channel             string              `json:"channel"`
+	Thread              string              `json:"thread"`
+	Files               []slackUploadedFile `json:"files"`
+	CompletionAttempted bool                `json:"completionAttempted,omitempty"`
 }
 type slackUploadedFile struct {
 	ArtifactID string `json:"artifactId"`
@@ -184,7 +185,7 @@ func uploadCheckpoint(envelope *adapterEnvelope) (slackUploadCheckpoint, error) 
 	checkpoint := slackUploadCheckpoint{DeliveryID: envelope.Delivery.ID, Channel: envelope.Endpoint.Address, Thread: envelope.Delivery.ExternalThreadID}
 	if raw, ok := envelope.Delivery.Progress["slackFiles"]; ok {
 		encoded, _ := json.Marshal(raw)
-		if json.Unmarshal(encoded, &checkpoint) != nil || checkpoint.DeliveryID != envelope.Delivery.ID || checkpoint.Channel != envelope.Endpoint.Address || checkpoint.Thread != envelope.Delivery.ExternalThreadID || len(checkpoint.Files) > len(envelope.Attachments) {
+		if json.Unmarshal(encoded, &checkpoint) != nil || checkpoint.DeliveryID != envelope.Delivery.ID || checkpoint.Channel != envelope.Endpoint.Address || checkpoint.Thread != envelope.Delivery.ExternalThreadID || len(checkpoint.Files) > len(envelope.Attachments) || (checkpoint.CompletionAttempted && len(checkpoint.Files) != len(envelope.Attachments)) {
 			return checkpoint, errors.New("Slack upload checkpoint drifted")
 		}
 		for i, file := range checkpoint.Files {
@@ -293,20 +294,44 @@ func (a *slackAdapter) deliverFiles(ctx context.Context, token string, envelope 
 	if lookup["status"] == "found" {
 		return map[string]interface{}{"outcome": "delivered", "providerMessageId": lookup["providerMessageId"]}, nil
 	}
-	if lookup["status"] == "unknown" {
+	// An uploaded file need not be visible to files.info before completion.
+	// Only a previous ambiguous completion needs confirmation before proceeding:
+	// completeUploadExternal is a one-time operation on these exact file IDs.
+	if checkpoint.CompletionAttempted {
 		return fileRetry(checkpoint, "confirmation_pending"), nil
 	}
 	files := make([]map[string]string, 0, len(checkpoint.Files))
 	for _, file := range checkpoint.Files {
 		files = append(files, map[string]string{"id": file.FileID, "title": file.Title})
 	}
-	raw, status, _, err := a.slackJSON(ctx, token, http.MethodPost, "/files.completeUploadExternal", nil, map[string]interface{}{"files": files, "channel_id": checkpoint.Channel, "thread_ts": checkpoint.Thread, "initial_comment": markdownToSlack(envelope.Message.Content)})
+	raw, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/files.completeUploadExternal", nil, map[string]interface{}{"files": files, "channel_id": checkpoint.Channel, "thread_ts": checkpoint.Thread, "initial_comment": markdownToSlack(envelope.Message.Content)})
+	if status == http.StatusTooManyRequests {
+		result := fileRetry(checkpoint, "rate_limited")
+		if retryAfter > 0 {
+			result["retryAfterMs"] = retryAfter.Milliseconds()
+		}
+		return result, nil
+	}
+	checkpoint.CompletionAttempted = true
 	var response slackFileResponse
-	if err != nil || status == 429 || status >= 500 || json.Unmarshal(raw, &response) != nil {
+	if err != nil || status >= 500 || json.Unmarshal(raw, &response) != nil {
 		return fileRetry(checkpoint, "confirmation_pending"), nil
 	}
 	if !response.OK {
-		return fileRetry(checkpoint, "confirmation_pending"), nil
+		if response.Error == "ratelimited" {
+			checkpoint.CompletionAttempted = false
+			result := fileRetry(checkpoint, safeSlackError(response.Error))
+			if retryAfter > 0 {
+				result["retryAfterMs"] = retryAfter.Milliseconds()
+			}
+			return result, nil
+		}
+		if transientSlackError(response.Error) {
+			return fileRetry(checkpoint, "confirmation_pending"), nil
+		}
+		result := failedDelivery(safeSlackError(response.Error), "Slack rejected the file share request.")
+		result["progress"] = map[string]interface{}{"slackFiles": checkpoint}
+		return result, nil
 	}
 	return map[string]interface{}{"outcome": "delivered", "providerMessageId": "file:" + checkpoint.Files[0].FileID}, nil
 }
