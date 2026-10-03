@@ -78,6 +78,18 @@ definition:
         - chatId
         type: object
       name: telegram-get-chat
+      outputSchema:
+        additionalProperties: false
+        properties:
+          chat:
+            additionalProperties: true
+            type: object
+          chatId:
+            type: string
+          success:
+            type: boolean
+        required: [success, chat, chatId]
+        type: object
       permissions:
       - telegram:read
       retry:
@@ -120,6 +132,20 @@ definition:
         - document
         type: object
       name: telegram-send-document
+      outputSchema:
+        additionalProperties: false
+        properties:
+          chatId:
+            type: string
+          message:
+            additionalProperties: true
+            type: object
+          messageId:
+            type: string
+          success:
+            type: boolean
+        required: [success, chatId, message, messageId]
+        type: object
       permissions:
       - telegram:read
       - telegram:write
@@ -167,6 +193,20 @@ definition:
         - text
         type: object
       name: telegram-send-message
+      outputSchema:
+        additionalProperties: false
+        properties:
+          chatId:
+            type: string
+          message:
+            additionalProperties: true
+            type: object
+          messageId:
+            type: string
+          success:
+            type: boolean
+        required: [success, chatId, message, messageId]
+        type: object
       permissions:
       - telegram:read
       - telegram:write
@@ -210,6 +250,20 @@ definition:
         - photo
         type: object
       name: telegram-send-photo
+      outputSchema:
+        additionalProperties: false
+        properties:
+          chatId:
+            type: string
+          message:
+            additionalProperties: true
+            type: object
+          messageId:
+            type: string
+          success:
+            type: boolean
+        required: [success, chatId, message, messageId]
+        type: object
       permissions:
       - telegram:read
       - telegram:write
@@ -252,6 +306,44 @@ definition:
         properties: {}
         type: object
       name: telegram-get-me
+      outputSchema:
+        additionalProperties: false
+        properties:
+          bot:
+            additionalProperties: true
+            type: object
+          botId:
+            type: string
+          botUsername:
+            type: string
+          connection:
+            additionalProperties: false
+            properties:
+              applicationId:
+                type: string
+              displayName:
+                type: string
+              installationId:
+                type: string
+            required: [installationId, applicationId, displayName]
+            type: object
+          items:
+            items:
+              additionalProperties: false
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+              required: [id, name]
+              type: object
+            type: array
+          nextCursor:
+            type: string
+          success:
+            type: boolean
+        required: [success, bot, botId, botUsername, connection, items, nextCursor]
+        type: object
       permissions:
       - telegram:read
       retry:
