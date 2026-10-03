@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "repository": "axiom-studio/skills",
+  "defaultBranch": "main",
+  "candidatePrefix": "dependency-updates/",
+  "allowedPaths": [
+    "go.mod",
+    "go.sum",
+    "vendor/**",
+    "tests/platform/go.mod",
+    "tests/platform/go.sum",
+    "skills/meeting-voice/package.json",
+    "skills/meeting-voice/package-lock.json",
+    "skills/meet-voice/package.json",
+    "skills/meet-voice/package-lock.json",
+    "skills/camoufox/requirements.txt",
+    "skills/camoufox/pyproject.toml",
+    "Dockerfile",
+    "skills/camoufox/Dockerfile",
+    "skills/google-workspace/Dockerfile",
+    "skills/mcp/Dockerfile",
+    "skills/meeting-voice/Dockerfile",
+    "skills/meeting-voice/Dockerfile.local-transcript",
+    "skills/meet-voice/Dockerfile"
+  ],
+  "goModule": "go.mod",
+  "canonicalVendorRequired": true,
+  "checks": [
+    {
+      "name": "Validate exact candidate",
+      "script": ".github/dependency-updates/checks.sh"
+    }
+  ],
+  "releaseWorkflow": null,
+  "releaseMode": "manual",
+  "renovateImage": "ghcr.io/renovatebot/renovate:44.132.2-full",
+  "candidateRetentionLimit": 32
+}
