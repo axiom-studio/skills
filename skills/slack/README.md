@@ -90,3 +90,30 @@ short-lived `action_token` from the initiating event; native private-channel and
 DM search requires user authorization. See the official
 [Conversations history reference](https://docs.slack.dev/reference/methods/conversations.history/)
 and [Real-time Search guide](https://docs.slack.dev/apis/web-api/real-time-search-api/).
+
+## Conversation attachments
+
+The conversations adapter supports `attachments`. Signed message events retain
+provider file IDs, names, MIME types and sizes; private URLs stay out of the inbox.
+After acknowledgement, the worker downloads files with the bound bot token and
+stores confidential artifacts owned by the originating conversation's agent.
+
+Add **`files:read` and `files:write`** to the Slack app's bot scopes, reinstall the
+app, and update the saved bot token if Slack issued a new one. The bot must have
+access to the originating conversation. Existing message-event subscriptions
+include files shared in messages; a separate `file_created` subscription is not
+needed. Missing file permissions are reported explicitly without repeated setup
+requests or pretending that the agent read the file.
+
+The host supplies PNG/JPEG images to vision-capable models and extracts content
+from text/CSV/JSON, XLSX, PDF with a text layer, and DOCX files. Scanned PDFs need
+OCR; unsupported or oversized files are marked unreadable. Each message can have
+up to eight files with at most **2 MiB of file data in total** (the current gRPC
+transport budget). Extracted text has a separate bounded context budget.
+
+Canonical reply artifacts upload via `files.getUploadURLExternal`, a binary POST,
+and `files.completeUploadExternal` into the exact originating channel/thread.
+The upload IDs are checkpointed before sharing; acknowledgement recovery checks
+those same IDs and the original thread before sending again. URLs, credentials
+and file bytes are never stored in outbox progress. Provider uploads are private
+and never use public-link sharing or the retired `files.upload` endpoint.

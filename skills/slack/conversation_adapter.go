@@ -119,13 +119,15 @@ func clearSlackAdapterConfig(config map[string]interface{}, credentials ...strin
 }
 
 type adapterEnvelope struct {
-	Operation string                       `json:"operation"`
-	Endpoint  *conversationEndpoint        `json:"endpoint"`
-	Gateway   *conversationIngressGateway  `json:"gateway,omitempty"`
-	Request   *conversationIngressRequest  `json:"request,omitempty"`
-	Delivery  *conversationDelivery        `json:"delivery,omitempty"`
-	Message   *conversationMessage         `json:"message,omitempty"`
-	Event     *normalizedConversationEvent `json:"event,omitempty"`
+	Attachments []conversationFileContent    `json:"attachments,omitempty"`
+	Attachment  *conversationFile            `json:"attachment,omitempty"`
+	Operation   string                       `json:"operation"`
+	Endpoint    *conversationEndpoint        `json:"endpoint"`
+	Gateway     *conversationIngressGateway  `json:"gateway,omitempty"`
+	Request     *conversationIngressRequest  `json:"request,omitempty"`
+	Delivery    *conversationDelivery        `json:"delivery,omitempty"`
+	Message     *conversationMessage         `json:"message,omitempty"`
+	Event       *normalizedConversationEvent `json:"event,omitempty"`
 }
 
 // These DTOs implement the versioned JSON wire protocol declared by the
@@ -159,6 +161,7 @@ type conversationIngressRequest struct {
 }
 
 type conversationDelivery struct {
+	Progress          map[string]interface{} `json:"progress,omitempty"`
 	ID                string                 `json:"id"`
 	Operation         string                 `json:"operation"`
 	ExternalThreadID  string                 `json:"externalThreadId,omitempty"`
@@ -173,6 +176,7 @@ type conversationMessage struct {
 }
 
 type normalizedConversationEvent struct {
+	Attachments            []conversationFile     `json:"attachments,omitempty"`
 	ID                     string                 `json:"id"`
 	Type                   string                 `json:"type"`
 	ExternalConversationID string                 `json:"externalConversationId"`
@@ -229,15 +233,16 @@ type slackAuthorization struct {
 }
 
 type slackEvent struct {
-	Type        string `json:"type"`
-	Subtype     string `json:"subtype"`
-	User        string `json:"user"`
-	BotID       string `json:"bot_id"`
-	Text        string `json:"text"`
-	Channel     string `json:"channel"`
-	ChannelType string `json:"channel_type"`
-	Timestamp   string `json:"ts"`
-	ThreadTS    string `json:"thread_ts"`
+	Files       []slackFile `json:"files"`
+	Type        string      `json:"type"`
+	Subtype     string      `json:"subtype"`
+	User        string      `json:"user"`
+	BotID       string      `json:"bot_id"`
+	Text        string      `json:"text"`
+	Channel     string      `json:"channel"`
+	ChannelType string      `json:"channel_type"`
+	Timestamp   string      `json:"ts"`
+	ThreadTS    string      `json:"thread_ts"`
 }
 
 type slackInteraction struct {
@@ -505,7 +510,7 @@ func normalizeSlackEvent(payload slackEventsEnvelope) (normalizedConversationEve
 		return normalizedConversationEvent{}, false
 	}
 	switch source.Subtype {
-	case "", "bot_message":
+	case "", "bot_message", "file_share":
 	default:
 		return normalizedConversationEvent{}, false
 	}
@@ -523,6 +528,7 @@ func normalizeSlackEvent(payload slackEventsEnvelope) (normalizedConversationEve
 	if botUserID != "" {
 		mention = "<@" + botUserID + ">"
 	}
+	files := normalizedSlackFiles(source.Files)
 	text := strings.TrimSpace(source.Text)
 	mentionsEndpoint := source.Type == "app_mention" || (mention != "" && strings.Contains(text, mention))
 	if mention != "" {
@@ -545,7 +551,7 @@ func normalizeSlackEvent(payload slackEventsEnvelope) (normalizedConversationEve
 		eventID = "slack:event:" + payload.EventID
 	}
 	return normalizedConversationEvent{
-		ID: eventID, Type: "conversation.message.received",
+		ID: eventID, Type: "conversation.message.received", Attachments: files,
 		ExternalConversationID: source.Channel, ExternalThreadID: threadID,
 		ExternalMessageID: source.Timestamp, ExternalParticipantID: participantID,
 		ParticipantIsBot: source.BotID != "" || source.Subtype == "bot_message",
@@ -604,11 +610,14 @@ type slackMetadata struct {
 
 func (a *slackAdapter) delivery(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	envelope, err := decodeAdapterEnvelope(config)
-	if err != nil || (envelope.Operation != "lookup" && envelope.Operation != "deliver" && envelope.Operation != "context") ||
-		(envelope.Operation != "context" && (envelope.Delivery == nil || envelope.Message == nil)) {
+	if err != nil || (envelope.Operation != "lookup" && envelope.Operation != "deliver" && envelope.Operation != "context" && envelope.Operation != "attachment") ||
+		(envelope.Operation != "context" && envelope.Operation != "attachment" && (envelope.Delivery == nil || envelope.Message == nil)) {
 		return nil, errors.New("Slack delivery request is invalid")
 	}
 	token, _ := config[slackConnectionKey].(string)
+	if envelope.Operation == "attachment" {
+		return a.readAttachment(ctx, token, envelope)
+	}
 	if envelope.Operation == "context" {
 		return a.readThreadContext(ctx, token, envelope), nil
 	}
@@ -815,6 +824,9 @@ func slackContextTimestamp(value string) (time.Time, bool) {
 }
 
 func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	if len(envelope.Attachments) > 0 && envelope.Delivery.Operation == "message.send" {
+		return a.deliverFiles(ctx, token, envelope)
+	}
 	if envelope.Delivery.Operation == "typing.set" {
 		return a.setThreadStatus(ctx, token, envelope)
 	}
@@ -1090,6 +1102,9 @@ func slackApprovalContext(
 }
 
 func (a *slackAdapter) lookup(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	if len(envelope.Attachments) > 0 {
+		return a.lookupFileDelivery(ctx, token, envelope)
+	}
 	path := "/conversations.history"
 	query := url.Values{"channel": {envelope.Endpoint.Address}, "limit": {"100"}, "inclusive": {"true"}}
 	if threadID := strings.TrimSpace(envelope.Delivery.ExternalThreadID); threadID != "" {
