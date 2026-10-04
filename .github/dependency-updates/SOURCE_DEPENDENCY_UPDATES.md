@@ -1,5 +1,14 @@
 # Skills source dependency updates
 
+## Paused
+
+This workflow is disabled in GitHub Actions and its YAML is archived at
+`workflow.disabled.yml`, outside `.github/workflows`. Automatic dependency
+updates and the direct-push checks bundled with this workflow are paused.
+To restore it, move the YAML to `.github/workflows/dependency-updates.yml`,
+complete the dedicated App setup described below, and enable the workflow
+in GitHub Actions. The following sections describe the retained configuration.
+
 The dependency workflow prepares a branch under `dependency-updates/`, validates
 its exact candidate, and promotes passing dependency changes directly to `main`.
 It does not create a pull request or change Skill behavior, permissions,
