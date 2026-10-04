@@ -20,7 +20,7 @@ import (
 
 const (
 	iconTelegram          = "send"
-	telegramSkillVersion  = "1.2.1"
+	telegramSkillVersion  = "1.2.2"
 	telegramCredentialKey = "telegram_bot"
 )
 
@@ -205,13 +205,16 @@ func parseTelegramResponse(body []byte, result interface{}) error {
 	return nil
 }
 
-// getBotToken gets the bot token from config or resolver
+// getBotToken uses the governed invocation binding before standalone config.
+// An action's ordinary configuration cannot override its reviewed account.
 func getBotToken(config map[string]interface{}, resolver executor.TemplateResolver) (string, error) {
-	botToken := resolver.ResolveString(getString(config, "botToken"))
+	var botToken string
+	if bindings, ok := resolver.(executor.BindingResolver); ok {
+		botToken, _ = bindings.GetBinding(telegramCredentialKey).(string)
+		botToken = strings.TrimSpace(botToken)
+	}
 	if botToken == "" {
-		if bindings, ok := resolver.(executor.BindingResolver); ok {
-			botToken, _ = bindings.GetBinding(telegramCredentialKey).(string)
-		}
+		botToken = resolver.ResolveString(getString(config, "botToken"))
 	}
 	if botToken == "" {
 		return "", fmt.Errorf("bot token is required")

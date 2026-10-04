@@ -414,7 +414,7 @@ definition:
   - id: oci
     kind: oci
     label: Telegram Skill service image
-    package: axiomstudio/skill-telegram:latest
+    package: axiomstudio/skill-telegram:1.2.2
   name: Telegram Skill
   source:
     format: axiom.skill/v1
@@ -424,7 +424,7 @@ definition:
     publisher: Axiom Studio
     registry: https://github.com/axiom-studio/skills
     reference: skill-telegram
-    resolvedVersion: 1.2.1
+    resolvedVersion: 1.2.2
   tags:
   - bot
   - chat
@@ -433,7 +433,7 @@ definition:
   transport:
     endpoint: skill-telegram
     kind: tool
-  version: 1.2.1
+  version: 1.2.2
   prompt:
     allowedTools:
     - telegram-get-me

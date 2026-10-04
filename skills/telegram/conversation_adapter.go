@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
@@ -25,12 +24,8 @@ const (
 )
 
 type telegramConversationAdapter struct {
-	baseURL             string
-	client              *http.Client
-	identityMu          sync.Mutex
-	identityTokenDigest string
-	identity            telegramUser
-	identityExpires     time.Time
+	baseURL string
+	client  *http.Client
 }
 
 func newTelegramConversationAdapter(baseURL string, client *http.Client) *telegramConversationAdapter {

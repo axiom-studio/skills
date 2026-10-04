@@ -75,7 +75,7 @@ func TestTelegramConversationAdapterManifestContract(t *testing.T) {
 		t.Fatalf("conversation delivery = %#v, transport = %#v", adapter.Delivery, adapter.Transport)
 	}
 	if manifest.Definition.Version != telegramSkillVersion || manifest.Definition.Source.ResolvedVersion != telegramSkillVersion ||
-		len(manifest.Definition.Installers) != 1 || manifest.Definition.Installers[0].Package != "axiomstudio/skill-telegram:latest" {
+		len(manifest.Definition.Installers) != 1 || manifest.Definition.Installers[0].Package != "axiomstudio/skill-telegram:"+telegramSkillVersion {
 		t.Fatalf("version contract = %#v", manifest.Definition)
 	}
 	// The SDK rejects manifests whose adapter lists differ from canonical order.
