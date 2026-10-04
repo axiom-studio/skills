@@ -1,6 +1,6 @@
 # Telegram Skill
 
-Telegram Bot API channel support for OpenSeal agents: direct messages, groups, forum topics and channel posts, with sender/chat context and image/document exchange. Runtime version `1.2.2`; OCI installation reference `axiomstudio/skill-telegram:1.2.2`.
+Telegram Bot API channel support for OpenSeal agents: direct messages, groups, forum topics and channel posts, with sender/chat context and image/document exchange. Runtime version `1.2.3`; OCI installation reference `axiomstudio/skill-telegram:1.2.3`.
 
 ## Connect a bot
 
@@ -49,3 +49,9 @@ Raw network errors, bot-token URLs, private download paths and provider descript
 Run `go test -race ./skills/telegram`. Tests cover signed webhook ingress, bot identity, direct-message continuity, group mentions/replies, forum and direct-message topics, channel sender identity, file-only messages, bounded verified downloads, redirect/token protection, multipart artifacts, successful-phase receipts, rate-limit replay and ambiguous delivery failures.
 
 Reference: [Telegram Bot API](https://core.telegram.org/bots/api), [Bot privacy mode](https://core.telegram.org/bots/features#privacy-mode).
+
+Replies preserve the exact parent message ID (also within topics), quoted text,
+and photo/document descriptors. The host imports quoted files as artifacts on
+the original message so visual questions can receive the actual image. Telegram
+DM history follows the conversation rather than treating each reply ID as a
+separate context; forum topics remain scoped.

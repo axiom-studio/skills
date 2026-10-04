@@ -195,11 +195,11 @@ func normalizeTelegramUpdate(update telegramUpdate, endpoint *telegramConversati
 		if message.ReplyTo.Chat.ID == message.Chat.ID || message.ReplyTo.Chat.ID == 0 {
 			parent := message.ReplyTo
 			parentID, parentName, _, _ := telegramParticipantIdentity(*parent)
-			attrs["replyContext"] = map[string]interface{}{"externalMessageId": chatID + ":" + strconv.FormatInt(parent.MessageID, 10), "externalParticipantId": parentID, "participantDisplayName": parentName, "text": firstTelegramText(*parent), "occurredAt": time.Unix(parent.Date, 0).UTC()}
+			attrs["replyContext"] = map[string]interface{}{"externalMessageId": chatID + ":" + strconv.FormatInt(parent.MessageID, 10), "externalParticipantId": parentID, "participantDisplayName": parentName, "text": firstTelegramText(*parent), "attachments": normalizedTelegramFiles(*parent), "occurredAt": time.Unix(parent.Date, 0).UTC()}
 		}
 	}
 	replyToExternalMessageID := ""
-	if message.ReplyTo != nil && message.ReplyTo.MessageID > 0 && (message.ReplyTo.Chat.ID == 0 || message.ReplyTo.Chat.ID == message.Chat.ID) && message.MessageThreadID == 0 && (message.DirectMessagesTopic == nil || message.DirectMessagesTopic.TopicID == 0) {
+	if message.ReplyTo != nil && message.ReplyTo.MessageID > 0 && (message.ReplyTo.Chat.ID == 0 || message.ReplyTo.Chat.ID == message.Chat.ID) {
 		replyToExternalMessageID = chatID + ":" + strconv.FormatInt(message.ReplyTo.MessageID, 10)
 	}
 	source := &telegramMessageSource{Provider: "telegram", WorkspaceID: botID, ChannelID: chatID, ChannelName: telegramLabel(message.Chat.Title), ChannelType: message.Chat.Type, ThreadID: threadID, MessageID: messageID, ParticipantID: participantID, ParticipantDisplayName: participantName, OccurredAt: occurredAt}
