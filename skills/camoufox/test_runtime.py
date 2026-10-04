@@ -14,6 +14,7 @@ import yaml
 from runtime import (
     ACTIVE_CANCELLATION,
     SNAPSHOT_JS,
+    BrowserActionFailure,
     BrowserOperationTimeout,
     BrowserProcessTree,
     BrowserWorker,
@@ -22,6 +23,7 @@ from runtime import (
     CamoufoxRuntime,
     agent_session_id,
     camoufox_proxy_options,
+    classified_proxy_failure,
     exact_path,
     load_inventory,
     navigation_url,
@@ -29,6 +31,7 @@ from runtime import (
     resolve_proxy,
     run_digest,
     snapshot_element_state,
+    source_retry_after,
 )
 
 
@@ -631,6 +634,82 @@ class RuntimeTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, reason):
                         service.execute("lightpanda-fetch", {"url": result["url"]})
 
+    def test_rate_limit_is_typed_failure_without_page_content_or_browser_fallback(self):
+        service, state = make_runtime()
+        result = {"http_status": 429, "content": "Performing security verification: secret page body",
+                  "headers": {"Retry-After": "30"}, "error": "raw upstream diagnostic"}
+        with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 1, json.dumps(result), "")) as execute:
+            with self.assertRaises(BrowserActionFailure) as caught:
+                service.execute("lightpanda-search", {"query": "current research"})
+        self.assertEqual(execute.call_count, 1)
+        self.assertEqual(caught.exception.code, "source_rate_limited")
+        self.assertEqual(caught.exception.failure_details(), {
+            "failureKind": "source_rate_limited", "httpStatus": "429",
+            "retryAfterSeconds": "30", "retryable": "false",
+        })
+        self.assertIn("Try again after 30 seconds", str(caught.exception))
+        self.assertNotIn("Camoufox", str(caught.exception))
+        self.assertNotIn("secret", str(caught.exception))
+        self.assertNotIn("launch", state)
+        self.assertEqual(service.sessions, {})
+
+    def test_retry_delay_is_optional_bounded_actual_header_metadata(self):
+        now = datetime(2026, 10, 4, 20, 0, tzinfo=timezone.utc)
+        self.assertEqual(source_retry_after({"headers": {"retry-after": "Sun, 04 Oct 2026 20:00:45 GMT"}}, now), 45)
+        for value in [None, "", "-1", "86401", "999999999", "secret", "30\r\nAuthorization: secret", ["30"], True]:
+            with self.subTest(value=value):
+                self.assertIsNone(source_retry_after({"headers": {"Retry-After": value}}, now))
+        self.assertIsNone(source_retry_after({"retry_after": 30, "content": "Retry-After: 30"}, now))
+        self.assertIsNone(source_retry_after({"headers": {"retry-after": "30", "Retry-After": "40"}}, now))
+
+    def test_non_rate_limit_failures_keep_distinct_classification(self):
+        service, _ = make_runtime()
+        for payload, code in [
+            ({"http_status": 403, "content": "Access Denied"}, "source_http_error"),
+            ({"http_status": 407, "content": "Proxy Authentication Required"}, "source_http_error"),
+            ({"http_status": 200, "content": "Performing security verification"}, "source_access_challenge"),
+            ({"http_status": 200, "content": "  "}, "source_empty_response"),
+            ({"http_status": True, "content": "page"}, "source_invalid_response"),
+            ([], "source_invalid_response"),
+        ]:
+            with self.subTest(code=code, payload=payload):
+                with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), "")):
+                    with self.assertRaises(BrowserActionFailure) as caught:
+                        service.execute("lightpanda-fetch", {"url": "https://example.com/"})
+                self.assertEqual(caught.exception.code, code)
+
+    def test_all_rate_limited_batch_is_an_action_failure(self):
+        service, _ = make_runtime()
+        payload = {"http_status": 429, "content": "This is not evidence"}
+        with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), "")):
+            with self.assertRaises(BrowserActionFailure) as caught:
+                service.lightpanda_read_many({"reads": [{"kind": "query", "value": "first"}, {"kind": "query", "value": "second"}]})
+        details = caught.exception.failure_details()
+        self.assertEqual(caught.exception.code, "source_rate_limited")
+        self.assertEqual((details["failedCount"], details["totalCount"]), ("2", "2"))
+        self.assertEqual(json.loads(details["failures"]), [
+            {"index": 0, "failureKind": "source_rate_limited", "httpStatus": 429},
+            {"index": 1, "failureKind": "source_rate_limited", "httpStatus": 429},
+        ])
+        self.assertNotIn("retryAfterSeconds", details)
+        self.assertNotIn("This is not evidence", json.dumps(details))
+
+    def test_all_failed_batch_preserves_distinct_source_causes(self):
+        service, _ = make_runtime()
+        def fetch(command, **_kwargs):
+            payload = {"http_status": 429 if "limited" in command[2] else 403, "content": "not evidence"}
+            return subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+        with mock.patch("runtime.subprocess.run", side_effect=fetch):
+            with self.assertRaises(BrowserActionFailure) as caught:
+                service.lightpanda_read_many({"reads": [
+                    {"kind": "url", "value": "https://example.com/limited"},
+                    {"kind": "url", "value": "https://example.com/denied"},
+                ]})
+        self.assertEqual(caught.exception.code, "source_reads_failed")
+        failures = json.loads(caught.exception.failure_details()["failures"])
+        self.assertEqual([f["failureKind"] for f in failures], ["source_rate_limited", "source_http_error"])
+        self.assertNotIn("httpStatus", caught.exception.failure_details())
+
     def test_lightpanda_read_many_runs_concurrently_and_keeps_partial_results(self):
         service, _ = make_runtime()
         started = threading.Barrier(2)
@@ -652,12 +731,52 @@ class RuntimeTest(unittest.TestCase):
                 {"kind": "url", "value": "https://example.com/blocked"},
             ]}, context={"runId": "run-1", "agentId": "agent-1"})
         self.assertEqual(execute.call_count, 2)
+        self.assertEqual((result["status"], result["succeededCount"], result["failedCount"]), ("partial", 1, 1))
         good, blocked = result["results"]
         self.assertEqual((good["status"], good["httpStatus"], len(good["text"]), good["truncated"]),
                          ("succeeded", 200, 6144, True))
         self.assertEqual((blocked["status"], blocked["kind"]), ("failed", "url"))
         self.assertIn("HTTP 403", blocked["error"])
+        self.assertEqual((blocked["failureKind"], blocked["httpStatus"], blocked["retryable"]), ("source_http_error", 403, False))
         self.assertNotIn("text", blocked)
+
+    def test_known_proxy_failures_are_sanitized_and_do_not_imply_expired_credentials(self):
+        for message, code in [
+            ("HTTP 407 at http://operator:secret@proxy.invalid:9000", "browser_proxy_authentication_failed"),
+            ("NS_ERROR_PROXY_CONNECTION_REFUSED at http://operator:secret@proxy.invalid:9000", "browser_proxy_unavailable"),
+        ]:
+            with self.subTest(code=code):
+                failure = classified_proxy_failure(RuntimeError(message))
+                self.assertEqual(failure.code, code)
+                self.assertNotIn("secret", str(failure))
+                self.assertNotIn("proxy.invalid", str(failure))
+                self.assertNotIn("expired", str(failure))
+        self.assertIsNone(classified_proxy_failure(RuntimeError("page title contains 407 results")))
+
+    def test_proxy_start_failure_releases_lease_without_retry_or_fallback(self):
+        service, state = make_runtime()
+        with mock.patch.object(service, "browser_factory", side_effect=RuntimeError("NS_ERROR_PROXY_CONNECTION_REFUSED")) as factory:
+            with self.assertRaises(BrowserActionFailure) as caught:
+                start_session(service, "failed-proxy", target="forum", path="/community", profile="standard", proxy_pool="pool")
+        self.assertEqual(caught.exception.code, "browser_proxy_unavailable")
+        self.assertEqual(factory.call_count, 1)
+        self.assertEqual(service.sessions, {})
+        lease = os.path.join(state["workspace"], "profiles", "standard", "agents", "failed-proxy", "lease.json")
+        with open(lease) as stream:
+            recorded = json.load(stream)
+        self.assertEqual((recorded["state"], recorded["releaseReason"]), ("released", "launch_failed"))
+
+    def test_existing_session_proxy_failure_uses_same_safe_contract(self):
+        service, _ = make_runtime()
+        started = start_session(service, "ongoing-proxy", target="forum", path="/community", profile="standard", proxy_pool="pool")
+        handle = service.sessions[started["sessionId"]]["handle"]
+        with mock.patch.object(handle, "snapshot", side_effect=RuntimeError("ERR_PROXY_CONNECTION_FAILED http://user:secret@proxy.internal")):
+            with self.assertRaises(BrowserActionFailure) as caught:
+                service.execute("camoufox-snapshot", {"sessionId": started["sessionId"]},
+                                context={"agentId": "ongoing-proxy", "runId": "ongoing-proxy"})
+        self.assertEqual(caught.exception.code, "browser_proxy_unavailable")
+        self.assertNotIn("secret", str(caught.exception))
+        self.assertNotIn("proxy.internal", str(caught.exception))
 
     def test_lightpanda_read_many_validates_every_input_before_starting(self):
         service, _ = make_runtime()

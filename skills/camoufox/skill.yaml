@@ -3,7 +3,7 @@ definition:
     actions:
         lightpanda-fetch:
             name: lightpanda-fetch
-            description: Read a public web page or search-results URL quickly with Lightpanda and return bounded Markdown. HTTP errors, empty pages, and access challenges fail the action; use another source or Camoufox when that happens.
+            description: Read a public web page or search-results URL with Lightpanda and return bounded Markdown. HTTP errors, empty pages, and access challenges are explicit failures. Report HTTP 429 as source rate limiting and suggest trying later or another permitted source; it does not authorize switching browsers.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -27,7 +27,7 @@ definition:
             timeout: 15000000000
         lightpanda-search:
             name: lightpanda-search
-            description: Search the public web with Lightpanda in one lightweight read-only call and return bounded Markdown results. HTTP errors, empty pages, and access challenges fail the action.
+            description: Prefer Lightpanda for public web searches and return bounded Markdown results. Source HTTP 429 is a rate-limit failure, not evidence of bot detection; report it and suggest trying later or another permitted source. Never silently switch to Camoufox.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -51,7 +51,7 @@ definition:
             timeout: 15000000000
         lightpanda-read-many:
             name: lightpanda-read-many
-            description: Run two to four independent public searches or page reads concurrently. Each read has kind query with search text or kind url with an absolute HTTP(S) URL. Each result reports its own success or failure in input order.
+            description: Run two to four independent public searches or page reads concurrently. Preserve each result's success or explicit failure in input order. Mixed results are partial; if every read fails, the action fails with structured per-source failure metadata. Never summarize failed items as inspected pages.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -72,6 +72,9 @@ definition:
                 type: object
                 additionalProperties: false
                 properties:
+                    status: {type: string, enum: [succeeded, partial]}
+                    succeededCount: {type: integer, minimum: 1, maximum: 4}
+                    failedCount: {type: integer, minimum: 0, maximum: 3}
                     results:
                         type: array
                         minItems: 2
@@ -88,8 +91,11 @@ definition:
                                 text: {type: string, maxLength: 6144}
                                 truncated: {type: boolean}
                                 error: {type: string, maxLength: 240}
+                                failureKind: {type: string, enum: [source_rate_limited, source_http_error, source_access_challenge, source_unavailable, source_invalid_response, source_empty_response]}
+                                retryAfterSeconds: {type: integer, minimum: 0, maximum: 86400}
+                                retryable: {type: boolean, enum: [false]}
                             required: [kind, input, status]
-                required: [results]
+                required: [status, succeededCount, failedCount, results]
             permissions: [browser:observe, network:http]
             idempotency: supported
             retry: {maxAttempts: 1}
@@ -107,7 +113,7 @@ definition:
             sideEffect: read
         camoufox-start:
             name: camoufox-start
-            description: Acquire the Agent's persistent Camoufox profile on a fresh Run-owned page against one configured target using opaque profile and egress identities.
+            description: After the host has confirmed the user's explicit choice to use Camoufox for this task, acquire the Agent's persistent profile on a fresh Run-owned page using governed target and egress configuration. The browser choice does not grant login, credential, write, or external-operation authority.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -465,7 +471,7 @@ definition:
             - camoufox-screenshot
             - camoufox-report
             - camoufox-close
-        instructions: Use lightpanda-search for ordinary public web searches and lightpanda-fetch to read resulting public pages. When two to four independent queries or URLs are already known, use lightpanda-read-many so they run concurrently; check each result's status before using its text. These actions return bounded Markdown without a browser session. If a page needs login, interactive navigation, or Lightpanda cannot read it, use Camoufox or another accessible source. Start the durable Camoufox Agent session with an optional authorized relative path; the host derives its isolated Agent identity, target, profile, and egress from governed context. Use the returned sessionId for subsequent actions. Each Run acquires serialized bounded usage of the Agent session. If another Run is using it, wait for release or expiry and retry; do not select another identity. Release usage with camoufox-close when the bounded work ends; the Agent session and authenticated profile remain available for later Runs. Follow ordinary anchors from the current snapshot with camoufox-follow-link; it remains inside the active authorized target and does not require write authority. Use camoufox-navigate with an HTTP(S) URL only when no current link exists, or provide targetId when strict configured origin/path scope is desired. Take a new snapshot after every interaction or navigation. Use camoufox-fill for editable textboxes and fields; filling never submits. After filling, take a fresh snapshot and use camoufox-commit only on the enabled submit or save button for the final approved external operation. Never pass a textbox reference to camoufox-commit. Use camoufox-click only for non-final mutation-capable controls. A third-party access challenge requires human completion; pause automation when one is reported.
+        instructions: Use lightpanda-search for ordinary public web searches and lightpanda-fetch to read resulting public pages. When two to four independent queries or URLs are already known, use lightpanda-read-many so they run concurrently; check each result's status before using its text. These actions return bounded Markdown without a browser session. A source HTTP 429 is an explicit rate-limit failure, not proof of bot detection; tell the user which source could not be read and suggest trying later, honoring any supplied retry delay, or use another permitted source. Never silently switch browsers on a rate limit. If login or an access challenge makes an interactive browser useful, explain the reason and ask whether the user wants to try Camoufox; wait for their explicit yes through the host conversation checkpoint. A no or unclear answer does not authorize Camoufox. This browser-choice confirmation does not replace existing tool, login, credential, write, or external-operation authorization. Start the durable Camoufox Agent session only after the host has verified that choice, with an optional authorized relative path; the host derives its isolated Agent identity, target, profile, and egress from governed context. Use the returned sessionId for subsequent actions. Each Run acquires serialized bounded usage of the Agent session. If another Run is using it, wait for release or expiry and retry; do not select another identity. Release usage with camoufox-close when the bounded work ends; the Agent session and authenticated profile remain available for later Runs. Follow ordinary anchors from the current snapshot with camoufox-follow-link; it remains inside the active authorized target and does not require write authority. Use camoufox-navigate with an HTTP(S) URL only when no current link exists, or provide targetId when strict configured origin/path scope is desired. Take a new snapshot after every interaction or navigation. Use camoufox-fill for editable textboxes and fields; filling never submits. After filling, take a fresh snapshot and use camoufox-commit only on the enabled submit or save button for the final approved external operation. Never pass a textbox reference to camoufox-commit. Use camoufox-click only for non-final mutation-capable controls. A third-party access challenge requires human completion; pause automation when one is reported.
         userInvocable: true
     requirements:
         compute:

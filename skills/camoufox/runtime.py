@@ -24,6 +24,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -96,6 +97,82 @@ WORKER_TIMEOUT_SECONDS = {
 
 class BrowserOperationTimeout(TimeoutError):
     """A browser-engine call exceeded its local action boundary."""
+
+
+class BrowserActionFailure(RuntimeError):
+    """A classified failure with bounded metadata, never an upstream error body."""
+
+    def __init__(self, code, message, *, http_status=None, retry_after_seconds=None,
+                 failures=None):
+        super().__init__(message)
+        self.code = code
+        self.http_status = http_status
+        self.retry_after_seconds = retry_after_seconds
+        self.failures = failures
+
+    def failure_details(self):
+        # The current manifest permits one attempt. A retry hint informs the
+        # user; it does not authorize retries, a different proxy, or Camoufox.
+        details = {"failureKind": self.code, "retryable": "false"}
+        if self.http_status is not None:
+            details["httpStatus"] = str(self.http_status)
+        if self.retry_after_seconds is not None:
+            details["retryAfterSeconds"] = str(self.retry_after_seconds)
+        if self.failures is not None:
+            details.update({"failedCount": str(len(self.failures)),
+                            "totalCount": str(len(self.failures)),
+                            "failures": json.dumps(self.failures, separators=(",", ":"))})
+        return details
+
+
+def source_retry_after(result, now=None):
+    """Use an actual response header when available; never invent a delay."""
+    headers = result.get("headers")
+    if not isinstance(headers, dict):
+        return None
+    values = [v for k, v in headers.items() if isinstance(k, str) and k.lower() == "retry-after"]
+    if len(values) != 1 or not isinstance(values[0], str) or len(values[0]) > 128:
+        return None
+    if "\r" in values[0] or "\n" in values[0]:
+        return None
+    value = values[0].strip()
+    if re.fullmatch(r"[0-9]{1,5}", value):
+        delay = int(value)
+    else:
+        try:
+            date = parsedate_to_datetime(value)
+            if date.tzinfo is None:
+                return None
+            seconds = (date - (now or datetime.now(timezone.utc))).total_seconds()
+            delay = max(0, int(seconds) + (seconds % 1 > 0))
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return delay if 0 <= delay <= 86400 else None
+
+
+def source_http_failure(status, retry_after_seconds=None):
+    if status == 429:
+        advice = (f"Try again after {retry_after_seconds} seconds."
+                  if retry_after_seconds is not None else "Try again later.")
+        return BrowserActionFailure("source_rate_limited",
+                                    f"This source returned HTTP 429 (rate limited). {advice}",
+                                    http_status=429, retry_after_seconds=retry_after_seconds)
+    return BrowserActionFailure("source_http_error", f"This source returned HTTP {status}; the page could not be read.",
+                                http_status=status, retry_after_seconds=retry_after_seconds)
+
+
+def classified_proxy_failure(error):
+    # Match engine error codes, not arbitrary page text or a bare number 407.
+    message = str(error)
+    if re.search(r"\b(?:ERR_PROXY_AUTH_REQUESTED|NS_ERROR_PROXY_AUTHENTICATION_FAILED)\b|"
+                 r"\b(?:HTTP|status(?: code)?)\s*[:=]?\s*407\b", message, re.I):
+        return BrowserActionFailure("browser_proxy_authentication_failed",
+                                    "The configured browser connection could not authenticate. The platform must repair this connection before retrying.",
+                                    http_status=407)
+    if re.search(r"\b(?:NS_ERROR_PROXY_CONNECTION_REFUSED|ERR_PROXY_CONNECTION_FAILED|ERR_TUNNEL_CONNECTION_FAILED)\b", message):
+        return BrowserActionFailure("browser_proxy_unavailable",
+                                    "The configured browser connection is unavailable. The platform must check this connection before retrying.")
+    return None
 
 
 ACTIVE_CANCELLATION = contextvars.ContextVar("camoufox_active_cancellation", default=None)
@@ -1152,6 +1229,15 @@ class CamoufoxRuntime:
                 session["terminal_error"] = str(exc)
                 self._release_session(session, "operation_timeout")
             raise
+        except (BrowserActionFailure, TypeError, ValueError):
+            raise
+        except Exception as exc:
+            # Reused sessions and later navigations use the same dependency
+            # classification as startup, without exposing engine diagnostics.
+            classified = classified_proxy_failure(exc)
+            if classified is not None:
+                raise classified from exc
+            raise
         finally:
             ACTIVE_CANCELLATION.reset(cancellation_token)
 
@@ -1168,25 +1254,29 @@ class CamoufoxRuntime:
         try:
             completed = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
         except FileNotFoundError as exc:
-            raise RuntimeError("Lightpanda browser is not installed") from exc
+            raise BrowserActionFailure("source_unavailable", "The page reader is unavailable. The platform must restore it before retrying.") from exc
         except subprocess.TimeoutExpired as exc:
-            raise BrowserOperationTimeout("Lightpanda page read timed out") from exc
+            raise BrowserActionFailure("source_unavailable", "The source did not respond before the page read timed out. Try again later.") from exc
         try:
             result = json.loads(completed.stdout)
         except (json.JSONDecodeError, TypeError) as exc:
-            raise RuntimeError("Lightpanda did not return a valid page result") from exc
-        if completed.returncode != 0 or result.get("error"):
-            raise RuntimeError("Lightpanda could not read this page")
+            raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid page result.") from exc
+        if not isinstance(result, dict):
+            raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid page result.")
         status = result.get("http_status")
-        if status != 200:
-            raise RuntimeError(f"Lightpanda page read returned HTTP {status}; try another source or Camoufox")
+        if type(status) is int and 100 <= status <= 599 and status != 200:
+            raise source_http_failure(status, source_retry_after(result))
+        if completed.returncode != 0 or result.get("error"):
+            raise BrowserActionFailure("source_unavailable", "The source could not be reached for this page read. Try again later.")
+        if status != 200 or type(status) is not int:
+            raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid HTTP status.")
         content = result.get("content")
         if not isinstance(content, str):
-            raise RuntimeError("Lightpanda returned no page content")
+            raise BrowserActionFailure("source_invalid_response", "The page reader returned no page content.")
         if not content.strip():
-            raise RuntimeError("Lightpanda returned an empty page; try another source or Camoufox")
+            raise BrowserActionFailure("source_empty_response", "This source returned an empty page. Try another permitted source.")
         if len(content) < 1024 and CHALLENGES["anti_bot"].search(content):
-            raise RuntimeError("Lightpanda received an access challenge; try another source or Camoufox")
+            raise BrowserActionFailure("source_access_challenge", "This source returned an access challenge instead of readable page content.", http_status=200)
         return {
             "url": navigation_url(result.get("url", url)),
             "httpStatus": status,
@@ -1220,8 +1310,14 @@ class CamoufoxRuntime:
             kind, value = item
             try:
                 page = self.lightpanda_fetch({"url": value}) if kind == "url" else self.lightpanda_search({"query": value})
-            except (RuntimeError, BrowserOperationTimeout) as exc:
-                return {"kind": kind, "input": value, "status": "failed", "error": str(exc)[:240]}
+            except BrowserActionFailure as exc:
+                failure = {"kind": kind, "input": value, "status": "failed", "error": str(exc)[:240],
+                           "failureKind": exc.code, "retryable": False}
+                if exc.http_status is not None:
+                    failure["httpStatus"] = exc.http_status
+                if exc.retry_after_seconds is not None:
+                    failure["retryAfterSeconds"] = exc.retry_after_seconds
+                return failure
             text = page["text"]
             return {
                 "kind": kind, "input": value, "status": "succeeded", "url": page["url"],
@@ -1231,7 +1327,21 @@ class CamoufoxRuntime:
 
         with ThreadPoolExecutor(max_workers=len(normalized)) as workers:
             results = list(workers.map(read, normalized))
-        return {"results": results}
+        failed = [result for result in results if result["status"] == "failed"]
+        if len(failed) == len(results):
+            failures = [{"index": index, **{k: v for k, v in result.items()
+                         if k in ("failureKind", "httpStatus", "retryAfterSeconds")}}
+                        for index, result in enumerate(results)]
+            if all(result["failureKind"] == "source_rate_limited" for result in failed):
+                delays = [result["retryAfterSeconds"] for result in failed if "retryAfterSeconds" in result]
+                failure = source_http_failure(429, max(delays) if len(delays) == len(failed) else None)
+                failure.failures = failures
+                raise failure
+            raise BrowserActionFailure("source_reads_failed",
+                                       "None of the requested pages could be read. Review the individual source failures and try later or use other permitted sources.",
+                                       failures=failures)
+        return {"status": "partial" if failed else "succeeded", "succeededCount": len(results) - len(failed),
+                "failedCount": len(failed), "results": results}
 
     def health(self):
         if not self.inventory:
@@ -1511,7 +1621,7 @@ class CamoufoxRuntime:
                 }
             )
             navigation = handle.goto(destination, timeout_ms=30000)
-        except Exception:
+        except Exception as exc:
             if handle is not None:
                 try:
                     handle.close()
@@ -1530,6 +1640,9 @@ class CamoufoxRuntime:
             finally:
                 fcntl.flock(lease_fd, fcntl.LOCK_UN)
                 os.close(lease_fd)
+            classified = classified_proxy_failure(exc)
+            if classified is not None:
+                raise classified from exc
             raise
         self.sessions[session_id] = {
             "id": session_id,
