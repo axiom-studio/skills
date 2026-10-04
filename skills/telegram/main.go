@@ -20,7 +20,7 @@ import (
 
 const (
 	iconTelegram          = "send"
-	telegramSkillVersion  = "1.2.2"
+	telegramSkillVersion  = "1.2.3"
 	telegramCredentialKey = "telegram_bot"
 )
 

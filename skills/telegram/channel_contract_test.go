@@ -381,7 +381,7 @@ func TestTelegramOrdinaryReplySourceAndCanonicalParentAreDistinct(t *testing.T) 
 	}
 	message.MessageThreadID = 77
 	event, _ = normalizeTelegramUpdate(telegramUpdate{UpdateID: 2, Message: message}, &telegramConversationEndpoint{Provider: "telegram", Address: "99"})
-	if event.ReplyToExternalMessageID != "" || event.ExternalThreadID != "topic:77" {
+	if event.ReplyToExternalMessageID != "99:7" || event.ExternalThreadID != "topic:77" {
 		t.Fatal(event)
 	}
 }
@@ -413,5 +413,36 @@ func TestTelegramQuotedAnonymousSenderAndCrossChatParent(t *testing.T) {
 	event, _ = normalizeTelegramUpdate(telegramUpdate{UpdateID: 2, Message: message}, &telegramConversationEndpoint{Provider: "telegram", Address: "*"})
 	if event.ReplyToExternalMessageID != "" || event.Attributes["replyContext"] != nil || event.ExternalThreadID != "reply:8" {
 		t.Fatal(event)
+	}
+}
+
+func TestTelegramReplyCarriesCaptionlessPhotoContext(t *testing.T) {
+	endpoint := &telegramConversationEndpoint{Provider: "telegram", Address: "99"}
+	message := telegramMessage{MessageID: 8, Date: 1700000001, Text: "What does this look like?", From: telegramUser{ID: 99}, Chat: telegramChat{ID: 99, Type: "private"},
+		ReplyTo: &telegramMessage{MessageID: 7, Date: 1700000000, From: telegramUser{ID: 99, FirstName: "Kev"}, Photo: []telegramMedia{{FileID: "photo", Width: 100, Height: 100, FileSize: 42}}}}
+	event, ok := normalizeTelegramUpdate(telegramUpdate{UpdateID: 1, Message: message}, endpoint)
+	if !ok || len(event.Attachments) != 0 || event.ReplyToExternalMessageID != "99:7" {
+		t.Fatal(event)
+	}
+	result := telegramReadContext(&telegramAdapterRequest{Endpoint: endpoint, Event: &event})
+	data, _ := json.Marshal(result)
+	var context struct {
+		Messages []struct {
+			ExternalMessageID string                     `json:"externalMessageId"`
+			Text              string                     `json:"text"`
+			Attachments       []telegramConversationFile `json:"attachments"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(data, &context); err != nil || len(context.Messages) != 1 {
+		t.Fatal(string(data), err)
+	}
+	parent := context.Messages[0]
+	if parent.ExternalMessageID != "99:7" || parent.Text != "" || len(parent.Attachments) != 1 || parent.Attachments[0].ID != "photo" || parent.Attachments[0].MediaType != "image/jpeg" {
+		t.Fatal(parent)
+	}
+	message.ReplyTo.Chat.ID = 100
+	event, _ = normalizeTelegramUpdate(telegramUpdate{UpdateID: 2, Message: message}, endpoint)
+	if event.Attributes["replyContext"] != nil || event.ReplyToExternalMessageID != "" {
+		t.Fatal("foreign parent accepted")
 	}
 }
