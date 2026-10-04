@@ -10,7 +10,7 @@ import yaml
 
 import skill_pb2
 import skill_pb2_grpc
-from runtime import VERSION, CamoufoxRuntime, load_inventory
+from runtime import VERSION, BrowserActionFailure, CamoufoxRuntime, load_inventory
 
 SKILL_ID = "skill-browser"
 ACTIONS = [
@@ -95,6 +95,11 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
         try:
             result = self.runtime.execute(request.node_type, decode(request.config), bindings, execution_context)
             return skill_pb2.ExecuteResponse(output=encode_output(result))
+        except BrowserActionFailure as exc:
+            return skill_pb2.ExecuteResponse(
+                error=skill_pb2.Error(message=redact_error(exc, bindings), type=exc.code,
+                                      details=exc.failure_details())
+            )
         except Exception as exc:
             error_type = "validation" if isinstance(exc, (TypeError, ValueError)) else "execution"
             return skill_pb2.ExecuteResponse(
