@@ -450,7 +450,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda and Camoufox
-          package: axiomstudio/skill-browser:2.0.49
+          package: axiomstudio/skill-browser:2.0.50
     name: Browser Skill
     prompt:
         allowedTools:
@@ -491,10 +491,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 2.0.49
+        resolvedVersion: 2.0.50
     tags: [browser, lightpanda, camoufox, firefox, research]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 2.0.49
+    version: 2.0.50
 kind: SkillDefinition

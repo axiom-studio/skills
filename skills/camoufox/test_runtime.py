@@ -554,7 +554,7 @@ class RuntimeTest(unittest.TestCase):
         manifest_path = os.path.join(os.path.dirname(__file__), "skill.yaml")
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
-        self.assertEqual(definition["version"], "2.0.49")
+        self.assertEqual(definition["version"], "2.0.50")
         actions = definition["actions"]
         self.assertGreaterEqual(
             actions["camoufox-start"]["timeout"],
