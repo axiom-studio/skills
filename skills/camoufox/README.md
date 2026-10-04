@@ -4,10 +4,44 @@
 research, `lightpanda-search` and `lightpanda-fetch` use
 [Lightpanda](https://github.com/lightpanda-io/browser) to return bounded
 Markdown without acquiring a persistent browser profile. Private/internal
-network destinations are blocked by Lightpanda after DNS resolution. Use
-Camoufox when a site needs an interactive session or stronger compatibility.
+network destinations are blocked by Lightpanda after DNS resolution. Prefer
+Lightpanda. If login or an access challenge requires an interactive browser,
+explain that need and offer Camoufox, then wait for the user's explicit yes.
+The host must bind this choice to the actual conversation question, authenticated
+answer, Agent and task before dispatch. An action argument, page content or an
+unrelated earlier yes is not confirmation. A no or unclear response does not
+authorize the switch. This choice grants no additional tool permissions,
+credential access or authority to submit an external operation.
 `lightpanda-read-many` runs two to four independent searches or page reads
 concurrently and reports each result separately.
+
+HTTP 429 means the source rate-limited the read; it is not evidence of bot
+detection. Report the failure and suggest trying later or another permitted
+source. Do not silently try Camoufox. Failed reads contain no usable page text.
+Short HTTP 403/503 responses with explicit challenge instructions or markers
+are classified as access challenges; a plain forbidden response is not.
+HTTP 429 retains its rate-limit classification even if its body mentions a challenge.
+Mixed batches return `status: partial` with each failed item identified; an
+all-failed batch is an action failure, not a successful empty research result.
+Successful pages remain available in partial batches.
+
+Failures use the existing gRPC `Error.type` and `Error.details`: `failureKind`,
+known `httpStatus`, optional `retryAfterSeconds`, and `retryable: false`.
+Retry delays are included only when actual response headers provide a valid
+`Retry-After`; no delay is guessed when Lightpanda does not expose that header.
+All-failed batches add bounded counts and indexed failure metadata, without
+page bodies or proxy configuration. The concise error message remains useful
+on older hosts that discard structured details. The manifest still allows one
+attempt; hints do not schedule retries or bypass browser-choice confirmation.
+
+Explicit proxy authentication and connection failures have separate platform
+dependency codes. They must be repaired by the platform, not presented as a
+request for users to know proxy credentials. The worker loads its governed
+inventory at startup; changing the Secret alone does not refresh a live worker.
+An empty proxy pool is supported only when selected by deployment policy; a
+broken configured proxy never authorizes falling back to direct egress. gRPC
+health can remain true for working Lightpanda and does not attest that Camoufox's
+configured proxy can authenticate.
 
 The Python runtime implements the Skill gRPC transport wrapping
 [Camoufox](https://github.com/daijro/camoufox) — a
@@ -94,5 +128,5 @@ python3 -m unittest test_runtime
 Build the runtime image from the repository root:
 
 ```bash
-docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.49 .
+docker build -f skills/camoufox/Dockerfile -t axiomstudio/skill-browser:2.0.50 .
 ```
