@@ -300,9 +300,9 @@ type slackApprovalValue struct {
 func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	envelope, err := decodeAdapterEnvelope(config)
 	if err != nil || envelope.Request == nil ||
-		(envelope.Operation != "ingress" && envelope.Operation != "gateway_ingress") ||
+		(envelope.Operation != "ingress" && envelope.Operation != "gateway_ingress" && envelope.Operation != "gateway_verification") ||
 		(envelope.Operation == "ingress" && envelope.Endpoint == nil) ||
-		(envelope.Operation == "gateway_ingress" && envelope.Gateway == nil) {
+		((envelope.Operation == "gateway_ingress" || envelope.Operation == "gateway_verification") && envelope.Gateway == nil) {
 		return nil, errors.New("Slack ingress request is invalid")
 	}
 	signingSecret := a.signingSecret
@@ -316,6 +316,9 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 		}, nil
 	}
 	if strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
+		if envelope.Operation == "gateway_verification" {
+			return map[string]interface{}{"statusCode": http.StatusBadRequest, "events": []interface{}{}}, nil
+		}
 		return normalizeSlackInteraction(envelope)
 	}
 	var payload slackEventsEnvelope
@@ -325,6 +328,11 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 			"body": []byte("invalid Slack event"),
 		}, nil
 	}
+	// Hosts may permit signed URL setup while a conversation is paused. This
+	// operation must never acknowledge or normalize a message or interaction.
+	if envelope.Operation == "gateway_verification" && payload.Type != "url_verification" {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest, "events": []interface{}{}}, nil
+	}
 	if payload.Type == "url_verification" {
 		if strings.TrimSpace(payload.Challenge) == "" {
 			return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -332,6 +340,7 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 		body, _ := json.Marshal(map[string]string{"challenge": payload.Challenge})
 		return map[string]interface{}{
 			"statusCode": http.StatusOK, "contentType": "application/json", "body": string(body),
+			"events": []interface{}{},
 		}, nil
 	}
 	if payload.Type != "event_callback" || strings.TrimSpace(payload.EventID) == "" {

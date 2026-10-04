@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 	"github.com/axiom-studio/skills.sdk/resolver"
@@ -39,19 +38,13 @@ func (e *GetMeExecutor) Execute(ctx context.Context, step *executor.StepDefiniti
 	return &executor.StepResult{Output: map[string]interface{}{"success": true, "bot": bot, "botId": id, "botUsername": bot.Username, "items": []interface{}{}, "nextCursor": "", "connection": map[string]interface{}{"installationId": id, "applicationId": id, "displayName": name}}}, nil
 }
 func (a *telegramConversationAdapter) getTelegramIdentity(ctx context.Context, token string) (telegramUser, error) {
-	a.identityMu.Lock()
-	defer a.identityMu.Unlock()
-	digest := telegramDigest([]byte(token))
-	if a.identityTokenDigest == digest && time.Now().Before(a.identityExpires) {
-		return a.identity, nil
-	}
+	// A shared worker verifies the supplied credential for this invocation.
+	// Keeping identity request-local avoids serializing unrelated accounts
+	// behind a provider request or retaining a previous account's identity.
 	response, status, err := a.telegramJSON(ctx, token, "getMe", map[string]interface{}{})
 	var bot telegramUser
 	if err != nil || status != 200 || !response.OK || json.Unmarshal(response.Result, &bot) != nil || !bot.IsBot || bot.ID < 1 || strconv.FormatInt(bot.ID, 10) != telegramBotID(token) || telegramLabel(bot.Username) == "" {
 		return telegramUser{}, errors.New("Telegram bot identity could not be verified")
 	}
-	a.identity = bot
-	a.identityTokenDigest = digest
-	a.identityExpires = time.Now().Add(5 * time.Minute)
 	return bot, nil
 }

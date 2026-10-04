@@ -36,22 +36,34 @@ or product UI.
 
 1. Create a Slack app with the scopes required by the selected actions and
    install it to the workspace.
-2. Store the app token, bot token, and signing secret as fields of the same
-   Slack Vault credential. They are bound opaquely as `slack_app_token`,
-   `slack_bot_token`, and `slack_signing_secret`; none is an action input.
-3. Enable Socket Mode on the Slack app. No public Interactivity Request URL is
-   required for the managed connection.
+2. Store the bot token and signing secret as fields of the same Slack Vault
+   credential. They are bound opaquely as `slack_bot_token` and
+   `slack_signing_secret`; neither is an action input.
+3. For HTTP delivery, configure Slack Event Subscriptions with the connection's
+   public event URL and Interactivity with its public interaction URL. Use the
+   `interactions_http` callback adapter for signed approval interactions. This
+   adapter uses the existing `slack.callback.ingress` verifier and requires no
+   app token or persistent socket connector.
 4. Select an authorized channel by name during Agent or Team authoring. The
    Skill persists the exact channel ID and continues pagination using Slack's
    opaque cursor.
 5. For interactive approvals, create an OpenSeal callback registration for the
-   `interactions` adapter, map eligible Slack user IDs to approval principals,
-   and subscribe `approval.decided` to the `approvals` consumer. Bind a
-   `slack_app_token`; the host pools one isolated connector for registrations
-   sharing that exact opaque app credential and routes each approval to its
-   subscribed Agent endpoint. Legacy HTTP-mode apps may still use the
-   registration's public callback URL. Registrations begin paused and activate
-   only after the exact Skill binding and credentials have been reviewed.
+   selected callback adapter, map eligible Slack user IDs to approval principals,
+   and subscribe `approval.decided` to the `approvals` consumer. Registrations
+   begin paused and activate only after the exact Skill binding and credentials
+   have been reviewed.
+
+Existing Socket Mode connections keep the `interactions` adapter. Enable Socket
+Mode on the Slack app and add its `slack_app_token` to the same Vault credential.
+The host pools one isolated connector for registrations sharing that exact app
+credential and routes approvals to their subscribed Agent endpoints. Switching
+to HTTP requires choosing `interactions_http` and configuring both public URLs;
+existing Socket Mode registrations are not converted automatically.
+
+Hosts can use the `gateway_verification` conversation ingress operation during
+paused HTTP setup. It verifies the usual Slack signature and timestamp, answers
+only JSON URL verification challenges, and emits no conversation events. Message
+and interaction requests are rejected until the host enables ordinary ingress.
 
 ## Thread context and search
 
