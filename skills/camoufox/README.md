@@ -18,6 +18,9 @@ concurrently and reports each result separately.
 HTTP 429 means the source rate-limited the read; it is not evidence of bot
 detection. Report the failure and suggest trying later or another permitted
 source. Do not silently try Camoufox. Failed reads contain no usable page text.
+Short HTTP 403/503 responses with explicit challenge instructions or markers
+are classified as access challenges; a plain forbidden response is not.
+HTTP 429 retains its rate-limit classification even if its body mentions a challenge.
 Mixed batches return `status: partial` with each failed item identified; an
 all-failed batch is an action failure, not a successful empty research result.
 Successful pages remain available in partial batches.

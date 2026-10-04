@@ -161,6 +161,22 @@ def source_http_failure(status, retry_after_seconds=None):
                                 http_status=status, retry_after_seconds=retry_after_seconds)
 
 
+def source_has_access_challenge(status, content):
+    if not isinstance(content, str) or len(content) >= 1024:
+        return False
+    if status == 200:
+        return bool(CHALLENGES["anti_bot"].search(content))
+    if status not in (403, 503):
+        return False
+    # A bare forbidden/access-denied page is not evidence of bot detection.
+    # Error-status pages need an explicit challenge instruction or marker.
+    return bool(re.search(
+        r"\b(bot detection|security check|js_challenge|checking your browser|"
+        r"performing security verification|cloudflare ray id)\b|"
+        r"(?:/cdn-cgi/challenge-platform/|cf-chl-)", content, re.I
+    ) or CHALLENGES["captcha"].search(content))
+
+
 def classified_proxy_failure(error):
     # Match engine error codes, not arbitrary page text or a bare number 407.
     message = str(error)
@@ -1264,6 +1280,14 @@ class CamoufoxRuntime:
         if not isinstance(result, dict):
             raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid page result.")
         status = result.get("http_status")
+        # Rate limiting remains its own failure even if its response body
+        # mentions challenges. Never derive a browser switch from HTTP 429.
+        if type(status) is int and status == 429:
+            raise source_http_failure(status, source_retry_after(result))
+        if type(status) is int and source_has_access_challenge(status, result.get("content")):
+            raise BrowserActionFailure("source_access_challenge",
+                                       f"This source returned an access challenge (HTTP {status}) instead of readable page content.",
+                                       http_status=status)
         if type(status) is int and 100 <= status <= 599 and status != 200:
             raise source_http_failure(status, source_retry_after(result))
         if completed.returncode != 0 or result.get("error"):
@@ -1275,8 +1299,6 @@ class CamoufoxRuntime:
             raise BrowserActionFailure("source_invalid_response", "The page reader returned no page content.")
         if not content.strip():
             raise BrowserActionFailure("source_empty_response", "This source returned an empty page. Try another permitted source.")
-        if len(content) < 1024 and CHALLENGES["anti_bot"].search(content):
-            raise BrowserActionFailure("source_access_challenge", "This source returned an access challenge instead of readable page content.", http_status=200)
         return {
             "url": navigation_url(result.get("url", url)),
             "httpStatus": status,

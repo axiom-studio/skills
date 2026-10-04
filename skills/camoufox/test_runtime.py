@@ -666,6 +666,10 @@ class RuntimeTest(unittest.TestCase):
         service, _ = make_runtime()
         for payload, code in [
             ({"http_status": 403, "content": "Access Denied"}, "source_http_error"),
+            ({"http_status": 403, "content": "Forbidden: authentication required"}, "source_http_error"),
+            ({"http_status": 403, "content": "Checking your browser; private-page-value"}, "source_access_challenge"),
+            ({"http_status": 503, "content": "Performing security verification"}, "source_access_challenge"),
+            ({"http_status": 503, "content": "Service temporarily unavailable"}, "source_http_error"),
             ({"http_status": 407, "content": "Proxy Authentication Required"}, "source_http_error"),
             ({"http_status": 200, "content": "Performing security verification"}, "source_access_challenge"),
             ({"http_status": 200, "content": "  "}, "source_empty_response"),
@@ -677,6 +681,17 @@ class RuntimeTest(unittest.TestCase):
                     with self.assertRaises(BrowserActionFailure) as caught:
                         service.execute("lightpanda-fetch", {"url": "https://example.com/"})
                 self.assertEqual(caught.exception.code, code)
+                self.assertNotIn("content", caught.exception.failure_details())
+                self.assertNotIn("private-page-value", str(caught.exception))
+                self.assertNotIn("private-page-value", json.dumps(caught.exception.failure_details()))
+
+    def test_error_status_challenge_detection_does_not_scan_article_sized_bodies(self):
+        service, _ = make_runtime()
+        payload = {"http_status": 403, "content": "Checking your browser " + "a" * 1024}
+        with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), "")):
+            with self.assertRaises(BrowserActionFailure) as caught:
+                service.execute("lightpanda-fetch", {"url": "https://example.com/"})
+        self.assertEqual(caught.exception.code, "source_http_error")
 
     def test_all_rate_limited_batch_is_an_action_failure(self):
         service, _ = make_runtime()
