@@ -555,6 +555,7 @@ class RuntimeTest(unittest.TestCase):
         with open(manifest_path, "r", encoding="utf-8") as stream:
             definition = yaml.safe_load(stream)["definition"]
         self.assertEqual(definition["version"], "2.0.50")
+        self.assertEqual(definition["source"]["identity"], "https://github.com/axiom-studio/skills::skill-browser")
         actions = definition["actions"]
         self.assertGreaterEqual(
             actions["camoufox-start"]["timeout"],

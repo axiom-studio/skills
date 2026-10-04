@@ -487,6 +487,7 @@ definition:
               writableGroup: 1000
     source:
         format: axiom.skill/v1
+        identity: https://github.com/axiom-studio/skills::skill-browser
         homepage: https://github.com/daijro/camoufox
         license: MIT
         publisher: Axiom Studio
