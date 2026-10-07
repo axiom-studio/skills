@@ -7,7 +7,16 @@
 //
 //   cookies: key (domain, path, name)  storage: key (origin, key)  (localStorage)
 //
+// First-party only: a session saves cookies and localStorage only for the
+// sites (registrable domains, eTLD+1) its pages navigated to at top level.
+// Third-party (ad and tracking) cookies set while visiting those pages are
+// never saved. Cortex keeps the list of first-party sites ("sites"); a stored
+// entry whose site is in neither that list nor this session's visits predates
+// first-party capture and is deleted (tombstoned) on the next save.
+//
 // Never log cookie or storage values, or keys.
+
+import { getDomain, getHostname } from 'tldts';
 
 export const PROFILE_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_ENTRIES = 20000;
@@ -17,6 +26,22 @@ const SAME_SITE = new Set(['Strict', 'Lax', 'None']);
 
 const cookieKey = c => `c\t${c.domain}\t${c.path}\t${c.name}`;
 const storageKey = s => `s\t${s.origin}\t${s.key}`;
+const MAX_SITES = 500;
+
+// Registrable domain (eTLD+1, private suffixes included, as browsers define a
+// "site"); the host itself for IP addresses and single-label hosts.
+export function siteOf(value) {
+  if (typeof value !== 'string' || !value) return undefined;
+  let host;
+  if (/^https?:\/\//i.test(value)) {
+    try { host = new URL(value).hostname; } catch { return undefined; }
+  } else host = getHostname(value.replace(/^\./, ''));
+  host = host?.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  if (!host) return undefined;
+  return getDomain(host, { allowPrivateDomains: true }) ?? host;
+}
+
+export const entrySite = entry => siteOf(entry.kind === 'cookie' ? entry.domain : entry.origin);
 
 function originOf(value) {
   try {
@@ -107,6 +132,9 @@ const SEED_SCRIPT = `(data) => {
 
 export class BrowserProfileStore {
   #api; #session; #grant; #loaded = new Map(); #state = 'new'; #origins = []; #saving; #now; #disabled;
+  // Sites this session navigated to at top level; first-party sites Cortex
+  // already holds (undefined: a profile saved before first-party capture).
+  #visited = new Set(); #sites;
 
   constructor({ api, session, now = Date.now }) {
     if (!api?.profileGrant || !session?.sessionId || !session.grant) throw new Error('Browser profile store is unavailable');
@@ -116,6 +144,28 @@ export class BrowserProfileStore {
   }
 
   get status() { return { state: this.#state, origins: this.#origins }; }
+
+  get visitedSites() { return [...this.#visited].sort(); }
+
+  // Records a top-level navigation (agent or human, including sign-in
+  // redirects and popups). Only http(s) pages count.
+  visit(url) {
+    if (typeof url !== 'string' || !/^https?:/i.test(url) || this.#visited.size >= MAX_SITES) return;
+    const site = siteOf(url);
+    if (site) this.#visited.add(site);
+  }
+
+  // Watches every page of the context for main-frame navigations.
+  track(context) {
+    const watch = page => {
+      try { this.visit(page.url()); } catch { /* not navigated yet */ }
+      page.on?.('framenavigated', frame => {
+        try { if (frame === page.mainFrame()) this.visit(frame.url()); } catch { /* page closed */ }
+      });
+    };
+    for (const page of context.pages?.() ?? []) watch(page);
+    context.on?.('page', watch);
+  }
 
   async #profileGrant() {
     if (!this.#grant || Date.parse(this.#grant.expiresAt) - this.#now() < 30000) {
@@ -129,7 +179,9 @@ export class BrowserProfileStore {
   // Loads the latest shared state into a fresh browser context.
   async load(context) {
     const grant = await this.#profileGrant();
-    const entries = profileFromCortex(await this.#api.loadProfile(this.#session, grant));
+    const profile = await this.#api.loadProfile(this.#session, grant);
+    const entries = profileFromCortex(profile);
+    this.#sites = Array.isArray(profile?.sites) ? new Set(profile.sites.map(siteOf).filter(Boolean)) : undefined;
     const nowSeconds = this.#now() / 1000;
     const cookies = [];
     const storage = {};
@@ -149,12 +201,21 @@ export class BrowserProfileStore {
     if (this.#disabled) return this.status;
     this.#saving = (this.#saving ?? Promise.resolve()).catch(() => {}).then(async () => {
       if (this.#disabled) return;
-      const current = profileFromStorageState(await context.storageState());
-      const changes = profileChanges(this.#loaded, current, this.#now());
-      if (!changes.cookies.length && !changes.storage.length) return;
+      const visited = new Set(this.#visited);
+      const known = new Set([...(this.#sites ?? []), ...visited]);
+      // Only this session's first-party state is current. Saved entries for
+      // other known first-party sites are left alone; saved entries for any
+      // other site are third-party leftovers and are tombstoned.
+      const current = new Map([...profileFromStorageState(await context.storageState())].filter(([, entry]) => visited.has(entrySite(entry))));
+      const untouched = new Map([...this.#loaded].filter(([, entry]) => !visited.has(entrySite(entry)) && known.has(entrySite(entry))));
+      const base = new Map([...this.#loaded].filter(([key]) => !untouched.has(key)));
+      const changes = profileChanges(base, current, this.#now());
+      const sites = [...visited].filter(site => !this.#sites?.has(site)).sort();
+      if (!changes.cookies.length && !changes.storage.length && !sites.length) return;
       try {
-        const { origins } = await this.#api.saveProfileChanges(this.#session, await this.#profileGrant(), changes);
-        this.#loaded = current;
+        const { origins } = await this.#api.saveProfileChanges(this.#session, await this.#profileGrant(), { ...changes, sites });
+        this.#loaded = new Map([...untouched, ...current]);
+        this.#sites = known;
         this.#state = 'shared';
         this.#origins = origins;
       } catch (error) {
