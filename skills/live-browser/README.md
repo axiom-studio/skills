@@ -15,7 +15,7 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 | `live-browser-navigate {sessionId, url, intent?}` | read | |
 | `live-browser-snapshot {sessionId, includeScreenshot?, intent?}` | read | Text plus elements with generation-scoped refs `sN:eM` (same shape as the old `camoufox-snapshot`). |
 | `live-browser-click {sessionId, target \| generation+x+y, intent}` | write | |
-| `live-browser-fill {sessionId, target, value, intent}` | write | Refuses password, payment and identity fields; the model must hand off. |
+| `live-browser-fill {sessionId, target, value, intent}` | write | Works on inputs, textareas and contenteditable rich-text editors (click to focus, then type). Password, payment and identity fields are not filled; the model must hand off. |
 | `live-browser-select {sessionId, target, value, intent}` | write | |
 | `live-browser-scroll {sessionId, dx?, dy?}` | read | |
 | `live-browser-screenshot {sessionId, fullPage?}` | read | |
@@ -28,6 +28,13 @@ While a human holds control, model actions wait (bounded) and return
 `status: paused_by_user` without acting; if the user is still in control the
 result has `requiresHuman: true` so the run waits for hand-back. CAPTCHA,
 bot-check and verification-code pages trigger an automatic handoff.
+
+An element the model cannot use (hidden or collapsed, covered by an overlay,
+stale reference, not editable, option missing, timed out waiting for it)
+returns a successful result `{status: "not_actionable", reason, hint, url,
+title, browserStatus}` and changes nothing, so the agent can expand, scroll or
+re-snapshot instead of failing the run. Browser faults (closed page or
+context, crash) and session or permission failures remain errors.
 
 Joining a video call is an ordinary task described in the Skill instructions
 (navigate, type the display name, Ask to join, wait for admission, listen);
@@ -45,7 +52,11 @@ there is no site-specific code.
   `http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/`) for
   transcription and speech. `LIVE_BROWSER_MAX_SESSIONS` (default 4).
 - Stateless: no volume. Shared sign-ins are loaded on start and merged back on
-  hand-back, close and every five minutes.
+  hand-back, close and every five minutes. Only first-party state is saved:
+  cookies and localStorage of sites (eTLD+1) the browser navigated to at top
+  level in that session. Third-party (ad and tracking) cookies are never
+  saved, and stored entries for sites outside Cortex's first-party site list
+  (left from before this rule) are tombstoned on the next save.
 
 Never log page content, typed values, cookies, storage, tokens or audio.
 
@@ -58,5 +69,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.3 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.5 .
 ```

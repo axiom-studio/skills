@@ -17,7 +17,8 @@
     "@grpc/grpc-js": "1.14.5",
     "@grpc/proto-loader": "0.8.0",
     "camoufox-js": "0.12.0",
-    "playwright-core": "1.59.1"
+    "playwright-core": "1.59.1",
+    "tldts": "7.4.16"
   },
   "engines": {
     "node": ">=22"

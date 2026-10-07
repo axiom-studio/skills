@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.3
+  version: 1.0.5
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.3
+    resolvedVersion: 1.0.5
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.3
+      package: axiomstudio/skill-live-browser:1.0.5
   requirements:
     operatingSystems: [linux]
     compute:
@@ -60,6 +60,12 @@ definition:
       references (sN:eM) for click, fill and select, and take a new snapshot
       after every navigation or interaction; references from older snapshots
       are rejected.
+      A status of not_actionable means the element could not be used (hidden,
+      collapsed, covered, stale, not editable or timed out) and nothing was
+      done; follow its hint: click to expand the editor or comment box,
+      close the overlay, scroll, or take a new snapshot, then try again.
+      Rich text boxes (contenteditable, such as comment editors) can be filled
+      directly; if one is collapsed, click it first and snapshot.
       After filling any field that offers suggestions (address, ZIP code,
       airport, city, date picker), take a snapshot and confirm the selected
       value matches the user's intent; for example "95131" can autocomplete to
@@ -117,7 +123,10 @@ definition:
         type: object
         properties:
           sessionId: {type: string}
-          status: {type: string, enum: [automating, awaiting_user, human, paused_by_user, none]}
+          status: {type: string, enum: [automating, awaiting_user, human, paused_by_user, not_actionable, none]}
+          browserStatus: {type: string}
+          reason: {type: string, description: For not_actionable, why the element could not be used.}
+          hint: {type: string, description: For not_actionable, what to try next.}
           url: {type: string}
           title: {type: string}
           requiresHuman: {type: boolean}
