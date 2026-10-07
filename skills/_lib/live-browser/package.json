@@ -1,0 +1,26 @@
+{
+  "name": "@axiom/live-browser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared live Camoufox browser runtime with human handoff, live view and page audio for Axiom Skills.",
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./browser-control.proto": "./browser-control.proto"
+  },
+  "files": ["*.mjs", "!*.test.mjs", "*.proto"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "1.14.5",
+    "@grpc/proto-loader": "0.8.0",
+    "camoufox-js": "0.12.0",
+    "playwright-core": "1.59.1",
+    "ws": "8.22.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
