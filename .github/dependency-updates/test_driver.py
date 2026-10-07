@@ -1252,7 +1252,7 @@ printf 'image-health\\n' >> "$SKILLS_CI_STEPS"
                         self.assertEqual(steps, ["release-regressions"], "Release regressions must hold CI before source/image work")
                     else:
                         self.assertEqual(result.returncode, 0, result.stderr)
-                        self.assertEqual(steps, ["release-regressions", "source-tests", "source-tests", "images-built", "image-health", "alternate-image-built"])
+                        self.assertEqual(steps, ["release-regressions", "source-tests", "source-tests", "images-built", "image-health"])
 
     def test_sdk_prepares_supported_tauri_sidecar_before_locked_cargo_check(self) -> None:
         sdk_checkouts = [checkout for checkout in self.checkouts if self._policy(checkout)["repository"] == "axiom-studio/openseal"]

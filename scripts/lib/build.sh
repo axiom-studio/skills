@@ -12,11 +12,28 @@ run_build_validation() {
         return 0
     fi
 
+    # Shared libraries are not Skills; run their own test suites first.
+    for library_dir in "$SKILLS_DIR"/_lib/*/; do
+        [ -f "$library_dir/package.json" ] || continue
+        local library_name
+        library_name="_lib/$(basename "$library_dir")"
+        log_info "Testing shared library $library_name..."
+        if (cd "$MONOREPO_DIR" && npm --prefix "$library_dir" test 2>&1); then
+            log_pass "$library_name tests passed"
+            PASSED=$((PASSED + 1))
+        else
+            log_fail "$library_name tests failed"
+            FAILED=$((FAILED + 1))
+        fi
+        TOTAL=$((TOTAL + 1))
+    done
+
     for skill_dir in "$SKILLS_DIR"/*/; do
         [ -d "$skill_dir" ] || continue
 
         local skill_name
         skill_name="$(basename "$skill_dir")"
+        [ "$skill_name" = "_lib" ] && continue
 
         if [ ! -f "$skill_dir/main.go" ] && [ ! -f "$skill_dir/pyproject.toml" ] && [ ! -f "$skill_dir/package.json" ]; then
             log_warn "Skipping $skill_name - no supported Go, Python, or Node entrypoint found"
