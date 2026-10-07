@@ -45,7 +45,7 @@ export class BrowserHandoff {
     this.#onState = onState;
     this.#leaseMs = leaseMs;
     this.#maxWatchers = maxWatchers;
-    this.#control = new BrowserControl({ ...this.#scope, onExpire: 'pause', now, close: async () => {
+    this.#control = new BrowserControl({ ...this.#scope, onExpire: 'pause', now, onPause: () => this.#notify(), close: async () => {
       this.#intervention = undefined;
       this.#leased?.abort();
       for (const watcher of this.#watchers) watcher.abort();
@@ -71,7 +71,7 @@ export class BrowserHandoff {
   get lease() { return this.#control.lease; }
 
   #notify() {
-    try { void Promise.resolve(this.#onState(this.status)).catch(() => {}); } catch { /* status is advisory */ }
+    try { void Promise.resolve(this.#onState(this.status, this.intervention)).catch(() => {}); } catch { /* status is advisory */ }
   }
 
   // Model actions. Automation is serialized with human input; a paused or

@@ -1,14 +1,13 @@
-import { openAudio } from './audio.mjs';
+import { openAudio, SAMPLE_RATE } from './audio.mjs';
 import { isAddressed } from './attention.mjs';
-import { ElevenLabsClient } from './elevenlabs.mjs';
-import { RealtimeCapture, RealtimeTranscription } from './realtime-transcription.mjs';
+import { decodeSpeech, UtteranceDetector } from './bridge.mjs';
 import { ReplyInbox } from './reply-inbox.mjs';
+import { availableSpeechModels, SpeechClient } from './speech-gateway.mjs';
 import { SpeechPlayback } from './speech-playback.mjs';
 import { TranscriptQueue } from './transcript-queue.mjs';
-import { realtimeFailureStage, voiceFailureMessage } from './voice-failure.mjs';
-import { playSpeechStream } from './voice-latency.mjs';
+import { voiceFailureMessage } from './voice-failure.mjs';
+import { playSpeechChunks, timedVoiceStage } from './voice-latency.mjs';
 
-const PREFERRED_SPEECH_MODELS = ['eleven_flash_v2_5', 'eleven_turbo_v2_5', 'eleven_multilingual_v2'];
 const LABEL = /^[^\u0000-\u001f\u007f]{1,100}$/;
 
 function label(value, fallback) {
@@ -17,31 +16,37 @@ function label(value, fallback) {
   return value.trim();
 }
 
-// Site-agnostic listen/speak capabilities for one live browser.
+// Site-agnostic listen/speak capabilities for one live browser, through the
+// Axiom managed speech gateway with short-lived grants issued by Cortex for
+// this browser session.
 //
-// Listen: page audio (PulseAudio sink monitor) -> ElevenLabs realtime
-// transcription -> transcript lines in the Seal Chat; lines addressed to the
-// agent become chat utterances, and the agent's replies are spoken back.
-// Speak: ElevenLabs PCM stream -> the page's virtual microphone.
+// Listen: page audio (PulseAudio sink monitor) -> utterance detection ->
+// gateway transcription -> transcript lines in the Seal Chat; lines that
+// address the agent become chat utterances, and its replies are spoken back.
+// Speak: gateway speech -> decoded PCM -> the page's virtual microphone.
 //
-// The provider key lives only in this object's memory while audio is on. No
-// audio, transcript text or provider body is logged; metrics carry only fixed
-// stage names and durations.
+// No audio, transcript text, token or provider body is logged; metrics carry
+// only fixed stage names and durations.
 export class BrowserAudio {
-  #route; #conversation; #agentID; #agentLabel; #fetchAPI; #openAudio; #transcriber;
-  #audio; #elevenLabs; #speech; #controller = new AbortController();
+  #route; #conversation; #agentID; #agentLabel; #grants; #speechBaseURL; #fetchAPI; #openAudio; #decode;
+  #audio; #client; #selection; #renewTimer; #controller = new AbortController();
   #listen; #playback; #speaking = false; #selecting;
 
-  constructor({ route, conversation, agentID, agentLabel = 'Agent', fetchAPI = fetch,
-    openAudioStream = openAudio, transcriberFactory = options => new RealtimeTranscription(options) }) {
-    if (!route?.commands || !conversation || !agentID) throw new Error('Browser audio is unavailable');
+  // grants: { catalog(): {token}, audio({transcriptionModel, speechModel}): {transcriptionToken, speechToken, expiresAt} }
+  constructor({ route, conversation, agentID, agentLabel = 'Agent', grants, speechBaseURL, fetchAPI = fetch,
+    openAudioStream = openAudio, decode = decodeSpeech }) {
+    if (!route?.commands || !conversation || !agentID || !grants?.catalog || !grants?.audio || !speechBaseURL) {
+      throw new Error('Browser audio is unavailable');
+    }
     this.#route = route;
     this.#conversation = conversation;
     this.#agentID = String(agentID);
     this.#agentLabel = label(agentLabel, 'Agent');
+    this.#grants = grants;
+    this.#speechBaseURL = speechBaseURL;
     this.#fetchAPI = fetchAPI;
     this.#openAudio = openAudioStream;
-    this.#transcriber = transcriberFactory;
+    this.#decode = decode;
     this.#playback = new SpeechPlayback(text => this.#play(text), this.#controller.signal);
   }
 
@@ -49,8 +54,11 @@ export class BrowserAudio {
 
   get state() {
     return { listening: this.listening, ...(this.#listen ? { speakerLabel: this.#listen.speakerLabel } : {}),
-      ...(this.#speech ? { speechModel: this.#speech.model, voice: this.#speech.voice } : {}) };
+      ...(this.#selection ? { transcriptionModel: this.#selection.transcriptionModel, speechModel: this.#selection.speechModel,
+        voice: this.#selection.voice } : {}) };
   }
+
+  setAgentLabel(value) { this.#agentLabel = label(value, this.#agentLabel); }
 
   #open() {
     if (this.#controller.signal.aborted) throw new Error('Browser audio is closed');
@@ -58,79 +66,91 @@ export class BrowserAudio {
       this.#audio = this.#openAudio(this.#route.commands);
       this.#audio.input.on('data', chunk => {
         // Never transcribe the agent's own voice back into the chat.
-        this.#listen?.capture.feed(this.#speaking ? Buffer.alloc(chunk.length) : chunk);
+        if (!this.#speaking) this.#listen?.detector.feed(chunk);
       });
       this.#audio.input.once('end', () => this.#fail('capture_closed'));
     }
     return this.#audio;
   }
 
-  #provider(apiKey) {
-    if (apiKey) {
-      const key = String(apiKey).trim();
-      if (!this.#elevenLabs || this.#elevenLabs.apiKey !== key) {
-        this.#elevenLabs = new ElevenLabsClient({ apiKey: key, fetchAPI: this.#fetchAPI });
-        this.#speech = undefined;
+  // Chooses models from the tenant's gateway catalog unless given, then
+  // obtains session-bound transcription and speech grants.
+  async #select({ transcriptionModel, speechModel, voice } = {}) {
+    const current = this.#selection;
+    if (current && (!transcriptionModel || transcriptionModel === current.transcriptionModel) &&
+      (!speechModel || speechModel === current.speechModel) && (!voice || voice === current.voice)) return current;
+    this.#selecting ??= (async () => {
+      const { token } = await this.#grants.catalog();
+      const catalog = await availableSpeechModels({ baseURL: this.#speechBaseURL, token, fetchAPI: this.#fetchAPI });
+      const transcription = transcriptionModel ?? current?.transcriptionModel ?? catalog.transcriptionModels[0]?.id;
+      const speech = speechModel ? catalog.speechModels.find(model => model.id === speechModel)
+        : catalog.speechModels.find(model => model.id === current?.speechModel) ?? catalog.speechModels.find(model => model.voices.length);
+      const chosenVoice = voice ?? (speech?.voices.includes(current?.voice) ? current.voice : speech?.voices[0]);
+      if (!transcription || !catalog.transcriptionModels.some(model => model.id === transcription) ||
+        !speech || !chosenVoice || !speech.voices.includes(chosenVoice)) {
+        throw new Error('The selected speech or transcription model or voice is unavailable for this agent');
       }
-    }
-    if (!this.#elevenLabs) throw new Error('An ElevenLabs Vault credential is required for browser audio');
-    return this.#elevenLabs;
+      const selection = { transcriptionModel: transcription, speechModel: speech.id, voice: chosenVoice };
+      const tokens = await this.#grants.audio({ transcriptionModel: selection.transcriptionModel, speechModel: selection.speechModel });
+      this.#client = new SpeechClient({ baseURL: this.#speechBaseURL, ...tokens, ...selection, fetchAPI: this.#fetchAPI });
+      this.#scheduleRenewal(selection, tokens.expiresAt);
+      return selection;
+    })().finally(() => { this.#selecting = undefined; });
+    this.#selection = await this.#selecting;
+    return this.#selection;
   }
 
-  async #select({ speechModel, voice } = {}) {
-    if (this.#speech && (!speechModel || speechModel === this.#speech.model) && (!voice || voice === this.#speech.voice)) return this.#speech;
-    this.#selecting ??= (async () => {
-      const catalog = await this.#elevenLabs.models();
-      const models = catalog.speechModels;
-      const model = speechModel ? models.find(item => item.id === speechModel)
-        : PREFERRED_SPEECH_MODELS.map(id => models.find(item => item.id === id)).find(Boolean) ?? models[0];
-      const chosenVoice = voice ?? catalog.voiceOptions?.[0]?.id;
-      if (!model || !chosenVoice || !model.voices.includes(chosenVoice)) {
-        throw new Error('The selected ElevenLabs speech model or voice is unavailable');
-      }
-      return { model: model.id, voice: chosenVoice, maxCharacters: model.maxCharacters ?? 3000 };
-    })().finally(() => { this.#selecting = undefined; });
-    this.#speech = await this.#selecting;
-    return this.#speech;
+  // Grants are short-lived; Cortex reissues them while the session is live.
+  #scheduleRenewal(selection, expiresAt) {
+    clearTimeout(this.#renewTimer);
+    const delay = Math.max(1000, Date.parse(expiresAt) - Date.now() - 60000);
+    this.#renewTimer = setTimeout(async () => {
+      try {
+        const tokens = await this.#grants.audio({ transcriptionModel: selection.transcriptionModel, speechModel: selection.speechModel });
+        if (this.#selection !== selection) return;
+        this.#client.setTokens(tokens);
+        this.#scheduleRenewal(selection, tokens.expiresAt);
+      } catch { this.#fail('grant_renewal'); }
+    }, delay);
+    this.#renewTimer.unref?.();
   }
 
   async #play(text) {
     const audio = this.#open();
-    const speech = this.#speech;
-    const elevenLabs = this.#elevenLabs;
-    if (!speech || !elevenLabs) throw new Error('Speech is unavailable');
+    const client = this.#client;
+    if (!client) throw new Error('Speech is unavailable');
     try {
-      await playSpeechStream(text, {
-        synthesizeStream: (chunk, signal) => elevenLabs.synthesizeStream(chunk, speech.model, speech.voice, signal),
-        speak: pcm => audio.speak(pcm), signal: this.#controller.signal, maximum: speech.maxCharacters,
-        onPlaybackStart: () => { this.#speaking = true; },
+      await playSpeechChunks(text, {
+        synthesize: (chunk, signal) => client.synthesize(chunk, signal), decode: bytes => this.#decode(bytes),
+        speak: pcm => audio.speak(pcm), signal: this.#controller.signal, sampleRate: SAMPLE_RATE,
+        onPlaybackStart: () => { this.#speaking = true; this.#listen?.detector.reset(); },
       });
-    } finally { this.#speaking = false; }
+    } finally { this.#speaking = false; this.#listen?.detector.reset(); }
     await this.#conversation.appendTranscript(text, this.#agentLabel, this.#controller.signal).catch(() => {});
   }
 
-  async listen({ apiKey, speakerLabel, wakePhrases = [], speakReplies = true, speechModel, voice } = {}) {
-    const elevenLabs = this.#provider(apiKey);
+  async listen({ speakerLabel, wakePhrases = [], speakReplies = true, transcriptionModel, speechModel, voice } = {}) {
     const speaker = label(speakerLabel, 'Unknown speaker');
     if (!Array.isArray(wakePhrases) || wakePhrases.length > 8 ||
       wakePhrases.some(value => typeof value !== 'string' || !LABEL.test(value.trim()))) throw new Error('Invalid wake phrases');
     if (typeof speakReplies !== 'boolean') throw new Error('speakReplies must be a boolean');
-    if (speakReplies) await this.#select({ speechModel, voice });
+    await this.#select({ transcriptionModel, speechModel, voice });
+    const phrases = [this.#agentLabel, ...wakePhrases.map(value => value.trim())];
     if (this.#listen) {
-      Object.assign(this.#listen, { speakerLabel: speaker, phrases: [this.#agentLabel, ...wakePhrases.map(v => v.trim())], speakReplies });
+      Object.assign(this.#listen, { speakerLabel: speaker, phrases, speakReplies });
       return this.state;
     }
     this.#open();
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, this.#controller.signal]);
-    const listen = { controller, speakerLabel: speaker, phrases: [this.#agentLabel, ...wakePhrases.map(v => v.trim())], speakReplies };
+    const listen = { controller, speakerLabel: speaker, phrases, speakReplies };
     const fail = stage => { if (this.#listen === listen) this.#fail(stage); };
     const replies = new ReplyInbox({ agentID: this.#agentID, signal,
       read: (cursor, readSignal) => this.#conversation.request(`messages?afterSequence=${cursor}`, 'GET', undefined, readSignal),
       deliver: reply => listen.speakReplies ? this.#playback.enqueue(reply) : undefined,
       onError: stage => fail(stage) });
     const transcripts = new TranscriptQueue({ signal,
-      transcribe: async () => '',
+      transcribe: pcm => timedVoiceStage('transcription', () => this.#client.transcribe(pcm, signal)),
       postUtterance: async text => {
         await this.#conversation.appendTranscript(text, listen.speakerLabel, signal);
         if (!isAddressed(text, listen.phrases)) return null;
@@ -138,18 +158,12 @@ export class BrowserAudio {
       },
       reply: utterance => replies.register(utterance),
       onError: stage => fail(stage) });
-    const transcription = this.#transcriber({ apiKey: elevenLabs.apiKey,
-      onTranscript: text => transcripts.enqueueText(text),
-      onError: stage => fail(realtimeFailureStage(stage)) });
-    listen.transcription = transcription;
-    listen.capture = new RealtimeCapture({ signal, send: pcm => transcription.send(pcm), onError: stage => fail(stage) });
+    listen.detector = new UtteranceDetector(pcm => transcripts.enqueue(pcm));
     this.#listen = listen;
-    try {
-      await this.#conversation.attach(signal);
-      await transcription.ready;
-    } catch (error) {
+    try { await this.#conversation.attach(signal); }
+    catch {
       this.stopListening();
-      throw new Error('Live transcription could not start');
+      throw new Error('This browser session cannot post to its conversation');
     }
     return this.state;
   }
@@ -158,7 +172,6 @@ export class BrowserAudio {
     const listen = this.#listen;
     this.#listen = undefined;
     listen?.controller.abort();
-    listen?.transcription?.close();
     return this.state;
   }
 
@@ -170,9 +183,8 @@ export class BrowserAudio {
   }
 
   // Explicit agent speech. Resolves only after playback into the microphone.
-  async speak(text, { apiKey, speechModel, voice } = {}) {
+  async speak(text, { speechModel, voice } = {}) {
     if (typeof text !== 'string' || !text.trim() || text.length > 3000) throw new Error('Speech requires 1-3000 characters');
-    this.#provider(apiKey);
     await this.#select({ speechModel, voice });
     this.#open();
     await this.#playback.enqueue(text.trim(), Date.now() + 120000);
@@ -181,9 +193,10 @@ export class BrowserAudio {
 
   close() {
     this.stopListening();
+    clearTimeout(this.#renewTimer);
     this.#controller.abort();
     this.#audio?.close();
     this.#audio = undefined;
-    this.#elevenLabs = undefined;
+    this.#client = undefined;
   }
 }

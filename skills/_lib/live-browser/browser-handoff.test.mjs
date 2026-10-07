@@ -150,3 +150,14 @@ test('desktop teardown during explicit return cannot cancel the resumed browser'
   assert.equal(f.handoff.status, 'automating');
   await f.handoff.close();
 });
+
+test('state callbacks carry the intervention, including when lease expiry pauses the agent', async () => {
+  let time = 10000;
+  const seen = [];
+  const f = fixture({ leaseMs: 1000, now: () => time, onState: (state, intervention) => seen.push([state, intervention?.reason]) });
+  await f.handoff.handle(principal, { type: 'claim' });
+  time += 2000;
+  assert.equal(await f.handoff.settled(10), 'awaiting_user');
+  assert.deepEqual(seen, [['human', undefined], ['awaiting_user', 'other']]);
+  await f.handoff.close();
+});

@@ -19,8 +19,9 @@ export class BrowserControl {
   #now;
   #onExpire;
   #waiters = new Set();
+  #onPause;
 
-  constructor({ tenantID, agentID, close, now = Date.now, onExpire = 'close' }) {
+  constructor({ tenantID, agentID, close, now = Date.now, onExpire = 'close', onPause = () => {} }) {
     if (!tenantID || !agentID || typeof close !== 'function' || !['close', 'pause'].includes(onExpire)) {
       throw new Error('Browser owner and cleanup are required');
     }
@@ -28,6 +29,7 @@ export class BrowserControl {
     this.#close = close;
     this.#now = now;
     this.#onExpire = onExpire;
+    this.#onPause = onPause;
   }
 
   get state() { return this.#state; }
@@ -107,6 +109,7 @@ export class BrowserControl {
       clearTimeout(this.#timer);
       this.#lease = undefined;
       this.#set('paused');
+      try { this.#onPause(); } catch { /* advisory */ }
       return;
     }
     void this.close().catch(() => {});

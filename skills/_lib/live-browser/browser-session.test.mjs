@@ -23,25 +23,47 @@ test('registration sends only the host invocation and validates the issued sessi
   assert.equal(requests[1].options.headers.Authorization, 'Bearer runtime-grant');
   assert.equal(requests[1].options.headers['X-Tenant-ID'], '7');
   assert.equal(requests[1].options.headers['X-Cortex-Host-Invocation'], undefined);
-  assert.equal(api.audioURL('b-1'), 'http://sentinel.example/orchestrator/agent/browser/v1/sessions/b-1/audio/');
   await assert.rejects(api.register({ invocation: 'host-grant', durationMinutes: 0 }), /duration/);
 });
 
-test('audio grants mirror the session grant issuer under the browser session', async () => {
+test('session routes use the runtime grant; profile routes add the profile grant', async () => {
   const requests = [];
+  const later = () => new Date(Date.now() + 600000).toISOString();
+  const replies = {
+    'handoff-notice': { posted: true },
+    'catalog-grant': { token: 'catalog', expiresAt: later() },
+    grants: { transcriptionToken: 'stt', speechToken: 'tts', expiresAt: later() },
+    grant: { profile: 'default', state: 'shared', origins: ['google.com'], grant: 'profile-grant', expiresAt: later() },
+    profile: { cookies: [{ domain: '.google.com', path: '/', name: 'SID', value: 'v', updatedAt: later() }], storage: [], loadedAt: later() },
+    changes: { origins: ['google.com'] },
+  };
   const api = new BrowserSessionAPI({ baseURL: 'http://sentinel.example/browser/v1/', fetchAPI: async (url, options) => {
     requests.push({ path: new URL(url).pathname, options });
-    return { ok: true, json: async () => ({ result: { grant: 'audio-grant-2', grantExpiresAt: later(), expiresAt: later(), conversationId: 'conv-1' } }) };
+    return { ok: true, json: async () => ({ result: replies[new URL(url).pathname.split('/').at(-1)] }) };
   } });
-  const issued = await api.audioGrant({ sessionId: 'b-1', invocation: 'audio-invocation', durationMinutes: 30 });
-  assert.equal(issued.grant, 'audio-grant-2');
-  assert.equal(requests[0].path, '/browser/v1/sessions/b-1/audio/grants');
-  assert.equal(requests[0].options.headers['X-Cortex-Host-Invocation'], 'audio-invocation');
-  await api.renewAudioGrant({ sessionId: 'b-1', grant: 'audio-grant', tenantId: '7' });
-  assert.equal(requests[1].path, '/browser/v1/sessions/b-1/audio/grants/renew');
-  assert.equal(requests[1].options.headers.Authorization, 'Bearer audio-grant');
-  await api.revokeAudio({ sessionId: 'b-1', grant: 'audio-grant-2', tenantId: '7' });
-  assert.equal(requests[2].path, '/browser/v1/sessions/b-1/audio/revoke');
+  const session = { sessionId: 'b-1', grant: 'runtime-grant', tenantId: '7' };
+  await api.handoffNotice(session, { handoffId: 'h-1', summary: 'Pay' });
+  assert.deepEqual(await api.audioCatalogGrant(session), { token: 'catalog', expiresAt: replies['catalog-grant'].expiresAt });
+  assert.equal((await api.audioGrants(session, { transcriptionModel: 'a', speechModel: 'b' })).speechToken, 'tts');
+  const grant = await api.profileGrant(session);
+  assert.deepEqual([grant.state, grant.origins, grant.grant], ['shared', ['google.com'], 'profile-grant']);
+  assert.equal((await api.loadProfile(session, 'profile-grant')).cookies[0].name, 'SID');
+  assert.deepEqual(await api.saveProfileChanges(session, 'profile-grant', { cookies: [], storage: [] }), { origins: ['google.com'] });
+  assert.deepEqual(requests.map(r => `${r.options.method} ${r.path}`), [
+    'POST /browser/v1/sessions/b-1/handoff-notice', 'POST /browser/v1/sessions/b-1/audio/catalog-grant',
+    'POST /browser/v1/sessions/b-1/audio/grants', 'POST /browser/v1/sessions/b-1/profile/grant',
+    'GET /browser/v1/sessions/b-1/profile', 'POST /browser/v1/sessions/b-1/profile/changes']);
+  assert.ok(requests.every(r => r.options.headers.Authorization === 'Bearer runtime-grant' && !r.options.headers['X-Cortex-Host-Invocation']));
+  assert.equal(requests[4].options.body, undefined);
+  assert.equal(requests[4].options.headers['X-Browser-Profile-Grant'], 'profile-grant');
+  assert.equal(requests[5].options.headers['X-Browser-Profile-Grant'], 'profile-grant');
+  assert.deepEqual(JSON.parse(requests[2].options.body), { transcriptionModel: 'a', speechModel: 'b' });
+  assert.equal(api.sessionURL('b-1'), 'http://sentinel.example/browser/v1/sessions/b-1/');
+});
+
+test('HTTP statuses such as 410 and 409 are surfaced without bodies', async () => {
+  const api = new BrowserSessionAPI({ baseURL: 'http://h/b/v1/', fetchAPI: async () => ({ ok: false, status: 410, json: async () => ({ error: 'secret' }) }) });
+  await assert.rejects(api.saveProfileChanges({ sessionId: 'b', grant: 'g' }, 'p', {}), error => error.status === 410 && !/secret/.test(error.message));
 });
 
 test('Cortex failures and malformed replies never expose tokens', async () => {
