@@ -1,0 +1,27 @@
+syntax = "proto3";
+package axiom.skill.v1;
+
+service SkillService {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc GetNodeTypes(GetNodeTypesRequest) returns (GetNodeTypesResponse);
+  rpc GetNodeSchema(GetNodeSchemaRequest) returns (GetNodeSchemaResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message ExecuteRequest {
+  string node_id = 1;
+  string node_type = 2;
+  map<string, bytes> config = 3;
+  map<string, bytes> input = 4;
+  ExecutionContext context = 5;
+  map<string, bytes> bindings = 6;
+}
+message ExecutionContext { string run_id = 1; string agent_id = 2; string namespace = 3; map<string, string> variables = 4; }
+message ExecuteResponse { map<string, bytes> output = 1; Error error = 2; string next_step = 3; }
+message Error { string message = 1; string type = 2; map<string, string> details = 3; }
+message GetNodeTypesRequest {}
+message GetNodeTypesResponse { repeated string node_types = 1; }
+message GetNodeSchemaRequest { string node_type = 1; }
+message GetNodeSchemaResponse { bytes schema = 1; }
+message HealthRequest {}
+message HealthResponse { bool healthy = 1; string skill_id = 2; string version = 3; }

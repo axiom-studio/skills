@@ -1,0 +1,16 @@
+{
+  "name": "axiom-live-browser-skill",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@axiom/live-browser": "file:../_lib/live-browser"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

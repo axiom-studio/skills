@@ -1,0 +1,387 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  BrowserAudio, BrowserDesktopInput, BrowserHandoff, BrowserPausedError, BrowserProfileStore, BROWSER_HANDOFF_REASONS,
+  CortexConversation, PROFILE_SAVE_INTERVAL_MS, createAudioRoute, createBrowserDesktop, detectBrowserIntervention,
+  hostInvocation, launchCamoufox, openBrowserRFB, openBrowserVideo,
+} from '@axiom/live-browser';
+import { LivePage } from './page.mjs';
+
+const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
+const HUMAN_ONLY = { kind: 'manual_confirmation' };
+
+function validID(value, name) {
+  if (typeof value !== 'string' || !ID.test(value)) throw new Error(`${name} is invalid`);
+  return value;
+}
+
+function intentText(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.length > 500) throw new Error('intent must be at most 500 characters');
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200) || undefined;
+}
+
+// The agent's interactive browser. One live Camoufox per registered Cortex
+// browser session; at most one per (agent, conversation). Pods are stateless:
+// browser profiles are temporary and sign-ins persist only through the shared,
+// Cortex-granted profile store. Never log page content, inputs, tokens or keys.
+export class LiveBrowserService {
+  #api; #authorize; #deps; #sessions = new Map(); #options;
+
+  constructor({ api, authorize, deps = {}, maxSessions = 4, humanWaitMs = 120000, defaultDurationMinutes = 120,
+    leaseMs = 300000, profileSaveIntervalMs = PROFILE_SAVE_INTERVAL_MS, fetchAPI = fetch, now = Date.now } = {}) {
+    if (!api || typeof authorize !== 'function') throw new Error('Live browser host API is required');
+    this.#api = api;
+    this.#authorize = authorize;
+    this.#options = { maxSessions, humanWaitMs, defaultDurationMinutes, leaseMs, profileSaveIntervalMs, fetchAPI, now };
+    this.#deps = { launch: launchCamoufox, createDesktop: createBrowserDesktop, createAudioRoute,
+      openVideo: openBrowserVideo, openRFB: openBrowserRFB, desktopInput: options => new BrowserDesktopInput(options), detectIntervention: detectBrowserIntervention,
+      makeTemp: () => mkdtemp(join(tmpdir(), 'live-browser-')), removeTemp: dir => rm(dir, { recursive: true, force: true }),
+      ...deps };
+  }
+
+  get size() { return this.#sessions.size; }
+
+  #owned(agentID, sessionID) {
+    const session = this.#sessions.get(validID(sessionID, 'sessionId'));
+    if (!session || session.agentID !== validID(agentID, 'agent ID') || session.closing) {
+      throw new Error('No live browser session with this sessionId; call live-browser-start');
+    }
+    return session;
+  }
+
+  async status(session) {
+    const handoff = session.handoff;
+    const status = handoff.status;
+    let title = session.title;
+    try { title = await Promise.race([session.page.title(), new Promise((_, reject) => setTimeout(reject, 1000).unref())]); } catch { /* cached */ }
+    session.title = title;
+    const lease = handoff.lease;
+    return {
+      sessionId: session.id, status, url: session.page.url(), title: title ?? '',
+      ...(session.step ? { step: session.step } : {}),
+      ...(handoff.intervention ? { intervention: handoff.intervention } : {}),
+      ...(lease ? { lease: { expiresAt: new Date(lease.expiresAt).toISOString() } } : {}),
+      profile: session.profile ? session.profile.status : { state: 'new', origins: [] },
+      audio: { listening: session.audio?.listening === true },
+      expiresAt: session.expiresAt,
+    };
+  }
+
+  async start({ runID, agentID, input, bindings }) {
+    agentID = validID(agentID, 'agent ID');
+    runID = validID(runID, 'run ID');
+    const url = input.url;
+    for (const session of this.#sessions.values()) {
+      if (session.agentID === agentID && session.runIDs.has(runID) && !session.closing) {
+        return this.#act(session, input.intent ?? 'Open page', async live => {
+          if (url) await live.navigate(url);
+          return {};
+        }, { navigation: Boolean(url) });
+      }
+    }
+    const invocation = hostInvocation(bindings.CORTEX_HOST_INVOCATIONS, 'host:browser');
+    if (!invocation) throw new Error('This action requires the host:browser:session permission');
+    const duration = input.durationMinutes ?? this.#options.defaultDurationMinutes;
+    if (!Number.isInteger(duration) || duration < 5 || duration > 480) throw new Error('durationMinutes must be between 5 and 480');
+    const registered = await this.#api.register({ invocation, durationMinutes: duration });
+    if (registered.agentId !== agentID) {
+      await this.#api.revoke({ sessionId: registered.sessionId, grant: registered.grant, tenantId: registered.tenantId }).catch(() => {});
+      throw new Error('Browser registration does not match this agent');
+    }
+    // One browser per (agent, conversation): this start replaces the previous one.
+    for (const previous of [...this.#sessions.values()]) {
+      if (previous.agentID === agentID && previous.conversationID === registered.conversationId) await this.close(previous);
+    }
+    if (this.#sessions.size >= this.#options.maxSessions) {
+      await this.#api.revoke({ sessionId: registered.sessionId, grant: registered.grant, tenantId: registered.tenantId }).catch(() => {});
+      throw new Error('This runtime has no free live browser capacity; close another browser session and retry');
+    }
+    const session = { id: registered.sessionId, grant: registered.grant, tenantID: registered.tenantId, agentID,
+      conversationID: registered.conversationId, expiresAt: registered.expiresAt, runIDs: new Set([runID]),
+      controller: new AbortController(), requests: new Map(), video: new Set() };
+    this.#sessions.set(session.id, session);
+    try {
+      session.desktop = await this.#deps.createDesktop({ signal: session.controller.signal });
+      session.route = await this.#deps.createAudioRoute(session.id.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24));
+      session.profileDir = await this.#deps.makeTemp();
+      session.context = await this.#deps.launch(session.profileDir, { display: session.desktop.display,
+        audio: { sink: session.route.sink, source: session.route.source } });
+      session.profile = new BrowserProfileStore({ api: this.#api, session: { sessionId: session.id, grant: session.grant, tenantId: session.tenantID } });
+      try { await session.profile.load(session.context); }
+      catch { console.warn(JSON.stringify({ event: 'live_browser_profile_load_failed' })); }
+      session.page = session.context.pages()[0] ?? await session.context.newPage();
+      session.live = new LivePage(session.page);
+      const display = session.desktop.display;
+      session.handoff = new BrowserHandoff({ tenantID: session.tenantID, agentID, leaseMs: this.#options.leaseMs,
+        close: () => this.#teardown(session),
+        videoFactory: ({ signal }) => this.#deps.openVideo({ display, signal }),
+        desktopFactory: ({ signal }) => this.#deps.openRFB({ display, signal }),
+        inputFactory: ({ control }) => this.#deps.desktopInput({ display, control, signal: session.controller.signal }),
+      });
+      session.page.on?.('close', () => { void this.close(session); });
+      const remaining = Date.parse(session.expiresAt) - this.#options.now();
+      session.expiry = setTimeout(() => { void this.close(session); }, Math.max(1000, remaining));
+      session.expiry.unref?.();
+      session.saveTimer = setInterval(() => { void this.#saveProfile(session); }, this.#options.profileSaveIntervalMs);
+      session.saveTimer.unref?.();
+    } catch {
+      await this.close(session);
+      throw new Error('The live browser could not start');
+    }
+    return this.#act(session, input.intent ?? 'Open page', async live => {
+      if (url) await live.navigate(url);
+      return {};
+    }, { navigation: Boolean(url) });
+  }
+
+  async #saveProfile(session) {
+    if (!session.profile || !session.context) return;
+    try { await session.profile.save(session.context); }
+    catch { console.warn(JSON.stringify({ event: 'live_browser_profile_save_failed' })); }
+  }
+
+  // Runs one model action. Waits while a human holds control and then
+  // returns paused_by_user instead of acting.
+  async #act(session, intent, operation, { navigation = false } = {}) {
+    const step = intentText(intent);
+    if (session.handoff.status === 'human') return this.#paused(session);
+    if (session.handoff.status === 'awaiting_user') return this.#awaiting(session);
+    let result;
+    try {
+      result = await session.handoff.automate(async () => {
+        if (step) session.step = step;
+        return operation(session.live);
+      });
+    } catch (error) {
+      if (error instanceof BrowserPausedError) return error.status === 'human' ? this.#paused(session) : this.#awaiting(session);
+      throw new Error(error?.expose === true ? error.message : 'The browser action failed');
+    }
+    const { checkChallenges, handoffReason, ...output } = result ?? {};
+    // Anti-bot challenges and one-time codes need the human: hand off.
+    let reason = handoffReason;
+    if (!reason && (navigation || checkChallenges)) {
+      const found = await this.#deps.detectIntervention(session.page).catch(() => undefined);
+      reason = found === 'challenge' ? 'captcha' : found === 'verification' ? 'login' : undefined;
+    }
+    if (reason && session.handoff.status === 'automating') return { ...output, ...(await this.#handoff(session, reason, undefined, true)) };
+    return { sessionId: session.id, status: session.handoff.status, url: session.page.url(),
+      title: await session.page.title().catch(() => ''), ...output };
+  }
+
+  async #paused(session) {
+    const lease = session.handoff.lease;
+    const wait = Math.max(0, Math.min(this.#options.humanWaitMs, lease ? lease.expiresAt - this.#options.now() : this.#options.humanWaitMs));
+    const state = await session.handoff.settled(wait);
+    const resumed = state === 'automating';
+    return { sessionId: session.id, status: 'paused_by_user', browserStatus: state, url: session.page.url(),
+      requiresHuman: !resumed, ...(resumed ? {} : { challenges: [HUMAN_ONLY.kind], challenge: HUMAN_ONLY }),
+      message: resumed
+        ? 'The user took control and has handed back. The page may have changed: take a new snapshot before continuing.'
+        : 'The user is controlling the browser. Wait for them to hand back control; do not act on this page.' };
+  }
+
+  #awaiting(session) {
+    return { sessionId: session.id, status: 'awaiting_user', intervention: session.handoff.intervention, url: session.page.url(),
+      requiresHuman: false, message: 'Waiting for the user to take control and hand back. Do not act on this page until they do.' };
+  }
+
+  async #handoff(session, reason, summary, automatic = false) {
+    const intervention = await session.handoff.requestHandoff(reason, summary);
+    return { sessionId: session.id, status: 'awaiting_user', intervention, url: session.page.url(),
+      requiresHuman: true, challenges: [HUMAN_ONLY.kind], challenge: HUMAN_ONLY,
+      message: automatic ? 'The page needs a human (sign-in code or verification). The user was asked to take control.'
+        : 'The user was asked to take control. Continue after they hand back.' };
+  }
+
+  async execute(action, { runID, agentID, input, bindings }) {
+    if (action === 'live-browser-start') return this.start({ runID, agentID, input, bindings });
+    const session = this.#owned(agentID, input.sessionId);
+    session.runIDs.add(validID(runID, 'run ID'));
+    switch (action) {
+      case 'live-browser-navigate':
+        return this.#act(session, input.intent ?? 'Navigate', async live => live.navigate(input.url), { navigation: true });
+      case 'live-browser-snapshot':
+        return this.#act(session, input.intent, async live => {
+          const snapshot = await live.snapshot({ includeScreenshot: input.includeScreenshot === true });
+          const handoffReason = snapshot.challenges.some(kind => kind !== 'mfa') ? 'captcha' : snapshot.challenges.length ? 'login' : undefined;
+          return { ...snapshot, requiresHuman: false, ...(handoffReason ? { handoffReason } : {}) };
+        });
+      case 'live-browser-click':
+        return this.#act(session, input.intent, async live => { await live.click(input); return { done: true, checkChallenges: true }; });
+      case 'live-browser-fill':
+        return this.#act(session, input.intent, async live => ({ ...(await live.fill(input)), done: true }));
+      case 'live-browser-select':
+        return this.#act(session, input.intent, async live => ({ ...(await live.select(input)), done: true, checkChallenges: true }));
+      case 'live-browser-scroll':
+        return this.#act(session, input.intent ?? 'Scroll', async live => { await live.scroll(input); return { done: true }; });
+      case 'live-browser-screenshot':
+        return this.#act(session, input.intent, async live => ({ modelMedia: await live.screenshot(input) }));
+      case 'live-browser-request-handoff': {
+        if (!BROWSER_HANDOFF_REASONS.includes(input.reason)) throw new Error('Unsupported handoff reason');
+        if (session.handoff.status === 'human') return this.#paused(session);
+        if (session.handoff.status === 'awaiting_user') return { ...this.#awaiting(session), requiresHuman: true, challenges: [HUMAN_ONLY.kind], challenge: HUMAN_ONLY };
+        return this.#handoff(session, input.reason, input.summary);
+      }
+      case 'live-browser-close':
+        if (session.handoff.status === 'human') return this.#paused(session);
+        await this.close(session);
+        return { sessionId: session.id, status: 'none' };
+      case 'live-browser-listen':
+        return this.#listen(session, input, bindings);
+      case 'live-browser-speak':
+        if (session.handoff.status === 'human') return this.#paused(session);
+        return { sessionId: session.id, ...(await (await this.#audio(session, bindings)).speak(input.text, {
+          apiKey: bindings.api_key || bindings.elevenlabs_api, speechModel: input.speechModel, voice: input.voice })) };
+      default: throw new Error('Unknown live browser action');
+    }
+  }
+
+  async #audio(session, bindings) {
+    if (session.audio) return session.audio;
+    const invocation = hostInvocation(bindings.CORTEX_HOST_INVOCATIONS, 'host:browser');
+    if (!invocation) throw new Error('This action requires the host:browser:audio permission');
+    const remaining = Math.max(1, Math.ceil((Date.parse(session.expiresAt) - this.#options.now()) / 60000));
+    const issued = await this.#api.audioGrant({ sessionId: session.id, invocation, durationMinutes: Math.min(480, remaining) });
+    if (issued.conversationId !== session.conversationID) throw new Error('Browser audio does not match this conversation');
+    session.audioGrant = issued;
+    const conversation = new CortexConversation({ baseURL: this.#api.audioURL(session.id), grant: issued.grant,
+      tenantID: session.tenantID, agentID: session.agentID, conversationID: session.conversationID, sessionID: session.id,
+      fetchAPI: this.#options.fetchAPI });
+    session.audio = new BrowserAudio({ route: session.route, conversation, agentID: session.agentID,
+      agentLabel: session.agentLabel ?? 'Agent', fetchAPI: this.#options.fetchAPI });
+    this.#scheduleAudioRenewal(session, conversation);
+    return session.audio;
+  }
+
+  #scheduleAudioRenewal(session, conversation) {
+    const delay = Math.max(1000, Date.parse(session.audioGrant.grantExpiresAt) - this.#options.now() - 60000);
+    session.audioTimer = setTimeout(async () => {
+      try {
+        const renewed = await this.#api.renewAudioGrant({ sessionId: session.id, grant: session.audioGrant.grant, tenantId: session.tenantID });
+        session.audioGrant = { ...session.audioGrant, ...renewed };
+        conversation.setGrant(renewed.grant);
+        this.#scheduleAudioRenewal(session, conversation);
+      } catch { session.audio?.stopListening(); }
+    }, delay);
+    session.audioTimer.unref?.();
+  }
+
+  async #listen(session, input, bindings) {
+    if (input.state === 'off') {
+      session.audio?.stopListening();
+      return { sessionId: session.id, listening: false };
+    }
+    if (input.displayName !== undefined) session.agentLabel = input.displayName;
+    const audio = await this.#audio(session, bindings);
+    const state = await audio.listen({ apiKey: bindings.api_key || bindings.elevenlabs_api, speakerLabel: input.speakerLabel,
+      wakePhrases: [...(input.displayName ? [input.displayName] : []), ...(input.wakePhrases ?? [])],
+      speakReplies: input.speakReplies ?? true, speechModel: input.speechModel, voice: input.voice });
+    return { sessionId: session.id, ...state };
+  }
+
+  // Host-only: verifies a human proof for this exact command with Cortex.
+  async #authorized({ agentID, sessionID, authorization, command }) {
+    if (!command || typeof command !== 'object' || Array.isArray(command) || Buffer.byteLength(JSON.stringify(command)) > 32768) throw new Error();
+    const session = this.#sessions.get(validID(sessionID, 'session ID'));
+    if (!session || session.agentID !== validID(agentID, 'agent ID') || session.closing) throw new Error();
+    const principal = await this.#authorize({ authorization, command, tenantID: session.tenantID, agentID,
+      sessionID: session.id, conversationID: session.conversationID, sessionGrant: session.grant });
+    if (typeof principal?.userID !== 'string' || !principal.userID.trim() || principal.tenantID !== session.tenantID ||
+      principal.agentID !== agentID || typeof principal.requestID !== 'string' || !ID.test(principal.requestID) ||
+      !(Date.parse(principal.expiresAt) > this.#options.now())) throw new Error();
+    for (const [id, expiry] of session.requests) if (expiry <= this.#options.now()) session.requests.delete(id);
+    if (session.requests.has(principal.requestID) || session.requests.size >= 256) throw new Error();
+    session.requests.set(principal.requestID, Date.parse(principal.expiresAt));
+    if (session.closing) throw new Error();
+    return { session, principal: { tenantID: principal.tenantID, agentID: principal.agentID, userID: principal.userID, expiresAt: principal.expiresAt } };
+  }
+
+  async controlBrowser(request) {
+    try {
+      const { session, principal } = await this.#authorized(request);
+      const { command } = request;
+      if (command.type === 'status') {
+        if (Object.keys(command).length !== 1) throw new Error();
+        return this.status(session);
+      }
+      const result = await session.handoff.handle(principal, command);
+      if (command.type === 'resume') void this.#saveProfile(session);
+      return result;
+    } catch { throw new Error('Browser control request could not be completed'); }
+  }
+
+  async videoBrowser(request, desktop = false) {
+    try {
+      const { command } = request;
+      const watch = !desktop && command?.type === 'watch' && Object.keys(command).length === 1;
+      if (!watch && (command?.type !== (desktop ? 'desktop' : 'video') || typeof command.leaseID !== 'string' ||
+        !ID.test(command.leaseID) || Object.keys(command).some(key => !['type', 'leaseID'].includes(key)))) throw new Error();
+      const { session, principal } = await this.#authorized(request);
+      const controller = new AbortController();
+      let timer;
+      const expire = expiresAt => {
+        clearTimeout(timer);
+        const remaining = Date.parse(expiresAt) - this.#options.now();
+        if (!(remaining > 0) || remaining > 16000) throw new Error();
+        timer = setTimeout(() => controller.abort(), remaining);
+        timer.unref?.();
+      };
+      expire(principal.expiresAt);
+      const stream = watch ? session.handoff.watch({ signal: controller.signal })
+        : session.handoff.stream(principal, command.leaseID, { signal: controller.signal, desktop });
+      const entry = { abort: () => controller.abort() };
+      session.video.add(entry);
+      return {
+        stream,
+        write: bytes => desktop ? session.handoff.writeDesktop(principal, command.leaseID, bytes) : Promise.reject(new Error()),
+        renew: async renewal => {
+          if (renewal.agentID !== request.agentID || renewal.sessionID !== request.sessionID ||
+            JSON.stringify(renewal.command) !== JSON.stringify(command)) throw new Error('Browser video authorization failed');
+          const verified = await this.#authorized(renewal);
+          if (verified.session !== session || verified.principal.userID !== principal.userID) throw new Error('Browser video authorization failed');
+          expire(verified.principal.expiresAt);
+        },
+        close: () => { clearTimeout(timer); controller.abort(); session.video.delete(entry); },
+      };
+    } catch { throw new Error('Browser video is unavailable'); }
+  }
+
+  // Ends a browser: saves the shared profile, closes the page and revokes the
+  // Cortex session (which ends the user's live view).
+  async close(session) {
+    if (!session) return;
+    if (session.handoff) await session.handoff.close();
+    else await this.#teardown(session);
+  }
+
+  async #teardown(session) {
+    if (session.closed) return;
+    session.closed = session.closing = true;
+    clearTimeout(session.expiry);
+    clearInterval(session.saveTimer);
+    clearTimeout(session.audioTimer);
+    for (const video of session.video) video.abort();
+    session.audio?.close();
+    if (session.audioGrant) {
+      await this.#api.revokeAudio({ sessionId: session.id, grant: session.audioGrant.grant, tenantId: session.tenantID }).catch(() => {});
+    }
+    if (session.context) {
+      await this.#saveProfile(session);
+      await Promise.race([session.context.close().catch(() => {}), new Promise(resolve => setTimeout(resolve, 10000).unref())]);
+    }
+    session.controller.abort();
+    session.desktop?.close();
+    await session.route?.close().catch(() => {});
+    if (session.profileDir) await this.#deps.removeTemp(session.profileDir).catch(() => {});
+    this.#sessions.delete(session.id);
+    await this.#api.revoke({ sessionId: session.id, grant: session.grant, tenantId: session.tenantID }).catch(() => {});
+  }
+
+  async closeAll() {
+    await Promise.all([...this.#sessions.values()].map(session => this.close(session)));
+  }
+
+  ready() { return true; }
+}
