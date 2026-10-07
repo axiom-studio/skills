@@ -1,23 +1,18 @@
-// Shared, structured browser sign-in state (one default profile per tenant,
-// held by Cortex in the credential catalog and granted to this browser
-// session). No lock: every task loads the latest state, and a save merges only
-// this task's own changes onto the latest state.
+// Shared, structured browser sign-in state: one default profile per tenant,
+// held by Cortex in the credential catalog and granted to a browser session
+// whose registration declared host:browser:profile. No lock: every task loads
+// the latest state; a save sends only this task's own changes since load and
+// Cortex merges them (per key, last writer wins by updatedAt; deletions are
+// short-lived tombstones; compare-and-swap with retry on its side).
 //
-//   cookies: key (domain, path, name) -> {value, expires, httpOnly, secure, sameSite}
-//   storage: key (origin, key)        -> {value}            (localStorage)
-//   every entry has updatedAt (ms); deletions are tombstones {deleted: true}.
+//   cookies: key (domain, path, name)  storage: key (origin, key)  (localStorage)
 //
-// Merge rule: per key, last writer wins by updatedAt; tombstones expire after
-// TOMBSTONE_TTL_MS. Cortex stores an internal revision used only for
-// compare-and-swap; a conflicting save reloads the latest state and re-applies
-// the same diff. Never log cookie or storage values, or keys.
+// Never log cookie or storage values, or keys.
 
 export const PROFILE_SAVE_INTERVAL_MS = 5 * 60 * 1000;
-export const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-export const PROFILE_MAX_ENTRIES = 20000;
-const MAX_VALUE = 16384;
+const MAX_ENTRIES = 20000;
+const MAX_VALUE = 1 << 20;
 const SEEDED = '__axiom_profile_seeded';
-const DOMAIN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const SAME_SITE = new Set(['Strict', 'Lax', 'None']);
 
 const cookieKey = c => `c\t${c.domain}\t${c.path}\t${c.name}`;
@@ -32,13 +27,13 @@ function originOf(value) {
 
 function cookieEntry(raw) {
   if (!raw || typeof raw.name !== 'string' || typeof raw.value !== 'string' || typeof raw.domain !== 'string' ||
-    !raw.name || raw.name.length > 1024 || raw.value.length > MAX_VALUE || !raw.domain || raw.domain.length > 255) return undefined;
+    !raw.name || raw.name.length > 4096 || raw.value.length > MAX_VALUE || !raw.domain || raw.domain.length > 253) return undefined;
   return { domain: raw.domain.toLowerCase(), path: typeof raw.path === 'string' && raw.path.startsWith('/') ? raw.path : '/',
-    name: raw.name, value: raw.value, expires: Number.isFinite(raw.expires) ? raw.expires : -1,
+    name: raw.name, value: raw.value, expires: Number.isFinite(raw.expires) && raw.expires > 0 ? raw.expires : -1,
     httpOnly: raw.httpOnly === true, secure: raw.secure === true, sameSite: SAME_SITE.has(raw.sameSite) ? raw.sameSite : 'Lax' };
 }
 
-// Converts Playwright storageState into keyed, comparable entries.
+// Playwright storageState -> keyed entries {kind, ...}.
 export function profileFromStorageState(state) {
   const entries = new Map();
   for (const raw of state?.cookies ?? []) {
@@ -50,76 +45,53 @@ export function profileFromStorageState(state) {
     if (!origin) continue;
     for (const item of site.localStorage ?? []) {
       if (typeof item?.name !== 'string' || typeof item.value !== 'string' || !item.name || item.name === SEEDED ||
-        item.name.length > 1024 || item.value.length > MAX_VALUE) continue;
+        item.name.length > 4096 || item.value.length > MAX_VALUE) continue;
       entries.set(storageKey({ origin, key: item.name }), { kind: 'storage', origin, key: item.name, value: item.value });
     }
   }
-  if (entries.size > PROFILE_MAX_ENTRIES) throw new Error('Browser profile has too many entries');
+  if (entries.size > MAX_ENTRIES) throw new Error('Browser profile has too many entries');
+  return entries;
+}
+
+// Cortex profile JSON -> keyed entries.
+export function profileFromCortex({ cookies = [], storage = [] } = {}) {
+  const entries = new Map();
+  for (const raw of cookies) {
+    const cookie = cookieEntry({ ...raw, value: raw?.value ?? '' });
+    if (cookie && !raw.deleted) entries.set(cookieKey(cookie), { kind: 'cookie', ...cookie });
+  }
+  for (const raw of storage) {
+    const origin = originOf(raw?.origin);
+    if (!origin || typeof raw.key !== 'string' || !raw.key || raw.deleted) continue;
+    entries.set(storageKey({ origin, key: raw.key }), { kind: 'storage', origin, key: raw.key, value: String(raw.value ?? '') });
+  }
   return entries;
 }
 
 function same(left, right) {
-  if (!left || !right || left.deleted || right.deleted) return false;
+  if (!left || !right) return false;
   return left.kind === 'cookie'
     ? left.value === right.value && left.expires === right.expires && left.httpOnly === right.httpOnly &&
       left.secure === right.secure && left.sameSite === right.sameSite
     : left.value === right.value;
 }
 
-function strip({ updatedAt, deleted, ...entry }) { return entry; }
-
-// This task's own changes: sets for new or changed entries, tombstones for
-// entries that existed at load time and are gone now.
-export function profileDiff(loaded, current, now = Date.now()) {
-  const changes = [];
-  for (const [key, entry] of current) {
-    if (!same(loaded.get(key), entry)) changes.push({ ...strip(entry), updatedAt: now });
-  }
-  for (const [key, entry] of loaded) {
-    if (!entry.deleted && !current.has(key)) {
-      const { value, expires, httpOnly, secure, sameSite, ...identity } = strip(entry);
-      changes.push({ ...identity, deleted: true, updatedAt: now });
+// This task's own changes in Cortex's wire shape.
+export function profileChanges(loaded, current, now = Date.now()) {
+  const updatedAt = new Date(now).toISOString();
+  const changes = { cookies: [], storage: [] };
+  const wire = ({ kind, ...entry }, deleted) => {
+    if (kind === 'cookie') {
+      changes.cookies.push(deleted ? { domain: entry.domain, path: entry.path, name: entry.name, updatedAt, deleted: true }
+        : { ...entry, updatedAt });
+    } else {
+      changes.storage.push(deleted ? { origin: entry.origin, key: entry.key, updatedAt, deleted: true }
+        : { origin: entry.origin, key: entry.key, value: entry.value, updatedAt });
     }
-  }
+  };
+  for (const [key, entry] of current) if (!same(loaded.get(key), entry)) wire(entry, false);
+  for (const [key, entry] of loaded) if (!current.has(key)) wire(entry, true);
   return changes;
-}
-
-const keyOf = entry => entry.kind === 'cookie' ? cookieKey(entry) : storageKey(entry);
-
-// Applies changes to a saved entry list: per-key last writer wins.
-export function applyProfileChanges(entries, changes, now = Date.now()) {
-  const merged = new Map();
-  for (const entry of entries ?? []) merged.set(keyOf(entry), entry);
-  for (const change of changes) {
-    const key = keyOf(change);
-    const existing = merged.get(key);
-    if (!existing || change.updatedAt >= existing.updatedAt) merged.set(key, change);
-  }
-  for (const [key, entry] of merged) {
-    if (entry.deleted && now - entry.updatedAt > TOMBSTONE_TTL_MS) merged.delete(key);
-  }
-  if (merged.size > PROFILE_MAX_ENTRIES) throw new Error('Browser profile has too many entries');
-  return [...merged.values()];
-}
-
-export function profileOrigins(entries) {
-  const domains = new Set();
-  for (const entry of entries) {
-    if (entry.deleted) continue;
-    const domain = entry.kind === 'cookie' ? entry.domain.replace(/^\./, '') : (() => { try { return new URL(entry.origin).hostname; } catch { return ''; } })();
-    if (DOMAIN.test(domain)) domains.add(domain);
-    if (domains.size >= 200) break;
-  }
-  return [...domains].sort();
-}
-
-function validEntry(entry) {
-  if (!entry || typeof entry !== 'object' || !Number.isFinite(entry.updatedAt)) return false;
-  if (entry.kind === 'cookie') return typeof entry.domain === 'string' && typeof entry.path === 'string' && typeof entry.name === 'string' &&
-    (entry.deleted === true || typeof entry.value === 'string');
-  if (entry.kind === 'storage') return Boolean(originOf(entry.origin)) && typeof entry.key === 'string' &&
-    (entry.deleted === true || typeof entry.value === 'string');
-  return false;
 }
 
 // Seeds saved localStorage once per tab and origin without overwriting values
@@ -133,72 +105,62 @@ const SEED_SCRIPT = `(data) => {
   } catch {}
 }`;
 
-// Small, isolated client for the Cortex profile routes (relative to
-// CORTEX_BROWSER_API_URL, authenticated by the browser session's runtime grant):
-//   POST sessions/{id}/profile/load -> {revision, entries: [...]}   (revision 0: new)
-//   POST sessions/{id}/profile/save {baseRevision, entries} -> {revision}
-//        409 when baseRevision is stale (the runtime reloads and re-merges).
 export class BrowserProfileStore {
-  #api; #session; #loaded = new Map(); #origins = []; #revision = 0; #saving; #now;
+  #api; #session; #grant; #loaded = new Map(); #state = 'new'; #origins = []; #saving; #now; #disabled;
 
   constructor({ api, session, now = Date.now }) {
-    if (!api?.request || !session?.sessionId || !session.grant) throw new Error('Browser profile store is unavailable');
+    if (!api?.profileGrant || !session?.sessionId || !session.grant) throw new Error('Browser profile store is unavailable');
     this.#api = api;
     this.#session = session;
     this.#now = now;
   }
 
-  get status() { return { state: this.#revision > 0 ? 'shared' : 'new', origins: this.#origins }; }
+  get status() { return { state: this.#state, origins: this.#origins }; }
 
-  #call(path, body) {
-    return this.#api.request(`sessions/${encodeURIComponent(this.#session.sessionId)}/profile/${path}`,
-      { grant: this.#session.grant, tenantID: this.#session.tenantId, body });
-  }
-
-  async #latest() {
-    const result = await this.#call('load', {});
-    if (!Number.isSafeInteger(result?.revision) || result.revision < 0 || !Array.isArray(result.entries) ||
-      result.entries.length > PROFILE_MAX_ENTRIES) throw new Error('Cortex returned an invalid browser profile');
-    return { revision: result.revision, entries: result.entries.filter(validEntry) };
+  async #profileGrant() {
+    if (!this.#grant || Date.parse(this.#grant.expiresAt) - this.#now() < 30000) {
+      this.#grant = await this.#api.profileGrant(this.#session);
+      this.#state = this.#grant.state;
+      this.#origins = this.#grant.origins;
+    }
+    return this.#grant.grant;
   }
 
   // Loads the latest shared state into a fresh browser context.
   async load(context) {
-    const { revision, entries } = await this.#latest();
-    const live = entries.filter(entry => !entry.deleted);
+    const grant = await this.#profileGrant();
+    const entries = profileFromCortex(await this.#api.loadProfile(this.#session, grant));
     const nowSeconds = this.#now() / 1000;
-    const cookies = live.filter(entry => entry.kind === 'cookie' && (entry.expires === -1 || entry.expires > nowSeconds)).map(strip)
-      .map(({ kind, ...cookie }) => cookie);
-    if (cookies.length) await context.addCookies(cookies);
+    const cookies = [];
     const storage = {};
-    for (const entry of live) if (entry.kind === 'storage') (storage[entry.origin] ??= []).push([entry.key, entry.value]);
+    for (const { kind, ...entry } of entries.values()) {
+      if (kind === 'cookie' && (entry.expires === -1 || entry.expires > nowSeconds)) cookies.push(entry);
+      if (kind === 'storage') (storage[entry.origin] ??= []).push([entry.key, entry.value]);
+    }
+    if (cookies.length) await context.addCookies(cookies);
     // Playwright cannot pass arguments to a string script; inline the data as JSON.
     if (Object.keys(storage).length) await context.addInitScript(`(${SEED_SCRIPT})(${JSON.stringify(storage)})`);
-    this.#revision = revision;
-    this.#loaded = new Map(live.map(entry => [keyOf(entry), entry]));
-    this.#origins = profileOrigins(live);
+    this.#loaded = entries;
     return this.status;
   }
 
-  // Merges this task's changes onto the latest state, retrying on conflict.
-  async save(context, { attempts = 4 } = {}) {
+  // Sends only the changes since load (or the last successful save).
+  async save(context) {
+    if (this.#disabled) return this.status;
     this.#saving = (this.#saving ?? Promise.resolve()).catch(() => {}).then(async () => {
+      if (this.#disabled) return;
       const current = profileFromStorageState(await context.storageState());
-      const changes = profileDiff(this.#loaded, current, this.#now());
-      if (!changes.length) return;
-      for (let attempt = 1; ; attempt++) {
-        const latest = await this.#latest();
-        const entries = applyProfileChanges(latest.entries, changes, this.#now());
-        try {
-          const saved = await this.#call('save', { baseRevision: latest.revision, entries });
-          if (!Number.isSafeInteger(saved?.revision) || saved.revision <= latest.revision) throw new Error('Cortex returned an invalid browser profile revision');
-          this.#revision = saved.revision;
-          this.#loaded = current;
-          this.#origins = profileOrigins(entries);
-          return;
-        } catch (error) {
-          if (error?.status !== 409 || attempt >= attempts) throw new Error('Browser profile could not be saved');
-        }
+      const changes = profileChanges(this.#loaded, current, this.#now());
+      if (!changes.cookies.length && !changes.storage.length) return;
+      try {
+        const { origins } = await this.#api.saveProfileChanges(this.#session, await this.#profileGrant(), changes);
+        this.#loaded = current;
+        this.#state = 'shared';
+        this.#origins = origins;
+      } catch (error) {
+        // Forgotten sign-ins must not be re-uploaded from this browser.
+        if (error?.status === 410) { this.#disabled = true; this.#state = 'new'; this.#origins = []; return; }
+        throw new Error(error?.status === 409 ? 'Browser profile is busy; it will be saved later' : 'Browser profile could not be saved');
       }
     });
     await this.#saving;
