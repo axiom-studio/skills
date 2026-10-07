@@ -28,7 +28,7 @@ export function handlers(service) {
       }
       try {
         const input = validateInput(action, decode(call.request.config));
-        // Bindings carry host invocation grants and Vault credentials. They are
+        // Bindings carry host invocation grants. They are
         // passed through to the service and never logged or returned.
         const bindings = decode(call.request.bindings);
         const result = await service.execute(action, { runID: context?.run_id, agentID: context?.agent_id, input, bindings });
@@ -56,6 +56,7 @@ export async function serve(env = process.env) {
     api: new BrowserSessionAPI({ baseURL }),
     authorize: browserAuthorizer({ baseURL }),
     maxSessions: Number(env.LIVE_BROWSER_MAX_SESSIONS) || 4,
+    ...(env.AXIOM_SPEECH_API_URL ? { speechBaseURL: env.AXIOM_SPEECH_API_URL } : {}),
   });
   const definition = protoLoader.loadSync(fileURLToPath(new URL('./skill.proto', import.meta.url)), { keepCase: true });
   const server = new grpc.Server();

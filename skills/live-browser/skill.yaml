@@ -94,7 +94,7 @@ definition:
   actions:
     live-browser-start:
       name: live-browser-start
-      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. Returns the sessionId used by every other live-browser action. Reuses this run's browser if one is already open.
+      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Returns the sessionId used by every other live-browser action. Reuses this run's browser if one is already open.
       inputSchema:
         type: object
         additionalProperties: false
@@ -112,7 +112,7 @@ definition:
           requiresHuman: {type: boolean}
           intervention: {type: object}
           message: {type: string}
-      permissions: [browser:session, network:http, 'host:browser:session']
+      permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:profile', 'host:browser:audio']
       idempotency: supported
       retry: {maxAttempts: 1}
       risk: read
@@ -342,13 +342,11 @@ definition:
           displayName: {type: string, minLength: 1, maxLength: 100, description: Your visible name in the page; also a wake phrase.}
           wakePhrases: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 100}}
           speakReplies: {type: boolean, default: true}
-          speechModel: {type: string, minLength: 1, maxLength: 100}
+          transcriptionModel: {type: string, minLength: 1, maxLength: 200, description: Optional; defaults to the first transcription model available to this agent.}
+          speechModel: {type: string, minLength: 1, maxLength: 200, description: Optional; defaults to the first speech model with a voice.}
           voice: {type: string, minLength: 1, maxLength: 100}
         required: [sessionId, state]
-      credentials:
-        - name: api_key
-          kind: elevenlabs_api
-      permissions: [audio:capture, audio:playback, network:http, 'host:browser:audio']
+      permissions: [browser:session, audio:capture, audio:playback]
       idempotency: supported
       retry: {maxAttempts: 1}
       risk: write
@@ -363,7 +361,7 @@ definition:
         properties:
           sessionId: *session_id
           text: {type: string, minLength: 1, maxLength: 3000}
-          speechModel: {type: string, minLength: 1, maxLength: 100}
+          speechModel: {type: string, minLength: 1, maxLength: 200}
           voice: {type: string, minLength: 1, maxLength: 100}
         required: [sessionId, text]
       outputSchema:
@@ -372,12 +370,9 @@ definition:
           sessionId: {type: string}
           delivery: {type: string, enum: [played]}
           status: {type: string}
-      credentials:
-        - name: api_key
-          kind: elevenlabs_api
-      permissions: [audio:playback, network:http, 'host:browser:audio']
+      permissions: [browser:session, audio:playback]
       idempotency: required
       retry: {maxAttempts: 1}
-      risk: external
-      sideEffect: external
+      risk: write
+      sideEffect: write
       timeout: 180000000000

@@ -30,13 +30,14 @@ export class LiveBrowserService {
   #api; #authorize; #deps; #sessions = new Map(); #options;
 
   constructor({ api, authorize, deps = {}, maxSessions = 4, humanWaitMs = 120000, defaultDurationMinutes = 120,
-    leaseMs = 300000, profileSaveIntervalMs = PROFILE_SAVE_INTERVAL_MS, fetchAPI = fetch, now = Date.now } = {}) {
+    leaseMs = 300000, profileSaveIntervalMs = PROFILE_SAVE_INTERVAL_MS, fetchAPI = fetch, now = Date.now,
+    speechBaseURL = 'http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/' } = {}) {
     if (!api || typeof authorize !== 'function') throw new Error('Live browser host API is required');
     this.#api = api;
     this.#authorize = authorize;
-    this.#options = { maxSessions, humanWaitMs, defaultDurationMinutes, leaseMs, profileSaveIntervalMs, fetchAPI, now };
+    this.#options = { maxSessions, humanWaitMs, defaultDurationMinutes, leaseMs, profileSaveIntervalMs, fetchAPI, now, speechBaseURL };
     this.#deps = { launch: launchCamoufox, createDesktop: createBrowserDesktop, createAudioRoute,
-      openVideo: openBrowserVideo, openRFB: openBrowserRFB, desktopInput: options => new BrowserDesktopInput(options), detectIntervention: detectBrowserIntervention,
+      createAudio: options => new BrowserAudio(options), openVideo: openBrowserVideo, openRFB: openBrowserRFB, desktopInput: options => new BrowserDesktopInput(options), detectIntervention: detectBrowserIntervention,
       makeTemp: () => mkdtemp(join(tmpdir(), 'live-browser-')), removeTemp: dir => rm(dir, { recursive: true, force: true }),
       ...deps };
   }
@@ -110,12 +111,17 @@ export class LiveBrowserService {
         audio: { sink: session.route.sink, source: session.route.source } });
       session.profile = new BrowserProfileStore({ api: this.#api, session: { sessionId: session.id, grant: session.grant, tenantId: session.tenantID } });
       try { await session.profile.load(session.context); }
-      catch { console.warn(JSON.stringify({ event: 'live_browser_profile_load_failed' })); }
+      catch (error) {
+        // Without host:browser:profile on the session, run with a private profile.
+        if (error?.status === 403) session.profile = undefined;
+        console.warn(JSON.stringify({ event: 'live_browser_profile_load_failed', status: error?.status ?? null }));
+      }
       session.page = session.context.pages()[0] ?? await session.context.newPage();
       session.live = new LivePage(session.page);
       const display = session.desktop.display;
       session.handoff = new BrowserHandoff({ tenantID: session.tenantID, agentID, leaseMs: this.#options.leaseMs,
         close: () => this.#teardown(session),
+        onState: (status, intervention) => { if (status === 'awaiting_user') this.#handoffNotice(session, intervention); },
         videoFactory: ({ signal }) => this.#deps.openVideo({ display, signal }),
         desktopFactory: ({ signal }) => this.#deps.openRFB({ display, signal }),
         inputFactory: ({ control }) => this.#deps.desktopInput({ display, control, signal: session.controller.signal }),
@@ -187,6 +193,17 @@ export class LiveBrowserService {
       requiresHuman: false, message: 'Waiting for the user to take control and hand back. Do not act on this page until they do.' };
   }
 
+  // Best effort: Cortex posts "I need you to take over" to the chat and linked
+  // threads. Never blocks the handoff; failures are logged without content.
+  #handoffNotice(session, intervention) {
+    session.handoffs = (session.handoffs ?? 0) + 1;
+    const handoffId = `${session.id}:h${session.handoffs}`.replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 128);
+    void Promise.resolve().then(() => this.#api.handoffNotice({ sessionId: session.id, grant: session.grant, tenantId: session.tenantID },
+      { handoffId, summary: intervention?.summary ?? '' })).catch(error => {
+      console.warn(JSON.stringify({ event: 'live_browser_handoff_notice_failed', status: error?.status ?? null }));
+    });
+  }
+
   async #handoff(session, reason, summary, automatic = false) {
     const intervention = await session.handoff.requestHandoff(reason, summary);
     return { sessionId: session.id, status: 'awaiting_user', intervention, url: session.page.url(),
@@ -229,55 +246,40 @@ export class LiveBrowserService {
         await this.close(session);
         return { sessionId: session.id, status: 'none' };
       case 'live-browser-listen':
-        return this.#listen(session, input, bindings);
+        return this.#listen(session, input);
       case 'live-browser-speak':
         if (session.handoff.status === 'human') return this.#paused(session);
-        return { sessionId: session.id, ...(await (await this.#audio(session, bindings)).speak(input.text, {
-          apiKey: bindings.api_key || bindings.elevenlabs_api, speechModel: input.speechModel, voice: input.voice })) };
+        return { sessionId: session.id, ...(await this.#audio(session).speak(input.text, { speechModel: input.speechModel, voice: input.voice })) };
       default: throw new Error('Unknown live browser action');
     }
   }
 
-  async #audio(session, bindings) {
+  // Page audio uses the session grant: Cortex accepts it only when the
+  // session's registration carried host:browser:audio.
+  #audio(session) {
     if (session.audio) return session.audio;
-    const invocation = hostInvocation(bindings.CORTEX_HOST_INVOCATIONS, 'host:browser');
-    if (!invocation) throw new Error('This action requires the host:browser:audio permission');
-    const remaining = Math.max(1, Math.ceil((Date.parse(session.expiresAt) - this.#options.now()) / 60000));
-    const issued = await this.#api.audioGrant({ sessionId: session.id, invocation, durationMinutes: Math.min(480, remaining) });
-    if (issued.conversationId !== session.conversationID) throw new Error('Browser audio does not match this conversation');
-    session.audioGrant = issued;
-    const conversation = new CortexConversation({ baseURL: this.#api.audioURL(session.id), grant: issued.grant,
+    const grantSession = { sessionId: session.id, grant: session.grant, tenantId: session.tenantID };
+    const conversation = new CortexConversation({ baseURL: this.#api.sessionURL(session.id), grant: session.grant,
       tenantID: session.tenantID, agentID: session.agentID, conversationID: session.conversationID, sessionID: session.id,
       fetchAPI: this.#options.fetchAPI });
-    session.audio = new BrowserAudio({ route: session.route, conversation, agentID: session.agentID,
-      agentLabel: session.agentLabel ?? 'Agent', fetchAPI: this.#options.fetchAPI });
-    this.#scheduleAudioRenewal(session, conversation);
+    session.audio = this.#deps.createAudio({ route: session.route, conversation, agentID: session.agentID,
+      agentLabel: session.agentLabel ?? 'Agent', speechBaseURL: this.#options.speechBaseURL, fetchAPI: this.#options.fetchAPI,
+      grants: { catalog: () => this.#api.audioCatalogGrant(grantSession),
+        audio: selection => this.#api.audioGrants(grantSession, selection) } });
     return session.audio;
   }
 
-  #scheduleAudioRenewal(session, conversation) {
-    const delay = Math.max(1000, Date.parse(session.audioGrant.grantExpiresAt) - this.#options.now() - 60000);
-    session.audioTimer = setTimeout(async () => {
-      try {
-        const renewed = await this.#api.renewAudioGrant({ sessionId: session.id, grant: session.audioGrant.grant, tenantId: session.tenantID });
-        session.audioGrant = { ...session.audioGrant, ...renewed };
-        conversation.setGrant(renewed.grant);
-        this.#scheduleAudioRenewal(session, conversation);
-      } catch { session.audio?.stopListening(); }
-    }, delay);
-    session.audioTimer.unref?.();
-  }
-
-  async #listen(session, input, bindings) {
+  async #listen(session, input) {
     if (input.state === 'off') {
       session.audio?.stopListening();
       return { sessionId: session.id, listening: false };
     }
     if (input.displayName !== undefined) session.agentLabel = input.displayName;
-    const audio = await this.#audio(session, bindings);
-    const state = await audio.listen({ apiKey: bindings.api_key || bindings.elevenlabs_api, speakerLabel: input.speakerLabel,
+    const audio = this.#audio(session);
+    if (input.displayName !== undefined) audio.setAgentLabel(input.displayName);
+    const state = await audio.listen({ speakerLabel: input.speakerLabel,
       wakePhrases: [...(input.displayName ? [input.displayName] : []), ...(input.wakePhrases ?? [])],
-      speakReplies: input.speakReplies ?? true, speechModel: input.speechModel, voice: input.voice });
+      speakReplies: input.speakReplies ?? true, transcriptionModel: input.transcriptionModel, speechModel: input.speechModel, voice: input.voice });
     return { sessionId: session.id, ...state };
   }
 
@@ -361,12 +363,8 @@ export class LiveBrowserService {
     session.closed = session.closing = true;
     clearTimeout(session.expiry);
     clearInterval(session.saveTimer);
-    clearTimeout(session.audioTimer);
     for (const video of session.video) video.abort();
     session.audio?.close();
-    if (session.audioGrant) {
-      await this.#api.revokeAudio({ sessionId: session.id, grant: session.audioGrant.grant, tenantId: session.tenantID }).catch(() => {});
-    }
     if (session.context) {
       await this.#saveProfile(session);
       await Promise.race([session.context.close().catch(() => {}), new Promise(resolve => setTimeout(resolve, 10000).unref())]);

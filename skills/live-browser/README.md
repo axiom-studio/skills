@@ -11,7 +11,7 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 
 | Action | Risk | Notes |
 | --- | --- | --- |
-| `live-browser-start {url?, intent?, durationMinutes?}` | read | Registers a Cortex browser session (`host:browser:session`) and returns `sessionId`. Same run: reused. New run in the same conversation: replaces the previous browser. |
+| `live-browser-start {url?, intent?, durationMinutes?}` | read | Registers a Cortex browser session and returns `sessionId`. Declares `host:browser:session`, `host:browser:profile` and `host:browser:audio`: the session's registration origin carries the profile and audio permissions for its lifetime. Same run: reused. New run in the same conversation: replaces the previous browser. |
 | `live-browser-navigate {sessionId, url, intent?}` | read | |
 | `live-browser-snapshot {sessionId, includeScreenshot?, intent?}` | read | Text plus elements with generation-scoped refs `sN:eM` (same shape as the old `camoufox-snapshot`). |
 | `live-browser-click {sessionId, target \| generation+x+y, intent}` | write | |
@@ -21,8 +21,8 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 | `live-browser-screenshot {sessionId, fullPage?}` | read | |
 | `live-browser-request-handoff {sessionId, reason, summary}` | read | `reason`: payment, submit, login, personal_data, destructive, captcha, other. Returns `requiresHuman: true` with `challenges: ["manual_confirmation"]`. |
 | `live-browser-close {sessionId}` | read | Saves shared sign-ins and revokes the session. |
-| `live-browser-listen {sessionId, state: on\|off, speakerLabel?, displayName?, wakePhrases?, speakReplies?, speechModel?, voice?}` | write | `host:browser:audio`, ElevenLabs Vault credential. |
-| `live-browser-speak {sessionId, text, speechModel?, voice?}` | external | `host:browser:audio`, ElevenLabs Vault credential. |
+| `live-browser-listen {sessionId, state: on\|off, speakerLabel?, displayName?, wakePhrases?, speakReplies?, transcriptionModel?, speechModel?, voice?}` | write | Axiom speech gateway; models default to the agent's catalog. |
+| `live-browser-speak {sessionId, text, speechModel?, voice?}` | write | Axiom speech gateway. |
 
 While a human holds control, model actions wait (bounded) and return
 `status: paused_by_user` without acting; if the user is still in control the
@@ -39,8 +39,11 @@ there is no site-specific code.
   (Control, Video, Desktop) on `SKILL_PORT` (50051).
 - `CORTEX_BROWSER_API_URL` (default
   `http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/`)
-  for session registration, human-command authorization, audio grants and
-  shared profile load/save. `LIVE_BROWSER_MAX_SESSIONS` (default 4).
+  for session registration, human-command authorization, handoff notices,
+  conversation/transcript posts, speech grants and the shared profile.
+  `AXIOM_SPEECH_API_URL` (default
+  `http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/`) for
+  transcription and speech. `LIVE_BROWSER_MAX_SESSIONS` (default 4).
 - Stateless: no volume. Shared sign-ins are loaded on start and merged back on
   hand-back, close and every five minutes.
 
