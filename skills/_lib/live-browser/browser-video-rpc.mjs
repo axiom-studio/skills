@@ -3,9 +3,17 @@
 export function browserVideoRPC(service, call, desktop = false) {
   let session, closed = false;
   const close = () => { if (closed) return; closed = true; session?.close(); };
+  let failed = false;
+  // Ends the call with PERMISSION_DENIED. grpc-js only sends a status from the
+  // stream's 'error' path; destroy() would drop it and leave the host waiting
+  // for its own startup timeout (10-15s) before it could retry.
   const fail = () => {
     close();
-    call.destroy(Object.assign(new Error('Browser video is unavailable'), { code: 7 }));
+    if (failed) return;
+    failed = true;
+    const error = Object.assign(new Error('Browser video is unavailable'), { code: 7 });
+    if (call.cancelled || call.destroyed) call.destroy?.(error);
+    else call.emit('error', error);
   };
   call.once('cancelled', close);
   call.once('close', close);
