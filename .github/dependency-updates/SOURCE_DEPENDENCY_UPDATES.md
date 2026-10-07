@@ -38,15 +38,19 @@ the candidate remains held; tests and vendoring are not bypassed.
 
 The trusted `.github/dependency-updates/checks.sh` performs:
 
-1. `npm ci` for the meeting-voice and meet-voice lockfiles.
-2. A temporary Python environment installed from the exact Camoufox requirements.
+1. `npm ci` for the shared `skills/_lib/live-browser` library and the
+   live-browser Skill lockfiles. The Skill installs the library through a
+   `file:` dependency copied into its own `node_modules`, so a library
+   dependency change must also refresh `skills/live-browser/package-lock.json`;
+   otherwise `npm ci` fails and the candidate is held.
+2. A temporary Python environment installed from the exact Lightpanda browser
+   Skill requirements.
 3. The root Go unit suite against the checked-in vendor tree.
 4. The isolated `tests/platform` binding and authorization contract tests with
    the race detector and read-only module inputs.
 5. `scripts/validate.sh`, which builds Go services, runs Python and Node tests,
    and checks manifest structure.
-6. `make docker-build`, building every supported Skill service image, followed
-   by a build of the alternate meeting-voice local-transcript Dockerfile.
+6. `make docker-build`, building every supported Skill service image.
 
 Every failing preparation, test, or image build holds promotion. Tests use
 temporary state and local fixtures; the gate supplies no provider credentials
