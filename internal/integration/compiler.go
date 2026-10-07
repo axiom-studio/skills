@@ -28,10 +28,10 @@ func Compile(p *Profile) (map[string]interface{}, error) {
 	manifest := map[string]interface{}{
 		"apiVersion": "openseal.dev/v1alpha1", "kind": "SkillDefinition",
 		"definition": map[string]interface{}{
-			"id": "skill-" + p.ID, "version": RuntimeVersion + "-" + hash[:12], "name": p.ID, "description": "Pinned " + p.Transport + " integration",
+			"id": "skill-" + p.ID, "version": runtimeVersion(p.Transport) + "-" + hash[:12], "name": p.ID, "description": "Pinned " + p.Transport + " integration",
 			"actions": actions, "transport": map[string]interface{}{"kind": "tool", "endpoint": "skill-" + p.ID},
 			"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + p.Transport + ":latest"}},
-			"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": p.ID, "resolvedVersion": RuntimeVersion + "-" + hash[:12]},
+			"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": p.ID, "resolvedVersion": runtimeVersion(p.Transport) + "-" + hash[:12]},
 		},
 	}
 	data, err := yaml.Marshal(manifest)
