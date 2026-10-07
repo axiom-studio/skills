@@ -28,9 +28,10 @@ export const schemas = Object.freeze({
   'live-browser-close': object({ sessionId }, ['sessionId']),
   'live-browser-listen': object({ sessionId, state: { type: 'string', enum: ['on', 'off'] }, speakerLabel: label, displayName: label,
     wakePhrases: { type: 'array', maxItems: 8, items: label }, speakReplies: { type: 'boolean', default: true },
-    speechModel: { type: 'string', minLength: 1, maxLength: 100 }, voice: { type: 'string', minLength: 1, maxLength: 100 } }, ['sessionId', 'state']),
+    transcriptionModel: { type: 'string', minLength: 1, maxLength: 200 },
+    speechModel: { type: 'string', minLength: 1, maxLength: 200 }, voice: { type: 'string', minLength: 1, maxLength: 100 } }, ['sessionId', 'state']),
   'live-browser-speak': object({ sessionId, text: { type: 'string', minLength: 1, maxLength: 3000 },
-    speechModel: { type: 'string', minLength: 1, maxLength: 100 }, voice: { type: 'string', minLength: 1, maxLength: 100 } }, ['sessionId', 'text']),
+    speechModel: { type: 'string', minLength: 1, maxLength: 200 }, voice: { type: 'string', minLength: 1, maxLength: 100 } }, ['sessionId', 'text']),
 });
 
 // Minimal structural validation of model input before it reaches the browser.
