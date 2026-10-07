@@ -33,6 +33,22 @@ function future(value, name) {
   return new Date(at).toISOString();
 }
 
+// Typed Cortex refusals the agent must explain to the user. Only the code is
+// read from the reply; the message is owned here, so server text is never
+// relayed.
+const TYPED_REFUSALS = Object.freeze({
+  browser_no_conversation: 'This task has no conversation to show the live browser in. '
+    + 'The live browser only runs for a chat or a task that posts to a conversation; tell the user, and use a non-interactive browser if one is available.',
+});
+
+async function typedRefusal(response) {
+  if (response.status !== 409) return undefined;
+  try {
+    const code = (await response.json())?.errorCode;
+    return typeof code === 'string' && Object.hasOwn(TYPED_REFUSALS, code) ? code : undefined;
+  } catch { return undefined; }
+}
+
 export class BrowserSessionAPI {
   #base; #fetch;
 
@@ -67,6 +83,8 @@ export class BrowserSessionAPI {
         signal: AbortSignal.timeout(30000), ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}) });
     } catch { throw new Error('Cortex browser API is unavailable'); }
     if (!response.ok) {
+      const refusal = await typedRefusal(response);
+      if (refusal) throw Object.assign(new Error(TYPED_REFUSALS[refusal]), { status: response.status, code: refusal, expose: true });
       throw Object.assign(new Error(`Cortex browser API refused the request (HTTP ${response.status})`), { status: response.status });
     }
     let envelope;
