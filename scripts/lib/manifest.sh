@@ -17,6 +17,8 @@ run_manifest_validation() {
 
         local skill_name
         skill_name="$(basename "$skill_dir")"
+        # Shared libraries (skills/_lib) are not Skills and have no manifest.
+        [ "$skill_name" = "_lib" ] && continue
         manifest_file="$skill_dir/skill.yaml"
 
         if [ ! -f "$manifest_file" ]; then
