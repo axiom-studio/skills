@@ -78,10 +78,10 @@ func run(transport string) error {
 		return enc.Encode(result)
 	}
 	id := "skill-" + transport
-	version := RuntimeVersion
+	version := runtimeVersion(transport)
 	if r != nil {
 		id = "skill-" + r.Profile.ID
-		version = RuntimeVersion + "-" + r.Hash[:12]
+		version = runtimeVersion(transport) + "-" + r.Hash[:12]
 	}
 	server := grpc.NewSkillServer(id, version)
 	server.RegisterExecutor(transport+"-compile", &CompilerAdapter{Transport: transport}, compileConfig{})
