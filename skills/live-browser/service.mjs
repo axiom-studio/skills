@@ -54,15 +54,19 @@ export class LiveBrowserService {
 
   async status(session) {
     const handoff = session.handoff;
-    const status = handoff.status;
+    // Registered but the display is not up yet: report a starting browser
+    // rather than failing, so viewers see the session (and retry the stream).
+    const status = handoff ? handoff.status : 'automating';
     let title = session.title;
-    try { title = await Promise.race([session.page.title(), new Promise((_, reject) => setTimeout(reject, 1000).unref())]); } catch { /* cached */ }
+    if (session.page) {
+      try { title = await Promise.race([session.page.title(), new Promise((_, reject) => setTimeout(reject, 1000).unref())]); } catch { /* cached */ }
+    }
     session.title = title;
-    const lease = handoff.lease;
+    const lease = handoff?.lease;
     return {
-      sessionId: session.id, status, url: session.page.url(), title: title ?? '',
+      sessionId: session.id, status, url: session.page?.url() ?? '', title: title ?? '',
       ...(session.step ? { step: session.step } : {}),
-      ...(handoff.intervention ? { intervention: handoff.intervention } : {}),
+      ...(handoff?.intervention ? { intervention: handoff.intervention } : {}),
       ...(lease ? { lease: { expiresAt: new Date(lease.expiresAt).toISOString() } } : {}),
       profile: session.profile ? session.profile.status : { state: 'new', origins: [] },
       audio: { listening: session.audio?.listening === true },
@@ -105,6 +109,17 @@ export class LiveBrowserService {
     this.#sessions.set(session.id, session);
     try {
       session.desktop = await this.#deps.createDesktop({ signal: session.controller.signal });
+      const display = session.desktop.display;
+      // The handoff (status, live view, control) exists as soon as the display
+      // does. Launching Camoufox and loading the profile take seconds to tens
+      // of seconds; viewers watch the browser come up instead of waiting.
+      session.handoff = new BrowserHandoff({ tenantID: session.tenantID, agentID, leaseMs: this.#options.leaseMs,
+        close: () => this.#teardown(session),
+        onState: (status, intervention) => { if (status === 'awaiting_user') this.#handoffNotice(session, intervention); },
+        videoFactory: ({ signal }) => this.#deps.openVideo({ display, signal }),
+        desktopFactory: ({ signal }) => this.#deps.openRFB({ display, signal }),
+        inputFactory: ({ control }) => this.#deps.desktopInput({ display, control, signal: session.controller.signal }),
+      });
       session.route = await this.#deps.createAudioRoute(session.id.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24));
       session.profileDir = await this.#deps.makeTemp();
       session.context = await this.#deps.launch(session.profileDir, { display: session.desktop.display,
@@ -118,14 +133,6 @@ export class LiveBrowserService {
       }
       session.page = session.context.pages()[0] ?? await session.context.newPage();
       session.live = new LivePage(session.page);
-      const display = session.desktop.display;
-      session.handoff = new BrowserHandoff({ tenantID: session.tenantID, agentID, leaseMs: this.#options.leaseMs,
-        close: () => this.#teardown(session),
-        onState: (status, intervention) => { if (status === 'awaiting_user') this.#handoffNotice(session, intervention); },
-        videoFactory: ({ signal }) => this.#deps.openVideo({ display, signal }),
-        desktopFactory: ({ signal }) => this.#deps.openRFB({ display, signal }),
-        inputFactory: ({ control }) => this.#deps.desktopInput({ display, control, signal: session.controller.signal }),
-      });
       session.page.on?.('close', () => { void this.close(session); });
       const remaining = Date.parse(session.expiresAt) - this.#options.now();
       session.expiry = setTimeout(() => { void this.close(session); }, Math.max(1000, remaining));
