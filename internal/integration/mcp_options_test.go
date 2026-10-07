@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func configuredMCP() *Profile {
@@ -208,5 +210,28 @@ func TestMCPLegacySSETransport(t *testing.T) {
 	})}
 	if _, err = r.Discover(t.Context(), ""); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCompiledVersionFollowsTransportRuntime(t *testing.T) {
+	for _, tc := range []struct {
+		profile *Profile
+		version string
+	}{{fixture(), RuntimeVersion}, {configuredMCP(), MCPruntimeVersion}} {
+		compiled, err := Compile(tc.profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc struct {
+			Definition struct {
+				Version string `yaml:"version"`
+			} `yaml:"definition"`
+		}
+		if err := yaml.Unmarshal([]byte(compiled["manifest"].(string)), &doc); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(doc.Definition.Version, tc.version+"-") {
+			t.Fatalf("%s compiled version %q does not start with %s", tc.profile.Transport, doc.Definition.Version, tc.version)
+		}
 	}
 }
