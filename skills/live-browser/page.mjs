@@ -4,6 +4,84 @@ import { createHash } from 'node:crypto';
 // (for example from Playwright) may quote page content and is replaced.
 export function exposed(message, extra = {}) { return Object.assign(new Error(message), { expose: true }, extra); }
 
+// An element-level problem the agent can recover from (expand, scroll, close an
+// overlay, re-snapshot). The service returns it as a not_actionable result
+// instead of failing the action. Never carries page content.
+export function notActionable(reason, hint) { return exposed(reason, { notActionable: true, reason, hint }); }
+
+// Browser, context or page faults stay errors.
+const FAULT = /(has been closed|target closed|browser has disconnected|browser closed|session closed|connection closed|crash)/i;
+const ELEMENT_PROBLEMS = [
+  [/not attached|detached|no longer (in|attached)|element handle.*(disposed|stale)/i, 'Element is no longer on the page',
+    'The page changed. Take a new snapshot and use a fresh reference.'],
+  [/intercepts pointer events|obscured|covered by/i, 'Element is covered by another element',
+    'Close the dialog, banner or overlay on top of it, or scroll so it is unobstructed, then take a new snapshot.'],
+  [/not editable|readonly|read-only/i, 'Element is not editable',
+    'Click the box or its comment/reply button to open the editor, then take a new snapshot and fill the text box that appears.'],
+  [/not enabled|disabled/i, 'Element is disabled', 'Complete the earlier steps that enable it, then take a new snapshot.'],
+  [/not visible|outside of the viewport|hidden|zero size/i, 'Element is not visible',
+    'Scroll to it or click what expands it (for example a collapsed comment box), then take a new snapshot.'],
+  [/not stable|animating/i, 'Element is still moving', 'Wait briefly, then take a new snapshot and retry.'],
+  [/execution context was destroyed|navigat|frame was detached/i, 'The page changed during the action',
+    'Take a new snapshot before acting again.'],
+  [/timeout|timed out|exceeded/i, 'Timed out waiting for the element',
+    'Scroll it into view or expand its container, then take a new snapshot. Use coordinates from a screenshot if it still fails.'],
+];
+
+// Maps a Playwright element failure to notActionable; anything else is rethrown.
+export function elementProblem(error) {
+  if (error?.expose === true) return error;
+  const message = String(error?.message ?? '');
+  if (FAULT.test(message)) return error;
+  for (const [pattern, reason, hint] of ELEMENT_PROBLEMS) if (pattern.test(message)) return notActionable(reason, hint);
+  if (error?.name === 'TimeoutError') return notActionable(ELEMENT_PROBLEMS.at(-1)[1], ELEMENT_PROBLEMS.at(-1)[2]);
+  return error;
+}
+
+const NOT_VISIBLE_HINT = ELEMENT_PROBLEMS.find(([, reason]) => reason === 'Element is not visible')[2];
+const NOT_EDITABLE_HINT = ELEMENT_PROBLEMS.find(([, reason]) => reason === 'Element is not editable')[2];
+
+// What has keyboard focus (through open shadow roots): 'field' (text input or
+// textarea), 'editable' (contenteditable, e.g. rich comment editors), 'readonly'
+// or 'none'.
+export const FOCUS_JS = `() => {
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) active = active.shadowRoot.activeElement;
+  if (!active) return 'none';
+  const text = active.tagName === 'TEXTAREA' || (active.tagName === 'INPUT' &&
+    !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image', 'range', 'color', 'hidden'].includes(active.type));
+  if (text) return active.readOnly || active.disabled ? 'readonly' : 'field';
+  return active.isContentEditable ? 'editable' : 'none';
+}`;
+
+// The focused editor's text, to confirm the value was kept.
+export const FOCUSED_VALUE_JS = `() => {
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) active = active.shadowRoot.activeElement;
+  if (!active) return null;
+  return 'value' in active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') ? active.value
+    : active.isContentEditable ? (active.innerText || active.textContent || '') : null;
+}`;
+
+// Focuses the target, or the first editable inside it (also inside open
+// shadow roots): many comment boxes wrap a contenteditable editor.
+function focusEditable(element) {
+  const editable = e => e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && !e.readOnly && !e.disabled) || e.isContentEditable;
+  const find = root => {
+    for (const e of root.querySelectorAll('*')) {
+      if (editable(e)) return e;
+      if (e.shadowRoot) { const inner = find(e.shadowRoot); if (inner) return inner; }
+    }
+    return null;
+  };
+  const target = editable(element) ? element : (find(element) ?? (element.shadowRoot ? find(element.shadowRoot) : null));
+  if (!target) return false;
+  target.focus();
+  return true;
+}
+
+const normalized = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+
 // Page observation and agent interaction for one live browser page. Element
 // references are generation-scoped ("s<generation>:e<n>"), so an action can
 // only target what the model saw in the latest snapshot. Never log page text,
@@ -28,7 +106,7 @@ export function detectChallenges(...evidence) {
 }
 
 export const SNAPSHOT_JS = `(limits) => {
-  const sel = 'a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="textbox"],[role="combobox"],[role="tab"],[role="menuitem"],[role="option"],[contenteditable="true"]';
+  const sel = 'a,button,input,select,textarea,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="textbox"],[role="combobox"],[role="tab"],[role="menuitem"],[role="option"],[contenteditable]:not([contenteditable="false"])';
   const candidates = [];
   const visit = (root) => {
     for (const element of root.querySelectorAll('*')) {
@@ -187,7 +265,7 @@ export class LivePage {
     const match = REF.exec(String(target ?? ''));
     if (!match) throw exposed('Target must be an element reference from the latest snapshot');
     if (Number(match[1]) !== this.generation || !this.#elements.has(Number(match[2]))) {
-      throw exposed('Element reference is stale; take a new snapshot');
+      throw notActionable('Element reference is stale', 'Take a new snapshot and use a reference from it.');
     }
     return { element: this.#elements.get(Number(match[2])), locator: this.#page.locator(`[data-live-ref="${Number(match[2])}"]`).first() };
   }
@@ -195,19 +273,26 @@ export class LivePage {
   async #center(locator) {
     await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
     const box = await locator.boundingBox({ timeout: 5000 });
-    if (!box) throw exposed('Target is not visible');
+    if (!box) throw notActionable('Element is not visible', NOT_VISIBLE_HINT);
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  // Runs element work; recoverable element failures become notActionable.
+  async #element(operation) {
+    try { return await operation(); } catch (error) { throw elementProblem(error); }
   }
 
   async click({ target, generation, x, y }) {
     if (target !== undefined) {
       const { locator } = this.#resolve(target);
-      try {
-        const point = await this.#center(locator);
-        await this.#page.mouse.click(point.x, point.y);
-      } catch { await locator.click({ timeout: 5000 }); }
+      await this.#element(async () => {
+        try {
+          const point = await this.#center(locator);
+          await this.#page.mouse.click(point.x, point.y);
+        } catch { await locator.click({ timeout: 5000 }); }
+      });
     } else {
-      if (generation !== this.generation) throw exposed('Coordinates are stale; take a new snapshot');
+      if (generation !== this.generation) throw notActionable('Coordinates are stale', 'Take a new snapshot or screenshot and use its generation.');
       if (![x, y].every(value => Number.isFinite(value) && value >= 0 && value <= 10000)) throw exposed('Invalid coordinates');
       await this.#page.mouse.click(x, y);
     }
@@ -220,25 +305,64 @@ export class LivePage {
     const { element, locator } = this.#resolve(target);
     const semantics = `${element.name} ${element.state?.type ?? ''} ${element.state?.autocomplete ?? ''}`;
     if (SENSITIVE_FIELD.test(semantics)) {
-      throw exposed('This field is for a password, payment or identity value. Call live-browser-request-handoff so the user enters it.');
+      throw notActionable('This field is for a password, payment or identity value. Call live-browser-request-handoff so the user enters it.',
+        'Call live-browser-request-handoff so the user enters it.');
     }
-    if (!['textbox', 'searchbox', 'combobox'].includes(element.role)) throw exposed('Target is not an editable field');
-    const point = await this.#center(locator);
-    await this.#page.mouse.click(point.x, point.y);
-    await this.#page.keyboard.press('ControlOrMeta+A');
-    await this.#page.keyboard.press('Backspace');
-    if (value) await this.#page.keyboard.type(value, { delay: 8 });
-    const actual = await locator.evaluate(e => ('value' in e ? e.value : (e.innerText || e.textContent || '')), undefined, { timeout: 5000 }).catch(() => undefined);
-    this.#elements.clear();
-    return { retained: actual === value };
+    const editableRole = ['textbox', 'searchbox', 'combobox'].includes(element.role);
+    return this.#element(async () => {
+      // Another role (for example a comment box wrapper) must hold an editor;
+      // never click a link or button in the name of filling it.
+      if (!editableRole && !(await locator.evaluate(focusEditable, undefined, { timeout: 5000 }))) {
+        throw notActionable('Target is not an editable field', NOT_EDITABLE_HINT);
+      }
+      // Click to focus like a person; rich editors (contenteditable) often
+      // expand on click. Fall back to focusing the editable directly.
+      let clicked = false;
+      try {
+        const point = await this.#center(locator);
+        await this.#page.mouse.click(point.x, point.y);
+        clicked = true;
+      } catch (error) {
+        const problem = elementProblem(error);
+        if (problem?.notActionable !== true) throw problem;
+      }
+      let focus = await this.#focusKind();
+      if (!['field', 'editable'].includes(focus)) {
+        const found = await locator.evaluate(focusEditable, undefined, { timeout: 5000 });
+        focus = found ? await this.#focusKind() : 'none';
+      }
+      if (focus === 'readonly') throw notActionable('Element is not editable', NOT_EDITABLE_HINT);
+      if (!['field', 'editable'].includes(focus)) {
+        if (!clicked) throw notActionable('Element is not visible', NOT_VISIBLE_HINT);
+        throw notActionable('The field did not take keyboard focus', NOT_EDITABLE_HINT);
+      }
+      // In a focused contenteditable, select-all is limited to its editor.
+      await this.#page.keyboard.press('ControlOrMeta+A');
+      await this.#page.keyboard.press('Backspace');
+      if (value) await this.#page.keyboard.type(value, { delay: 8 });
+      const actual = await this.#page.evaluate(`(${FOCUSED_VALUE_JS})()`).catch(() => null);
+      this.#elements.clear();
+      return { retained: typeof actual === 'string' && normalized(actual) === normalized(value), ...(focus === 'editable' ? { editor: 'rich_text' } : {}) };
+    });
+  }
+
+  async #focusKind() {
+    return this.#page.evaluate(`(${FOCUS_JS})()`).catch(() => 'none');
   }
 
   async select({ target, value }) {
     if (typeof value !== 'string' || !value || value.length > 1000) throw exposed('Invalid option');
     const { locator } = this.#resolve(target);
-    let selected = await locator.selectOption({ value }, { timeout: 5000 }).catch(() => []);
-    if (!selected?.length) selected = await locator.selectOption({ label: value }, { timeout: 5000 }).catch(() => []);
-    if (!selected?.length) throw exposed('Option not found; use its value or visible label from the page');
+    let failure;
+    const attempt = option => locator.selectOption(option, { timeout: 5000 }).catch(error => { failure = error; return []; });
+    let selected = await attempt({ value });
+    if (!selected?.length) selected = await attempt({ label: value });
+    if (!selected?.length) {
+      const problem = failure ? elementProblem(failure) : undefined;
+      if (problem && problem !== failure) throw problem;
+      if (failure && FAULT.test(String(failure.message))) throw failure;
+      throw notActionable('Option not found', 'Use the option value or visible label from the page; for a custom dropdown, click it open and click the option.');
+    }
     await this.settle();
     this.#elements.clear();
     return { selected: selected.length };

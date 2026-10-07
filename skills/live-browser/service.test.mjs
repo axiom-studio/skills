@@ -10,10 +10,19 @@ function fakePage() {
   page.current = 'about:blank';
   page.url = () => page.current;
   page.title = async () => (page.current === 'about:blank' ? '' : 'Flights');
-  page.goto = async url => { page.current = url; return { status: () => 200 }; };
+  const main = { url: () => page.current };
+  page.mainFrame = () => main;
+  page.goto = async url => { page.current = url; page.emit('framenavigated', main); return { status: () => 200 }; };
   page.waitForLoadState = async () => {};
-  page.evaluate = async () => {};
+  page.snapshot = { url: 'https://www.reddit.com/r/aww/comments/1', title: 'Cute', text: 'Comments', elements: [
+    { ref: 1, role: 'textbox', name: 'Join the conversation', context: 'form', href: '', inViewport: false, bounds: {}, state: {} }] };
+  page.evaluate = async script => (typeof script === 'string' && script.startsWith('((limits)') ? structuredClone(page.snapshot) : 'none');
+  page.box = null;
+  page.locator = () => ({ first() { return this; }, scrollIntoViewIfNeeded: async () => {}, boundingBox: async () => page.box,
+    evaluate: async () => { if (page.fault) throw page.fault; return false; },
+    click: async () => { throw page.fault ?? Object.assign(new Error('Timeout 5000ms exceeded.\n - element is not visible'), { name: 'TimeoutError' }); } });
   page.mouse = { click: async () => {}, wheel: async () => {} };
+  page.keyboard = { press: async () => {}, type: async () => {} };
   return page;
 }
 
@@ -42,7 +51,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, profi
     },
     async loadProfile() { calls.push(['loadProfile']); return structuredClone(profile); },
     async saveProfileChanges(_session, grant, changes) {
-      calls.push(['saveProfile', grant]);
+      calls.push(['saveProfile', grant, structuredClone(changes)]);
       profile.cookies.push(...changes.cookies);
       return { origins: ['example.com'] };
     },
@@ -171,7 +180,7 @@ test('model actions wait while a human holds control and return paused_by_user',
 
 test('request-handoff waits for the user; hand-back resumes and saves shared sign-ins', async () => {
   const h = harness();
-  await h.run('live-browser-start', {});
+  await h.run('live-browser-start', { url: 'https://shop.example.com/' });
   const handoff = await h.run('live-browser-request-handoff', { sessionId: 'b-1', reason: 'payment', summary: 'Pay ₹4,210 for the 9:05 flight.' });
   assert.equal(handoff.status, 'awaiting_user');
   assert.equal(handoff.requiresHuman, true);
@@ -186,7 +195,7 @@ test('request-handoff waits for the user; hand-back resumes and saves shared sig
   h.contexts[0].state.cookies.push({ name: 'SID', value: 'signed-in', domain: '.example.com', path: '/', expires: -1, httpOnly: true, secure: true, sameSite: 'Lax' });
   await h.control('b-1', { type: 'resume', leaseID: lease.id });
   for (let i = 0; i < 20 && !h.calls.some(call => call[0] === 'saveProfile'); i++) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.deepEqual(h.calls.find(call => call[0] === 'saveProfile'), ['saveProfile', 'pg'], 'hand-back saves the profile');
+  assert.deepEqual(h.calls.find(call => call[0] === 'saveProfile').slice(0, 2), ['saveProfile', 'pg'], 'hand-back saves the profile');
   assert.equal(h.profile.cookies[0].name, 'SID');
   assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating');
   await h.service.closeAll();
@@ -267,4 +276,44 @@ test('every entry into awaiting_user posts a best-effort handoff notice', async 
     assert.ok(warnings.length >= 2 && warnings.every(line => !/secret|summary|verification/.test(line)));
     await h.service.closeAll();
   } finally { console.warn = warn; }
+});
+
+test('an element the agent cannot use returns not_actionable; the run can recover', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.reddit.com/r/aww/comments/1' });
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  const target = snapshot.elements[0].ref;
+  const fill = await h.run('live-browser-fill', { sessionId: 'b-1', target, value: 'So cute!', intent: 'Draft a supportive comment' });
+  assert.equal(fill.status, 'not_actionable');
+  assert.equal(fill.browserStatus, 'automating');
+  assert.equal(fill.reason, 'Element is not visible');
+  assert.match(fill.hint, /click what expands it/);
+  assert.equal(fill.url, 'https://www.reddit.com/r/aww/comments/1');
+  assert.equal(fill.title, 'Flights');
+  assert.equal(fill.requiresHuman, false);
+  for (const key of ['error', 'success', 'isError']) assert.equal(key in fill, false, 'never an explicit failure envelope');
+  const click = await h.run('live-browser-click', { sessionId: 'b-1', target, intent: 'Open the comment box' });
+  assert.equal(click.status, 'not_actionable');
+  const stale = await h.run('live-browser-click', { sessionId: 'b-1', target: 's9:e1', intent: 'Click an old reference' });
+  assert.deepEqual([stale.status, stale.reason], ['not_actionable', 'Element reference is stale']);
+  // The session still works.
+  assert.equal((await h.run('live-browser-snapshot', { sessionId: 'b-1' })).generation, 2);
+  // A browser fault is still an error.
+  h.pages[0].fault = new Error('Target page, context or browser has been closed');
+  const fresh = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  await assert.rejects(h.run('live-browser-fill', { sessionId: 'b-1', target: fresh.elements[0].ref, value: 'x', intent: 'Type' }), /The browser action failed/);
+  await h.service.closeAll();
+});
+
+test('the shared profile saves only sites the browser navigated to', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.reddit.com/r/aww' });
+  const cookie = (name, domain) => ({ name, value: 'v', domain, path: '/', expires: -1, httpOnly: false, secure: true, sameSite: 'None' });
+  h.contexts[0].state.cookies.push(cookie('reddit_session', '.reddit.com'), cookie('tvid', '.1rx.io'), cookie('uid', '.33across.com'));
+  h.contexts[0].state.origins.push({ origin: 'https://ads.360yield.com', localStorage: [{ name: 'id', value: 'ad' }] });
+  await h.service.closeAll();
+  const [, , changes] = h.calls.find(call => call[0] === 'saveProfile');
+  assert.deepEqual(changes.cookies.map(c => c.domain), ['.reddit.com']);
+  assert.deepEqual(changes.storage, []);
+  assert.deepEqual(changes.sites, ['reddit.com']);
 });

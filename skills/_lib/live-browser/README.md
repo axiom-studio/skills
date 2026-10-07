@@ -16,7 +16,7 @@ in their `.npmrc`, and their Dockerfile copies it to the same relative path
 | `browser-intervention.mjs` | Handoff reasons and summaries; DOM detection of codes and challenges. |
 | `browser-authorizer.mjs` | Verifies each human command with Cortex (`sessions/{id}/authorize`). |
 | `browser-session.mjs` | Cortex browser-session client: register/revoke, handoff notice, audio catalog and speech grants, profile grant/load/changes. |
-| `browser-profile.mjs` | Shared sign-in state: loads the tenant profile into a browser and sends only this task's cookie/localStorage changes; Cortex merges them. |
+| `browser-profile.mjs` | Shared sign-in state: loads the tenant profile into a browser and sends only this task's first-party cookie/localStorage changes (sites it navigated to at top level, eTLD+1) plus those sites; Cortex merges them. |
 | `browser-grpc.mjs`, `browser-video-rpc.mjs`, `browser-control.proto` | `axiom.browser.v1.BrowserControlService`. |
 | `browser-audio.mjs` and `audio`, `speech-gateway`, `transcript-queue`, `attention`, `reply-inbox`, `bridge`, `speech-playback`, `voice-latency`, `voice-failure` | Listen (page audio → gateway transcription → transcript and addressed utterances) and speak (gateway speech → virtual microphone), with session-bound grants from Cortex. |
 
