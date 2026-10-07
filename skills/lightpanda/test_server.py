@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from runtime import BrowserActionFailure, classified_proxy_failure, source_http_failure
+from runtime import BrowserActionFailure, source_http_failure
 
 
 class Message:
@@ -58,16 +58,7 @@ class BrowserTransportTest(unittest.TestCase):
         })
         self.assertIn("HTTP 429", response.error.message)
         self.assertIn("45 seconds", response.error.message)
-        self.assertNotIn("Camoufox", response.error.message)
-
-    def test_proxy_error_does_not_expose_credentials_or_endpoint(self):
-        error = classified_proxy_failure(RuntimeError("HTTP 407 http://user:private-password@proxy.internal:1234"))
-        response = self.execute(error=error)
-        self.assertEqual(response.error.type, "browser_proxy_authentication_failed")
-        serialized = json.dumps(response.error.__dict__)
-        self.assertNotIn("private-password", serialized)
-        self.assertNotIn("proxy.internal", serialized)
-        self.assertIn("platform", response.error.message)
+        self.assertNotIn("live browser", response.error.message)
 
     def test_mixed_batch_keeps_explicit_partial_result(self):
         result = {"status": "partial", "succeededCount": 1, "failedCount": 1, "results": [
@@ -93,6 +84,12 @@ class BrowserTransportTest(unittest.TestCase):
         response = self.execute(error=ValueError("invalid binding private-value"), bindings={"password": b'"private-value"'})
         self.assertEqual(response.error.type, "validation")
         self.assertEqual(response.error.message, "invalid binding [REDACTED]")
+
+
+    def test_catalog_and_health_cover_only_lightpanda(self):
+        self.assertEqual(self.server.ACTIONS, ["lightpanda-fetch", "lightpanda-search", "lightpanda-read-many"])
+        schemas = self.server.load_action_schemas()
+        self.assertEqual(sorted(schemas), sorted(self.server.ACTIONS))
 
 
 if __name__ == "__main__":
