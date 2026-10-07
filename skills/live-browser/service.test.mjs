@@ -17,7 +17,7 @@ function fakePage() {
   return page;
 }
 
-function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, profileForbidden = false, leaseMs, noticeFails = false } = {}) {
+function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, profileForbidden = false, leaseMs, noticeFails = false, launchGate } = {}) {
   const calls = [];
   let sessions = 0, requests = 0;
   const profile = { cookies: [], storage: [] };
@@ -56,6 +56,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, profi
     makeTemp: async () => '/tmp/live-browser-test', removeTemp: async dir => calls.push(['rm', dir]),
     launch: async (dir, options) => {
       calls.push(['launch', dir, options.display, options.audio.sink]);
+      await launchGate;
       const page = fakePage(); pages.push(page);
       const state = { cookies: [], origins: [] };
       const context = { state, pages: () => [page], newPage: async () => page, addCookies: async c => state.cookies.push(...c),
@@ -104,6 +105,23 @@ test('start registers the session, launches on a private display and reports ric
   const again = await h.run('live-browser-start', { url: 'https://flights.example.com/results' });
   assert.equal(again.sessionId, 'b-1');
   assert.equal(h.calls.filter(call => call[0] === 'register').length, 1);
+  await h.service.closeAll();
+});
+
+test('status and the live view work while the browser is still launching', async () => {
+  let launched;
+  const h = harness({ launchGate: new Promise(resolve => { launched = resolve; }) });
+  const starting = h.run('live-browser-start', { url: 'https://flights.example.com/' });
+  while (!h.calls.some(call => call[0] === 'launch')) await new Promise(resolve => setImmediate(resolve));
+  const status = await h.control('b-1', { type: 'status' });
+  assert.equal(status.status, 'automating');
+  assert.equal(status.url, '');
+  const watch = await h.service.videoBrowser({ agentID: 'agent-1', sessionID: 'b-1', authorization: {}, command: { type: 'watch' } });
+  const iterator = watch.stream[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value.toString(), 'webm', 'the display streams before Camoufox is up');
+  launched();
+  assert.equal((await starting).url, 'https://flights.example.com/');
+  watch.close();
   await h.service.closeAll();
 });
 
