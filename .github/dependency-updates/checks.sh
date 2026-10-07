@@ -22,14 +22,14 @@ bash scripts/tests/test-release-health.sh
 
 # Install the exact checked-in npm/Python dependency inputs before invoking the
 # existing validator. All lifecycle code runs without repository write access.
-npm --prefix skills/meeting-voice ci --no-audit --no-fund
-npm --prefix skills/meet-voice ci --no-audit --no-fund
+npm --prefix skills/_lib/live-browser ci --no-audit --no-fund
+npm --prefix skills/live-browser ci --no-audit --no-fund
 dependency_gate_tmp="$(mktemp -d)"
 trap 'rm -rf "$dependency_gate_tmp"' EXIT
 python3 -m venv "$dependency_gate_tmp/python"
 export PATH="$dependency_gate_tmp/python/bin:$PATH"
 python3 -m pip install --disable-pip-version-check \
-  -r skills/camoufox/requirements.txt
+  -r skills/lightpanda/requirements.txt
 
 go test -mod=vendor -timeout=15m ./...
 # The platform module has local binding/authorization contract tests and
@@ -41,7 +41,3 @@ go test -mod=vendor -timeout=15m ./...
 make docker-build
 # Real Health validation needs the images built above on a fresh CI runner.
 bash scripts/validate.sh
-# This alternate Dockerfile is a dependency input outside Makefile discovery.
-docker build --pull --platform linux/amd64 \
-  -f skills/meeting-voice/Dockerfile.local-transcript \
-  -t dependency-check/meeting-voice-local-transcript:local .
