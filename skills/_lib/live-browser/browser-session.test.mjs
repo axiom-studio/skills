@@ -66,6 +66,18 @@ test('HTTP statuses such as 410 and 409 are surfaced without bodies', async () =
   await assert.rejects(api.saveProfileChanges({ sessionId: 'b', grant: 'g' }, 'p', {}), error => error.status === 410 && !/secret/.test(error.message));
 });
 
+test('a run without a conversation gets the typed refusal the agent can explain', async () => {
+  const reply = body => async () => ({ ok: false, status: 409, json: async () => body });
+  await assert.rejects(new BrowserSessionAPI({ baseURL: 'http://h/b/v1/',
+    fetchAPI: reply({ error: 'ignored server text', errorCode: 'browser_no_conversation' }) }).register({ invocation: 'host-grant', durationMinutes: 5 }),
+  error => error.code === 'browser_no_conversation' && error.status === 409 &&
+    error.message.startsWith('This task has no conversation to show the live browser in.') && !/ignored/.test(error.message));
+  for (const body of [{ errorCode: 'other', error: 'secret' }, { errorCode: 'toString' }, null]) {
+    await assert.rejects(new BrowserSessionAPI({ baseURL: 'http://h/b/v1/', fetchAPI: reply(body) }).register({ invocation: 'host-grant', durationMinutes: 5 }),
+      error => error.message === 'Cortex browser API refused the request (HTTP 409)');
+  }
+});
+
 test('Cortex failures and malformed replies never expose tokens', async () => {
   for (const fetchAPI of [
     async () => { throw new Error('connect to host-grant failed'); },
