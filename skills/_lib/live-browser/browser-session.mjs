@@ -49,10 +49,12 @@ export class BrowserSessionAPI {
   // Raw fetch for presigned object-storage URLs issued by Cortex.
   get fetchAPI() { return this.#fetch; }
 
-  audioURL(sessionID) { return this.url(`sessions/${encodeURIComponent(text(sessionID, 'session', ID))}/audio/`).toString(); }
+  // Base for the session's conversation, messages and transcript routes,
+  // authenticated with the session grant (requires host:browser:audio).
+  sessionURL(sessionID) { return this.url(`sessions/${encodeURIComponent(text(sessionID, 'session', ID))}/`).toString(); }
 
-  async request(path, { invocation, grant, tenantID, body }) {
-    const headers = { 'Content-Type': 'application/json' };
+  async request(path, { invocation, grant, tenantID, body, method = 'POST', headers: extra = {} }) {
+    const headers = { ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}), ...extra };
     // Host invocation must be the only identity on registration routes.
     if (invocation) headers['X-Cortex-Host-Invocation'] = invocation;
     else {
@@ -61,8 +63,8 @@ export class BrowserSessionAPI {
     }
     let response;
     try {
-      response = await this.#fetch(this.url(path), { method: 'POST', headers, redirect: 'error',
-        signal: AbortSignal.timeout(10000), body: JSON.stringify(body ?? {}) });
+      response = await this.#fetch(this.url(path), { method, headers, redirect: 'error',
+        signal: AbortSignal.timeout(30000), ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}) });
     } catch { throw new Error('Cortex browser API is unavailable'); }
     if (!response.ok) {
       throw Object.assign(new Error(`Cortex browser API refused the request (HTTP ${response.status})`), { status: response.status });
@@ -93,28 +95,46 @@ export class BrowserSessionAPI {
     await this.request(`sessions/${encodeURIComponent(sessionId)}/revoke`, { grant, tenantID: tenantId });
   }
 
-  // POST sessions/{id}/audio/grants (host:browser:audio). Mirrors the Meet
-  // grant issuer: binds page audio and transcripts to this session's chat.
-  async audioGrant({ sessionId, invocation, durationMinutes }) {
-    text(invocation, 'host invocation');
-    const result = await this.request(`sessions/${encodeURIComponent(sessionId)}/audio/grants`, { invocation, body: { durationMinutes } });
-    return {
-      grant: text(result.grant, 'audio grant'),
-      grantExpiresAt: future(result.grantExpiresAt, 'audio grant expiry'),
-      expiresAt: future(result.expiresAt ?? result.sessionExpiresAt, 'audio expiry'),
-      conversationId: text(result.conversationId, 'conversation', ID),
-    };
+  #session(path, session, options = {}) {
+    return this.request(`sessions/${encodeURIComponent(session.sessionId)}/${path}`,
+      { grant: session.grant, tenantID: session.tenantId, ...options });
   }
 
-  // POST sessions/{id}/audio/grants/renew with the current audio grant.
-  async renewAudioGrant({ sessionId, grant, tenantId }) {
-    const result = await this.request(`sessions/${encodeURIComponent(sessionId)}/audio/grants/renew`,
-      { grant, tenantID: tenantId, body: { previousGrant: grant } });
-    return { grant: text(result.grant, 'audio grant'), grantExpiresAt: future(result.grantExpiresAt, 'audio grant expiry') };
+  // POST sessions/{id}/handoff-notice: Cortex posts the take-over link in chat.
+  async handoffNotice(session, { handoffId, summary }) {
+    return this.#session('handoff-notice', session, { body: { handoffId, summary } });
   }
 
-  // POST sessions/{id}/audio/revoke with the audio grant.
-  async revokeAudio({ sessionId, grant, tenantId }) {
-    await this.request(`sessions/${encodeURIComponent(sessionId)}/audio/revoke`, { grant, tenantID: tenantId, body: { grant } });
+  // POST sessions/{id}/audio/catalog-grant -> {token, expiresAt} for the gateway model catalog.
+  async audioCatalogGrant(session) {
+    const result = await this.#session('audio/catalog-grant', session, { body: {} });
+    return { token: text(result.token, 'catalog grant'), expiresAt: future(result.expiresAt, 'catalog grant expiry') };
+  }
+
+  // POST sessions/{id}/audio/grants {transcriptionModel, speechModel}.
+  async audioGrants(session, { transcriptionModel, speechModel }) {
+    const result = await this.#session('audio/grants', session, { body: { transcriptionModel, speechModel } });
+    return { transcriptionToken: text(result.transcriptionToken, 'transcription grant'),
+      speechToken: text(result.speechToken, 'speech grant'), expiresAt: future(result.expiresAt, 'audio grant expiry') };
+  }
+
+  // POST sessions/{id}/profile/grant (requires host:browser:profile on the session).
+  async profileGrant(session) {
+    const result = await this.#session('profile/grant', session, { body: {} });
+    return { profile: String(result.profile ?? ''), state: result.state === 'shared' ? 'shared' : 'new',
+      origins: Array.isArray(result.origins) ? result.origins.filter(value => typeof value === 'string') : [],
+      grant: text(result.grant, 'profile grant'), expiresAt: future(result.expiresAt, 'profile grant expiry') };
+  }
+
+  // GET sessions/{id}/profile with X-Browser-Profile-Grant.
+  async loadProfile(session, profileGrant) {
+    const result = await this.#session('profile', session, { method: 'GET', headers: { 'X-Browser-Profile-Grant': profileGrant } });
+    return { cookies: Array.isArray(result.cookies) ? result.cookies : [], storage: Array.isArray(result.storage) ? result.storage : [] };
+  }
+
+  // POST sessions/{id}/profile/changes; the server merges. 410: forgotten, 409: busy.
+  async saveProfileChanges(session, profileGrant, changes) {
+    const result = await this.#session('profile/changes', session, { body: changes, headers: { 'X-Browser-Profile-Grant': profileGrant } });
+    return { origins: Array.isArray(result.origins) ? result.origins.filter(value => typeof value === 'string') : [] };
   }
 }
