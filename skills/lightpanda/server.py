@@ -1,8 +1,7 @@
-"""Canonical Skill gRPC transport for the Camoufox skill."""
+"""Canonical Skill gRPC transport for the Lightpanda browser Skill."""
 
 import json
 import os
-import threading
 from concurrent import futures
 
 import grpc
@@ -10,29 +9,13 @@ import yaml
 
 import skill_pb2
 import skill_pb2_grpc
-from runtime import VERSION, BrowserActionFailure, CamoufoxRuntime, load_inventory
+from runtime import SKILL_ID, VERSION, BrowserActionFailure, LightpandaRuntime
 
-SKILL_ID = "skill-browser"
 ACTIONS = [
     "lightpanda-fetch",
     "lightpanda-search",
     "lightpanda-read-many",
-    "camoufox-health",
-    "camoufox-start",
-    "camoufox-navigate",
-    "camoufox-snapshot",
-    "camoufox-follow-link",
-    "camoufox-click",
-    "camoufox-commit",
-    "camoufox-fill",
-    "camoufox-fill-secret",
-    "camoufox-select",
-    "camoufox-scroll",
-    "camoufox-screenshot",
-    "camoufox-report",
-    "camoufox-close",
 ]
-WORKSPACE = os.environ.get("CAMOUFOX_WORKSPACE", "/var/lib/openseal-camoufox")
 PORT = os.environ.get("SKILL_PORT", "50051")
 MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "skill.yaml")
 
@@ -79,21 +62,13 @@ def encode_output(result):
 
 class SkillService(skill_pb2_grpc.SkillServiceServicer):
     def __init__(self):
-        self.runtime = CamoufoxRuntime(inventory=load_inventory(), workspace=WORKSPACE)
+        self.runtime = LightpandaRuntime()
         self.schemas = load_action_schemas()
 
     def Execute(self, request, _context):
         bindings = decode(request.bindings)
-        cancellation = threading.Event()
-        _context.add_callback(cancellation.set)
-        execution_context = {
-            "runId": request.context.run_id,
-            "agentId": request.context.agent_id,
-            "namespace": request.context.namespace,
-            "_cancellation": cancellation,
-        }
         try:
-            result = self.runtime.execute(request.node_type, decode(request.config), bindings, execution_context)
+            result = self.runtime.execute(request.node_type, decode(request.config), bindings)
             return skill_pb2.ExecuteResponse(output=encode_output(result))
         except BrowserActionFailure as exc:
             return skill_pb2.ExecuteResponse(
@@ -118,11 +93,7 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
         return skill_pb2.GetNodeSchemaResponse(schema=json.dumps(schema, sort_keys=True).encode("utf-8"))
 
     def Health(self, _request, _context):
-        status = self.runtime.health().get("status")
-        lightpanda = os.environ.get("LIGHTPANDA_BINARY", "/usr/local/bin/lightpanda")
-        return skill_pb2.HealthResponse(
-            healthy=status == "ready" or os.access(lightpanda, os.X_OK), skill_id=SKILL_ID, version=VERSION
-        )
+        return skill_pb2.HealthResponse(healthy=self.runtime.ready(), skill_id=SKILL_ID, version=VERSION)
 
 
 def serve():
