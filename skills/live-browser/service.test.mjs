@@ -17,10 +17,10 @@ function fakePage() {
   return page;
 }
 
-function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect } = {}) {
+function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, profileForbidden = false, leaseMs, noticeFails = false } = {}) {
   const calls = [];
   let sessions = 0, requests = 0;
-  const profile = { revision: 0, entries: [] };
+  const profile = { cookies: [], storage: [] };
   const api = {
     async register({ invocation, durationMinutes }) {
       calls.push(['register', invocation, durationMinutes]);
@@ -28,15 +28,25 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect } = {}
       return { sessionId: `b-${sessions}`, grant: `grant-${sessions}`, expiresAt: later(), tenantId: '7', agentId, conversationId };
     },
     async revoke({ sessionId, grant }) { calls.push(['revoke', sessionId, grant]); },
-    async request(path, options) {
-      calls.push([path.split('/').at(-1), path.split('/')[1]]);
-      assert.match(options.grant, /^grant-/);
-      if (path.endsWith('/load')) return structuredClone(profile);
-      if (path.endsWith('/save')) { profile.entries = options.body.entries; profile.revision++; return { revision: profile.revision }; }
-      throw new Error('unexpected');
+    async handoffNotice(session, notice) {
+      calls.push(['notice', session.grant, notice.handoffId, notice.summary]);
+      if (noticeFails) throw Object.assign(new Error('secret summary'), { status: 503 });
+      return { posted: true };
     },
-    async audioGrant() { calls.push(['audioGrant']); return { grant: 'audio', grantExpiresAt: later(), expiresAt: later(), conversationId: 'other-conv' }; },
-    audioURL: id => `http://cortex/browser/v1/sessions/${id}/audio/`,
+    async audioCatalogGrant() { calls.push(['catalog']); return { token: 'c', expiresAt: later() }; },
+    async audioGrants() { calls.push(['audio']); return { transcriptionToken: 't', speechToken: 's', expiresAt: later() }; },
+    async profileGrant(session) {
+      calls.push(['profileGrant', session.grant]);
+      if (profileForbidden) throw Object.assign(new Error('forbidden'), { status: 403 });
+      return { profile: 'default', state: profile.cookies.length ? 'shared' : 'new', origins: [], grant: 'pg', expiresAt: later() };
+    },
+    async loadProfile() { calls.push(['loadProfile']); return structuredClone(profile); },
+    async saveProfileChanges(_session, grant, changes) {
+      calls.push(['saveProfile', grant]);
+      profile.cookies.push(...changes.cookies);
+      return { origins: ['example.com'] };
+    },
+    sessionURL: id => `http://cortex/browser/v1/sessions/${id}/`,
   };
   const pages = [];
   const contexts = [];
@@ -59,12 +69,18 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect } = {}
     } }),
     openRFB: async () => { throw new Error('no rfb'); },
     detectIntervention: detect ?? (async () => undefined),
+    createAudio: options => {
+      calls.push(['createAudio', options.speechBaseURL]);
+      return { listening: false, setAgentLabel: label => calls.push(['label', label]), stopListening() { this.listening = false; },
+        async listen(o) { this.listening = true; await options.grants.catalog(); await options.grants.audio({}); return { listening: true, speakerLabel: o.speakerLabel }; },
+        async speak() { return { delivery: 'played' }; }, close() {} };
+    },
   };
   const authorize = async ({ command, sessionGrant }) => {
     assert.match(sessionGrant, /^grant-/);
     return { userID: 'human-1', tenantID: '7', agentID: agentId, requestID: `r-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command };
   };
-  const service = new LiveBrowserService({ api, authorize, deps, humanWaitMs: 200, profileSaveIntervalMs: 3600000 });
+  const service = new LiveBrowserService({ api, authorize, deps, humanWaitMs: 200, profileSaveIntervalMs: 3600000, ...(leaseMs ? { leaseMs } : {}) });
   const control = (sessionId, command) => service.controlBrowser({ agentID: agentId, sessionID: sessionId,
     authorization: { token: 'proof', commandJSON: JSON.stringify(command) }, command });
   const bindings = { CORTEX_HOST_INVOCATIONS: JSON.stringify({ 'host:browser': 'invocation' }) };
@@ -80,7 +96,7 @@ test('start registers the session, launches on a private display and reports ric
   assert.equal(started.url, 'https://flights.example.com/');
   assert.deepEqual(h.calls[0], ['register', 'invocation', 120]);
   assert.deepEqual(h.calls.find(call => call[0] === 'launch'), ['launch', '/tmp/live-browser-test', ':42', 'lb_b1_capture']);
-  assert.ok(h.calls.some(call => call[0] === 'load'), 'the shared profile is loaded on start');
+  assert.deepEqual(h.calls.filter(call => ['profileGrant', 'loadProfile'].includes(call[0])), [['profileGrant', 'grant-1'], ['loadProfile']], 'the shared profile is loaded on start');
   const status = await h.control('b-1', { type: 'status' });
   assert.deepEqual({ ...status, expiresAt: undefined }, { sessionId: 'b-1', status: 'automating', url: 'https://flights.example.com/',
     title: 'Flights', step: 'Open the flight search', profile: { state: 'new', origins: [] }, audio: { listening: false }, expiresAt: undefined });
@@ -151,9 +167,9 @@ test('request-handoff waits for the user; hand-back resumes and saves shared sig
   const lease = await h.control('b-1', { type: 'claim' });
   h.contexts[0].state.cookies.push({ name: 'SID', value: 'signed-in', domain: '.example.com', path: '/', expires: -1, httpOnly: true, secure: true, sameSite: 'Lax' });
   await h.control('b-1', { type: 'resume', leaseID: lease.id });
-  for (let i = 0; i < 20 && !h.calls.some(call => call[0] === 'save'); i++) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.ok(h.calls.some(call => call[0] === 'save'), 'hand-back saves the profile');
-  assert.equal(h.profile.entries[0].name, 'SID');
+  for (let i = 0; i < 20 && !h.calls.some(call => call[0] === 'saveProfile'); i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.deepEqual(h.calls.find(call => call[0] === 'saveProfile'), ['saveProfile', 'pg'], 'hand-back saves the profile');
+  assert.equal(h.profile.cookies[0].name, 'SID');
   assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating');
   await h.service.closeAll();
 });
@@ -182,17 +198,55 @@ test('watch streams without a lease; lease video needs the owner; close revokes 
   assert.deepEqual(closed, { sessionId: 'b-1', status: 'none' });
   assert.equal((await pending).done, true);
   const order = h.calls.map(call => call[0]);
-  assert.ok(order.indexOf('context-close') > order.lastIndexOf('load'));
+  assert.ok(order.indexOf('context-close') > order.lastIndexOf('loadProfile'));
   assert.ok(order.includes('revoke') && order.includes('route-close') && order.includes('desktop-close') && order.includes('rm'));
   await assert.rejects(h.control('b-1', { type: 'status' }), /could not be completed/);
 });
 
-test('audio requires the host:browser:audio grant for this exact conversation', async () => {
+test('listen and speak use the session grant and gateway grants, with no provider credential', async () => {
   const h = harness();
   await h.run('live-browser-start', {});
-  await assert.rejects(h.service.execute('live-browser-listen', { runID: 'run-1', agentID: 'agent-1',
-    input: { sessionId: 'b-1', state: 'on' }, bindings: {} }), /host:browser:audio/);
-  await assert.rejects(h.run('live-browser-listen', { sessionId: 'b-1', state: 'on' }), /does not match this conversation/);
+  assert.deepEqual(await h.service.execute('live-browser-listen', { runID: 'run-1', agentID: 'agent-1',
+    input: { sessionId: 'b-1', state: 'on', displayName: 'Ada', speakerLabel: 'Meeting participant' }, bindings: {} }),
+  { sessionId: 'b-1', listening: true, speakerLabel: 'Meeting participant' });
+  assert.ok(h.calls.some(call => call[0] === 'createAudio' && /llm-gateway/.test(call[1])));
+  assert.ok(h.calls.some(call => call[0] === 'catalog') && h.calls.some(call => call[0] === 'audio'));
+  assert.deepEqual(await h.service.execute('live-browser-speak', { runID: 'run-1', agentID: 'agent-1', input: { sessionId: 'b-1', text: 'Hello' }, bindings: {} }),
+    { sessionId: 'b-1', delivery: 'played' });
   assert.deepEqual(await h.run('live-browser-listen', { sessionId: 'b-1', state: 'off' }), { sessionId: 'b-1', listening: false });
   await h.service.closeAll();
+});
+
+test('handoff posts a take-over notice; a session without profile permission runs privately', async () => {
+  const h = harness({ profileForbidden: true });
+  await h.run('live-browser-start', {});
+  await h.run('live-browser-request-handoff', { sessionId: 'b-1', reason: 'submit', summary: 'Confirm the booking.' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.calls.filter(call => call[0] === 'notice'), [['notice', 'grant-1', 'b-1:h1', 'Confirm the booking.']]);
+  assert.deepEqual((await h.control('b-1', { type: 'status' })).profile, { state: 'new', origins: [] });
+  await h.service.closeAll();
+  assert.equal(h.calls.filter(call => call[0] === 'saveProfile').length, 0);
+});
+
+test('every entry into awaiting_user posts a best-effort handoff notice', async () => {
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = line => warnings.push(line);
+  try {
+    const h = harness({ detect: async () => 'challenge', leaseMs: 1000, noticeFails: true });
+    const challenged = await h.run('live-browser-start', { url: 'https://shop.example.com/' });
+    assert.equal(challenged.status, 'awaiting_user', 'a failing notice never blocks the handoff');
+    const lease = await h.control('b-1', { type: 'claim' });
+    await h.control('b-1', { type: 'resume', leaseID: lease.id });
+    // Lease expiry pauses the agent and also notifies.
+    await h.control('b-1', { type: 'claim' });
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    assert.equal((await h.control('b-1', { type: 'status' })).status, 'awaiting_user');
+    const notices = h.calls.filter(call => call[0] === 'notice');
+    assert.deepEqual(notices.map(call => call[2]), ['b-1:h1', 'b-1:h2']);
+    assert.equal(notices[0][3], 'The website requires a human verification step.');
+    assert.match(notices[1][3], /control ended/);
+    assert.ok(warnings.length >= 2 && warnings.every(line => !/secret|summary|verification/.test(line)));
+    await h.service.closeAll();
+  } finally { console.warn = warn; }
 });

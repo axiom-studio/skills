@@ -16,8 +16,9 @@ test('the action catalog, identity and version match skill.yaml', () => {
   assert.match(manifest, new RegExp(`^  id: ${SKILL_ID}$`, 'm'));
   assert.match(manifest, new RegExp(`^  version: ${SKILL_VERSION.replaceAll('.', '\\.')}$`, 'm'));
   assert.match(manifest, new RegExp(`package: axiomstudio/skill-live-browser:${SKILL_VERSION.replaceAll('.', '\\.')}`));
-  assert.match(manifest, /permissions: \[browser:session, network:http, 'host:browser:session'\]/);
-  assert.equal([...manifest.matchAll(/'host:browser:audio'/g)].length, 2);
+  assert.match(manifest, /permissions: \[browser:session, network:http, 'host:browser:session', 'host:browser:profile', 'host:browser:audio'\]/);
+  assert.equal([...manifest.matchAll(/'host:browser:/g)].length, 3, 'only start declares host permissions');
+  assert.doesNotMatch(manifest, /elevenlabs|credentials:|risk: external/);
   assert.doesNotMatch(manifest, /host:meet/);
   const packageJSON = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
   assert.equal(packageJSON.version, SKILL_VERSION);
