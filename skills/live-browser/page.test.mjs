@@ -1,22 +1,37 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { detectChallenges, LivePage, navigationURL, SETTLE_JS, SNAPSHOT_JS } from './page.mjs';
+import { detectChallenges, elementProblem, FOCUS_JS, FOCUSED_VALUE_JS, LivePage, navigationURL, SETTLE_JS, SNAPSHOT_JS } from './page.mjs';
 
-function fakePage(raw) {
+// options.focus: what a click focuses ('field', 'editable', 'none');
+// options.box: element box (null when hidden); options.focusable: whether the
+// target or an editable inside it can be focused directly.
+function fakePage(raw, options = {}) {
   const events = [];
+  const state = { focus: 'none' };
   const locator = ref => ({
     first() { return this; },
     scrollIntoViewIfNeeded: async () => {},
-    boundingBox: async () => ({ x: 10, y: 20, width: 100, height: 20 }),
-    click: async () => events.push(['locator-click', ref]),
-    evaluate: async () => events.typed ?? '',
+    boundingBox: async () => (options.box === undefined ? { x: 10, y: 20, width: 100, height: 20 } : options.box),
+    click: async () => { if (options.locatorClick) throw options.locatorClick; events.push(['locator-click', ref]); },
+    evaluate: async () => {
+      events.push(['focus-editable']);
+      if (options.focusable === false || /"[23]"/.test(ref)) return false; // links
+      state.focus = options.focus ?? 'field';
+      return true;
+    },
     selectOption: async option => (option.label === 'Economy' ? ['economy'] : []),
   });
-  return { events, page: {
+  return { events, state, page: {
     url: () => raw.url, title: async () => raw.title, waitForLoadState: async () => {},
-    evaluate: async script => (typeof script === 'string' && script.startsWith('((limits)') ? structuredClone(raw) : undefined),
+    evaluate: async script => {
+      if (typeof script === 'string' && script.startsWith('((limits)')) return structuredClone(raw);
+      if (script === `(${FOCUS_JS})()`) return state.focus;
+      if (script === `(${FOCUSED_VALUE_JS})()`) return state.focus === 'editable' ? `${events.typed ?? ''}\n` : (events.typed ?? '');
+      return undefined;
+    },
     locator: selector => locator(selector),
-    mouse: { click: async (x, y) => events.push(['click', x, y]), wheel: async (dx, dy) => events.push(['wheel', dx, dy]) },
+    mouse: { click: async (x, y) => { events.push(['click', x, y]); state.focus = options.clickFocus ?? options.focus ?? 'field'; },
+      wheel: async (dx, dy) => events.push(['wheel', dx, dy]) },
     keyboard: { press: async key => events.push(['press', key]), type: async text => { events.push(['type', text.length]); events.typed = text; } },
     screenshot: async () => Buffer.from('jpeg'), viewportSize: () => ({ width: 1280, height: 800 }),
   } };
@@ -87,4 +102,69 @@ test('navigation accepts only HTTP(S) URLs without credentials; challenges are t
   assert.deepEqual(detectChallenges('Enter your verification code'), ['mfa']);
   assert.deepEqual(detectChallenges('Checking your browser before accessing'), ['anti_bot']);
   assert.deepEqual(detectChallenges('Our Cloudflare outage report and 2FA guide'), []);
+});
+
+const notActionable = pattern => error => error.notActionable === true && error.expose === true && pattern.test(error.reason) && error.hint.length > 0;
+
+test('element problems are not actionable, browser faults stay errors', async () => {
+  const timeout = message => Object.assign(new Error(message), { name: 'TimeoutError' });
+  assert.match(elementProblem(timeout('locator.click: Timeout 5000ms exceeded.\n  - element is not visible\n  - retrying')).reason, /not visible/);
+  assert.match(elementProblem(new Error('<div class="overlay"> intercepts pointer events')).reason, /covered/);
+  assert.match(elementProblem(new Error('Element is not attached to the DOM')).reason, /no longer on the page/);
+  assert.match(elementProblem(new Error('Element is not editable')).reason, /not editable/);
+  assert.match(elementProblem(timeout('Timeout 5000ms exceeded.')).reason, /Timed out/);
+  for (const fault of ['Target page, context or browser has been closed', 'Browser has disconnected', 'Target crashed']) {
+    const error = new Error(fault);
+    assert.equal(elementProblem(error), error);
+  }
+  const other = new Error('Protocol error: unknown');
+  assert.equal(elementProblem(other), other);
+
+  const { page } = fakePage(raw, { box: null, locatorClick: timeout('locator.click: Timeout 5000ms exceeded.\n  - element is not visible') });
+  const live = new LivePage(page);
+  await live.snapshot();
+  await assert.rejects(live.click({ target: 's1:e2' }), notActionable(/not visible/));
+  await live.snapshot();
+  await assert.rejects(live.click({ target: 's1:e2' }), notActionable(/stale/));
+  await assert.rejects(live.click({ generation: 1, x: 1, y: 1 }), notActionable(/stale/));
+  const closed = fakePage(raw, { locatorClick: new Error('Target page, context or browser has been closed'), box: null });
+  const gone = new LivePage(closed.page);
+  await gone.snapshot();
+  await assert.rejects(gone.click({ target: 's1:e2' }), error => error.notActionable !== true && /closed/.test(error.message));
+});
+
+test('fill types into a contenteditable comment editor and confirms it kept the text', async () => {
+  const editor = { ...raw, elements: [{ ref: 1, role: 'textbox', name: 'Join the conversation', context: 'form', href: '', inViewport: true, bounds: {}, state: {} },
+    { ref: 6, role: 'shreddit-composer', name: 'Comment', context: 'form', href: '', inViewport: true, bounds: {}, state: {} }] };
+  const { page, events } = fakePage(editor, { focus: 'editable' });
+  const live = new LivePage(page);
+  await live.snapshot();
+  assert.deepEqual(await live.fill({ target: 's1:e1', value: 'Great  pup!' }), { retained: true, editor: 'rich_text' });
+  assert.deepEqual(events.filter(e => ['click', 'press', 'type'].includes(e[0])), [['click', 60, 30], ['press', 'ControlOrMeta+A'], ['press', 'Backspace'], ['type', 11]]);
+  // A wrapper element that holds an editor is filled too.
+  await live.snapshot();
+  assert.equal((await live.fill({ target: 's2:e6', value: 'Hi' })).retained, true);
+});
+
+test('fill of a hidden or collapsed editor is not actionable unless it can be focused', async () => {
+  const collapsed = fakePage(raw, { box: null, focusable: false });
+  const live = new LivePage(collapsed.page);
+  await live.snapshot();
+  await assert.rejects(live.fill({ target: 's1:e1', value: 'x' }), notActionable(/not visible/));
+  assert.equal(collapsed.events.filter(e => e[0] === 'type').length, 0);
+  // Hidden behind a placeholder but focusable: focus it directly and type.
+  const hidden = fakePage(raw, { box: null, focus: 'editable' });
+  const focused = new LivePage(hidden.page);
+  await focused.snapshot();
+  assert.equal((await focused.fill({ target: 's1:e1', value: 'hello' })).retained, true);
+  assert.equal(hidden.events.filter(e => e[0] === 'click').length, 0);
+  // A click that leaves focus nowhere editable, and a read-only field.
+  const nowhere = fakePage(raw, { clickFocus: 'none', focusable: false });
+  const noFocus = new LivePage(nowhere.page);
+  await noFocus.snapshot();
+  await assert.rejects(noFocus.fill({ target: 's1:e1', value: 'x' }), notActionable(/did not take keyboard focus/));
+  const readonly = fakePage(raw, { focus: 'readonly' });
+  const ro = new LivePage(readonly.page);
+  await ro.snapshot();
+  await assert.rejects(ro.fill({ target: 's1:e1', value: 'x' }), notActionable(/not editable/));
 });

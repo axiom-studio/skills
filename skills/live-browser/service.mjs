@@ -125,6 +125,8 @@ export class LiveBrowserService {
       session.context = await this.#deps.launch(session.profileDir, { display: session.desktop.display,
         audio: { sink: session.route.sink, source: session.route.source } });
       session.profile = new BrowserProfileStore({ api: this.#api, session: { sessionId: session.id, grant: session.grant, tenantId: session.tenantID } });
+      // Only sites this session's pages navigate to are saved (first party).
+      session.profile.track(session.context);
       try { await session.profile.load(session.context); }
       catch (error) {
         // Without host:browser:profile on the session, run with a private profile.
@@ -169,6 +171,7 @@ export class LiveBrowserService {
       });
     } catch (error) {
       if (error instanceof BrowserPausedError) return error.status === 'human' ? this.#paused(session) : this.#awaiting(session);
+      if (error?.notActionable === true) return this.#notActionable(session, error);
       throw new Error(error?.expose === true ? error.message : 'The browser action failed');
     }
     const { checkChallenges, handoffReason, ...output } = result ?? {};
@@ -181,6 +184,15 @@ export class LiveBrowserService {
     if (reason && session.handoff.status === 'automating') return { ...output, ...(await this.#handoff(session, reason, undefined, true)) };
     return { sessionId: session.id, status: session.handoff.status, url: session.page.url(),
       title: await session.page.title().catch(() => ''), ...output };
+  }
+
+  // An element the model targeted could not be acted on. Nothing was changed
+  // in a way that needs undoing, so this is a successful result the model can
+  // recover from, not an action failure (which ends a write action's run).
+  async #notActionable(session, error) {
+    return { sessionId: session.id, status: 'not_actionable', browserStatus: session.handoff.status,
+      reason: String(error.reason ?? error.message).slice(0, 200), hint: String(error.hint ?? 'Take a new snapshot and try another way.').slice(0, 300),
+      url: session.page.url(), title: await session.page.title().catch(() => ''), requiresHuman: false };
   }
 
   async #paused(session) {
