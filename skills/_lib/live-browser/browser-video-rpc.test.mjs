@@ -33,6 +33,21 @@ test('desktop RPC separates authority from RFB and acknowledges the ordered inpu
   assert.deepEqual([...rpc.output.at(-1).value], [2]);
   rpc.emit('cancelled');
 });
+test('desktop barrier survives a full send buffer while frames are in flight', async () => {
+  const rpc = call(); let stop;
+  browserVideoRPC({ async videoBrowser() {
+    return { stream: (async function* () { yield Buffer.from('RFB'); await new Promise(resolve => { stop = resolve; }); })(),
+      write: async () => {}, close: () => stop?.(), renew: async () => {} };
+  } }, rpc, true);
+  rpc.emit('data', { value: Buffer.concat([Buffer.from([0]), packet('proof').value]) });
+  await setImmediate();
+  rpc.write = packet => { rpc.output.push(packet); return false; };
+  rpc.emit('data', { value: Buffer.from([2]) }); await setImmediate();
+  assert.equal(rpc.failure, undefined);
+  assert.deepEqual([...rpc.output.at(-1).value], [2]);
+  assert.equal(rpc.paused, false);
+  rpc.emit('cancelled');
+});
 test('desktop rejects native input before authentication', async () => {
   const rpc = call(); let opened = false;
   browserVideoRPC({ videoBrowser: async () => { opened = true; } }, rpc, true);
