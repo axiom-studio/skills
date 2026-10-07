@@ -11,7 +11,9 @@ function call() {
   stream.resume = () => { stream.paused = false; };
   stream.write = packet => { stream.output.push(packet); return true; };
   stream.end = () => { stream.ended = true; };
-  stream.destroy = error => { stream.failure = error; stream.emit('close'); };
+  stream.destroy = error => { stream.destroyed = true; stream.emit('close'); };
+  // grpc-js turns an emitted error into the call's status.
+  stream.on('error', error => { stream.failure = error; });
   return stream;
 }
 const packet = authorization => ({ value: Buffer.from(JSON.stringify({ agentID: 'agent', sessionID: 'session',
@@ -96,4 +98,24 @@ test('disconnect during initial authorization closes a late-opened stream', asyn
   await setImmediate();
   assert.ok(closed);
   assert.deepEqual(rpc.output, []);
+});
+test('a refused stream reaches the gRPC client as a status at once, not after its deadline', { timeout: 5000 }, async () => {
+  const { grpc, addBrowserControlService } = await import('./browser-grpc.mjs');
+  const server = new grpc.Server();
+  addBrowserControlService(server, { videoBrowser: async () => { throw new Error('no slot'); }, controlBrowser: async () => ({}) });
+  const port = await new Promise((resolve, reject) => server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(),
+    (error, bound) => error ? reject(error) : resolve(bound)));
+  const client = new grpc.Client(`127.0.0.1:${port}`, grpc.credentials.createInsecure());
+  try {
+    const started = Date.now();
+    const status = await new Promise(resolve => {
+      const stream = client.makeBidiStreamRequest('/axiom.browser.v1.BrowserControlService/Video', value => value, value => value, {},
+        { deadline: Date.now() + 5000 });
+      stream.on('data', () => {});
+      stream.on('error', error => resolve(error.code));
+      stream.write(Buffer.concat([Buffer.from([0x0a, packet('proof').value.length]), packet('proof').value]));
+    });
+    assert.equal(status, grpc.status.PERMISSION_DENIED);
+    assert.ok(Date.now() - started < 1000);
+  } finally { client.close(); server.forceShutdown(); }
 });
