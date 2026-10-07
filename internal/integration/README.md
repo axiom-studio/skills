@@ -201,7 +201,7 @@ service, learn a new profile from its actual docs.
 
 ## Platform activation without per-service deployments
 
-Install the `skill-api` 0.2.0 / `skill-mcp` 0.3.0 base manifest and runtime image once using
+Install the `skill-api` 0.2.1 / `skill-mcp` 0.3.0 base manifest and runtime image once using
 the existing platform installation flow. With no `INTEGRATION_PROFILE` environment
 variable, the service registers compilation, inspection, and effect-specific
 execution actions. It does not accept a model-controlled endpoint or profile.
