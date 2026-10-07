@@ -37,7 +37,9 @@ export function browserVideoRPC(service, call, desktop = false) {
         // Ordered after all preceding input writes, including worker ACKs.
         // The client waits for this barrier before explicit return control.
         if (kind === 2 && session && bytes.length === 0) {
-          if (!call.write({ value: Buffer.from([2]) })) throw new Error();
+          // A full send buffer is backpressure, not failure: gRPC queues the
+          // barrier in order behind the frames already written.
+          call.write({ value: Buffer.from([2]) });
           if (!closed) call.resume();
           return;
         }
