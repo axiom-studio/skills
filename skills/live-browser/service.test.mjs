@@ -35,6 +35,8 @@ function fakePage() {
     if (script.includes('__liveSignIn')) return page.scans.shift() ?? {};
     if (script.includes('__liveCard')) return structuredClone(page.cardScan);
     if (script.includes('innerText.slice(0, 200000)')) return page.bodyText;
+    if (script.includes('__livePay')) return page.payCount ?? 0;
+    if (script.startsWith('((x, y)')) return page.pointName ?? '';
     return 'none';
   };
   page.box = null;
@@ -42,6 +44,9 @@ function fakePage() {
     evaluate: async () => { if (page.fault) throw page.fault; return false; },
     click: async () => {
       if (/data-live-(signin|card)/.test(selector)) { if (selector.includes('submit')) page.typed.push(['submit']); return; }
+      if (selector.includes('data-live-pay') || (page.clickable && selector.includes('data-live-ref'))) {
+        page.onPay?.(); page.clicked = [...(page.clicked ?? []), selector]; return;
+      }
       throw page.fault ?? Object.assign(new Error('Timeout 5000ms exceeded.\n - element is not visible'), { name: 'TimeoutError' });
     },
     focus: async () => {}, fill: async () => {}, press: async key => page.typed.push(['press', selector, key]),
@@ -623,4 +628,69 @@ test('the Cortex session is extended before it expires and the 8 hour cap closes
   await failing.run('live-browser-start', {});
   await pause(400);
   assert.equal(failing.service.size, 0, 'a session Cortex will not extend closes at its expiry');
+});
+
+test('a plain click refuses the final pay button on a checkout; live-browser-pay clicks it', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/gp/buy/spc/handlers/display.html' });
+  const page = h.pages[0];
+  page.snapshot = { url: page.current, title: 'Checkout', text: 'Order Total: ₹4,910.00', elements: [
+    { ref: 1, role: 'button', name: 'Place your order', context: 'form', href: '', inViewport: true, bounds: {}, state: {} },
+    { ref: 2, role: 'link', name: 'Change delivery address', context: 'form', href: '', inViewport: true, bounds: {}, state: {} }] };
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  const refused = await h.run('live-browser-click', { sessionId: 'b-1', target: snapshot.elements[0].ref, intent: 'Place the order' });
+  assert.equal(refused.status, 'not_actionable');
+  assert.match(refused.hint, /live-browser-pay/);
+  page.pointName = 'Pay ₹4,910';
+  const byPoint = await h.run('live-browser-click', { sessionId: 'b-1', generation: snapshot.generation, x: 10, y: 10, intent: 'Pay' });
+  assert.equal(byPoint.status, 'not_actionable', 'coordinates cannot get around it');
+  page.pointName = 'Change delivery address';
+  assert.equal((await h.run('live-browser-click', { sessionId: 'b-1', generation: snapshot.generation, x: 10, y: 10, intent: 'Change address' })).status, 'automating');
+  assert.equal(page.clicked, undefined, 'nothing pressed the pay button');
+
+  page.bodyText = 'Order Summary\nOrder Total: ₹4,910.00';
+  const pay = input => h.run('live-browser-pay', { sessionId: 'b-1', amount: '4910.00', currency: 'INR', merchant: 'https://www.amazon.in', intent: 'Place the order', ...input });
+  assert.equal((await pay({ merchant: 'https://www.flipkart.com' })).status, 'merchant_mismatch');
+  const mismatch = await pay({ amount: '4900.00' });
+  assert.deepEqual([mismatch.status, mismatch.pageTotal], ['amount_mismatch', '4910']);
+  page.payCount = 2;
+  assert.match((await pay({})).reason, /Several different pay buttons/);
+  assert.equal(page.clicked, undefined);
+  page.payCount = 1;
+  page.onPay = () => { page.current = 'https://www.amazon.in/gp/buy/thankyou'; page.bodyText = 'Thank you, your order has been placed.\nOrder number: 404-5551234-7654321\nArriving Thursday'; };
+  const paid = await pay({});
+  assert.equal(paid.status, 'confirmed');
+  assert.equal(paid.orderReference, '404-5551234-7654321');
+  assert.match(paid.summary, /order has been placed/);
+  assert.deepEqual(page.clicked, ['[data-live-pay="1"]']);
+  await h.service.closeAll();
+});
+
+test('pay stays on the site where the card was filled and reports a bank verification step', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://shop.example/checkout' });
+  const page = h.pages[0];
+  page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] } };
+  assert.equal((await h.run('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '25.00', currency: 'USD' }, 'run-1', savedCard)).status, 'card_filled');
+  // After a card is filled, any pay button is refused for plain clicks, wherever the text says.
+  page.snapshot = { url: page.current, title: 'Pay', text: '', elements: [
+    { ref: 1, role: 'button', name: 'Pay now', context: '', href: '', inViewport: true, bounds: {}, state: {} }] };
+  page.current = 'https://shop.example/review';
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal((await h.run('live-browser-click', { sessionId: 'b-1', target: snapshot.elements[0].ref, intent: 'Pay' })).status, 'not_actionable');
+  page.current = 'https://other.example/review';
+  assert.equal((await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', intent: 'Pay' })).status, 'merchant_mismatch');
+  page.current = 'https://shop.example/review';
+  const fresh = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  page.clickable = true;
+  page.onPay = () => { page.bodyText = 'Verified by Visa\nEnter the OTP sent to your phone'; };
+  const result = await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', target: fresh.elements[0].ref, intent: 'Pay' });
+  assert.equal(result.status, 'payment_verification');
+  assert.match(result.message, /live-browser-request-handoff/);
+  noSecrets(result);
+  page.snapshot.elements[0].name = 'Continue shopping';
+  const other = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.match((await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', target: other.elements[0].ref, intent: 'Pay' })).reason,
+    /not a final pay/);
+  await h.service.closeAll();
 });

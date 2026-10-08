@@ -171,6 +171,14 @@ export const SNAPSHOT_JS = `(limits) => {
     }) };
 }`;
 
+// Accessible name of the control at viewport coordinates.
+export const POINT_NAME_JS = `(x, y) => {
+  const hit = document.elementFromPoint(x, y);
+  if (!hit) return '';
+  const e = hit.closest('button,a,input,[role="button"],[role="link"]') || hit;
+  return (e.getAttribute('aria-label') || e.innerText || e.value || e.getAttribute('title') || '').replace(/\\s+/g, ' ').trim().slice(0, 240);
+}`;
+
 export const SETTLE_JS = `() => new Promise((resolve) => {
   let done = false, quiet, hard, observer;
   const finish = () => { if (done) return; done = true; observer?.disconnect(); clearTimeout(quiet); clearTimeout(hard); resolve(); };
@@ -282,9 +290,15 @@ export class LivePage {
     try { return await operation(); } catch (error) { throw elementProblem(error); }
   }
 
-  async click({ target, generation, x, y }) {
+  // The latest snapshot's element for a reference: {element, locator}.
+  element(target) { return this.#resolve(target); }
+
+  // guard(name) may refuse the click (it throws) after seeing the accessible
+  // name of what would be clicked.
+  async click({ target, generation, x, y }, { guard } = {}) {
     if (target !== undefined) {
-      const { locator } = this.#resolve(target);
+      const { element, locator } = this.#resolve(target);
+      await guard?.(element.name);
       await this.#element(async () => {
         try {
           const point = await this.#center(locator);
@@ -294,6 +308,7 @@ export class LivePage {
     } else {
       if (generation !== this.generation) throw notActionable('Coordinates are stale', 'Take a new snapshot or screenshot and use its generation.');
       if (![x, y].every(value => Number.isFinite(value) && value >= 0 && value <= 10000)) throw exposed('Invalid coordinates');
+      if (guard) await guard(await this.#page.evaluate(`(${POINT_NAME_JS})(${x}, ${y})`).catch(() => ''));
       await this.#page.mouse.click(x, y);
     }
     await this.settle();

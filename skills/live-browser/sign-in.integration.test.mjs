@@ -8,8 +8,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { totp } from './credentials.mjs';
-import { LivePage } from './page.mjs';
-import { SignIn } from './sign-in.mjs';
+import { LivePage, POINT_NAME_JS } from './page.mjs';
+import { paymentOutcome, SignIn } from './sign-in.mjs';
 
 const require = createRequire(import.meta.resolve('@axiom/live-browser'));
 const { chromium } = require('playwright-core');
@@ -166,5 +166,28 @@ test('no card number field means nothing is filled', { skip }, async () => {
     await s.page.goto('https://shop.example/pay');
     assert.deepEqual(await new SignIn(s.live).fillCard(card), { filled: [] });
     assert.equal(await s.page.inputValue('input[name="cardholder"]'), '');
+  } finally { await s.close(); }
+});
+
+test('pay finds the place-order button, re-checks the origin and reads the confirmation', { skip }, async () => {
+  const s = await site({
+    'https://shop.example/checkout': `<button>Place your order</button><a href="/help">Payment options</a><p>Order Total: ₹4,910.00</p>
+      <form method="post" action="/place"><button type="submit">Place your order</button></form>`,
+    'POST https://shop.example/place': '<h1>Thank you, your order has been placed.</h1><p>Order number: 404-5551234-7654321</p>',
+  });
+  try {
+    await s.page.goto('https://shop.example/checkout');
+    const box = await s.page.locator('form button').boundingBox();
+    assert.equal(await s.page.evaluate(`(${POINT_NAME_JS})(${box.x + 5}, ${box.y + 5})`), 'Place your order');
+    await s.page.locator('button').first().evaluate(e => e.remove());
+    await new SignIn(s.live).pay({ origin: 'https://shop.example' });
+    assert.deepEqual(s.posts.map(post => post.url), ['https://shop.example/place']);
+    const outcome = paymentOutcome(await s.page.evaluate('document.body.innerText'));
+    assert.equal(outcome.confirmed, true);
+    assert.equal(outcome.orderReference, '404-5551234-7654321');
+    // A redirect away before the click: nothing is clicked.
+    await s.page.goto('https://shop.example/checkout');
+    await assert.rejects(new SignIn(s.live).pay({ origin: 'https://other.example' }), error => error.notActionable === true);
+    assert.equal(s.posts.length, 1);
   } finally { await s.close(); }
 });
