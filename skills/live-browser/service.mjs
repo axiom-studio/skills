@@ -10,10 +10,24 @@ import { checkoutPage, PAY_BUTTON, pageTotal, SignIn } from './sign-in.mjs';
 const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
 const HUMAN_ONLY = { kind: 'manual_confirmation' };
 const MINUTE = 60000;
-const SETUP_LOGIN = 'Do not hand off. Ask the user in chat to add a website login for this site with the in-chat setup form ' +
-  '(request_setup, kind configure, skill skill-live-browser), with the website set to this origin; continue when it is added. Never ask for the password in chat.';
-const SETUP_CARD = 'Do not hand off. Ask the user in chat to add a payment card with the in-chat setup form ' +
-  '(request_setup, kind configure, skill skill-live-browser); continue when it is added. Never ask for card details in chat.';
+const REQUEST_CREDENTIAL = 'openseal.skills.request_credential';
+const ASK_CREDENTIAL = `Do not hand off and do not use request_setup (the live browser is built in and needs no setup). Call ${REQUEST_CREDENTIAL} ` +
+  'with exactly the arguments in credentialRequest: the user saves it in their vault through an in-chat card and this work resumes when they do.';
+
+// The exact request_credential arguments for a missing login, card or cap,
+// so the model never has to construct them.
+function credentialRequest(kind, reason, website) {
+  return { action: REQUEST_CREDENTIAL, arguments: { kind, ...(website ? { website } : {}), reason } };
+}
+
+function siteName(origin) {
+  try { return new URL(origin).hostname.replace(/^www\./, ''); } catch { return 'this site'; }
+}
+
+function missingLogin(origin) {
+  if (!origin) return {};
+  return { credentialRequest: credentialRequest('website_login', `Add your ${siteName(origin)} login so I can sign in and continue`, origin) };
+}
 
 function validID(value, name) {
   if (typeof value !== 'string' || !ID.test(value)) throw new Error(`${name} is invalid`);
@@ -393,7 +407,8 @@ export class LiveBrowserService {
         const named = input.credential !== undefined && matchingLogins(logins, origin).length > 0;
         return { ...base, status: 'no_matching_login', message: named
           ? `The login "${input.credential}" is not saved for ${origin}. Call again without credential to use the login saved for this site.`
-          : `No saved login for ${origin || 'this page'}. ${SETUP_LOGIN}` };
+          : `No saved login for ${origin || 'this page'}. ${ASK_CREDENTIAL} After it is saved, call live-browser-sign-in again. Never ask for the password in chat.`,
+          ...(named ? {} : missingLogin(origin)) };
       }
       if (candidates.length > 1) {
         return { ...base, status: 'choose_login', logins: candidates.map(login => login.label),
@@ -411,14 +426,15 @@ export class LiveBrowserService {
             ` Keep using sessionId ${session.id}; the browser stays open on this page while you wait.` };
         case 'origin_changed':
           return { ...base, origin: topOrigin(live.page.url()) ?? '', status: 'no_matching_login', step: outcome.step,
-            message: `Sign-in moved to ${topOrigin(live.page.url()) ?? 'another site'}, which no saved login is for; nothing was typed there. ${SETUP_LOGIN}` };
+            message: `Sign-in moved to ${topOrigin(live.page.url()) ?? 'another site'}, which no saved login is for; nothing was typed there. ${ASK_CREDENTIAL} After it is saved, call live-browser-sign-in again. Never ask for the password in chat.`,
+            ...missingLogin(topOrigin(live.page.url())) };
         case 'no_code_field':
           throw notActionable('No one-time code field on this page', 'Take a new snapshot. If the site asks for the code elsewhere, open that step first.');
         case 'no_form':
           throw notActionable('No sign-in form on this page', "Click the site's Sign in link, take a new snapshot, then call live-browser-sign-in again.");
         default:
           return { ...result, status: 'submitted', message: outcome.stillOnForm
-            ? 'The sign-in form is still shown, so the saved login may be wrong. Take a snapshot; if the site says the login is wrong, tell the user in chat and ask them to update the login with the in-chat setup form.'
+            ? 'The sign-in form is still shown, so the saved login may be wrong. Take a snapshot; if the site says the login is wrong, tell the user in chat and ask them to update that login in their vault.'
             : 'The saved login was submitted. Take a new snapshot to confirm you are signed in.' };
       }
     });
@@ -431,11 +447,17 @@ export class LiveBrowserService {
     const card = paymentCard(bindings);
     return this.#act(session, input.intent ?? 'Fill the payment card', async live => {
       const base = { amount: input.amount, currency: input.currency, requiresHuman: false };
-      if (!card) return { ...base, status: 'no_payment_card', message: `No saved payment card. ${SETUP_CARD}` };
+      const merchant = topOrigin(live.page.url());
+      if (!card) {
+        return { ...base, status: 'no_payment_card', message: `No saved payment card. ${ASK_CREDENTIAL} After it is saved, call live-browser-fill-payment-card again. Never ask for card details in chat.`,
+          credentialRequest: credentialRequest('payment_card', `Add your card so I can pay ${input.amount} ${input.currency}${merchant ? ` on ${siteName(merchant)}` : ''}`, merchant) };
+      }
       if (card.refused) {
         return { ...base, status: 'spend_cap_exceeded', ...(card.remaining ? { remaining: card.remaining } : {}), ...(card.cap ? { cap: card.cap } : {}),
           ...(card.currency ? { capCurrency: card.currency } : {}), message: 'This charge is over the saved card\'s remaining spend cap (or in another currency). Nothing was filled. ' +
-          'Do not hand off and do not try another way: ask the user in chat to raise the cap with the in-chat setup form (request_setup, kind configure, skill skill-live-browser), then call again.' };
+          `Do not try another way. ${ASK_CREDENTIAL} After the cap is raised, call live-browser-fill-payment-card again.`,
+          credentialRequest: credentialRequest('payment_card', `Raise your card's spend cap to pay ${input.amount} ${input.currency}` +
+            (card.remaining ? ` (${card.remaining}${card.currency ? ` ${card.currency}` : ''} left)` : ''), merchant) };
       }
       const text = await live.page.evaluate(BODY_TEXT).catch(() => '');
       const total = pageTotal(text);

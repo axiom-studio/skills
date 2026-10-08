@@ -457,14 +457,17 @@ const noSecrets = result => { const text = JSON.stringify(result); for (const se
 const amazonLogin = { 'website-login-1': JSON.stringify({ username: 'kev@example.com', password: 'Hunter2-Secret!', website: 'https://www.amazon.in, https://amazon.in', name: 'Amazon India' }) };
 const savedCard = { 'payment-card': JSON.stringify({ cardholderName: 'Kev K', number: '4242424242424242', expiryMonth: '07', expiryYear: '2029', cvc: '123' }) };
 
-test('sign-in without a saved login for this exact site asks for the in-chat setup form, never a handoff', async () => {
+test('sign-in without a saved login for this exact site gives the exact in-chat credential request, never a handoff', async () => {
   const h = harness();
   await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
   const none = await h.run('live-browser-sign-in', { sessionId: 'b-1' });
   assert.equal(none.status, 'no_matching_login');
   assert.equal(none.origin, 'https://www.amazon.in');
   assert.equal(none.requiresHuman, false);
-  assert.match(none.message, /request_setup/);
+  assert.match(none.message, /do not use request_setup/);
+  assert.match(none.message, /openseal\.skills\.request_credential/);
+  assert.deepEqual(none.credentialRequest, { action: 'openseal.skills.request_credential',
+    arguments: { kind: 'website_login', website: none.origin, reason: 'Add your amazon.in login so I can sign in and continue' } });
   assert.match(none.message, /Do not hand off/);
   await h.run('live-browser-navigate', { sessionId: 'b-1', url: 'https://www.amazon.in.evil.example/ap/signin' });
   const lookalike = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin);
@@ -538,17 +541,21 @@ test('a one-time code page is not handed off automatically; a CAPTCHA still is',
   await h.service.closeAll();
 });
 
-test('the saved card: setup form when missing, spend cap and amount checks, filled card is never shown', async () => {
+test('the saved card: in-chat credential request when missing, spend cap and amount checks, filled card is never shown', async () => {
   const h = harness();
   await h.run('live-browser-start', { url: 'https://www.amazon.in/checkout' });
   const page = h.pages[0];
   const pay = (extra, amount = '4210.00') => h.run('live-browser-fill-payment-card', { sessionId: 'b-1', amount, currency: 'INR' }, 'run-1', extra);
   const missing = await pay({});
   assert.equal(missing.status, 'no_payment_card');
-  assert.match(missing.message, /request_setup/);
+  assert.match(missing.message, /openseal\.skills\.request_credential/);
+  assert.equal(missing.credentialRequest.action, 'openseal.skills.request_credential');
+  assert.equal(missing.credentialRequest.arguments.kind, 'payment_card');
   const capped = await pay({ 'payment-card': JSON.stringify({ error: 'spend_cap_exceeded', remaining: '1000.00', cap: '5000', currency: 'INR' }) });
   assert.deepEqual([capped.status, capped.remaining, capped.cap, capped.capCurrency], ['spend_cap_exceeded', '1000.00', '5000', 'INR']);
-  assert.match(capped.message, /raise the cap/);
+  assert.equal(capped.credentialRequest.arguments.kind, 'payment_card');
+  assert.match(capped.credentialRequest.arguments.reason, /spend cap/);
+  assert.match(capped.message, /After the cap is raised/);
   page.bodyText = 'Items: ₹4,000.00\nOrder Total: ₹4,910.00';
   const mismatch = await pay(savedCard);
   assert.deepEqual([mismatch.status, mismatch.pageTotal, mismatch.pageCurrency], ['amount_mismatch', '4910', 'INR']);
