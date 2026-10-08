@@ -24,17 +24,42 @@ function fakePage() {
   page.waitForLoadState = async () => {};
   page.snapshot = { url: 'https://www.reddit.com/r/aww/comments/1', title: 'Cute', text: 'Comments', elements: [
     { ref: 1, role: 'textbox', name: 'Join the conversation', context: 'form', href: '', inViewport: false, bounds: {}, state: {} }] };
-  page.evaluate = async script => (typeof script === 'string' && script.startsWith('((limits)') ? structuredClone(page.snapshot) : 'none');
+  // Sign-in and card scans: queued results of the page scripts.
+  page.scans = [];
+  page.cardScan = {};
+  page.bodyText = '';
+  page.typed = [];
+  page.evaluate = async script => {
+    if (typeof script !== 'string') return 'none';
+    if (script.startsWith('((limits)')) return structuredClone(page.snapshot);
+    if (script.includes('__liveSignIn')) return page.scans.shift() ?? {};
+    if (script.includes('__liveCard')) return structuredClone(page.cardScan);
+    if (script.includes('innerText.slice(0, 200000)')) return page.bodyText;
+    return 'none';
+  };
   page.box = null;
-  page.locator = () => ({ first() { return this; }, scrollIntoViewIfNeeded: async () => {}, boundingBox: async () => page.box,
+  page.locator = selector => ({ first() { return this; }, scrollIntoViewIfNeeded: async () => {}, boundingBox: async () => page.box,
     evaluate: async () => { if (page.fault) throw page.fault; return false; },
-    click: async () => { throw page.fault ?? Object.assign(new Error('Timeout 5000ms exceeded.\n - element is not visible'), { name: 'TimeoutError' }); } });
+    click: async () => {
+      if (/data-live-(signin|card)/.test(selector)) { if (selector.includes('submit')) page.typed.push(['submit']); return; }
+      throw page.fault ?? Object.assign(new Error('Timeout 5000ms exceeded.\n - element is not visible'), { name: 'TimeoutError' });
+    },
+    focus: async () => {}, fill: async () => {}, press: async key => page.typed.push(['press', selector, key]),
+    pressSequentially: async text => { page.onType?.(selector); page.typed.push([selector, text]); },
+    selectOption: async value => page.typed.push([selector, value]) });
   page.mouse = { click: async () => {}, wheel: async () => {} };
   page.keyboard = { press: async () => {}, type: async () => {} };
+  page.frames = () => [main];
+  main.evaluate = script => page.evaluate(script);
+  main.locator = selector => page.locator(selector);
+  main.isDetached = () => false;
+  page.screenshot = async () => Buffer.from('jpeg');
+  page.viewportSize = () => ({ width: 1280, height: 800 });
   return page;
 }
 
-function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, leaseMs, noticeFails = false, launchGate, profileWaitMs, closeGate, authorizeProfile } = {}) {
+function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, leaseMs, noticeFails = false, launchGate, profileWaitMs, closeGate, authorizeProfile,
+  lifetime = {}, expiresInMs = 3600000, extendFails = false } = {}) {
   const calls = [];
   let sessions = 0, requests = 0;
   const conversation = { id: conversationId };
@@ -45,7 +70,12 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
     async register({ invocation, durationMinutes }) {
       calls.push(['register', invocation, durationMinutes]);
       sessions++;
-      return { sessionId: `b-${sessions}`, grant: `grant-${sessions}`, expiresAt: later(), tenantId: '7', agentId, conversationId: conversation.id };
+      return { sessionId: `b-${sessions}`, grant: `grant-${sessions}`, expiresAt: new Date(Date.now() + expiresInMs).toISOString(), tenantId: '7', agentId, conversationId: conversation.id };
+    },
+    async extend(session, { durationMinutes }) {
+      calls.push(['extend', session.sessionId, session.grant, durationMinutes]);
+      if (extendFails) throw Object.assign(new Error('Cortex browser API refused the request (HTTP 410)'), { status: 410 });
+      return { expiresAt: new Date(Date.now() + expiresInMs).toISOString() };
     },
     async revoke({ sessionId, grant }) { calls.push(['revoke', sessionId, grant]); },
     async handoffNotice(session, notice) {
@@ -91,11 +121,11 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
   const service = new LiveBrowserService({ api, authorize, deps, profile, humanWaitMs: 200, tenantID: '7', closeTimeoutMs: 50,
     authorizeProfile: authorizeProfile ?? (async ({ command }) => ({ userID: 'human-1', tenantID: '7', agentID: agentId,
       requestID: `p-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command })),
-    ...(leaseMs ? { leaseMs } : {}), ...(profileWaitMs ? { profileWaitMs } : {}) });
+    ...(leaseMs ? { leaseMs } : {}), ...(profileWaitMs ? { profileWaitMs } : {}), ...lifetime });
   const control = (sessionId, command) => service.controlBrowser({ agentID: agentId, sessionID: sessionId,
     authorization: { token: 'proof', commandJSON: JSON.stringify(command) }, command });
   const bindings = { CORTEX_HOST_INVOCATIONS: JSON.stringify({ 'host:browser': 'invocation' }) };
-  const run = (action, input, runID = 'run-1') => service.execute(action, { runID, agentID: agentId, input, bindings });
+  const run = (action, input, runID = 'run-1', extra = {}) => service.execute(action, { runID, agentID: agentId, input, bindings: { ...bindings, ...extra } });
   const profileCommand = command => service.controlProfile({ agentID: agentId,
     authorization: { token: 'proof', commandJSON: JSON.stringify(command) }, command });
   return { service, calls, pages, contexts, control, run, profile, root, conversation, profileCommand };
@@ -107,7 +137,7 @@ test('start registers the session, launches on a private display and reports ric
   assert.equal(started.sessionId, 'b-1');
   assert.equal(started.status, 'automating');
   assert.equal(started.url, 'https://flights.example.com/');
-  assert.deepEqual(h.calls[0], ['register', 'invocation', 120]);
+  assert.deepEqual(h.calls[0], ['register', 'invocation', 30], 'a fixed idle window; the model sets no duration');
   assert.deepEqual(h.calls.find(call => call[0] === 'launch'), ['launch', h.root, ':42', 'lb_b1_capture'], 'the persistent profile on the volume');
   const status = await h.control('b-1', { type: 'status' });
   assert.deepEqual({ ...status, expiresAt: undefined }, { sessionId: 'b-1', status: 'automating', url: 'https://flights.example.com/',
@@ -136,14 +166,17 @@ test('status and the live view work while the browser is still launching', async
   await h.service.closeAll();
 });
 
-test('a new start in the same conversation replaces the previous browser', async () => {
+test('a later turn of the same conversation reattaches to the open browser and its page', async () => {
   const h = harness();
-  await h.run('live-browser-start', {});
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
   const second = await h.run('live-browser-start', {}, 'run-2');
-  assert.equal(second.sessionId, 'b-2');
-  assert.ok(h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-1'));
+  assert.equal(second.sessionId, 'b-1');
+  assert.equal(second.url, 'https://www.amazon.in/ap/signin', 'the same page');
+  assert.ok(h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-2'), 'the duplicate registration is revoked');
+  assert.ok(!h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-1'));
+  assert.equal(h.calls.filter(call => call[0] === 'launch').length, 1);
   assert.equal(h.service.size, 1);
-  await assert.rejects(h.run('live-browser-snapshot', { sessionId: 'b-1' }), /No live browser session/);
+  assert.equal((await h.run('live-browser-snapshot', { sessionId: 'b-1' }, 'run-2')).sessionId, 'b-1');
   await h.service.closeAll();
 });
 
@@ -410,4 +443,184 @@ test('profile commands need a verified single-use proof for this runtime tenant'
     authorizeProfile: async () => reply });
   await assert.rejects(unconfigured.controlProfile({ agentID: 'agent-1', authorization: {}, command: { type: 'profileStatus' } }),
     /could not be completed/, 'no tenant configured: fail closed');
+});
+
+const SECRETS = ['kev@example.com', 'Hunter2-Secret!', '4242424242424242', '123'];
+const noSecrets = result => { const text = JSON.stringify(result); for (const secret of SECRETS) assert.ok(!text.includes(secret), 'no credential value in the result'); };
+const amazonLogin = { 'website-login-1': JSON.stringify({ username: 'kev@example.com', password: 'Hunter2-Secret!', website: 'https://www.amazon.in, https://amazon.in', name: 'Amazon India' }) };
+const savedCard = { 'payment-card': JSON.stringify({ cardholderName: 'Kev K', number: '4242424242424242', expiryMonth: '07', expiryYear: '2029', cvc: '123' }) };
+
+test('sign-in without a saved login for this exact site asks for the in-chat setup form, never a handoff', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
+  const none = await h.run('live-browser-sign-in', { sessionId: 'b-1' });
+  assert.equal(none.status, 'no_matching_login');
+  assert.equal(none.origin, 'https://www.amazon.in');
+  assert.equal(none.requiresHuman, false);
+  assert.match(none.message, /request_setup/);
+  assert.match(none.message, /Do not hand off/);
+  await h.run('live-browser-navigate', { sessionId: 'b-1', url: 'https://www.amazon.in.evil.example/ap/signin' });
+  const lookalike = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin);
+  assert.equal(lookalike.status, 'no_matching_login');
+  assert.deepEqual(h.pages[0].typed, [], 'nothing typed');
+  assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating');
+  await h.service.closeAll();
+});
+
+test('sign-in fills the saved login, returns otp_required, and a later turn completes it with the code', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
+  const page = h.pages[0];
+  page.scans.push({ username: true, password: true, otp: 0, submit: true, via: '' }, { otp: 1, split: false, submit: true, via: 'message' });
+  const first = await h.run('live-browser-sign-in', { sessionId: 'b-1', intent: 'Sign in to Amazon' }, 'run-1', amazonLogin);
+  assert.equal(first.status, 'otp_required');
+  assert.equal(first.credential, 'Amazon India');
+  assert.equal(first.step, 'password');
+  assert.match(first.message, /Might have gotten an OTP, please provide/);
+  assert.match(first.message, /Keep using sessionId b-1/);
+  noSecrets(first);
+  assert.deepEqual(page.typed.filter(entry => entry.length === 2), [['[data-live-signin="username"]', 'kev@example.com'], ['[data-live-signin="password"]', 'Hunter2-Secret!']]);
+  // The turn ended; the user's reply starts a new run in the same conversation.
+  const reattached = await h.run('live-browser-start', {}, 'run-2');
+  assert.equal(reattached.sessionId, 'b-1');
+  page.scans.push({ otp: 1, split: false, submit: true, via: 'message' }, {});
+  const second = await h.run('live-browser-sign-in', { sessionId: 'b-1', oneTimeCode: '482 913' }, 'run-2', amazonLogin);
+  assert.equal(second.status, 'submitted');
+  assert.equal(second.step, 'one_time_code');
+  assert.deepEqual(page.typed.at(-2), ['[data-live-signin="otp"]', '482913']);
+  noSecrets(second);
+  await h.service.closeAll();
+});
+
+test('a redirect to another site between keystroke batches stops the sign-in', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
+  const page = h.pages[0];
+  page.scans.push({ username: true, password: true, submit: true });
+  // The page navigates away as soon as the username is typed.
+  page.onType = selector => { if (selector.includes('username')) page.current = 'https://evil.example/capture'; };
+  const result = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin);
+  assert.equal(result.status, 'not_actionable');
+  assert.match(result.reason, /another site/);
+  assert.ok(!page.typed.some(entry => entry[0].includes('password')), 'the password was never typed');
+  noSecrets(result);
+  await h.service.closeAll();
+});
+
+test('several logins for one site: choose_login lists names only', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/' });
+  const result = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', { ...amazonLogin,
+    'website-login-2': JSON.stringify({ username: 'work@example.com', password: 'Other-Secret', website: 'https://www.amazon.in' }) });
+  assert.equal(result.status, 'choose_login');
+  assert.deepEqual(result.logins, ['Amazon India', 'website-login-2']);
+  assert.ok(!JSON.stringify(result).includes('Other-Secret') && !JSON.stringify(result).includes('work@example.com'));
+  await h.service.closeAll();
+});
+
+test('a one-time code page is not handed off automatically; a CAPTCHA still is', async () => {
+  const h = harness({ detect: async () => 'verification' });
+  const started = await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/mfa' });
+  assert.equal(started.status, 'automating');
+  h.pages[0].snapshot = { url: 'https://www.amazon.in/ap/mfa', title: 'Verify', text: 'Enter verification code', elements: [] };
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(snapshot.status, 'automating');
+  assert.deepEqual(snapshot.challenges, ['mfa']);
+  h.pages[0].snapshot = { url: 'https://www.amazon.in/ap/mfa', title: 'Verify', text: 'Please complete the captcha', elements: [] };
+  assert.equal((await h.run('live-browser-snapshot', { sessionId: 'b-1' })).status, 'awaiting_user');
+  await h.service.closeAll();
+});
+
+test('the saved card: setup form when missing, spend cap and amount checks, filled card is never shown', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/checkout' });
+  const page = h.pages[0];
+  const pay = (extra, amount = '4210.00') => h.run('live-browser-fill-payment-card', { sessionId: 'b-1', amount, currency: 'INR' }, 'run-1', extra);
+  const missing = await pay({});
+  assert.equal(missing.status, 'no_payment_card');
+  assert.match(missing.message, /request_setup/);
+  const capped = await pay({ 'payment-card': JSON.stringify({ error: 'spend_cap_exceeded', remaining: '1000.00', cap: '5000', currency: 'INR' }) });
+  assert.deepEqual([capped.status, capped.remaining, capped.cap, capped.capCurrency], ['spend_cap_exceeded', '1000.00', '5000', 'INR']);
+  assert.match(capped.message, /raise the cap/);
+  page.bodyText = 'Items: ₹4,000.00\nOrder Total: ₹4,910.00';
+  const mismatch = await pay(savedCard);
+  assert.deepEqual([mismatch.status, mismatch.pageTotal, mismatch.pageCurrency], ['amount_mismatch', '4910', 'INR']);
+  assert.deepEqual(page.typed, [], 'nothing filled');
+  page.cardScan = {};
+  const noFields = await pay(savedCard, '4910.00');
+  assert.equal(noFields.status, 'not_actionable');
+  assert.match(noFields.reason, /No card number field/);
+  page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] }, exp: { select: false, placeholder: 'mm / yy', maxLength: 7, options: [] },
+    cvc: { select: false, placeholder: 'cvc', maxLength: 4, options: [] } };
+  const filled = await pay(savedCard, '4910.00');
+  assert.equal(filled.status, 'card_filled');
+  assert.deepEqual(filled.filled, ['number', 'exp', 'cvc']);
+  noSecrets(filled);
+  assert.deepEqual(page.typed.map(entry => entry[1]), ['4242424242424242', '07/29', '123']);
+  const screenshot = await h.run('live-browser-screenshot', { sessionId: 'b-1' });
+  assert.equal(screenshot.status, 'not_actionable');
+  assert.ok(!('modelMedia' in screenshot));
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1', includeScreenshot: true });
+  assert.equal(snapshot.screenshotWithheld, true);
+  assert.ok(!('modelMedia' in snapshot));
+  await assert.rejects(pay(savedCard, '0'), /greater than zero/);
+  await h.service.closeAll();
+});
+
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test('an idle browser closes after the idle window; actions slide it', async () => {
+  const h = harness({ lifetime: { idleMs: 200 } });
+  await h.run('live-browser-start', {});
+  await pause(120);
+  await h.run('live-browser-scroll', { sessionId: 'b-1', dy: 10 });
+  await pause(120);
+  assert.equal(h.service.size, 1, 'the action re-armed the idle window');
+  await pause(200);
+  assert.equal(h.service.size, 0);
+  assert.ok(h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-1'));
+});
+
+test('a pending handoff keeps the browser open and extends the Cortex session', async () => {
+  const h = harness({ lifetime: { idleMs: 100 } });
+  await h.run('live-browser-start', { url: 'https://shop.example.com/' });
+  await h.run('live-browser-request-handoff', { sessionId: 'b-1', reason: 'payment', summary: 'Pay.' });
+  await pause(450);
+  assert.equal(h.service.size, 1, 'still open while waiting for the user');
+  const extends_ = h.calls.filter(call => call[0] === 'extend');
+  assert.ok(extends_.length >= 2, 'extended on entering awaiting_user and while waiting');
+  assert.deepEqual(extends_[0].slice(1), ['b-1', 'grant-1', 1]);
+  const lease = await h.control('b-1', { type: 'claim' });
+  await h.control('b-1', { type: 'resume', leaseID: lease.id });
+  await pause(300);
+  assert.equal(h.service.size, 0, 'idle again after hand-back');
+});
+
+test('waiting for a one-time code from chat keeps the browser open', async () => {
+  const h = harness({ lifetime: { idleMs: 100, replyWaitMs: 400 } });
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
+  h.pages[0].scans.push({ otp: 1, via: 'message', submit: true });
+  assert.equal((await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin)).status, 'otp_required');
+  await pause(250);
+  assert.equal(h.service.size, 1);
+  assert.ok(h.calls.some(call => call[0] === 'extend'));
+  await pause(450);
+  assert.equal(h.service.size, 0, 'the reply wait is bounded');
+});
+
+test('the Cortex session is extended before it expires and the 8 hour cap closes the browser', async () => {
+  const h = harness({ lifetime: { idleMs: 10000, extendMarginMs: 100 }, expiresInMs: 250 });
+  await h.run('live-browser-start', {});
+  await pause(400);
+  assert.equal(h.service.size, 1);
+  assert.ok(h.calls.filter(call => call[0] === 'extend').length >= 2, 'refreshed ahead of each expiry');
+  const capped = harness({ lifetime: { maxLifetimeMs: 200 } });
+  await capped.run('live-browser-start', {});
+  await capped.run('live-browser-request-handoff', { sessionId: 'b-1', reason: 'login', summary: 'Sign in.' });
+  await pause(350);
+  assert.equal(capped.service.size, 0, 'even a pending handoff ends at the cap');
+  const failing = harness({ lifetime: { idleMs: 10000, extendMarginMs: 100 }, expiresInMs: 250, extendFails: true });
+  await failing.run('live-browser-start', {});
+  await pause(400);
+  assert.equal(failing.service.size, 0, 'a session Cortex will not extend closes at its expiry');
 });

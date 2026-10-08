@@ -108,6 +108,18 @@ export class BrowserSessionAPI {
     };
   }
 
+  // POST sessions/{id}/extend with the runtime grant: keeps a live session
+  // (for example one waiting for the user) open for durationMinutes more.
+  // Cortex caps a session at 8 hours from registration and may rotate the
+  // grant; the reply is {expiresAt, grant?}.
+  async extend({ sessionId, grant, tenantId }, { durationMinutes }) {
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 480) throw new Error('Invalid browser duration');
+    const result = await this.request(`sessions/${encodeURIComponent(text(sessionId, 'session', ID))}/extend`,
+      { grant, tenantID: tenantId, body: { durationMinutes } });
+    return { expiresAt: future(result.expiresAt, 'browser expiry'),
+      ...(result.grant === undefined || result.grant === null || result.grant === '' ? {} : { grant: text(result.grant, 'browser grant') }) };
+  }
+
   // POST sessions/{id}/revoke with the runtime grant.
   async revoke({ sessionId, grant, tenantId }) {
     await this.request(`sessions/${encodeURIComponent(sessionId)}/revoke`, { grant, tenantID: tenantId });

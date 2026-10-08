@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { grpc, protoLoader } from '@axiom/live-browser';
 import { fileURLToPath } from 'node:url';
 import { schemas, validateInput } from './actions.mjs';
+import { CARD_SLOT, LOGIN_SLOTS } from './credentials.mjs';
 import { gracefulShutdown, handlers, SKILL_ID, SKILL_VERSION } from './server.mjs';
 
 const invoke = (handler, request) => new Promise((resolve, reject) => handler({ request },
@@ -19,8 +20,21 @@ test('the action catalog, identity and version match skill.yaml', () => {
   assert.match(manifest, /permissions: \[browser:session, network:http, 'host:browser:session', 'host:browser:audio'\]/);
   assert.equal([...manifest.matchAll(/'host:browser:/g)].length, 2, 'only start declares host permissions');
   assert.doesNotMatch(manifest, /host:browser:profile/);
-  assert.doesNotMatch(manifest, /elevenlabs|credentials:|risk: external/);
+  assert.doesNotMatch(manifest, /elevenlabs|risk: external|durationMinutes/);
+  // Only sign-in and card fill declare (optional) vault credential slots.
+  assert.equal([...manifest.matchAll(/^      credentials:$/gm)].length, 2);
+  const slots = [...manifest.matchAll(/- kind: (\S+)\n {10}name: (\S+)\n {10}optional: true/g)].map(match => `${match[1]}:${match[2]}`);
+  assert.deepEqual(slots, [...LOGIN_SLOTS.map(slot => `http_basic_auth:${slot}`), `payment_card:${CARD_SLOT}`]);
   assert.doesNotMatch(manifest, /host:meet/);
+  // actions.mjs and skill.yaml declare the same input fields and required fields.
+  for (const [action, schema] of Object.entries(schemas)) {
+    const block = manifest.slice(manifest.indexOf(`    ${action}:\n`)).split(/\n    live-browser-/)[0];
+    const input = block.slice(block.indexOf('inputSchema:'), block.indexOf('outputSchema:') > 0 ? block.indexOf('outputSchema:') : block.indexOf('permissions:'));
+    const fields = [...input.matchAll(/^ {10}('?)([A-Za-z]+)\1:/gm)].map(match => match[2]);
+    assert.deepEqual(fields.sort(), Object.keys(schema.properties).sort(), action);
+    const required = /^ {8}required: \[([^\]]*)\]/m.exec(input)?.[1].split(',').map(name => name.trim().replace(/'/g, '')).filter(Boolean) ?? [];
+    assert.deepEqual(required.sort(), [...schema.required].sort(), action);
+  }
   const packageJSON = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
   assert.equal(packageJSON.version, SKILL_VERSION);
 });
@@ -46,7 +60,7 @@ test('Execute validates input, passes bindings privately and never echoes them',
   const health = await invoke(handlers(service).Health, {});
   assert.deepEqual(health, { healthy: true, skill_id: SKILL_ID, version: SKILL_VERSION });
   const types = await invoke(handlers(service).GetNodeTypes, {});
-  assert.equal(types.node_types.length, 12);
+  assert.equal(types.node_types.length, 14);
 });
 
 test('input validation enforces the declared shapes', () => {
@@ -57,6 +71,15 @@ test('input validation enforces the declared shapes', () => {
   assert.throws(() => validateInput('live-browser-listen', { sessionId: 'b-1', state: 'maybe' }), /state is invalid/);
   assert.throws(() => validateInput('live-browser-scroll', { sessionId: 'b-1', dy: 20000 }), /out of range/);
   assert.equal(validateInput('live-browser-listen', { sessionId: 'b-1', state: 'on', wakePhrases: ['Ada'] }).state, 'on');
+  assert.throws(() => validateInput('live-browser-start', { durationMinutes: 30 }), /unknown field/);
+  assert.throws(() => validateInput('live-browser-sign-in', { sessionId: 'b-1', password: 'x' }), /unknown field/);
+  assert.throws(() => validateInput('live-browser-sign-in', { sessionId: 'b-1', oneTimeCode: '12' }), /oneTimeCode is invalid/);
+  assert.equal(validateInput('live-browser-sign-in', { sessionId: 'b-1', oneTimeCode: '123 456' }).oneTimeCode, '123 456');
+  assert.throws(() => validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '10' }), /currency is required/);
+  assert.throws(() => validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '1,000', currency: 'INR' }), /amount is invalid/);
+  assert.throws(() => validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '10', currency: 'inr' }), /currency is invalid/);
+  assert.throws(() => validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '10', currency: 'INR', number: '4242' }), /unknown field/);
+  assert.equal(validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '4210.50', currency: 'INR' }).amount, '4210.50');
 });
 
 test('skill and browser-control protocols load', () => {
