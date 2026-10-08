@@ -11,14 +11,18 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 
 | Action | Risk | Notes |
 | --- | --- | --- |
-| `live-browser-start {url?, intent?, durationMinutes?}` | read | Registers a Cortex browser session and returns `sessionId`. Declares `host:browser:session` and `host:browser:audio`: the session's registration origin carries the audio permission for its lifetime. Same run: reused. New run in the same conversation: replaces the previous browser. Another conversation's browser open: waits (up to two minutes) for it to close. |
+| `live-browser-start {url?, intent?}` | read | Registers a Cortex browser session and returns `sessionId`. Declares `host:browser:session` and `host:browser:audio`: the session's registration origin carries the audio permission for its lifetime. Same run: reused. New run in the same conversation (for example the turn after the user replied with a one-time code): reattaches to the open browser and its page; the extra registration is revoked. Another conversation's browser open: waits (up to two minutes) for it to close. |
 | `live-browser-navigate {sessionId, url, intent?}` | read | |
 | `live-browser-snapshot {sessionId, includeScreenshot?, intent?}` | read | Text plus elements with generation-scoped refs `sN:eM` (same shape as the old `camoufox-snapshot`). |
-| `live-browser-click {sessionId, target \| generation+x+y, intent}` | write | |
-| `live-browser-fill {sessionId, target, value, intent}` | write | Works on inputs, textareas and contenteditable rich-text editors (click to focus, then type). Password, payment and identity fields are not filled; the model must hand off. |
+| `live-browser-click {sessionId, target \| generation+x+y, intent}` | write | Refuses a final pay / place-order / buy-now button (also by coordinates, including inside frames) on a checkout or after a card was filled: that is `live-browser-pay`. |
+| `live-browser-fill {sessionId, target, value, intent}` | write | Works on inputs, textareas and contenteditable rich-text editors (click to focus, then type). Password, one-time code, payment and identity fields are never filled by the model. |
+| `live-browser-sign-in {sessionId, credential?, oneTimeCode?, intent?}` | write | Signs in with a saved website login (see Credentials). Returns `submitted`, `otp_required`, `choose_login` (`logins`: names) or `no_matching_login`. |
+| `live-browser-fill-payment-card {sessionId, amount, currency, intent?}` | write | Fills the saved card into the checkout's card fields; never submits. Returns `card_filled` (`filled`: field kinds), `amount_mismatch`, `spend_cap_exceeded` or `no_payment_card`. |
+| `live-browser-pay {sessionId, amount, currency, merchant?, target?, intent}` | write | Declares `review: always`: the host asks the user to approve every call in chat, in every approval mode including Skip. Clicks the checkout's final pay / place-order button (the `target` reference, or the page's one such button) after re-checking the top-level origin (against `merchant` and the site where the card was filled) and the page total against `amount`. Also finds the pay button inside a known processor's checkout frame (Razorpay, Stripe, Adyen, Braintree, PayU, Cashfree, ...), which wins over the page's own; totals in those frames are checked too. Returns `confirmed` (`orderReference`, `summary` of the confirmation page, untrusted text), `clicked`, `otp_required` (the bank's 3-D Secure or wallet code: the agent asks in chat), `approve_in_app` (the agent asks the user in chat to approve in their bank app), `payment_verification` (another check; hand off only if the agent cannot do it), `merchant_mismatch` or `amount_mismatch`. |
+| `live-browser-submit-payment-code {sessionId, oneTimeCode, intent?}` | write | No extra review: the payment was approved. Within 15 minutes of `live-browser-pay`, while the top-level origin is the checkout or the page the payment led to, types the code into the code field of any frame of the page (bank 3-D Secure frames have any origin), re-checking the origin and frame before every keystroke batch, submits, and returns the same statuses (`otp_required` with `retry` for a rejected code). |
 | `live-browser-select {sessionId, target, value, intent}` | write | |
 | `live-browser-scroll {sessionId, dx?, dy?}` | read | |
-| `live-browser-screenshot {sessionId, fullPage?}` | read | |
+| `live-browser-screenshot {sessionId, fullPage?}` | read | Refused (and snapshot screenshots withheld) while a filled card is on the page. |
 | `live-browser-request-handoff {sessionId, reason, summary}` | read | `reason`: payment, submit, login, personal_data, destructive, captcha, other. Returns `requiresHuman: true` with `challenges: ["manual_confirmation"]`. |
 | `live-browser-close {sessionId}` | read | Closes Camoufox (the profile is flushed to the volume), frees the browser for the next task and revokes the session. |
 | `live-browser-listen {sessionId, state: on\|off, speakerLabel?, displayName?, wakePhrases?, speakReplies?, transcriptionModel?, speechModel?, voice?}` | write | Axiom speech gateway; models default to the agent's catalog. |
@@ -26,8 +30,53 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 
 While a human holds control, model actions wait (bounded) and return
 `status: paused_by_user` without acting; if the user is still in control the
-result has `requiresHuman: true` so the run waits for hand-back. CAPTCHA,
-bot-check and verification-code pages trigger an automatic handoff.
+result has `requiresHuman: true` so the run waits for hand-back. CAPTCHA and
+bot-check pages trigger an automatic handoff. One-time code pages do not:
+snapshots report `challenges: ["mfa"]` and the agent either signs in with
+`live-browser-sign-in` (code asked for in chat) or hands off, as its
+instructions say.
+
+## Lifetime
+
+There is no model-chosen duration. A browser closes after 30 minutes without
+actions; every action slides the window. While it waits for the user (a
+handoff in `awaiting_user`, a human in control, an action in flight, or up to
+an hour after `otp_required`) it is kept open instead, and the Cortex session
+is extended (`POST sessions/{id}/extend {durationMinutes}` with the session
+grant, reply `{expiresAt, grant?}`) on entering `awaiting_user`, while
+waiting, and ahead of each expiry. A session closes at 8 hours, or when Cortex
+will not extend it before it expires.
+
+## Credentials
+
+Credential values reach the runtime only through gRPC `bindings`, never
+through model input, and are never logged, returned, put in errors or
+snapshots. Optional manifest slots:
+
+- `website-login-1` ... `website-login-8` (`http_basic_auth`): each binding
+  value is a JSON object `{username, password, website, totpSecret?, name?}`.
+  `website` lists origins (`https://www.amazon.in, https://amazon.in`). A
+  login is used only when the page's top-level origin (scheme, host and port)
+  is exactly one of them; no suffix or wildcard matching. The origin is
+  re-checked immediately before every keystroke batch and click, so a
+  redirect mid sign-in stops it. `totpSecret` (base32 or an `otpauth://totp`
+  URI) answers authenticator-code pages (RFC 6238, computed locally); SMS or
+  email codes return `otp_required` and the agent asks for the code in chat.
+  Username, password and code go only into fields of the top-level document.
+- `payment-card` (`payment_card`): `{cardholderName, number, expiryMonth,
+  expiryYear, cvc, billingPostalCode?}`, or, when the host refuses to release
+  the card for the declared `amount`/`currency` (spend cap),
+  `{error: "spend_cap_exceeded", remaining, cap, currency}` with no card
+  values. Card values go only into recognized card fields (autocomplete
+  `cc-*`, card-specific labels) of the top document, same-site frames and
+  known processor frames (Stripe, Razorpay, Adyen, Braintree, ...); a postal
+  code only next to card fields. If the page's order total is higher than
+  `amount`, nothing is filled (`amount_mismatch`).
+
+`no_matching_login`, `no_payment_card` and `spend_cap_exceeded` tell the agent
+to ask the user, in chat, to add the login or card or raise the cap with the
+in-chat setup form (`request_setup`, kind `configure`); they are never a
+handoff.
 
 An element the model cannot use (hidden or collapsed, covered by an overlay,
 stale reference, not editable, option missing, timed out waiting for it)
@@ -75,7 +124,7 @@ logins. Nothing is exported, uploaded or merged; there is no central copy.
   browser owns its display (live view and take control) and its page audio,
   so sessions are queued: one live browser at a time, and a start from
   another conversation waits in FIFO order (up to two minutes) for it to
-  close. A new start in the same conversation still replaces its browser.
+  close. A new start in the same conversation reattaches to its browser.
 - Durability: closing a browser closes Camoufox, which flushes its SQLite
   files; the profile is released only after Firefox has exited. On SIGTERM
   the runtime closes every browser before exiting (bounded to 45 s, inside
@@ -103,5 +152,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.6 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.7 .
 ```
