@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url';
-import { addBrowserControlService, browserAuthorizer, BrowserSessionAPI, grpc, protoLoader } from '@axiom/live-browser';
+import { addBrowserControlService, browserAuthorizer, BrowserSessionAPI, grpc, PersistentBrowserProfile, profileAuthorizer, PROFILE_ROOT, protoLoader } from '@axiom/live-browser';
 import { schemas, validateInput } from './actions.mjs';
 import { LiveBrowserService } from './service.mjs';
 
 export const SKILL_ID = 'skill-live-browser';
-export const SKILL_VERSION = '1.0.5';
+export const SKILL_VERSION = '1.0.6';
 export const DEFAULT_BROWSER_API_URL = 'http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/';
 
 function decode(values = {}) {
@@ -50,12 +50,37 @@ export function handlers(service) {
   };
 }
 
+// SIGTERM (pod stop) or SIGINT: close every browser so Firefox flushes its
+// profile and exits cleanly, then stop serving and exit. Bounded so the pod
+// stops within its termination grace period even if a browser hangs.
+export function gracefulShutdown({ service, server, exit = code => process.exit(code), timeoutMs = 45000 }) {
+  let started = false;
+  return () => {
+    if (started) return;
+    started = true;
+    const timer = setTimeout(() => {
+      console.warn(JSON.stringify({ event: 'live_browser_shutdown_timeout' }));
+      server.forceShutdown();
+      exit(1);
+    }, timeoutMs);
+    timer.unref?.();
+    void Promise.resolve().then(() => service.closeAll()).catch(() => {}).finally(() => {
+      clearTimeout(timer);
+      server.forceShutdown();
+      exit(0);
+    });
+  };
+}
+
 export async function serve(env = process.env) {
   const baseURL = env.CORTEX_BROWSER_API_URL || DEFAULT_BROWSER_API_URL;
   const service = new LiveBrowserService({
     api: new BrowserSessionAPI({ baseURL }),
     authorize: browserAuthorizer({ baseURL }),
-    maxSessions: Number(env.LIVE_BROWSER_MAX_SESSIONS) || 4,
+    authorizeProfile: profileAuthorizer({ baseURL }),
+    // Set by Cortex's Skill hosting for this tenant's runtime.
+    tenantID: env.CORTEX_TENANT_ID,
+    profile: new PersistentBrowserProfile({ root: env.LIVE_BROWSER_PROFILE_ROOT || PROFILE_ROOT }),
     ...(env.AXIOM_SPEECH_API_URL ? { speechBaseURL: env.AXIOM_SPEECH_API_URL } : {}),
   });
   const definition = protoLoader.loadSync(fileURLToPath(new URL('./skill.proto', import.meta.url)), { keepCase: true });
@@ -65,7 +90,7 @@ export async function serve(env = process.env) {
   const port = Number(env.SKILL_PORT || 50051);
   await new Promise((resolve, reject) => server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(),
     (error, bound) => error ? reject(error) : resolve(bound)));
-  const shutdown = () => { void service.closeAll().finally(() => server.tryShutdown(() => {})); };
+  const shutdown = gracefulShutdown({ service, server });
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
   return server;

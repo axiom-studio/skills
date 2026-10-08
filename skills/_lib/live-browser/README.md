@@ -8,15 +8,15 @@ in their `.npmrc`, and their Dockerfile copies it to the same relative path
 
 | Module | Purpose |
 | --- | --- |
-| `camoufox-browser.mjs` | Camoufox launch on a private display with per-browser PulseAudio devices. |
+| `camoufox-browser.mjs` | Camoufox persistent-context launch on a private display with per-browser PulseAudio devices; stale profile lock cleanup and a stable per-profile fingerprint. |
 | `browser-video.mjs`, `browser-desktop.mjs` | Private Xvfb display (1280x800), ffmpeg x11grab → WebM/VP8, window manager. |
 | `browser-rfb.mjs`, `browser-desktop-input.mjs`, `browser-human-view.mjs` | Lease-holder desktop (x11vnc over a Unix socket) and human input. |
 | `browser-control.mjs` | Lease/queue: automation vs. human, optional pause-on-expiry. |
 | `browser-handoff.mjs` | Status, claim (also while automating), input, resume, cancel, lease video and lease-free `watch`. |
 | `browser-intervention.mjs` | Handoff reasons and summaries; DOM detection of codes and challenges. |
-| `browser-authorizer.mjs` | Verifies each human command with Cortex (`sessions/{id}/authorize`). |
-| `browser-session.mjs` | Cortex browser-session client: register/revoke, handoff notice, audio catalog and speech grants, profile grant/load/changes. |
-| `browser-profile.mjs` | Shared sign-in state: loads the tenant profile into a browser and sends only this task's first-party cookie/localStorage changes (sites it navigated to at top level, eTLD+1) plus those sites; Cortex merges them. |
+| `browser-authorizer.mjs` | Verifies each human command with Cortex (`sessions/{id}/authorize`); session-less profile commands with `profile/authorize`. |
+| `browser-session.mjs` | Cortex browser-session client: register/revoke, handoff notice, audio catalog and speech grants. |
+| `browser-profile.mjs` | The tenant's persistent Camoufox profile on the runtime volume: exclusive FIFO lease (one browser per profile), visited top-level sites (eTLD+1) for the saved sign-ins list, status and forget. |
 | `browser-grpc.mjs`, `browser-video-rpc.mjs`, `browser-control.proto` | `axiom.browser.v1.BrowserControlService`. |
 | `browser-audio.mjs` and `audio`, `speech-gateway`, `transcript-queue`, `attention`, `reply-inbox`, `bridge`, `speech-playback`, `voice-latency`, `voice-failure` | Listen (page audio → gateway transcription → transcript and addressed utterances) and speak (gateway speech → virtual microphone), with session-bound grants from Cortex. |
 

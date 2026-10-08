@@ -11,7 +11,7 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 
 | Action | Risk | Notes |
 | --- | --- | --- |
-| `live-browser-start {url?, intent?, durationMinutes?}` | read | Registers a Cortex browser session and returns `sessionId`. Declares `host:browser:session`, `host:browser:profile` and `host:browser:audio`: the session's registration origin carries the profile and audio permissions for its lifetime. Same run: reused. New run in the same conversation: replaces the previous browser. |
+| `live-browser-start {url?, intent?, durationMinutes?}` | read | Registers a Cortex browser session and returns `sessionId`. Declares `host:browser:session` and `host:browser:audio`: the session's registration origin carries the audio permission for its lifetime. Same run: reused. New run in the same conversation: replaces the previous browser. Another conversation's browser open: waits (up to two minutes) for it to close. |
 | `live-browser-navigate {sessionId, url, intent?}` | read | |
 | `live-browser-snapshot {sessionId, includeScreenshot?, intent?}` | read | Text plus elements with generation-scoped refs `sN:eM` (same shape as the old `camoufox-snapshot`). |
 | `live-browser-click {sessionId, target \| generation+x+y, intent}` | write | |
@@ -20,7 +20,7 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 | `live-browser-scroll {sessionId, dx?, dy?}` | read | |
 | `live-browser-screenshot {sessionId, fullPage?}` | read | |
 | `live-browser-request-handoff {sessionId, reason, summary}` | read | `reason`: payment, submit, login, personal_data, destructive, captcha, other. Returns `requiresHuman: true` with `challenges: ["manual_confirmation"]`. |
-| `live-browser-close {sessionId}` | read | Saves shared sign-ins and revokes the session. |
+| `live-browser-close {sessionId}` | read | Closes Camoufox (the profile is flushed to the volume), frees the browser for the next task and revokes the session. |
 | `live-browser-listen {sessionId, state: on\|off, speakerLabel?, displayName?, wakePhrases?, speakReplies?, transcriptionModel?, speechModel?, voice?}` | write | Axiom speech gateway; models default to the agent's catalog. |
 | `live-browser-speak {sessionId, text, speechModel?, voice?}` | write | Axiom speech gateway. |
 
@@ -47,16 +47,50 @@ there is no site-specific code.
 - `CORTEX_BROWSER_API_URL` (default
   `http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/`)
   for session registration, human-command authorization, handoff notices,
-  conversation/transcript posts, speech grants and the shared profile.
-  `AXIOM_SPEECH_API_URL` (default
+  conversation/transcript posts, speech grants and profile-command
+  authorization. `AXIOM_SPEECH_API_URL` (default
   `http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/`) for
-  transcription and speech. `LIVE_BROWSER_MAX_SESSIONS` (default 4).
-- Stateless: no volume. Shared sign-ins are loaded on start and merged back on
-  hand-back, close and every five minutes. Only first-party state is saved:
-  cookies and localStorage of sites (eTLD+1) the browser navigated to at top
-  level in that session. Third-party (ad and tracking) cookies are never
-  saved, and stored entries for sites outside Cortex's first-party site list
-  (left from before this rule) are tombstoned on the next save.
+  transcription and speech. `CORTEX_TENANT_ID`: the tenant this runtime
+  serves (set by Cortex's Skill hosting); profile commands for any other
+  tenant are refused.
+- `BrowserControlService.Control` also takes two session-less profile
+  commands, `{"type":"profileStatus"}` (returns `{state, origins, updatedAt,
+  sizeBytes}`) and `{"type":"forgetProfile"}` (stops the open browser cleanly,
+  deletes the profile and returns `{deleted}`), each with a single-command
+  proof that Cortex verifies at `profile/authorize`.
+
+## Browser profile
+
+The runtime is per tenant and keeps the tenant's one real Camoufox profile on
+its persistent volume (`browser-profile`, 10Gi, mounted at
+`/var/lib/axiom-live-browser`, override with `LIVE_BROWSER_PROFILE_ROOT`).
+The browser is launched with Playwright's persistent context on
+`<root>/camoufox`, so everything a normal browser keeps survives between
+sessions and pod restarts: first- and third-party cookies, localStorage,
+IndexedDB (including non-extractable CryptoKeys, as WhatsApp Web uses), Cache
+Storage, service workers, history, permissions, site settings and saved
+logins. Nothing is exported, uploaded or merged; there is no central copy.
+
+- One browser per profile. Firefox opens a profile only once, and a live
+  browser owns its display (live view and take control) and its page audio,
+  so sessions are queued: one live browser at a time, and a start from
+  another conversation waits in FIFO order (up to two minutes) for it to
+  close. A new start in the same conversation still replaces its browser.
+- Durability: closing a browser closes Camoufox, which flushes its SQLite
+  files; the profile is released only after Firefox has exited. On SIGTERM
+  the runtime closes every browser before exiting (bounded to 45 s, inside
+  the pod's termination grace period). The image runs under `tini`, which
+  reaps orphaned browser processes.
+- Stale `lock`/`.parentlock` files left by a crash or another pod are removed
+  before launch (the runtime holds the profile exclusively).
+- The Camoufox fingerprint generated on first launch is kept in
+  `identity.json` and reused, so sites see the same device every time, until
+  the Camoufox build changes.
+- Saved sign-ins: status reports `profile: {state, origins}`, where origins
+  are the top-level sites (eTLD+1) the browser has visited, kept in
+  `sites.json`. Third-party sites whose cookies the browser keeps are not
+  listed. Forget sign-ins (`forgetProfile`) deletes `camoufox/`, `sites.json`
+  and `identity.json`.
 
 Never log page content, typed values, cookies, storage, tokens or audio.
 
@@ -69,5 +103,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.5 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.6 .
 ```
