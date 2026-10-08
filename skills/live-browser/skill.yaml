@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.7
+  version: 1.0.8
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.7
+    resolvedVersion: 1.0.8
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.7
+      package: axiomstudio/skill-live-browser:1.0.8
   requirements:
     operatingSystems: [linux]
     compute:
@@ -117,10 +117,12 @@ definition:
       gotten an OTP, please provide" and pass the reply to
       live-browser-submit-payment-code; approve_in_app means ask the user in
       chat to approve in their bank app, then snapshot. Never click pay twice.
-      no_matching_login, no_payment_card and spend_cap_exceeded mean: ask the
-      user in chat to add the login or card, or raise the cap, with the
-      in-chat setup form (request_setup, kind configure, this Skill); never
-      a handoff. Never ask for passwords or card numbers in chat; the only
+      no_matching_login, no_payment_card and spend_cap_exceeded mean: call
+      openseal.skills.request_credential with exactly the arguments in the
+      result's credentialRequest, so the user adds the login or card, or
+      raises the cap, in their vault through an in-chat card; this work
+      resumes when they save it. Never request_setup (this Skill is built
+      in) and never a handoff. Never ask for passwords or card numbers in chat; the only
       secret you may ask for in chat is a one-time code the site just sent.
       When an action returns paused_by_user, the user has taken control: do
       not act; when they hand back, take a new snapshot because the page may
@@ -373,6 +375,17 @@ definition:
           logins: {type: array, items: {type: string}, description: 'For choose_login, the saved logins for this site.'}
           step: {type: string, enum: [username, password, one_time_code]}
           retry: {type: boolean, description: 'For otp_required, the previous code was not accepted.'}
+          credentialRequest:
+            type: object
+            description: 'For a missing login, card or spend cap: call this action with these exact arguments.'
+            properties:
+              action: {type: string}
+              arguments:
+                type: object
+                properties:
+                  kind: {type: string, enum: [website_login, payment_card]}
+                  website: {type: string}
+                  reason: {type: string}
           url: {type: string}
           title: {type: string}
           requiresHuman: {type: boolean}
@@ -436,6 +449,17 @@ definition:
           remaining: {type: string}
           cap: {type: string}
           capCurrency: {type: string}
+          credentialRequest:
+            type: object
+            description: 'For a missing login, card or spend cap: call this action with these exact arguments.'
+            properties:
+              action: {type: string}
+              arguments:
+                type: object
+                properties:
+                  kind: {type: string, enum: [website_login, payment_card]}
+                  website: {type: string}
+                  reason: {type: string}
           url: {type: string}
           title: {type: string}
           requiresHuman: {type: boolean}

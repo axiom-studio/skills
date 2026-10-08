@@ -73,9 +73,13 @@ snapshots. Optional manifest slots:
   code only next to card fields. If the page's order total is higher than
   `amount`, nothing is filled (`amount_mismatch`).
 
-`no_matching_login`, `no_payment_card` and `spend_cap_exceeded` tell the agent
-to ask the user, in chat, to add the login or card or raise the cap with the
-in-chat setup form (`request_setup`, kind `configure`); they are never a
+`no_matching_login`, `no_payment_card` and `spend_cap_exceeded` carry a
+`credentialRequest` with the exact arguments for
+`openseal.skills.request_credential` (`kind` `website_login` with the page
+`website` origin, or `payment_card`, and a `reason`). The agent calls it so
+the user adds the login or card, or raises the cap, in their vault through an
+in-chat card, and the work resumes when they save it. The live browser is
+built in, so these are never Skill setup (`request_setup`) and never a
 handoff.
 
 An element the model cannot use (hidden or collapsed, covered by an overlay,
@@ -152,5 +156,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.7 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.8 .
 ```
