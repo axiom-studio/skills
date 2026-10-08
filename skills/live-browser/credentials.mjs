@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { siteOf } from '@axiom/live-browser';
 
 // Saved website logins and the payment card arrive only through gRPC
 // bindings (the host's trusted channel), never through model input. Nothing
@@ -38,9 +39,8 @@ function label(object, slot) {
   return name ? name.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200) || slot : slot;
 }
 
-// "https://www.amazon.in, https://amazon.in" -> exact origins. An entry that
-// is not an absolute http(s) URL without credentials is ignored; no suffix or
-// wildcard matching ever happens.
+// "https://www.amazon.in, https://amazon.in" -> origins. An entry that is
+// not an absolute http(s) URL without credentials is ignored.
 export function websiteOrigins(website) {
   if (typeof website !== 'string') return [];
   const origins = new Set();
@@ -61,6 +61,18 @@ export function topOrigin(url) {
   } catch { return undefined; }
 }
 
+// The site a login is matched on, as password managers do: the scheme plus
+// the registrable domain (eTLD+1 from the public suffix list, private
+// suffixes included; the host itself for IPs and single-label hosts). A
+// login for https://amazon.in fills on https://www.amazon.in, never on
+// http://amazon.in or another registrable domain. Port is not part of it.
+export function loginSite(url) {
+  const origin = topOrigin(url);
+  const site = origin && siteOf(origin);
+  if (!site) return undefined;
+  return `${new URL(origin).protocol}//${site.includes(':') ? `[${site}]` : site}`;
+}
+
 // Bound website logins usable by the live browser: username, password and at
 // least one website origin are required.
 export function websiteLogins(bindings = {}) {
@@ -73,16 +85,24 @@ export function websiteLogins(bindings = {}) {
     const origins = websiteOrigins(field(object, 'website', 'websites'));
     if (!username || !password || !origins.length) continue;
     const totpSecret = field(object, 'totpSecret', 'totp_secret');
-    logins.push(Object.freeze({ slot, label: label(object, slot), origins, username, password, ...(totpSecret ? { totpSecret } : {}) }));
+    const sites = [...new Set(origins.map(loginSite).filter(Boolean))];
+    logins.push(Object.freeze({ slot, label: label(object, slot), origins, sites, username, password, ...(totpSecret ? { totpSecret } : {}) }));
   }
   return logins;
 }
 
-// Logins for exactly this top-level origin; a named login must match both the
-// name (label or slot) and the origin.
+// Whether a login is for this top-level origin's site (same scheme and
+// registrable domain).
+export function loginMatches(login, origin) {
+  const site = loginSite(origin);
+  return Boolean(site) && login.sites.includes(site);
+}
+
+// Logins for this top-level origin's site; a named login must match both the
+// name (label or slot) and the site.
 export function matchingLogins(logins, origin, credential) {
   if (!origin) return [];
-  return logins.filter(login => login.origins.includes(origin) &&
+  return logins.filter(login => loginMatches(login, origin) &&
     (credential === undefined || login.slot === credential || login.label === credential));
 }
 

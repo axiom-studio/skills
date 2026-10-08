@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
-import { totp } from './credentials.mjs';
+import { totp, websiteLogins } from './credentials.mjs';
 import { LivePage, POINT_NAME_JS } from './page.mjs';
 import { paymentOutcome, SignIn } from './sign-in.mjs';
 
@@ -28,7 +28,7 @@ function chromiumPath() {
 const executablePath = chromiumPath();
 const skip = executablePath ? false : 'no Chromium build installed';
 const SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
-const login = { slot: 'website-login-1', label: 'Shop', origins: ['https://shop.example'], username: 'kev@example.com', password: 'Hunter2-Secret!' };
+const [login] = websiteLogins({ 'website-login-1': { name: 'Shop', website: 'https://shop.example', username: 'kev@example.com', password: 'Hunter2-Secret!' } });
 const card = { number: '4242424242424242', month: '07', year: '2029', cvc: '123', name: 'Kev K', postal: '560001' };
 
 let browser;
@@ -118,6 +118,43 @@ test('a redirect to another site mid sign-in stops before any keystroke there', 
     assert.ok(!s.requests.some(url => url.includes(encodeURIComponent(login.password)) || url.includes(login.password)));
     // Starting on a site the login is not for fails closed.
     await assert.rejects(new SignIn(s.live).signIn(login), error => error.notActionable === true);
+  } finally { await s.close(); }
+});
+
+test('a login saved for the registrable domain signs in across its subdomains, never over http', { skip }, async () => {
+  const s = await site({
+    'https://www.shop.example/signin': `<form method="post" action="https://accounts.shop.example/signin/password"><label>Email <input name="email" type="email"></label>
+      <button type="submit">Continue</button></form>`,
+    'POST https://accounts.shop.example/signin/password': `<form method="post" action="/signin/check"><label>Password <input name="password" type="password"></label>
+      <button>Sign in</button></form>`,
+    'POST https://accounts.shop.example/signin/check': '<h1>Hello, Kev</h1>',
+    'http://www.shop.example/signin': '<form method="post" action="/x"><input name="email" type="email"><input name="password" type="password"><button>Sign in</button></form>',
+  });
+  try {
+    await s.page.goto('https://www.shop.example/signin');
+    const result = await new SignIn(s.live).signIn(login);
+    assert.equal(result.state, 'submitted');
+    assert.deepEqual(s.posts.map(post => post.url), ['https://accounts.shop.example/signin/password', 'https://accounts.shop.example/signin/check']);
+    assert.equal(s.posts[0].body.email, login.username);
+    assert.equal(s.posts[1].body.password, login.password);
+    await s.page.goto('http://www.shop.example/signin');
+    await assert.rejects(new SignIn(s.live).signIn(login), error => error.notActionable === true);
+    assert.equal(await s.page.inputValue('input[name="password"]'), '', 'an https login never fills on http');
+  } finally { await s.close(); }
+});
+
+test('a same-site redirect during a keystroke batch still stops the fill', { skip }, async () => {
+  const s = await site({
+    'https://www.shop.example/signin': `<form method="post" action="/x"><input name="email" type="email" placeholder="Email">
+      <input name="password" type="password" onfocus="location.href='https://other.shop.example/capture'"><button>Sign in</button></form>`,
+    'https://other.shop.example/capture': '<form><input name="email" type="email"><input name="password" type="password"></form>',
+  });
+  try {
+    await s.page.goto('https://www.shop.example/signin');
+    await assert.rejects(new SignIn(s.live).signIn(login), error => error.notActionable === true && !error.message.includes(login.password));
+    assert.equal(new URL(s.page.url()).origin, 'https://other.shop.example');
+    assert.equal(await s.page.inputValue('input[name="password"]'), '');
+    assert.ok(!s.requests.some(url => url.includes(encodeURIComponent(login.password)) || url.includes(login.password)));
   } finally { await s.close(); }
 });
 
