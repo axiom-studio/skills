@@ -10,7 +10,7 @@ const object = (properties, required = []) => ({ type: 'object', additionalPrope
 export const REASONS = ['payment', 'submit', 'login', 'personal_data', 'destructive', 'captcha', 'other'];
 
 export const schemas = Object.freeze({
-  'live-browser-start': object({ url, intent, durationMinutes: { type: 'integer', minimum: 5, maximum: 480, default: 120 } }),
+  'live-browser-start': object({ url, intent }),
   'live-browser-navigate': object({ sessionId, url, intent }, ['sessionId', 'url']),
   'live-browser-snapshot': object({ sessionId, includeScreenshot: { type: 'boolean', default: false }, intent }, ['sessionId']),
   'live-browser-click': {
@@ -25,6 +25,10 @@ export const schemas = Object.freeze({
   'live-browser-screenshot': object({ sessionId, fullPage: { type: 'boolean', default: false } }, ['sessionId']),
   'live-browser-request-handoff': object({ sessionId, reason: { type: 'string', enum: REASONS },
     summary: { type: 'string', minLength: 1, maxLength: 500 } }, ['sessionId', 'reason', 'summary']),
+  'live-browser-sign-in': object({ sessionId, credential: { type: 'string', minLength: 1, maxLength: 200 },
+    oneTimeCode: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$' }, intent }, ['sessionId']),
+  'live-browser-fill-payment-card': object({ sessionId, amount: { type: 'string', pattern: '^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,4})?$' },
+    currency: { type: 'string', pattern: '^[A-Z]{3}$' }, intent }, ['sessionId', 'amount', 'currency']),
   'live-browser-close': object({ sessionId }, ['sessionId']),
   'live-browser-listen': object({ sessionId, state: { type: 'string', enum: ['on', 'off'] }, speakerLabel: label, displayName: label,
     wakePhrases: { type: 'array', maxItems: 8, items: label }, speakReplies: { type: 'boolean', default: true },

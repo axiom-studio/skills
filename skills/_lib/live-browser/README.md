@@ -15,7 +15,7 @@ in their `.npmrc`, and their Dockerfile copies it to the same relative path
 | `browser-handoff.mjs` | Status, claim (also while automating), input, resume, cancel, lease video and lease-free `watch`. |
 | `browser-intervention.mjs` | Handoff reasons and summaries; DOM detection of codes and challenges. |
 | `browser-authorizer.mjs` | Verifies each human command with Cortex (`sessions/{id}/authorize`); session-less profile commands with `profile/authorize`. |
-| `browser-session.mjs` | Cortex browser-session client: register/revoke, handoff notice, audio catalog and speech grants. |
+| `browser-session.mjs` | Cortex browser-session client: register/extend/revoke, handoff notice, audio catalog and speech grants. |
 | `browser-profile.mjs` | The tenant's persistent Camoufox profile on the runtime volume: exclusive FIFO lease (one browser per profile), visited top-level sites (eTLD+1) for the saved sign-ins list, status and forget. |
 | `browser-grpc.mjs`, `browser-video-rpc.mjs`, `browser-control.proto` | `axiom.browser.v1.BrowserControlService`. |
 | `browser-audio.mjs` and `audio`, `speech-gateway`, `transcript-queue`, `attention`, `reply-inbox`, `bridge`, `speech-playback`, `voice-latency`, `voice-failure` | Listen (page audio → gateway transcription → transcript and addressed utterances) and speak (gateway speech → virtual microphone), with session-bound grants from Cortex. |
