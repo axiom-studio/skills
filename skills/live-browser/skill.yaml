@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.5
+  version: 1.0.6
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.5
+    resolvedVersion: 1.0.6
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,12 +23,22 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.5
+      package: axiomstudio/skill-live-browser:1.0.6
   requirements:
     operatingSystems: [linux]
     compute:
       requests: {cpu: 500m, memory: 1Gi}
       limits: {cpu: 2000m, memory: 4Gi}
+    # The tenant's real Camoufox profile (cookies, storage, IndexedDB, Cache
+    # Storage, service workers, history, permissions, saved logins). One
+    # writer: the runtime opens it in one browser at a time.
+    storage:
+      - name: browser-profile
+        durability: persistent
+        minimumCapacity: 10Gi
+        mountPath: /var/lib/axiom-live-browser
+        retention: retain
+        writableGroup: 1000
   prompt:
     userInvocable: true
     allowedTools:
@@ -111,7 +121,7 @@ definition:
   actions:
     live-browser-start:
       name: live-browser-start
-      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Returns the sessionId used by every other live-browser action. Reuses this run's browser if one is already open.
+      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Only one live browser runs at a time for the team; if another task's browser is open, this waits up to two minutes for it to close and otherwise fails, so try again later. Returns the sessionId used by every other live-browser action. Reuses this run's browser if one is already open.
       inputSchema:
         type: object
         additionalProperties: false
@@ -132,7 +142,7 @@ definition:
           requiresHuman: {type: boolean}
           intervention: {type: object}
           message: {type: string}
-      permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:profile', 'host:browser:audio']
+      permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:audio']
       idempotency: supported
       retry: {maxAttempts: 1}
       risk: read
@@ -335,7 +345,7 @@ definition:
       timeout: 180000000000
     live-browser-close:
       name: live-browser-close
-      description: Close the live browser when the task is done. Shared sign-ins are saved for later tasks. First extract the facts the answer needs (names, prices, ratings, times, links) from the latest snapshot; page content is not kept after closing.
+      description: Close the live browser when the task is done, so other tasks can use it. Sign-ins and site data stay in the team's browser profile. First extract the facts the answer needs (names, prices, ratings, times, links) from the latest snapshot; page content is not kept after closing.
       inputSchema:
         type: object
         additionalProperties: false

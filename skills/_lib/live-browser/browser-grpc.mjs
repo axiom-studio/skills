@@ -2,6 +2,7 @@ import grpc from '@grpc/grpc-js';
 import protoLoader from '@grpc/proto-loader';
 import { fileURLToPath } from 'node:url';
 import { browserVideoRPC } from './browser-video-rpc.mjs';
+import { PROFILE_COMMANDS } from './browser-authorizer.mjs';
 
 export { grpc, protoLoader };
 
@@ -20,8 +21,12 @@ export function browserHandlers(service) {
         const input = JSON.parse(Buffer.from(bytes).toString('utf8'));
         if (!input || Array.isArray(input) || Object.keys(input).some(key => !FIELDS.includes(key)) ||
           typeof input.commandJSON !== 'string') throw new Error();
-        const result = await service.controlBrowser({ agentID: input.agentID, sessionID: input.sessionID,
-          authorization: { token: input.authorization, commandJSON: input.commandJSON }, command: JSON.parse(input.commandJSON) });
+        const command = JSON.parse(input.commandJSON);
+        const authorization = { token: input.authorization, commandJSON: input.commandJSON };
+        // Profile commands need no browser session (see browser-authorizer.mjs).
+        const result = PROFILE_COMMANDS.includes(command?.type)
+          ? await service.controlProfile({ agentID: input.agentID, authorization, command })
+          : await service.controlBrowser({ agentID: input.agentID, sessionID: input.sessionID, authorization, command });
         if (result?.type === 'frame' && Buffer.isBuffer(result.bytes)) {
           callback(null, { value: Buffer.from(JSON.stringify({ ...result, bytes: result.bytes.toString('base64') })) });
           return;

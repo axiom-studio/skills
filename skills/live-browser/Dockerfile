@@ -2,7 +2,7 @@ FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libdbus-glib-1-2 libasound2 libx11-xcb1 libxt6 fonts-liberation \
-    pulseaudio pulseaudio-utils ffmpeg xvfb xdotool openbox x11-utils x11vnc ca-certificates \
+    pulseaudio pulseaudio-utils ffmpeg xvfb xdotool openbox x11-utils x11vnc ca-certificates tini \
     && rm -rf /var/lib/apt/lists/*
 
 # The shared library is installed from its relative file: path, so it must sit
@@ -22,9 +22,14 @@ RUN node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=J
 COPY skills/${SKILL_NAME}/*.mjs skills/${SKILL_NAME}/*.proto skills/${SKILL_NAME}/entrypoint.sh ./
 RUN rm -f ./*.test.mjs && chmod 755 entrypoint.sh && chown -R node:node /opt/skill
 
-# Stateless: no volume. Browser profiles are temporary; shared sign-ins are
-# loaded from and merged back to Cortex.
+# The tenant's browser profile lives on the Skill's persistent volume
+# (requirements.storage in skill.yaml), mounted at /var/lib/axiom-live-browser
+# and group-writable for node (gid 1000). The directory here only backs runs
+# without the volume.
+RUN mkdir -p /var/lib/axiom-live-browser && chown node:node /var/lib/axiom-live-browser && chmod 700 /var/lib/axiom-live-browser
 USER node
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 EXPOSE 50051
-ENTRYPOINT ["/opt/skill/live-browser/entrypoint.sh"]
+# tini is PID 1: it forwards SIGTERM to the runtime (which closes Camoufox
+# cleanly) and reaps orphaned browser processes.
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/skill/live-browser/entrypoint.sh"]

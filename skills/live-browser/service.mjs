@@ -1,9 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import {
-  BrowserAudio, BrowserDesktopInput, BrowserHandoff, BrowserPausedError, BrowserProfileStore, BROWSER_HANDOFF_REASONS,
-  CortexConversation, PROFILE_SAVE_INTERVAL_MS, createAudioRoute, createBrowserDesktop, detectBrowserIntervention,
+  BrowserAudio, BrowserDesktopInput, BrowserHandoff, BrowserPausedError, BROWSER_HANDOFF_REASONS,
+  CortexConversation, PersistentBrowserProfile, PROFILE_WAIT_MS, createAudioRoute, createBrowserDesktop, detectBrowserIntervention,
   hostInvocation, launchCamoufox, openBrowserRFB, openBrowserVideo,
 } from '@axiom/live-browser';
 import { LivePage } from './page.mjs';
@@ -23,22 +20,28 @@ function intentText(value) {
 }
 
 // The agent's interactive browser. One live Camoufox per registered Cortex
-// browser session; at most one per (agent, conversation). Pods are stateless:
-// browser profiles are temporary and sign-ins persist only through the shared,
-// Cortex-granted profile store. Never log page content, inputs, tokens or keys.
+// browser session; at most one per (agent, conversation).
+//
+// The runtime is per tenant and keeps the tenant's single, real browser
+// profile on its persistent volume. Firefox opens a profile only once, and a
+// live browser owns its whole display, page audio and take-control desktop,
+// so sessions are queued: one live browser at a time, a start from another
+// conversation waits (bounded) until it closes. Never log page content,
+// inputs, tokens or keys.
 export class LiveBrowserService {
-  #api; #authorize; #deps; #sessions = new Map(); #options;
+  #api; #authorize; #authorizeProfile; #deps; #sessions = new Map(); #options; #profile; #profileRequests = new Map();
 
-  constructor({ api, authorize, deps = {}, maxSessions = 4, humanWaitMs = 120000, defaultDurationMinutes = 120,
-    leaseMs = 300000, profileSaveIntervalMs = PROFILE_SAVE_INTERVAL_MS, fetchAPI = fetch, now = Date.now,
+  constructor({ api, authorize, authorizeProfile, tenantID, deps = {}, profile = new PersistentBrowserProfile(), humanWaitMs = 120000, defaultDurationMinutes = 120,
+    leaseMs = 300000, profileWaitMs = PROFILE_WAIT_MS, closeTimeoutMs = 30000, fetchAPI = fetch, now = Date.now,
     speechBaseURL = 'http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/' } = {}) {
     if (!api || typeof authorize !== 'function') throw new Error('Live browser host API is required');
     this.#api = api;
     this.#authorize = authorize;
-    this.#options = { maxSessions, humanWaitMs, defaultDurationMinutes, leaseMs, profileSaveIntervalMs, fetchAPI, now, speechBaseURL };
+    this.#authorizeProfile = authorizeProfile;
+    this.#profile = profile;
+    this.#options = { tenantID: tenantID === undefined || tenantID === '' ? undefined : String(tenantID), humanWaitMs, defaultDurationMinutes, leaseMs, profileWaitMs, closeTimeoutMs, fetchAPI, now, speechBaseURL };
     this.#deps = { launch: launchCamoufox, createDesktop: createBrowserDesktop, createAudioRoute,
       createAudio: options => new BrowserAudio(options), openVideo: openBrowserVideo, openRFB: openBrowserRFB, desktopInput: options => new BrowserDesktopInput(options), detectIntervention: detectBrowserIntervention,
-      makeTemp: () => mkdtemp(join(tmpdir(), 'live-browser-')), removeTemp: dir => rm(dir, { recursive: true, force: true }),
       ...deps };
   }
 
@@ -68,7 +71,7 @@ export class LiveBrowserService {
       ...(session.step ? { step: session.step } : {}),
       ...(handoff?.intervention ? { intervention: handoff.intervention } : {}),
       ...(lease ? { lease: { expiresAt: new Date(lease.expiresAt).toISOString() } } : {}),
-      profile: session.profile ? session.profile.status : { state: 'new', origins: [] },
+      profile: this.#profile.status,
       audio: { listening: session.audio?.listening === true },
       expiresAt: session.expiresAt,
     };
@@ -99,13 +102,19 @@ export class LiveBrowserService {
     for (const previous of [...this.#sessions.values()]) {
       if (previous.agentID === agentID && previous.conversationID === registered.conversationId) await this.close(previous);
     }
-    if (this.#sessions.size >= this.#options.maxSessions) {
+    // The tenant's profile is open in at most one browser: wait for the
+    // current one (another conversation's) to close.
+    let release;
+    try {
+      await this.#profile.load();
+      release = await this.#profile.acquire(this.#options.profileWaitMs);
+    } catch (error) {
       await this.#api.revoke({ sessionId: registered.sessionId, grant: registered.grant, tenantId: registered.tenantId }).catch(() => {});
-      throw new Error('This runtime has no free live browser capacity; close another browser session and retry');
+      throw new Error(error?.expose === true ? error.message : 'The live browser could not start');
     }
     const session = { id: registered.sessionId, grant: registered.grant, tenantID: registered.tenantId, agentID,
       conversationID: registered.conversationId, expiresAt: registered.expiresAt, runIDs: new Set([runID]),
-      controller: new AbortController(), requests: new Map(), video: new Set() };
+      controller: new AbortController(), requests: new Map(), video: new Set(), release };
     this.#sessions.set(session.id, session);
     try {
       session.desktop = await this.#deps.createDesktop({ signal: session.controller.signal });
@@ -121,26 +130,19 @@ export class LiveBrowserService {
         inputFactory: ({ control }) => this.#deps.desktopInput({ display, control, signal: session.controller.signal }),
       });
       session.route = await this.#deps.createAudioRoute(session.id.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24));
-      session.profileDir = await this.#deps.makeTemp();
-      session.context = await this.#deps.launch(session.profileDir, { display: session.desktop.display,
+      // The persistent profile: everything from earlier sessions is there
+      // before the first page loads.
+      session.launching = this.#deps.launch(this.#profile.root, { display: session.desktop.display,
         audio: { sink: session.route.sink, source: session.route.source } });
-      session.profile = new BrowserProfileStore({ api: this.#api, session: { sessionId: session.id, grant: session.grant, tenantId: session.tenantID } });
-      // Only sites this session's pages navigate to are saved (first party).
-      session.profile.track(session.context);
-      try { await session.profile.load(session.context); }
-      catch (error) {
-        // Without host:browser:profile on the session, run with a private profile.
-        if (error?.status === 403) session.profile = undefined;
-        console.warn(JSON.stringify({ event: 'live_browser_profile_load_failed', status: error?.status ?? null }));
-      }
+      session.context = await session.launching;
+      if (session.closed) throw new Error('closed while starting');
+      this.#profile.track(session.context);
       session.page = session.context.pages()[0] ?? await session.context.newPage();
       session.live = new LivePage(session.page);
       session.page.on?.('close', () => { void this.close(session); });
       const remaining = Date.parse(session.expiresAt) - this.#options.now();
       session.expiry = setTimeout(() => { void this.close(session); }, Math.max(1000, remaining));
       session.expiry.unref?.();
-      session.saveTimer = setInterval(() => { void this.#saveProfile(session); }, this.#options.profileSaveIntervalMs);
-      session.saveTimer.unref?.();
     } catch {
       await this.close(session);
       throw new Error('The live browser could not start');
@@ -149,12 +151,6 @@ export class LiveBrowserService {
       if (url) await live.navigate(url);
       return {};
     }, { navigation: Boolean(url) });
-  }
-
-  async #saveProfile(session) {
-    if (!session.profile || !session.context) return;
-    try { await session.profile.save(session.context); }
-    catch { console.warn(JSON.stringify({ event: 'live_browser_profile_save_failed' })); }
   }
 
   // Runs one model action. Waits while a human holds control and then
@@ -327,10 +323,41 @@ export class LiveBrowserService {
         if (Object.keys(command).length !== 1) throw new Error();
         return this.status(session);
       }
-      const result = await session.handoff.handle(principal, command);
-      if (command.type === 'resume') void this.#saveProfile(session);
-      return result;
+      return await session.handoff.handle(principal, command);
     } catch { throw new Error('Browser control request could not be completed'); }
+  }
+
+  // Host-only profile commands: the conversation's "saved sign-ins" view and
+  // "Forget sign-ins". They need no open browser; the proof is verified by
+  // Cortex and must be for the tenant this runtime serves.
+  async controlProfile({ agentID, authorization, command }) {
+    try {
+      if (!command || typeof command !== 'object' || Array.isArray(command) || Object.keys(command).length !== 1 ||
+        !['profileStatus', 'forgetProfile'].includes(command.type) || !this.#authorizeProfile || !this.#options.tenantID) throw new Error();
+      const principal = await this.#authorizeProfile({ authorization, command, tenantID: this.#options.tenantID });
+      if (principal?.tenantID !== this.#options.tenantID || principal.agentID !== validID(agentID, 'agent ID') ||
+        typeof principal.userID !== 'string' || !principal.userID.trim() || typeof principal.requestID !== 'string' ||
+        !ID.test(principal.requestID) || !(Date.parse(principal.expiresAt) > this.#options.now())) throw new Error();
+      for (const [id, expiry] of this.#profileRequests) if (expiry <= this.#options.now()) this.#profileRequests.delete(id);
+      if (this.#profileRequests.has(principal.requestID) || this.#profileRequests.size >= 256) throw new Error();
+      this.#profileRequests.set(principal.requestID, Date.parse(principal.expiresAt));
+      if (command.type === 'profileStatus') return await this.#profile.details();
+      return { deleted: await this.forgetProfile() };
+    } catch { throw new Error('Browser profile request could not be completed'); }
+  }
+
+  // Stops every live browser cleanly (Firefox flushes and exits), then
+  // deletes the profile before any queued browser may start.
+  async forgetProfile() {
+    const lease = this.#profile.acquire(this.#options.profileWaitMs, { first: true });
+    await Promise.all([...this.#sessions.values()].map(session => this.close(session)));
+    const release = await lease;
+    try {
+      const existed = (await this.#profile.details()).state !== 'none';
+      await this.#profile.forget();
+      console.warn(JSON.stringify({ event: 'live_browser_profile_forgotten' }));
+      return existed;
+    } finally { release(); }
   }
 
   async videoBrowser(request, desktop = false) {
@@ -369,8 +396,9 @@ export class LiveBrowserService {
     } catch { throw new Error('Browser video is unavailable'); }
   }
 
-  // Ends a browser: saves the shared profile, closes the page and revokes the
-  // Cortex session (which ends the user's live view).
+  // Ends a browser: closes Camoufox (which flushes the profile to the
+  // volume), releases the profile and revokes the Cortex session (which ends
+  // the user's live view).
   async close(session) {
     if (!session) return;
     if (session.handoff) await session.handoff.close();
@@ -381,22 +409,33 @@ export class LiveBrowserService {
     if (session.closed) return;
     session.closed = session.closing = true;
     clearTimeout(session.expiry);
-    clearInterval(session.saveTimer);
     for (const video of session.video) video.abort();
     session.audio?.close();
-    if (session.context) {
-      await this.#saveProfile(session);
-      await Promise.race([session.context.close().catch(() => {}), new Promise(resolve => setTimeout(resolve, 10000).unref())]);
+    // The profile stays leased until Firefox has really exited, even when
+    // closing takes longer than the bounded wait here.
+    // A browser still launching is closed once it is up.
+    const context = session.context ?? await session.launching?.catch(() => undefined);
+    let exited = Promise.resolve();
+    if (context) {
+      // A clean Firefox shutdown leaves consistent SQLite files.
+      let timer;
+      exited = context.close().catch(() => {});
+      const closed = await Promise.race([exited.then(() => true),
+        new Promise(resolve => { timer = setTimeout(() => resolve(false), this.#options.closeTimeoutMs); timer.unref?.(); })]);
+      clearTimeout(timer);
+      if (!closed) console.warn(JSON.stringify({ event: 'live_browser_close_timeout' }));
     }
+    await this.#profile.flush().catch(() => console.warn(JSON.stringify({ event: 'live_browser_sites_write_failed' })));
     session.controller.abort();
     session.desktop?.close();
     await session.route?.close().catch(() => {});
-    if (session.profileDir) await this.#deps.removeTemp(session.profileDir).catch(() => {});
     this.#sessions.delete(session.id);
+    void exited.finally(() => session.release?.());
     await this.#api.revoke({ sessionId: session.id, grant: session.grant, tenantId: session.tenantID }).catch(() => {});
   }
 
   async closeAll() {
+    this.#profile.cancelWaiters();
     await Promise.all([...this.#sessions.values()].map(session => this.close(session)));
   }
 

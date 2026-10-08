@@ -135,24 +135,4 @@ export class BrowserSessionAPI {
     return { transcriptionToken: text(result.transcriptionToken, 'transcription grant'),
       speechToken: text(result.speechToken, 'speech grant'), expiresAt: future(result.expiresAt, 'audio grant expiry') };
   }
-
-  // POST sessions/{id}/profile/grant (requires host:browser:profile on the session).
-  async profileGrant(session) {
-    const result = await this.#session('profile/grant', session, { body: {} });
-    return { profile: String(result.profile ?? ''), state: result.state === 'shared' ? 'shared' : 'new',
-      origins: Array.isArray(result.origins) ? result.origins.filter(value => typeof value === 'string') : [],
-      grant: text(result.grant, 'profile grant'), expiresAt: future(result.expiresAt, 'profile grant expiry') };
-  }
-
-  // GET sessions/{id}/profile with X-Browser-Profile-Grant.
-  async loadProfile(session, profileGrant) {
-    const result = await this.#session('profile', session, { method: 'GET', headers: { 'X-Browser-Profile-Grant': profileGrant } });
-    return { cookies: Array.isArray(result.cookies) ? result.cookies : [], storage: Array.isArray(result.storage) ? result.storage : [] };
-  }
-
-  // POST sessions/{id}/profile/changes; the server merges. 410: forgotten, 409: busy.
-  async saveProfileChanges(session, profileGrant, changes) {
-    const result = await this.#session('profile/changes', session, { body: changes, headers: { 'X-Browser-Profile-Grant': profileGrant } });
-    return { origins: Array.isArray(result.origins) ? result.origins.filter(value => typeof value === 'string') : [] };
-  }
 }
