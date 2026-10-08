@@ -125,6 +125,50 @@ export function pageTotal(text) {
   return best ? { amount: best.amount, ...(best.currency ? { currency: best.currency } : {}) } : undefined;
 }
 
+// The final pay / place-order control of a checkout. Clicking it is
+// live-browser-pay's job (always approved by the user), never a plain click.
+export const PAY_BUTTON = /^\s*(place (your |my )?order(\s+(and pay|now))?\s*$|pay(\s*$|\s+(now|securely|online|with card|by card|and (place|book)|[₹$€£¥]|rs\.?\s*[0-9]|[A-Z]{3}\s*[0-9]|[0-9]))|buy now|complete (my |your |the )?(purchase|order|payment|booking|checkout)|confirm (and pay|(your |my |the )?(order|purchase|payment|booking))|submit (order|payment)|proceed to pay(ment)?|make (a )?payment|book (now|and pay)|checkout and pay|place booking|purchase( now)?\s*$)/i;
+
+const CHECKOUT_URL = /checkout|payment|\/pay(\/|\b)|\/buy\/|placeorder|place-order|order-?review|\/cart\b|\/basket\b|\/booking/i;
+const CHECKOUT_TEXT = /\b(order total|order summary|payment method|place your order|billing address|amount payable|review your order|card number|payment options|total payable|grand total)\b/i;
+
+// Whether the page looks like a checkout (URL or visible text).
+export function checkoutPage(url, text) {
+  let path = '';
+  try { const parsed = new URL(url); path = `${parsed.hostname}${parsed.pathname}`; } catch { /* not a URL */ }
+  return CHECKOUT_URL.test(path) || CHECKOUT_TEXT.test(String(text ?? '').slice(0, 200000));
+}
+
+// Marks the page's final pay buttons (top document); returns how many.
+export const SCAN_PAY_JS = `(source) => {
+  const pattern = new RegExp(source, 'i');
+  const selector = 'button,input[type="submit"],input[type="button"],a,[role="button"]';
+  ${COLLECT}
+  for (const e of globalThis.__livePay || []) e.removeAttribute('data-live-pay');
+  const named = e => (e.getAttribute('aria-label') || e.innerText || e.value || e.getAttribute('title') || '').replace(/\\s+/g, ' ').trim();
+  const found = all.filter(e => shown(e) && !e.disabled && e.getAttribute('aria-disabled') !== 'true' && pattern.test(named(e)));
+  globalThis.__livePay = found;
+  // Several copies of one button (top and bottom of the page) count once.
+  const names = new Set(found.map(e => named(e).toLowerCase()));
+  if (names.size === 1) found[0].setAttribute('data-live-pay', '1');
+  return names.size;
+}`;
+
+const CONFIRMED = /\b(order (has been )?(placed|confirmed|received)|thank you for (your )?(order|purchase|booking)|booking (is )?confirmed|payment (was )?(successful|received|complete)|your order number|order confirmation)\b/i;
+const VERIFY = /\b(3-?d ?secure|verified by visa|mastercard (securecode|identity check)|safekey|enter (the )?(otp|one.time password)|otp (has been )?sent|authenticate (this|the|your) (payment|transaction)|bank verification)\b/i;
+const REFERENCE = /\b(?:order|booking|confirmation|reference)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,39})\b/i;
+
+// What the page says after the pay click. The summary is page text:
+// untrusted data for the model, bounded.
+export function paymentOutcome(text) {
+  const body = String(text ?? '').slice(0, 200000);
+  const lines = body.split(/\n+/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const reference = lines.map(line => CONFIRMED.test(line) || /order|booking|confirmation/i.test(line) ? REFERENCE.exec(line)?.[1] : undefined)
+    .find(value => value && /[0-9]/.test(value));
+  return { confirmed: CONFIRMED.test(body), verification: VERIFY.test(body), ...(reference ? { orderReference: reference } : {}),
+    summary: lines.join('\n').slice(0, 2000) };
+}
+
 // Known card processors' frame hosts (exact host or a subdomain).
 export const PROCESSOR_HOSTS = Object.freeze(['stripe.com', 'stripe.network', 'razorpay.com', 'adyen.com', 'adyenpayments.com',
   'braintreegateway.com', 'braintree-api.com', 'paypal.com', 'checkout.com', 'squareup.com', 'squarecdn.com', 'pci.shopifyinc.com',
@@ -258,6 +302,36 @@ export class SignIn {
       return steps ? { state: 'submitted', step } : { state: 'no_form' };
     }
     return { state: 'submitted', step };
+  }
+
+  // Clicks the checkout's final pay button: the snapshot reference when
+  // given (it must be a pay button), else the page's one pay button. The
+  // origin is re-checked immediately before the click.
+  async pay({ target, origin }) {
+    let locator;
+    if (target !== undefined) {
+      const { element, locator: found } = this.#live.element(target);
+      if (!PAY_BUTTON.test(element.name ?? '')) {
+        throw notActionable('This is not a final pay or place-order button', 'Pass the reference of the final pay or place-order button from the latest snapshot, or omit target.');
+      }
+      locator = found;
+    } else {
+      const count = await guarded(() => this.#page.evaluate(`(${SCAN_PAY_JS})(${JSON.stringify(PAY_BUTTON.source)})`));
+      if (count !== 1) {
+        throw notActionable(count ? 'Several different pay buttons are on this page' : 'No pay or place-order button on this page',
+          'Take a new snapshot and pass the final pay or place-order button as target.');
+      }
+      locator = this.#page.locator('[data-live-pay="1"]').first();
+    }
+    await guarded(async () => {
+      this.#check(origin);
+      await locator.click({ timeout: 10000 });
+    });
+    await this.#settle();
+    // Payment confirmation usually redirects once or twice.
+    await this.#page.waitForLoadState?.('load', { timeout: 15000 }).catch(() => {});
+    await this.#page.waitForTimeout?.(1500).catch(() => {});
+    await this.#settle();
   }
 
   // Card values into recognized card fields of the top document, same-site

@@ -35,6 +35,9 @@ test('the action catalog, identity and version match skill.yaml', () => {
     const required = /^ {8}required: \[([^\]]*)\]/m.exec(input)?.[1].split(',').map(name => name.trim().replace(/'/g, '')).filter(Boolean) ?? [];
     assert.deepEqual(required.sort(), [...schema.required].sort(), action);
   }
+  // Only live-browser-pay always needs the user's approval, in every mode.
+  assert.deepEqual([...manifest.matchAll(/^ {6}review: always$/gm)].length, 1);
+  assert.match(manifest.slice(manifest.indexOf('    live-browser-pay:\n')).split(/\n    live-browser-/)[0], /^ {6}review: always$/m);
   const packageJSON = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
   assert.equal(packageJSON.version, SKILL_VERSION);
 });
@@ -60,7 +63,7 @@ test('Execute validates input, passes bindings privately and never echoes them',
   const health = await invoke(handlers(service).Health, {});
   assert.deepEqual(health, { healthy: true, skill_id: SKILL_ID, version: SKILL_VERSION });
   const types = await invoke(handlers(service).GetNodeTypes, {});
-  assert.equal(types.node_types.length, 14);
+  assert.equal(types.node_types.length, 15);
 });
 
 test('input validation enforces the declared shapes', () => {

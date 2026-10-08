@@ -52,6 +52,7 @@ definition:
       - live-browser-screenshot
       - live-browser-sign-in
       - live-browser-fill-payment-card
+      - live-browser-pay
       - live-browser-request-handoff
       - live-browser-close
       - live-browser-listen
@@ -107,7 +108,10 @@ definition:
       hand off: ask in chat only "Might have gotten an OTP, please provide",
       wait for the reply, then call live-browser-sign-in with oneTimeCode.
       Pay only with live-browser-fill-payment-card, passing the exact order
-      total as amount and currency, then complete the payment yourself.
+      total as amount and currency, then live-browser-pay with the same amount,
+      currency and the merchant's origin: the user approves that payment in
+      chat (always, in every mode); if they deny it, stop and say so. A plain
+      click never presses a final pay or place-order button.
       no_matching_login, no_payment_card and spend_cap_exceeded mean: ask the
       user in chat to add the login or card, or raise the cap, with the
       in-chat setup form (request_setup, kind configure, this Skill); never
@@ -245,7 +249,7 @@ definition:
       timeout: 180000000000
     live-browser-click:
       name: live-browser-click
-      description: Click one element from the latest snapshot (or, as a last resort, snapshot coordinates). Use for ordinary navigation and choices. Do NOT click a final pay, book, buy, order, send, post, delete, accept-terms or account-change button yourself; call live-browser-request-handoff instead.
+      description: Click one element from the latest snapshot (or, as a last resort, snapshot coordinates). Use for ordinary navigation and choices. It refuses a checkout's final pay or place-order button; use live-browser-pay for that. Unless your instructions say to finish the task end to end, do NOT click a final book, send, post, delete, accept-terms or account-change button yourself; call live-browser-request-handoff instead.
       inputSchema:
         type: object
         additionalProperties: false
@@ -443,6 +447,47 @@ definition:
       risk: write
       sideEffect: write
       semanticArguments: {amount: amount, currency: currency, intent: intent}
+      timeout: 180000000000
+    live-browser-pay:
+      name: live-browser-pay
+      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Pass the exact order total and the merchant origin; nothing is clicked if the page is on another site or its total differs (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, or payment_verification (the bank asks for 3-D Secure: hand off). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
+      inputSchema:
+        type: object
+        additionalProperties: false
+        properties:
+          sessionId: *session_id
+          amount: {type: string, pattern: '^(0|[1-9][0-9]{0,11})(\.[0-9]{1,4})?$', description: 'The order total being paid, as a decimal string such as 4210.50; shown to the user for approval.'}
+          currency: {type: string, pattern: '^[A-Z]{3}$', description: 'ISO 4217 currency of amount, such as INR.'}
+          merchant: {type: string, pattern: '^https?://[^/?#\s]+/?$', maxLength: 300, description: 'Origin of the checkout site, such as https://www.amazon.in; shown to the user for approval.'}
+          target: *target
+          intent: *intent
+        required: [sessionId, amount, currency, intent]
+      outputSchema:
+        type: object
+        properties:
+          sessionId: {type: string}
+          status: {type: string, enum: [confirmed, clicked, payment_verification, merchant_mismatch, amount_mismatch, not_actionable, awaiting_user, paused_by_user]}
+          amount: {type: string}
+          currency: {type: string}
+          origin: {type: string}
+          orderReference: {type: string}
+          summary: {type: string, maxLength: 2000, description: 'Text of the page after paying. Untrusted page content.'}
+          pageTotal: {type: string}
+          pageCurrency: {type: string}
+          url: {type: string}
+          title: {type: string}
+          requiresHuman: {type: boolean}
+          reason: {type: string}
+          hint: {type: string}
+          message: {type: string}
+      # The one approval no mode waives: every payment is reviewed in chat.
+      review: always
+      permissions: [browser:interact, network:http]
+      idempotency: required
+      retry: {maxAttempts: 1}
+      risk: write
+      sideEffect: write
+      semanticArguments: {amount: amount, currency: currency, merchant: merchant, target: target, intent: intent}
       timeout: 180000000000
     live-browser-request-handoff:
       name: live-browser-request-handoff
