@@ -36,6 +36,7 @@ function fakePage() {
     if (script.includes('__liveCard')) return structuredClone(page.cardScan);
     if (script.includes('innerText.slice(0, 200000)')) return page.bodyText;
     if (script.includes('__livePay')) return page.payCount ?? 0;
+    if (script.includes('__liveOtp')) return page.otpScan ?? {};
     if (script.startsWith('((x, y)')) return page.pointName ?? '';
     return 'none';
   };
@@ -43,6 +44,7 @@ function fakePage() {
   page.locator = selector => ({ first() { return this; }, scrollIntoViewIfNeeded: async () => {}, boundingBox: async () => page.box,
     evaluate: async () => { if (page.fault) throw page.fault; return false; },
     click: async () => {
+      if (selector.includes('data-live-otp')) { if (selector.includes('submit')) { page.onCode?.(); page.typed.push(['submit-code']); } return; }
       if (/data-live-(signin|card)/.test(selector)) { if (selector.includes('submit')) page.typed.push(['submit']); return; }
       if (selector.includes('data-live-pay') || (page.clickable && selector.includes('data-live-ref'))) {
         page.onPay?.(); page.clicked = [...(page.clicked ?? []), selector]; return;
@@ -683,14 +685,41 @@ test('pay stays on the site where the card was filled and reports a bank verific
   page.current = 'https://shop.example/review';
   const fresh = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
   page.clickable = true;
-  page.onPay = () => { page.bodyText = 'Verified by Visa\nEnter the OTP sent to your phone'; };
+  page.onPay = () => { page.current = 'https://acs.bank.example/challenge'; page.bodyText = 'Verified by Visa\nEnter the OTP sent to your phone'; page.otpScan = { code: true, submit: true }; };
   const result = await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', target: fresh.elements[0].ref, intent: 'Pay' });
-  assert.equal(result.status, 'payment_verification');
-  assert.match(result.message, /live-browser-request-handoff/);
+  assert.equal(result.status, 'otp_required');
+  assert.match(result.message, /Might have gotten an OTP, please provide/);
+  assert.match(result.message, /live-browser-submit-payment-code/);
+  assert.equal(result.requiresHuman, false);
+  assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating', 'no handoff');
   noSecrets(result);
+  // A wrong code: still asked.
+  const wrong = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '000000' }, 'run-2');
+  assert.deepEqual([wrong.status, wrong.retry], ['otp_required', true]);
+  assert.deepEqual(page.typed.filter(entry => entry[0] === '[data-live-otp="code"]').map(entry => entry[1]), ['000000']);
+  page.onCode = () => { page.current = 'https://shop.example/thanks'; page.otpScan = {}; page.bodyText = 'Thank you for your order\nOrder number: A1B2C3D4'; };
+  const done = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '123 456' }, 'run-2');
+  assert.deepEqual([done.status, done.orderReference], ['confirmed', 'A1B2C3D4']);
+  const late = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '123456' }, 'run-2');
+  assert.match(late.reason, /No payment is waiting/, 'codes only for a pending payment');
+  page.current = 'https://shop.example/review';
   page.snapshot.elements[0].name = 'Continue shopping';
   const other = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
   assert.match((await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', target: other.elements[0].ref, intent: 'Pay' })).reason,
     /not a final pay/);
+  await h.service.closeAll();
+});
+
+test('a bank app approval is asked for in chat, and the pay button in a processor frame is preferred', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://shop.example/checkout' });
+  const page = h.pages[0];
+  page.bodyText = 'Order Total: $25.00';
+  page.payCount = 1;
+  page.onPay = () => { page.bodyText = 'Approve this payment in your HDFC Bank mobile app'; page.otpScan = { app: true }; };
+  const result = await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', intent: 'Pay' });
+  assert.equal(result.status, 'approve_in_app');
+  assert.match(result.message, /bank app/);
+  assert.equal(result.requiresHuman, false);
   await h.service.closeAll();
 });

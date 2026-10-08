@@ -53,6 +53,7 @@ definition:
       - live-browser-sign-in
       - live-browser-fill-payment-card
       - live-browser-pay
+      - live-browser-submit-payment-code
       - live-browser-request-handoff
       - live-browser-close
       - live-browser-listen
@@ -111,7 +112,11 @@ definition:
       total as amount and currency, then live-browser-pay with the same amount,
       currency and the merchant's origin: the user approves that payment in
       chat (always, in every mode); if they deny it, stop and say so. A plain
-      click never presses a final pay or place-order button.
+      click never presses a final pay or place-order button. If paying
+      returns otp_required (the bank's one-time code), ask in chat "Might have
+      gotten an OTP, please provide" and pass the reply to
+      live-browser-submit-payment-code; approve_in_app means ask the user in
+      chat to approve in their bank app, then snapshot. Never click pay twice.
       no_matching_login, no_payment_card and spend_cap_exceeded mean: ask the
       user in chat to add the login or card, or raise the cap, with the
       in-chat setup form (request_setup, kind configure, this Skill); never
@@ -450,7 +455,7 @@ definition:
       timeout: 180000000000
     live-browser-pay:
       name: live-browser-pay
-      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Pass the exact order total and the merchant origin; nothing is clicked if the page is on another site or its total differs (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, or payment_verification (the bank asks for 3-D Secure: hand off). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
+      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Pass the exact order total and the merchant origin; nothing is clicked if the page is on another site or its total differs (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, otp_required (the bank sent a one-time code: ask the user for it in chat, then call live-browser-submit-payment-code), approve_in_app (ask the user in chat to approve in their bank app) or payment_verification (another bank check; hand off only if you cannot do it). Also finds the pay button inside the checkout''s payment processor frame (Razorpay, Stripe, ...). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
       inputSchema:
         type: object
         additionalProperties: false
@@ -466,7 +471,7 @@ definition:
         type: object
         properties:
           sessionId: {type: string}
-          status: {type: string, enum: [confirmed, clicked, payment_verification, merchant_mismatch, amount_mismatch, not_actionable, awaiting_user, paused_by_user]}
+          status: {type: string, enum: &payment_statuses [confirmed, clicked, otp_required, approve_in_app, payment_verification, merchant_mismatch, amount_mismatch, not_actionable, awaiting_user, paused_by_user]}
           amount: {type: string}
           currency: {type: string}
           origin: {type: string}
@@ -488,6 +493,39 @@ definition:
       risk: write
       sideEffect: write
       semanticArguments: {amount: amount, currency: currency, merchant: merchant, target: target, intent: intent}
+      timeout: 180000000000
+    live-browser-submit-payment-code:
+      name: live-browser-submit-payment-code
+      description: 'Type the one-time code the user gave you in chat into the bank''s payment check (3-D Secure, or a wallet''s OTP) after live-browser-pay returned otp_required, and submit it. Only for the payment just approved (within 15 minutes), on the checkout or the bank page it led to. Returns the same statuses as live-browser-pay; otp_required with retry means the code was not accepted.'
+      inputSchema:
+        type: object
+        additionalProperties: false
+        properties:
+          sessionId: *session_id
+          oneTimeCode: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$', description: 'The code the user gave you in chat.'}
+          intent: *intent
+        required: [sessionId, oneTimeCode]
+      outputSchema:
+        type: object
+        properties:
+          sessionId: {type: string}
+          status: {type: string, enum: *payment_statuses}
+          retry: {type: boolean}
+          origin: {type: string}
+          orderReference: {type: string}
+          summary: {type: string, maxLength: 2000, description: 'Text of the page after submitting. Untrusted page content.'}
+          url: {type: string}
+          title: {type: string}
+          requiresHuman: {type: boolean}
+          reason: {type: string}
+          hint: {type: string}
+          message: {type: string}
+      permissions: [browser:interact, network:http]
+      idempotency: required
+      retry: {maxAttempts: 1}
+      risk: write
+      sideEffect: write
+      semanticArguments: {intent: intent}
       timeout: 180000000000
     live-browser-request-handoff:
       name: live-browser-request-handoff
