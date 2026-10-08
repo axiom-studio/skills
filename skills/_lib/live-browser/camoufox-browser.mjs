@@ -1,13 +1,55 @@
 import { firefox } from 'playwright-core';
 import { launchOptions } from 'camoufox-js';
-import { join } from 'node:path';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { IDENTITY_FILE } from './browser-profile.mjs';
 
 const SINK = /^[a-z][a-z0-9_]{0,62}$/;
+const CONFIG_ENV = /^CAMOU_CONFIG_[0-9]+$/;
+// Firefox's profile locks: the `lock` symlink names the host and PID that
+// hold the profile, `.parentlock` is the fcntl lock file. After a crash or a
+// pod restart they name a process that no longer exists (on another host),
+// and Firefox would refuse the profile as "already in use".
+export const PROFILE_LOCK_FILES = ['lock', '.parentlock', 'parent.lock'];
 
-// Engine-specific profiles stay inside the caller's private profile root.
-// Chromium cookies and locks are never imported or reused by Firefox. Audio
-// routing (PULSE_SINK/PULSE_SOURCE) is per browser so concurrent sessions never
-// hear or speak into each other's pages.
+// Only the exclusive profile lease holder may call this: no browser of this
+// runtime has the profile open, and the volume has a single writer pod.
+export async function clearStaleLocks(browserDir) {
+  for (const name of PROFILE_LOCK_FILES) await rm(join(browserDir, name), { force: true });
+}
+
+async function installedRelease(executablePath) {
+  try { return (await readFile(join(dirname(executablePath), 'version.json'), 'utf8')).trim(); } catch { return ''; }
+}
+
+// A real browser keeps one fingerprint for its profile; sites that bind a
+// sign-in to the device would otherwise see a new machine on every launch.
+// The generated Camoufox config (CAMOU_CONFIG_n) and its WebGL preference are
+// kept next to the profile and reused until the Camoufox build changes.
+async function stableIdentity(profileRoot, options) {
+  const file = join(profileRoot, IDENTITY_FILE);
+  const release = `${options.executablePath ?? ''}\n${await installedRelease(options.executablePath ?? '')}`;
+  let saved;
+  try { saved = JSON.parse(await readFile(file, 'utf8')); } catch { /* first launch */ }
+  const env = Object.fromEntries(Object.entries(options.env ?? {}).filter(([key]) => !CONFIG_ENV.test(key)));
+  const prefs = { ...(options.firefoxUserPrefs ?? {}) };
+  const valid = saved?.release === release && saved.config && typeof saved.config === 'object' &&
+    Object.keys(saved.config).length && Object.entries(saved.config).every(([key, value]) => CONFIG_ENV.test(key) && typeof value === 'string');
+  if (valid) {
+    if (typeof saved.webgl2 === 'boolean') prefs['webgl.enable-webgl2'] = saved.webgl2;
+    return { ...options, env: { ...env, ...saved.config }, firefoxUserPrefs: prefs };
+  }
+  const config = Object.fromEntries(Object.entries(options.env ?? {}).filter(([key]) => CONFIG_ENV.test(key)));
+  if (Object.keys(config).length) {
+    await writeFile(`${file}.tmp`, JSON.stringify({ release, config, webgl2: prefs['webgl.enable-webgl2'] }), { mode: 0o600 });
+    await rename(`${file}.tmp`, file);
+  }
+  return options;
+}
+
+// Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio
+// routing (PULSE_SINK/PULSE_SOURCE) is per browser so a page never hears or
+// speaks into another browser's audio.
 export async function launchCamoufox(profileRoot, { display, audio } = {}, {
   prepareOptions = launchOptions, browserType = firefox,
 } = {}) {
@@ -15,7 +57,7 @@ export async function launchCamoufox(profileRoot, { display, audio } = {}, {
     (audio !== undefined && (!SINK.test(audio?.sink ?? '') || !SINK.test(audio?.source ?? '')))) {
     throw new Error('Browser profile or display is unavailable');
   }
-  const options = await prepareOptions({
+  const prepared = await prepareOptions({
     os: 'linux', headless: !display, window: [1280, 800],
     humanize: false, block_webrtc: false, geoip: false,
     // No runtime extension downloads or third-party network setup calls.
@@ -29,7 +71,11 @@ export async function launchCamoufox(profileRoot, { display, audio } = {}, {
       'media.autoplay.default': 0,
     },
   });
-  return browserType.launchPersistentContext(join(profileRoot, 'camoufox'), {
+  const browserDir = join(profileRoot, 'camoufox');
+  await mkdir(browserDir, { recursive: true, mode: 0o700 });
+  const options = await stableIdentity(profileRoot, prepared);
+  await clearStaleLocks(browserDir);
+  return browserType.launchPersistentContext(browserDir, {
     ...options, viewport: null, acceptDownloads: false,
   });
 }
