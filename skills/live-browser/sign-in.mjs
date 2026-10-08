@@ -102,7 +102,7 @@ export const SCAN_CARD_JS = `(loose) => {
   return found;
 }`;
 
-const TOTAL_LABEL = /\b(order total|grand total|total amount|amount payable|amount due|total payable|total due|you pay|to pay|total)\b/i;
+const TOTAL_LABEL = /\b(order total|grand total|total amount|amount payable|amount due|total payable|total due|you pay|to pay|total|amount)\b/i;
 const SYMBOLS = [[/₹|\bRs\.?|\bINR\b/i, 'INR'], [/€|\bEUR\b/i, 'EUR'], [/£|\bGBP\b/i, 'GBP'], [/¥|\bJPY\b/i, 'JPY'], [/\bUSD\b|US\$/i, 'USD'], [/\bCAD\b|CA\$/i, 'CAD'], [/\bAUD\b|A\$/i, 'AUD'], [/\$/, 'USD']];
 const AMOUNT = /(₹|Rs\.?|€|£|¥|US\$|CA\$|A\$|\$|\b[A-Z]{3}\b)?\s*([0-9]{1,3}(?:[,\s][0-9]{2,3})+(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/;
 
@@ -112,7 +112,7 @@ export function pageTotal(text) {
   let best;
   lines.forEach((line, index) => {
     const label = TOTAL_LABEL.exec(line);
-    if (!label || /sub.?total|savings|discount|items?\s*total|before/i.test(line)) return;
+    if (!label || /sub.?total|savings|saved|refund|discount|items?\s*total|before/i.test(line)) return;
     const rest = line.slice(label.index + label[0].length);
     const match = AMOUNT.exec(rest) ?? (lines[index + 1] ? AMOUNT.exec(lines[index + 1]) : null);
     if (!match) return;
@@ -152,6 +152,39 @@ export const SCAN_PAY_JS = `(source) => {
   const names = new Set(found.map(e => named(e).toLowerCase()));
   if (names.size === 1) found[0].setAttribute('data-live-pay', '1');
   return names.size;
+}`;
+
+const BODY_TEXT = 'document.body ? document.body.innerText.slice(0, 200000) : ""';
+
+// A one-time code field (3-D Secure or a wallet's OTP) and its submit
+// button in one document, plus whether it asks to approve in an app.
+export const SCAN_OTP_JS = `() => {
+  const selector = 'input,button,[role="button"]';
+  ${COLLECT}
+  for (const e of globalThis.__liveOtp || []) e.removeAttribute('data-live-otp');
+  const marked = []; globalThis.__liveOtp = marked;
+  const mark = (e, kind) => { e.setAttribute('data-live-otp', kind); marked.push(e); };
+  const text = (document.body?.innerText || '').slice(0, 8000).toLowerCase();
+  const fields = all.filter(e => e.tagName === 'INPUT' && ['', 'text', 'tel', 'number', 'password'].includes((e.getAttribute('type') || '').toLowerCase()) && usable(e));
+  const NOT_CODE = /card|cvv|cvc|expir|search|coupon|promo|zip|postal|captcha|\\bpin\\b/;
+  const notCode = e => NOT_CODE.test(describe(e)) || /email|username|tel|cc-|address/.test(e.getAttribute('autocomplete') || '');
+  const CODE = /one-time-code|\\botp\\b|one.?time|verification.?code|auth(entication)?.?code|passcode|\\bcode\\b/;
+  const asked = /\\botp\\b|one.?time (password|pass ?code|code)|verification code|authentication code/.test(text);
+  const code = fields.find(e => !notCode(e) && ((e.getAttribute('autocomplete') || '').includes('one-time-code') || CODE.test(describe(e)))) ||
+    (asked && fields.length === 1 && !notCode(fields[0]) ? fields[0] : undefined);
+  let submit;
+  if (code) {
+    mark(code, 'code');
+    const named = e => (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+    const buttons = all.filter(e => e !== code && shown(e) && !e.disabled && (e.tagName === 'BUTTON' || e.matches('[role="button"]') ||
+      (e.tagName === 'INPUT' && ['submit', 'button'].includes(e.type))) && !/resend|cancel|back|another|help|change/.test(named(e)));
+    const form = code.form || code.closest('form');
+    submit = (form && buttons.find(e => (e.form || e.closest('form')) === form && (e.type === 'submit' || /^(submit|verify|confirm|continue|proceed|pay|ok|done|authenticate|authori[sz]e)/.test(named(e))))) ||
+      buttons.find(e => /^(submit|verify|confirm|continue|proceed|pay|ok|done|authenticate|authori[sz]e)/.test(named(e)) && named(e).length <= 40);
+    if (submit) mark(submit, 'submit');
+  }
+  const app = /(approve|confirm|authori[sz]e) (it |this |the )?(payment|transaction|purchase|request)? ?(in|on|using|with|from) (your|the) .{0,40}app|open (your|the) .{0,40}app|notification (has been )?sent to your (phone|device|mobile)|waiting for (your )?approval|check your (phone|mobile app)/.test(text);
+  return { code: Boolean(code), submit: Boolean(submit), app };
 }`;
 
 const CONFIRMED = /\b(order (has been )?(placed|confirmed|received)|thank you for (your )?(order|purchase|booking)|booking (is )?confirmed|payment (was )?(successful|received|complete)|your order number|order confirmation)\b/i;
@@ -308,7 +341,7 @@ export class SignIn {
   // given (it must be a pay button), else the page's one pay button. The
   // origin is re-checked immediately before the click.
   async pay({ target, origin }) {
-    let locator;
+    let locator, check;
     if (target !== undefined) {
       const { element, locator: found } = this.#live.element(target);
       if (!PAY_BUTTON.test(element.name ?? '')) {
@@ -316,22 +349,100 @@ export class SignIn {
       }
       locator = found;
     } else {
-      const count = await guarded(() => this.#page.evaluate(`(${SCAN_PAY_JS})(${JSON.stringify(PAY_BUTTON.source)})`));
+      // A processor's checkout frame (Razorpay, Stripe, ...) sits over the
+      // page, so its pay button wins; otherwise the page's own.
+      const found = [];
+      for (const frame of this.paymentFrames(origin)) {
+        const count = await frame.evaluate(`(${SCAN_PAY_JS})(${JSON.stringify(PAY_BUTTON.source)})`).catch(() => 0);
+        if (count) found.push({ frame, url: frame.url(), count, main: frame === this.#page.mainFrame() });
+      }
+      const framed = found.filter(entry => !entry.main);
+      const candidates = framed.length ? framed : found;
+      const count = candidates.reduce((sum, entry) => sum + entry.count, 0);
       if (count !== 1) {
         throw notActionable(count ? 'Several different pay buttons are on this page' : 'No pay or place-order button on this page',
           'Take a new snapshot and pass the final pay or place-order button as target.');
       }
-      locator = this.#page.locator('[data-live-pay="1"]').first();
+      const [{ frame, url }] = candidates;
+      locator = frame.locator('[data-live-pay="1"]').first();
+      check = () => {
+        this.#check(origin);
+        if (frame.isDetached?.() || frame.url() !== url) throw notActionable(...ORIGIN_CHANGED);
+      };
     }
     await guarded(async () => {
-      this.#check(origin);
+      (check ?? (() => this.#check(origin)))();
       await locator.click({ timeout: 10000 });
     });
+    await this.#afterPayment();
+  }
+
+  async #afterPayment() {
     await this.#settle();
     // Payment confirmation usually redirects once or twice.
     await this.#page.waitForLoadState?.('load', { timeout: 15000 }).catch(() => {});
     await this.#page.waitForTimeout?.(1500).catch(() => {});
     await this.#settle();
+  }
+
+  // The top document, same-site frames and known processor frames.
+  paymentFrames(origin = this.origin()) {
+    const main = this.#page.mainFrame();
+    return this.#page.frames().filter(frame => frame === main || (!frame.isDetached?.() && cardFrameAllowed(frame.url(), origin)));
+  }
+
+  // Order total(s) shown in the page and its processor frames.
+  async totals(origin) {
+    const totals = [];
+    for (const frame of this.paymentFrames(origin)) {
+      const total = pageTotal(await frame.evaluate(BODY_TEXT).catch(() => ''));
+      if (total) totals.push(total);
+    }
+    return totals;
+  }
+
+  // Where a payment stands after the pay click or a code: confirmed, a
+  // one-time code asked for in any frame (3-D Secure challenges are bank
+  // frames of any origin), approval in the bank's app, or unknown.
+  async paymentState() {
+    const outcome = paymentOutcome(await this.#page.evaluate(BODY_TEXT).catch(() => ''));
+    if (outcome.confirmed) return { ...outcome, state: 'confirmed' };
+    let app = false;
+    for (const frame of this.#page.frames()) {
+      if (frame.isDetached?.()) continue;
+      const scan = await frame.evaluate(`(${SCAN_OTP_JS})()`).catch(() => undefined);
+      if (scan?.code) return { ...outcome, state: 'otp_required' };
+      if (scan?.app) app = true;
+    }
+    if (app) return { ...outcome, state: 'approve_in_app' };
+    return { ...outcome, state: outcome.verification ? 'payment_verification' : 'clicked' };
+  }
+
+  // Types the user's bank code into the payment's code field (any frame of
+  // the current page, while its top-level origin is one the payment went
+  // through) and submits it.
+  async submitPaymentCode(code, origins) {
+    const top = this.origin();
+    if (!top || !origins.includes(top)) throw notActionable(...ORIGIN_CHANGED);
+    let target;
+    for (const frame of this.#page.frames()) {
+      if (frame.isDetached?.()) continue;
+      const scan = await frame.evaluate(`(${SCAN_OTP_JS})()`).catch(() => undefined);
+      if (scan?.code) { target = { frame, url: frame.url(), scan }; break; }
+    }
+    if (!target) throw notActionable('No payment code field on this page', 'Take a new snapshot; the bank page may have changed or expired.');
+    const { frame, url, scan } = target;
+    const check = () => {
+      this.#check(top);
+      if (frame.isDetached?.() || frame.url() !== url) throw notActionable(...ORIGIN_CHANGED);
+    };
+    await this.#type(frame.locator('[data-live-otp="code"]').first(), code, check);
+    await guarded(async () => {
+      check();
+      if (scan.submit) await frame.locator('[data-live-otp="submit"]').first().click({ timeout: 10000 });
+      else await frame.locator('[data-live-otp="code"]').first().press('Enter', { timeout: 5000 });
+    });
+    await this.#afterPayment();
   }
 
   // Card values into recognized card fields of the top document, same-site

@@ -63,7 +63,7 @@ test('Execute validates input, passes bindings privately and never echoes them',
   const health = await invoke(handlers(service).Health, {});
   assert.deepEqual(health, { healthy: true, skill_id: SKILL_ID, version: SKILL_VERSION });
   const types = await invoke(handlers(service).GetNodeTypes, {});
-  assert.equal(types.node_types.length, 15);
+  assert.equal(types.node_types.length, 16);
 });
 
 test('input validation enforces the declared shapes', () => {

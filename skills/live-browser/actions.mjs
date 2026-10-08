@@ -32,6 +32,8 @@ export const schemas = Object.freeze({
   'live-browser-pay': object({ sessionId, amount: { type: 'string', pattern: '^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,4})?$' },
     currency: { type: 'string', pattern: '^[A-Z]{3}$' }, merchant: { type: 'string', pattern: '^https?://[^/?#\\s]+/?$', maxLength: 300 },
     target, intent }, ['sessionId', 'amount', 'currency', 'intent']),
+  'live-browser-submit-payment-code': object({ sessionId, oneTimeCode: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$' }, intent },
+    ['sessionId', 'oneTimeCode']),
   'live-browser-close': object({ sessionId }, ['sessionId']),
   'live-browser-listen': object({ sessionId, state: { type: 'string', enum: ['on', 'off'] }, speakerLabel: label, displayName: label,
     wakePhrases: { type: 'array', maxItems: 8, items: label }, speakReplies: { type: 'boolean', default: true },

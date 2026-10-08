@@ -191,3 +191,38 @@ test('pay finds the place-order button, re-checks the origin and reads the confi
     assert.equal(s.posts.length, 1);
   } finally { await s.close(); }
 });
+
+test('pay inside a processor frame, then a 3-D Secure code in the bank frame', { skip }, async () => {
+  const s = await site({
+    'https://shop.example/checkout': `<button>Proceed to pay</button><p>Order Total: ₹4,910.00</p>
+      <iframe name="rzp" src="https://api.razorpay.com/v1/checkout/embedded" width="500" height="300"></iframe>
+      <iframe name="ad" src="https://ads.example/widget" width="300" height="100"></iframe>`,
+    'https://api.razorpay.com/v1/checkout/embedded': `<p>Amount ₹4,910.00</p>
+      <form method="post" action="/v1/pay"><button type="submit">Pay ₹4,910</button></form>`,
+    'POST https://api.razorpay.com/v1/pay': `<p>Redirecting to your bank</p><iframe name="acs" src="https://acs.bank.example/challenge" width="400" height="200"></iframe>`,
+    'https://acs.bank.example/challenge': `<p>Enter the OTP sent to your mobile ending 42</p>
+      <form method="post" action="/verify"><input name="otpValue" inputmode="numeric" aria-label="Enter OTP"><button type="submit">Submit</button><button type="button">Resend OTP</button></form>`,
+    'POST https://acs.bank.example/verify': '<p>Payment successful. Thank you for your order. Order number: ORD-778812</p>',
+    'https://ads.example/widget': '<button>Pay now</button>',
+  });
+  try {
+    await s.page.goto('https://shop.example/checkout');
+    await Promise.all(s.page.frames().map(frame => frame.waitForLoadState('domcontentloaded')));
+    // A coordinate click on the processor's Pay button is seen through the frame.
+    const rzp = s.page.frames().find(frame => frame.url().startsWith('https://api.razorpay.com/'));
+    const button = await rzp.locator('button').boundingBox(); // page coordinates
+    assert.equal(await s.live.pointName(button.x + 5, button.y + 5), 'Pay ₹4,910');
+    const sign = new SignIn(s.live);
+    assert.deepEqual((await sign.totals('https://shop.example')).map(total => total.amount), [4910, 4910]);
+    await sign.pay({ origin: 'https://shop.example' });
+    assert.deepEqual(s.posts.map(post => post.url), ['https://api.razorpay.com/v1/pay'], 'the processor button, not the page or ad button');
+    const acs = () => s.page.frames().find(frame => frame.url().startsWith('https://acs.bank.example/'));
+    while (!acs()) await new Promise(resolve => setTimeout(resolve, 50));
+    await acs().waitForLoadState('domcontentloaded');
+    assert.equal((await sign.paymentState()).state, 'otp_required');
+    await assert.rejects(sign.submitPaymentCode('482913', ['https://other.example']), error => error.notActionable === true);
+    await sign.submitPaymentCode('482913', ['https://shop.example']);
+    assert.equal(s.posts.at(-1).url, 'https://acs.bank.example/verify');
+    assert.equal(s.posts.at(-1).body.otpValue, '482913');
+  } finally { await s.close(); }
+});
