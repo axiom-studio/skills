@@ -26,16 +26,13 @@ test('registration sends only the host invocation and validates the issued sessi
   await assert.rejects(api.register({ invocation: 'host-grant', durationMinutes: 0 }), /duration/);
 });
 
-test('session routes use the runtime grant; profile routes add the profile grant', async () => {
+test('session routes use the runtime grant', async () => {
   const requests = [];
   const later = () => new Date(Date.now() + 600000).toISOString();
   const replies = {
     'handoff-notice': { posted: true },
     'catalog-grant': { token: 'catalog', expiresAt: later() },
     grants: { transcriptionToken: 'stt', speechToken: 'tts', expiresAt: later() },
-    grant: { profile: 'default', state: 'shared', origins: ['google.com'], grant: 'profile-grant', expiresAt: later() },
-    profile: { cookies: [{ domain: '.google.com', path: '/', name: 'SID', value: 'v', updatedAt: later() }], storage: [], loadedAt: later() },
-    changes: { origins: ['google.com'] },
   };
   const api = new BrowserSessionAPI({ baseURL: 'http://sentinel.example/browser/v1/', fetchAPI: async (url, options) => {
     requests.push({ path: new URL(url).pathname, options });
@@ -45,25 +42,17 @@ test('session routes use the runtime grant; profile routes add the profile grant
   await api.handoffNotice(session, { handoffId: 'h-1', summary: 'Pay' });
   assert.deepEqual(await api.audioCatalogGrant(session), { token: 'catalog', expiresAt: replies['catalog-grant'].expiresAt });
   assert.equal((await api.audioGrants(session, { transcriptionModel: 'a', speechModel: 'b' })).speechToken, 'tts');
-  const grant = await api.profileGrant(session);
-  assert.deepEqual([grant.state, grant.origins, grant.grant], ['shared', ['google.com'], 'profile-grant']);
-  assert.equal((await api.loadProfile(session, 'profile-grant')).cookies[0].name, 'SID');
-  assert.deepEqual(await api.saveProfileChanges(session, 'profile-grant', { cookies: [], storage: [] }), { origins: ['google.com'] });
   assert.deepEqual(requests.map(r => `${r.options.method} ${r.path}`), [
     'POST /browser/v1/sessions/b-1/handoff-notice', 'POST /browser/v1/sessions/b-1/audio/catalog-grant',
-    'POST /browser/v1/sessions/b-1/audio/grants', 'POST /browser/v1/sessions/b-1/profile/grant',
-    'GET /browser/v1/sessions/b-1/profile', 'POST /browser/v1/sessions/b-1/profile/changes']);
+    'POST /browser/v1/sessions/b-1/audio/grants']);
   assert.ok(requests.every(r => r.options.headers.Authorization === 'Bearer runtime-grant' && !r.options.headers['X-Cortex-Host-Invocation']));
-  assert.equal(requests[4].options.body, undefined);
-  assert.equal(requests[4].options.headers['X-Browser-Profile-Grant'], 'profile-grant');
-  assert.equal(requests[5].options.headers['X-Browser-Profile-Grant'], 'profile-grant');
   assert.deepEqual(JSON.parse(requests[2].options.body), { transcriptionModel: 'a', speechModel: 'b' });
   assert.equal(api.sessionURL('b-1'), 'http://sentinel.example/browser/v1/sessions/b-1/');
 });
 
 test('HTTP statuses such as 410 and 409 are surfaced without bodies', async () => {
   const api = new BrowserSessionAPI({ baseURL: 'http://h/b/v1/', fetchAPI: async () => ({ ok: false, status: 410, json: async () => ({ error: 'secret' }) }) });
-  await assert.rejects(api.saveProfileChanges({ sessionId: 'b', grant: 'g' }, 'p', {}), error => error.status === 410 && !/secret/.test(error.message));
+  await assert.rejects(api.handoffNotice({ sessionId: 'b', grant: 'g' }, { handoffId: 'h', summary: 's' }), error => error.status === 410 && !/secret/.test(error.message));
 });
 
 test('a run without a conversation gets the typed refusal the agent can explain', async () => {
