@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.8
+  version: 1.0.9
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.8
+    resolvedVersion: 1.0.9
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.8
+      package: axiomstudio/skill-live-browser:1.0.9
   requirements:
     operatingSystems: [linux]
     compute:
@@ -103,8 +103,8 @@ definition:
       user should check or do. A handoff pauses this run until the user hands
       back.
       When you are to finish the task yourself: sign in only with
-      live-browser-sign-in, which uses the login saved for exactly the page's
-      site (you never see or type passwords; live-browser-fill refuses
+      live-browser-sign-in, which uses the login saved for the page's site
+      (you never see or type passwords; live-browser-fill refuses
       password, code and card fields). If it returns otp_required, do not
       hand off: ask in chat only "Might have gotten an OTP, please provide",
       wait for the reply, then call live-browser-sign-in with oneTimeCode.
@@ -355,7 +355,7 @@ definition:
       timeout: 180000000000
     live-browser-sign-in:
       name: live-browser-sign-in
-      description: Sign in on the current page with the website login saved in the vault for exactly this site (scheme, host and port of the page). It fills the username and password (and an authenticator code when one is saved) and submits; you never see or type the values. Returns submitted, otp_required (the site sent an SMS or email code; ask the user for it in chat, then call again with oneTimeCode), choose_login (several logins; call again with credential), or no_matching_login (no saved login for this site; ask the user to add one with the in-chat setup form). Open the site's sign-in page first.
+      description: Sign in on the current page with the website login saved in the vault for this site (same scheme and registrable domain as the page, so a login for https://amazon.in also works on https://www.amazon.in). It fills the username and password (and an authenticator code when one is saved) and submits; you never see or type the values. Returns submitted, otp_required (the site sent an SMS or email code; ask the user for it in chat, then call again with oneTimeCode), choose_login (several logins; call again with credential), or no_matching_login (no saved login for this site; ask the user to add one with the in-chat setup form). Open the site's sign-in page first.
       inputSchema:
         type: object
         additionalProperties: false

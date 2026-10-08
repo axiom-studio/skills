@@ -1,5 +1,5 @@
 import { siteOf } from '@axiom/live-browser';
-import { topOrigin, totp } from './credentials.mjs';
+import { loginMatches, topOrigin, totp } from './credentials.mjs';
 import { elementProblem, exposed, notActionable } from './page.mjs';
 
 // Fills saved sign-ins and the saved payment card into the live page.
@@ -294,13 +294,13 @@ export class SignIn {
   // {state: submitted | otp_required | origin_changed | no_form, step}.
   async signIn(login, { oneTimeCode, now = Date.now } = {}) {
     this.#origin = this.origin();
-    if (!this.#origin || !login.origins.includes(this.#origin)) throw notActionable(...ORIGIN_CHANGED);
+    if (!this.#origin || !loginMatches(login, this.#origin)) throw notActionable(...ORIGIN_CHANGED);
     let steps = 0, step;
     for (let round = 0; round < 4; round++) {
-      // A redirect between steps must stay on an origin this login is for.
+      // A redirect between steps must stay on the site this login is for.
       const origin = this.origin();
       if (origin !== this.#origin) {
-        if (!login.origins.includes(origin)) return { state: 'origin_changed', step };
+        if (!loginMatches(login, origin)) return { state: 'origin_changed', step };
         this.#origin = origin;
       }
       const scan = await this.scan();

@@ -467,7 +467,7 @@ test('sign-in without a saved login for this exact site gives the exact in-chat 
   assert.match(none.message, /do not use request_setup/);
   assert.match(none.message, /openseal\.skills\.request_credential/);
   assert.deepEqual(none.credentialRequest, { action: 'openseal.skills.request_credential',
-    arguments: { kind: 'website_login', website: none.origin, reason: 'Add your amazon.in login so I can sign in and continue' } });
+    arguments: { kind: 'website_login', website: 'https://amazon.in', reason: 'Add your amazon.in login so I can sign in and continue' } });
   assert.match(none.message, /Do not hand off/);
   await h.run('live-browser-navigate', { sessionId: 'b-1', url: 'https://www.amazon.in.evil.example/ap/signin' });
   const lookalike = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin);

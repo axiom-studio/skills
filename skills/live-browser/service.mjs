@@ -3,7 +3,7 @@ import {
   CortexConversation, PersistentBrowserProfile, PROFILE_WAIT_MS, createAudioRoute, createBrowserDesktop, detectBrowserIntervention,
   hostInvocation, launchCamoufox, openBrowserRFB, openBrowserVideo,
 } from '@axiom/live-browser';
-import { matchingLogins, paymentCard, topOrigin, websiteLogins } from './credentials.mjs';
+import { loginSite, matchingLogins, paymentCard, topOrigin, websiteLogins } from './credentials.mjs';
 import { LivePage, notActionable } from './page.mjs';
 import { checkoutPage, PAY_BUTTON, pageTotal, SignIn } from './sign-in.mjs';
 
@@ -24,9 +24,12 @@ function siteName(origin) {
   try { return new URL(origin).hostname.replace(/^www\./, ''); } catch { return 'this site'; }
 }
 
+// The login is requested for the page's site (https://www.amazon.in/... ->
+// https://amazon.in), which is what it will match.
 function missingLogin(origin) {
-  if (!origin) return {};
-  return { credentialRequest: credentialRequest('website_login', `Add your ${siteName(origin)} login so I can sign in and continue`, origin) };
+  const site = loginSite(origin);
+  if (!site) return {};
+  return { credentialRequest: credentialRequest('website_login', `Add your ${siteName(site)} login so I can sign in and continue`, site) };
 }
 
 function validID(value, name) {
@@ -393,7 +396,7 @@ export class LiveBrowserService {
   }
 
   // Signs in with a saved website login bound to this action whose website
-  // is exactly the page's top-level origin. Values come only from bindings.
+  // is on the page's site (same scheme and registrable domain). Values come only from bindings.
   async #signIn(session, input, bindings) {
     if (input.credential !== undefined && /[\u0000-\u001f\u007f]/.test(input.credential)) throw new Error('credential is invalid');
     const logins = websiteLogins(bindings);
