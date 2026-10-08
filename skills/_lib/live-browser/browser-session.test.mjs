@@ -88,3 +88,26 @@ test('host invocation bindings select one audience and hide parser errors', () =
   assert.throws(() => hostInvocation('{"host:browser": secret'), error => error.message === 'Invalid host invocation binding');
   assert.throws(() => hostInvocation({ 'host:browser': 7 }), /Invalid host invocation/);
 });
+
+test('extend keeps a live session open with the runtime grant and accepts a rotated grant', async () => {
+  const requests = [];
+  let reply = { expiresAt: later() };
+  const api = new BrowserSessionAPI({ baseURL: 'http://sentinel.example/browser/v1/', fetchAPI: async (url, options) => {
+    requests.push({ path: new URL(url).pathname, options });
+    return { ok: true, json: async () => ({ result: reply }) };
+  } });
+  const session = { sessionId: 'b-1', grant: 'runtime-grant', tenantId: '7' };
+  assert.deepEqual(await api.extend(session, { durationMinutes: 30 }), { expiresAt: reply.expiresAt });
+  assert.equal(requests[0].path, '/browser/v1/sessions/b-1/extend');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer runtime-grant');
+  assert.equal(requests[0].options.headers['X-Tenant-ID'], '7');
+  assert.deepEqual(JSON.parse(requests[0].options.body), { durationMinutes: 30 });
+  reply = { expiresAt: later(), grant: 'rotated-grant' };
+  assert.equal((await api.extend(session, { durationMinutes: 30 })).grant, 'rotated-grant');
+  reply = { expiresAt: new Date(0).toISOString() };
+  await assert.rejects(api.extend(session, { durationMinutes: 30 }), /invalid browser expiry/);
+  await assert.rejects(api.extend(session, { durationMinutes: 0 }), /duration/);
+  const gone = new BrowserSessionAPI({ baseURL: 'http://h/b/v1/', fetchAPI: async () => ({ ok: false, status: 410, json: async () => ({ error: 'runtime-grant' }) }) });
+  await assert.rejects(gone.extend(session, { durationMinutes: 30 }), error => error.status === 410 && !/runtime-grant/.test(error.message));
+});

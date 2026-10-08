@@ -171,6 +171,18 @@ export const SNAPSHOT_JS = `(limits) => {
     }) };
 }`;
 
+const FRAME_HIT = '\u0000frame';
+
+// Accessible name of the control at viewport coordinates.
+export const POINT_NAME_JS = `(x, y) => {
+  const hit = document.elementFromPoint(x, y);
+  if (!hit) return '';
+  if (hit.tagName === 'IFRAME' || hit.tagName === 'FRAME') return '\\u0000frame';
+  const e = hit.closest('button,a,input,[role="button"],[role="link"]') || hit;
+  if (e === document.body || e === document.documentElement) return '';
+  return (e.getAttribute('aria-label') || e.innerText || e.value || e.getAttribute('title') || '').replace(/\\s+/g, ' ').trim().slice(0, 240);
+}`;
+
 export const SETTLE_JS = `() => new Promise((resolve) => {
   let done = false, quiet, hard, observer;
   const finish = () => { if (done) return; done = true; observer?.disconnect(); clearTimeout(quiet); clearTimeout(hard); resolve(); };
@@ -282,9 +294,35 @@ export class LivePage {
     try { return await operation(); } catch (error) { throw elementProblem(error); }
   }
 
-  async click({ target, generation, x, y }) {
+  // Accessible name of what a click at (x, y) would hit, also inside a
+  // child frame (for example a payment processor's checkout).
+  async pointName(x, y, frame = this.#page.mainFrame?.(), depth = 0) {
+    const evaluate = script => (frame ?? this.#page).evaluate(script);
+    const name = await evaluate(`(${POINT_NAME_JS})(${x}, ${y})`).catch(() => '');
+    if (name !== FRAME_HIT) return name;
+    if (!frame || depth > 2) return '';
+    for (const child of frame.childFrames?.() ?? []) {
+      const element = await child.frameElement().catch(() => null);
+      const box = await element?.boundingBox().catch(() => null);
+      if (box && x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
+        // The frame's document starts inside its border and padding.
+        const [left, top] = await element.evaluate(e => { const style = getComputedStyle(e);
+          return [e.clientLeft + parseFloat(style.paddingLeft || '0'), e.clientTop + parseFloat(style.paddingTop || '0')]; }).catch(() => [0, 0]);
+        return this.pointName(x - box.x - left, y - box.y - top, child, depth + 1);
+      }
+    }
+    return '';
+  }
+
+  // The latest snapshot's element for a reference: {element, locator}.
+  element(target) { return this.#resolve(target); }
+
+  // guard(name) may refuse the click (it throws) after seeing the accessible
+  // name of what would be clicked.
+  async click({ target, generation, x, y }, { guard } = {}) {
     if (target !== undefined) {
-      const { locator } = this.#resolve(target);
+      const { element, locator } = this.#resolve(target);
+      await guard?.(element.name);
       await this.#element(async () => {
         try {
           const point = await this.#center(locator);
@@ -294,6 +332,7 @@ export class LivePage {
     } else {
       if (generation !== this.generation) throw notActionable('Coordinates are stale', 'Take a new snapshot or screenshot and use its generation.');
       if (![x, y].every(value => Number.isFinite(value) && value >= 0 && value <= 10000)) throw exposed('Invalid coordinates');
+      if (guard) await guard(await this.pointName(x, y));
       await this.#page.mouse.click(x, y);
     }
     await this.settle();
