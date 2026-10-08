@@ -56,8 +56,12 @@ snapshots. Optional manifest slots:
 - `website-login-1` ... `website-login-8` (`http_basic_auth`): each binding
   value is a JSON object `{username, password, website, totpSecret?, name?}`.
   `website` lists origins (`https://www.amazon.in, https://amazon.in`). A
-  login is used only when the page's top-level origin (scheme, host and port)
-  is exactly one of them; no suffix or wildcard matching. The origin is
+  login is used when the page's top-level URL has the same scheme and
+  registrable domain (eTLD+1 from the public suffix list, private suffixes
+  included, as password managers match) as one of them: a login for
+  `https://amazon.in` fills on `https://www.amazon.in`, never on
+  `http://amazon.in` or another registrable domain. A missing login is
+  requested for that site (`https://amazon.in`). The page's exact origin is
   re-checked immediately before every keystroke batch and click, so a
   redirect mid sign-in stops it. `totpSecret` (base32 or an `otpauth://totp`
   URI) answers authenticator-code pages (RFC 6238, computed locally); SMS or
@@ -156,5 +160,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.8 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.9 .
 ```
