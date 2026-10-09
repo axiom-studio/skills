@@ -272,15 +272,17 @@ definition:
         - id: oci
           kind: oci
           label: Adyen Skill service image
-          package: axiomstudio/skill-adyen:latest
+          package: axiomstudio/skill-adyen:1.0.1
     name: Adyen Skill
+    requirements:
+        tenancy: shared
     source:
         format: axiom.skill/v1
         homepage: ""
         license: MIT
         publisher: Axiom Studio
         reference: skill-adyen
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.0.1
     tags:
         - adyen
         - finance
@@ -289,7 +291,7 @@ definition:
     transport:
         endpoint: skill-adyen
         kind: tool
-    version: 1.0.0
+    version: 1.0.1
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.

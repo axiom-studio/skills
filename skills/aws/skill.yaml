@@ -3,8 +3,10 @@ definition:
     actions:
         aws-ec2-list-instances:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Ec2 List Instances
             idempotency: supported
             inputSchema:
@@ -25,8 +27,10 @@ definition:
             sideEffect: read
         aws-ec2-reboot-instance:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Ec2 Reboot Instance
             idempotency: required
             inputSchema:
@@ -52,8 +56,10 @@ definition:
             sideEffect: external
         aws-ec2-start-instance:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Ec2 Start Instance
             idempotency: required
             inputSchema:
@@ -79,8 +85,10 @@ definition:
             sideEffect: external
         aws-ec2-stop-instance:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Ec2 Stop Instance
             idempotency: required
             inputSchema:
@@ -106,8 +114,10 @@ definition:
             sideEffect: external
         aws-lambda-get-function:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Lambda Get Function
             idempotency: supported
             inputSchema:
@@ -133,8 +143,10 @@ definition:
             sideEffect: read
         aws-lambda-invoke:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Lambda Invoke
             idempotency: required
             inputSchema:
@@ -163,8 +175,10 @@ definition:
             sideEffect: external
         aws-lambda-list-functions:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws Lambda List Functions
             idempotency: supported
             inputSchema:
@@ -185,8 +199,10 @@ definition:
             sideEffect: read
         aws-s3-delete-object:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws S3 Delete Object
             idempotency: required
             inputSchema:
@@ -216,8 +232,10 @@ definition:
             sideEffect: destructive
         aws-s3-get-object:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws S3 Get Object
             idempotency: supported
             inputSchema:
@@ -247,8 +265,10 @@ definition:
             sideEffect: read
         aws-s3-list-buckets:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws S3 List Buckets
             idempotency: supported
             inputSchema:
@@ -269,8 +289,10 @@ definition:
             sideEffect: read
         aws-s3-list-objects:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws S3 List Objects
             idempotency: supported
             inputSchema:
@@ -299,8 +321,10 @@ definition:
             sideEffect: read
         aws-s3-put-object:
             credentials:
-                - kind: aws_credentials
-                  name: aws_credentials
+                - kind: aws_access_key_id
+                  name: aws_access_key_id
+                - kind: aws_secret_access_key
+                  name: aws_secret_access_key
             description: Aws S3 Put Object
             idempotency: required
             inputSchema:
@@ -344,15 +368,17 @@ definition:
         - id: oci
           kind: oci
           label: AWS Skill service image
-          package: axiomstudio/skill-aws:latest
+          package: axiomstudio/skill-aws:1.1.0
     name: AWS Skill
+    requirements:
+        tenancy: shared
     source:
         format: axiom.skill/v1
         homepage: ""
         license: MIT
         publisher: Axiom Studio
         reference: skill-aws
-        resolvedVersion: 1.0.0
+        resolvedVersion: 1.1.0
     tags:
         - aws
         - cloud
@@ -362,7 +388,7 @@ definition:
     transport:
         endpoint: skill-aws
         kind: tool
-    version: 1.0.0
+    version: 1.1.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
