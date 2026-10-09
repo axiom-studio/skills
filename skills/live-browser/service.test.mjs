@@ -176,9 +176,18 @@ test('status and the live view work while the browser is still launching', async
 test('a later turn of the same conversation reattaches to the open browser and its page', async () => {
   const h = harness();
   await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
-  const second = await h.run('live-browser-start', {}, 'run-2');
+  assert.equal(h.pages[0].current, 'https://www.amazon.in/ap/signin', 'a fresh start opens url');
+  const gotos = [];
+  const goto = h.pages[0].goto;
+  h.pages[0].goto = async url => { gotos.push(url); return goto(url); };
+  const second = await h.run('live-browser-start', { url: 'https://www.amazon.in/' }, 'run-2');
   assert.equal(second.sessionId, 'b-1');
   assert.equal(second.url, 'https://www.amazon.in/ap/signin', 'the same page');
+  assert.equal(second.reattached, true);
+  assert.match(second.message, /Reattached .* the url was not opened\. Use live-browser-navigate/);
+  const same = await h.run('live-browser-start', { url: 'https://www.flipkart.com/' }, 'run-2');
+  assert.equal(same.url, 'https://www.amazon.in/ap/signin', 'the same run does not navigate either');
+  assert.deepEqual(gotos, [], 'reattaching never navigates');
   assert.ok(h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-2'), 'the duplicate registration is revoked');
   assert.ok(!h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-1'));
   assert.equal(h.calls.filter(call => call[0] === 'launch').length, 1);
@@ -742,6 +751,12 @@ test('pay stays on the site where the card was filled and reports a bank verific
   assert.equal(result.requiresHuman, false);
   assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating', 'no handoff');
   noSecrets(result);
+  // Dev runs 79f3ca2b -> 475327c4: the user's reply started a new run whose
+  // live-browser-start {url} used to navigate away from the bank code page.
+  const reattached = await h.run('live-browser-start', { url: 'https://shop.example/' }, 'run-2');
+  assert.deepEqual([reattached.sessionId, reattached.url, reattached.reattached], ['b-1', 'https://acs.bank.example/challenge', true]);
+  assert.match(reattached.message, /one-time code page is open, so call live-browser-submit-payment-code/);
+  assert.equal(page.current, 'https://acs.bank.example/challenge', 'the bank page stays open');
   // A wrong code: still asked.
   const wrong = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '000000' }, 'run-2');
   assert.deepEqual([wrong.status, wrong.retry], ['otp_required', true]);
