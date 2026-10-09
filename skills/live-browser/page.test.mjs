@@ -168,3 +168,14 @@ test('fill of a hidden or collapsed editor is not actionable unless it can be fo
   await ro.snapshot();
   await assert.rejects(ro.fill({ target: 's1:e1', value: 'x' }), notActionable(/not editable/));
 });
+
+test('a snapshot of a page with a very long URL stays within the declared output limit', async () => {
+  const { MAX_URL } = await import('./page.mjs');
+  const long = `https://www.example.test/flights?${'q=x&'.repeat(2500)}`;
+  const { page } = fakePage({ ...raw, url: long });
+  const snapshot = await new LivePage(page).snapshot();
+  assert.equal(snapshot.url, long.slice(0, MAX_URL));
+  const realistic = long.slice(0, 2301);
+  assert.equal(navigationURL(realistic), realistic);
+  assert.throws(() => navigationURL(long), /HTTP\(S\) URL/);
+});
