@@ -89,6 +89,9 @@ const normalized = value => String(value ?? '').replace(/\s+/g, ' ').trim();
 
 export const MAX_ELEMENTS = 180;
 export const MAX_TEXT = 48 * 1024;
+// Travel and checkout pages carry long state in their URLs; a snapshot
+// reports at most this much of the address (skill.yaml declares the same).
+export const MAX_URL = 8192;
 export const MAX_MODEL_SCREENSHOT = 1024 * 1024;
 const REF = /^s([1-9][0-9]*):e([1-9][0-9]*)$/;
 
@@ -198,7 +201,7 @@ const SENSITIVE_FIELD = /(password|passcode|one-time-code|cc-|card|cvc|cvv|secur
 export function navigationURL(value) {
   let url;
   try { url = new URL(value); } catch { throw exposed('URL must be an absolute HTTP(S) URL'); }
-  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || value.length > 2048) {
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || value.length > MAX_URL) {
     throw exposed('URL must be an HTTP(S) URL without embedded credentials');
   }
   return url.toString();
@@ -258,7 +261,7 @@ export class LivePage {
       ...(element.href ? destination(raw.url, element.href) : {}),
     }));
     const challenges = detectChallenges(raw.text, raw.url, raw.title);
-    const result = { generation: this.generation, observationDigest: observationDigest(raw), url: raw.url, title: raw.title,
+    const result = { generation: this.generation, observationDigest: observationDigest(raw), url: String(raw.url ?? '').slice(0, MAX_URL), title: raw.title,
       text: raw.text, elements, challenges };
     if (includeScreenshot) result.modelMedia = await this.modelMedia();
     return result;
