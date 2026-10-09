@@ -4,6 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "axiomstudio-skill-browser"
-version = "3.0.0"
+version = "3.0.1"
 description = "Sessionless Lightpanda page reading and web search Skill"
 requires-python = ">=3.11"
