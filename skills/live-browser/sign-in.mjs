@@ -105,29 +105,71 @@ export const SCAN_CARD_JS = `(loose) => {
 const TOTAL_LABEL = /\b(order total|grand total|total amount|amount payable|amount due|total payable|total due|you pay|to pay|total|amount)\b/i;
 const SYMBOLS = [[/₹|\bRs\.?|\bINR\b/i, 'INR'], [/€|\bEUR\b/i, 'EUR'], [/£|\bGBP\b/i, 'GBP'], [/¥|\bJPY\b/i, 'JPY'], [/\bUSD\b|US\$/i, 'USD'], [/\bCAD\b|CA\$/i, 'CAD'], [/\bAUD\b|A\$/i, 'AUD'], [/\$/, 'USD']];
 const AMOUNT = /(₹|Rs\.?|€|£|¥|US\$|CA\$|A\$|\$|\b[A-Z]{3}\b)?\s*([0-9]{1,3}(?:[,\s][0-9]{2,3})+(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/;
+// Stored value spent on the order besides the charged method: a site balance,
+// wallet, gift card or store credit applied as a negative summary line.
+const STORED_VALUE = /\b(pay balance|wallet|gift ?cards?|store credit|account credit|account balance|reward points|points|balance|credits?(?!\s*card))\b/i;
+const NOT_PAYMENT = /sub.?total|savings|saved|refund|discount|promo|coupon|voucher|cashback|offer|free|shipping|delivery|fee|tax|items?\b/i;
 
-// Best effort: the order total shown on the page, as {amount, currency?}.
-export function pageTotal(text) {
+function lineAmount(lines, index, label) {
+  const line = lines[index];
+  const rest = line.slice(label.index + label[0].length);
+  let match = AMOUNT.exec(rest);
+  let before = match ? rest.slice(0, match.index) : '';
+  if (!match && lines[index + 1]) {
+    match = AMOUNT.exec(lines[index + 1]);
+    before = match ? lines[index + 1].slice(0, match.index) : '';
+  }
+  if (!match) return undefined;
+  const amount = Number(match[2].replace(/[,\s]/g, ''));
+  if (!Number.isFinite(amount)) return undefined;
+  const currency = match[1] ? SYMBOLS.find(([pattern]) => pattern.test(match[1]))?.[1] ?? (/^[A-Z]{3}$/.test(match[1]) ? match[1] : undefined) : undefined;
+  return { amount, currency, symbol: Boolean(match[1]), negative: /[-−–]\s*$/.test(before) };
+}
+
+// Best effort: the order summary shown on the page. due is the order total the
+// page still charges (it may be 0 when a balance covers it); applied lists the
+// stored value (balances, wallets, gift cards) subtracted before that total;
+// spend, their sum, is what the order costs across all payment methods.
+export function orderSummary(text) {
   const lines = String(text ?? '').slice(0, 200000).split(/\n+/).map(line => line.trim()).filter(Boolean);
-  let best;
+  let due;
+  const applied = [];
   lines.forEach((line, index) => {
+    const stored = STORED_VALUE.exec(line);
+    if (stored && !NOT_PAYMENT.test(line)) {
+      const value = lineAmount(lines, index, stored);
+      if (value?.symbol && value.negative && value.amount > 0) {
+        applied.push({ method: line.replace(/[:\s]+$/, '').replace(/\s*[-−–]?\s*(₹|Rs\.?|€|£|¥|US\$|CA\$|A\$|\$|\b[A-Z]{3}\b)\s*[0-9][0-9,.\s]*$/, '').slice(0, 80),
+          amount: value.amount, ...(value.currency ? { currency: value.currency } : {}), index });
+      }
+      return;
+    }
     const label = TOTAL_LABEL.exec(line);
     if (!label || /sub.?total|savings|saved|refund|discount|items?\s*total|before/i.test(line)) return;
-    const rest = line.slice(label.index + label[0].length);
-    const match = AMOUNT.exec(rest) ?? (lines[index + 1] ? AMOUNT.exec(lines[index + 1]) : null);
-    if (!match) return;
-    const amount = Number(match[2].replace(/[,\s]/g, ''));
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    const symbol = match[1] ? SYMBOLS.find(([pattern]) => pattern.test(match[1]))?.[1] ?? (/^[A-Z]{3}$/.test(match[1]) ? match[1] : undefined) : undefined;
+    const value = lineAmount(lines, index, label);
+    if (!value || value.negative || value.amount < 0) return;
     const rank = /order total|grand total|amount payable|total payable|you pay|to pay|amount due|total due/i.test(label[0]) ? 2 : 1;
-    if (!best || rank > best.rank || (rank === best.rank && index > best.index)) best = { amount, currency: symbol, rank, index };
+    if (!due || rank > due.rank || (rank === due.rank && index > due.index)) due = { amount: value.amount, currency: value.currency, rank, index };
   });
-  return best ? { amount: best.amount, ...(best.currency ? { currency: best.currency } : {}) } : undefined;
+  if (!due) return undefined;
+  const used = applied.filter(entry => entry.index < due.index && (!entry.currency || !due.currency || entry.currency === due.currency));
+  const cents = value => Math.round(value * 100);
+  const spend = (cents(due.amount) + used.reduce((sum, entry) => sum + cents(entry.amount), 0)) / 100;
+  return { due: due.amount, spend, ...(due.currency ? { currency: due.currency } : {}),
+    applied: used.map(({ method, amount, currency }) => ({ method, amount, ...(currency ? { currency } : {}) })) };
 }
 
 // The final pay / place-order control of a checkout. Clicking it is
 // live-browser-pay's job (always approved by the user), never a plain click.
-export const PAY_BUTTON = /^\s*(place (your |my )?order(\s+(and pay|now))?\s*$|pay(\s*$|\s+(now|securely|online|with card|by card|and (place|book)|[₹$€£¥]|rs\.?\s*[0-9]|[A-Z]{3}\s*[0-9]|[0-9]))|buy now|complete (my |your |the )?(purchase|order|payment|booking|checkout)|confirm (and pay|(your |my |the )?(order|purchase|payment|booking))|submit (order|payment)|proceed to pay(ment)?|make (a )?payment|book (now|and pay)|checkout and pay|place booking|purchase( now)?\s*$)/i;
+// Payment-method choices ("Pay later", "Pay on delivery") and steps before the
+// final review ("Continue", "Proceed to checkout", "Use this payment method")
+// are not final.
+export const PAY_BUTTON = /^(?!\s*pay\s+(later|on delivery|in\s+[0-9]|by emi|monthly|after)\b)\s*(place (your |my |the )?order(\s+(and pay|now))?|pay(\s+(now|securely|online|and (place|book)( (your |the )?order)?))?|pay\s+with\s+\S.{0,80}|pay\s*(₹|rs\.?\s*|[$€£¥]|[A-Z]{3}\s*)?\s*[0-9][0-9,.]*(\s+(now|securely))?|buy now|complete (my |your |the )?(purchase|order|payment|booking|checkout)|confirm and pay|confirm (your |my |the )?(order|purchase|payment|booking)|submit (your |my )?(order|payment)|proceed to pay(ment)?|make (a )?payment|book (now|and pay)|checkout and pay|place booking|purchase( now)?)\s*$/i;
+
+// A snapshot element that is a final pay or place-order button (not a link).
+export function finalPayElement(element) {
+  return element?.role === 'button' && element.state?.disabled !== true && PAY_BUTTON.test(String(element.name ?? '').replace(/\s+/g, ' '));
+}
 
 const CHECKOUT_URL = /checkout|payment|\/pay(\/|\b)|\/buy\/|placeorder|place-order|order-?review|\/cart\b|\/basket\b|\/booking/i;
 const CHECKOUT_TEXT = /\b(order total|order summary|payment method|place your order|billing address|amount payable|review your order|card number|payment options|total payable|grand total)\b/i;
@@ -142,7 +184,7 @@ export function checkoutPage(url, text) {
 // Marks the page's final pay buttons (top document); returns how many.
 export const SCAN_PAY_JS = `(source) => {
   const pattern = new RegExp(source, 'i');
-  const selector = 'button,input[type="submit"],input[type="button"],a,[role="button"]';
+  const selector = 'button,input[type="submit"],input[type="button"],[role="button"]';
   ${COLLECT}
   for (const e of globalThis.__livePay || []) e.removeAttribute('data-live-pay');
   const named = e => (e.getAttribute('aria-label') || e.innerText || e.value || e.getAttribute('title') || '').replace(/\\s+/g, ' ').trim();
@@ -344,8 +386,8 @@ export class SignIn {
     let locator, check;
     if (target !== undefined) {
       const { element, locator: found } = this.#live.element(target);
-      if (!PAY_BUTTON.test(element.name ?? '')) {
-        throw notActionable('This is not a final pay or place-order button', 'Pass the reference of the final pay or place-order button from the latest snapshot, or omit target.');
+      if (!finalPayElement(element)) {
+        throw notActionable('This is not a final pay or place-order button', 'Take a new snapshot and pass the element marked finalPay as target. Do not ask the user to approve again until a snapshot shows one.');
       }
       locator = found;
     } else {
@@ -391,14 +433,15 @@ export class SignIn {
     return this.#page.frames().filter(frame => frame === main || (!frame.isDetached?.() && cardFrameAllowed(frame.url(), origin)));
   }
 
-  // Order total(s) shown in the page and its processor frames.
-  async totals(origin) {
-    const totals = [];
+  // The order summary of the page and of each processor frame shown with it.
+  async summaries(origin) {
+    const main = this.#page.mainFrame();
+    const summaries = [];
     for (const frame of this.paymentFrames(origin)) {
-      const total = pageTotal(await frame.evaluate(BODY_TEXT).catch(() => ''));
-      if (total) totals.push(total);
+      const summary = orderSummary(await frame.evaluate(BODY_TEXT).catch(() => ''));
+      if (summary) summaries.push({ ...summary, main: frame === main });
     }
-    return totals;
+    return summaries;
   }
 
   // Where a payment stands after the pay click or a code: confirmed, a
