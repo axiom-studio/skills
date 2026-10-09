@@ -120,11 +120,7 @@ export class LiveBrowserService {
     const url = input.url;
     for (const session of this.#sessions.values()) {
       if (session.agentID === agentID && session.runIDs.has(runID) && !session.closing) {
-        if (url && session.payment) session.payment.navigated = true;
-        return this.#act(session, input.intent ?? 'Open page', async live => {
-          if (url) await live.navigate(url);
-          return {};
-        }, { navigation: Boolean(url) });
+        return this.#reattach(session, input);
       }
     }
     const invocation = hostInvocation(bindings.CORTEX_HOST_INVOCATIONS, 'host:browser');
@@ -143,11 +139,7 @@ export class LiveBrowserService {
       if (open.agentID === agentID && open.conversationID === registered.conversationId && !open.closing) {
         await this.#api.revoke({ sessionId: registered.sessionId, grant: registered.grant, tenantId: registered.tenantId }).catch(() => {});
         open.runIDs.add(runID);
-        if (url && open.payment) open.payment.navigated = true;
-        return this.#act(open, input.intent ?? 'Open page', async live => {
-          if (url) await live.navigate(url);
-          return {};
-        }, { navigation: Boolean(url) });
+        return this.#reattach(open, input);
       }
     }
     // The tenant's profile is open in at most one browser: wait for the
@@ -206,6 +198,20 @@ export class LiveBrowserService {
       if (url) await live.navigate(url);
       return {};
     }, { navigation: Boolean(url) });
+  }
+
+  // live-browser-start on this conversation's open browser: it never
+  // navigates, whatever url it was given. A later turn (for example the
+  // user's reply with a bank one-time code) must find the page as it was;
+  // live-browser-navigate goes elsewhere explicitly.
+  async #reattach(session, input) {
+    return this.#act(session, input.intent ?? 'Reattach to the open browser', async live => {
+      const current = live.page.url();
+      const pending = session.payment && session.payment.until >= this.#options.now();
+      return { reattached: true, message: `Reattached to this conversation's open browser on ${current}` +
+        (input.url ? '; the url was not opened. Use live-browser-navigate to go elsewhere.' : '.') +
+        (pending ? ' A payment of this browser waits for the bank: its one-time code page is open, so call live-browser-submit-payment-code with the user\'s code (take a snapshot first if unsure); do not navigate.' : '') };
+    });
   }
 
   // Runs one model action. Waits while a human holds control and then

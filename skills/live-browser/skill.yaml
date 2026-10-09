@@ -70,7 +70,8 @@ definition:
       the browser live in Seal Chat with a Take control button. Reuse that
       sessionId for every later action in this conversation. If you no longer
       have it (for example in a later turn), call live-browser-start again: it
-      reattaches to this conversation's open browser and its current page.
+      reattaches to this conversation's open browser and its current page,
+      without opening any url (use live-browser-navigate for that).
       The browser closes after 30 minutes without actions, but stays open
       while it waits for the user (a handoff or a one-time code you asked for
       in chat), up to 8 hours. After live-browser-snapshot use the returned element
@@ -164,7 +165,7 @@ definition:
   actions:
     live-browser-start:
       name: live-browser-start
-      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Only one live browser runs at a time for the team; if another task's browser is open, this waits up to two minutes for it to close and otherwise fails, so try again later. Returns the sessionId used by every other live-browser action. If this conversation's browser is already open (also from an earlier turn), it reattaches to it and its current page.
+      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Only one live browser runs at a time for the team; if another task's browser is open, this waits up to two minutes for it to close and otherwise fails, so try again later. Returns the sessionId used by every other live-browser action. If this conversation's browser is already open (also from an earlier turn), it reattaches to it and returns its current page unchanged (reattached: true): it never opens url then, so a bank one-time code page or a checkout stays as it was; use live-browser-navigate to go elsewhere.
       inputSchema:
         type: object
         additionalProperties: false
@@ -184,6 +185,7 @@ definition:
           requiresHuman: {type: boolean}
           intervention: {type: object}
           message: {type: string}
+          reattached: {type: boolean, description: 'live-browser-start found this conversation''s browser already open and returned its current page without navigating.'}
       permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:audio']
       idempotency: supported
       retry: {maxAttempts: 1}
