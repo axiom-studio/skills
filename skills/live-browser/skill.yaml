@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.14
+  version: 1.0.15
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.14
+    resolvedVersion: 1.0.15
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.14
+      package: axiomstudio/skill-live-browser:1.0.15
   requirements:
     operatingSystems: [linux]
     compute:
@@ -170,7 +170,7 @@ definition:
         type: object
         additionalProperties: false
         properties:
-          url: {type: string, pattern: '^https?://', maxLength: 2048}
+          url: {type: string, pattern: '^https?://', maxLength: 8192}
           intent: {type: string, minLength: 3, maxLength: 500, description: 'Short description of what you are doing, shown to the user as the current step.'}
       outputSchema: &status_output
         type: object
@@ -200,7 +200,7 @@ definition:
         additionalProperties: false
         properties:
           sessionId: &session_id {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$'}
-          url: {type: string, pattern: '^https?://', maxLength: 2048}
+          url: {type: string, pattern: '^https?://', maxLength: 8192}
           intent: &intent {type: string, minLength: 3, maxLength: 500, description: 'Short description of this step, shown to the user.'}
         required: [sessionId, url]
       outputSchema: *status_output
@@ -228,7 +228,7 @@ definition:
           status: {type: string}
           generation: {type: integer, minimum: 1}
           observationDigest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
-          url: {type: string, maxLength: 2048}
+          url: {type: string, maxLength: 8192}
           title: {type: string}
           text: {type: string, maxLength: 49152}
           elements:
