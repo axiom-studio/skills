@@ -4,7 +4,7 @@ import { schemas, validateInput } from './actions.mjs';
 import { LiveBrowserService } from './service.mjs';
 
 export const SKILL_ID = 'skill-live-browser';
-export const SKILL_VERSION = '1.0.12';
+export const SKILL_VERSION = '1.0.13';
 export const DEFAULT_BROWSER_API_URL = 'http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/';
 
 function decode(values = {}) {

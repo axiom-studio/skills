@@ -47,6 +47,18 @@ async function stableIdentity(profileRoot, options) {
   return options;
 }
 
+// Upstream proxy for page traffic, shared by every tenant's runtime: hosting
+// injects it from one platform Secret. Its credentials stay out of the
+// browser process environment.
+const PROXY_ENV = ['LIVE_BROWSER_PROXY_SERVER', 'LIVE_BROWSER_PROXY_USERNAME', 'LIVE_BROWSER_PROXY_PASSWORD'];
+
+export function proxyFromEnv(env = process.env) {
+  const [server, username, password] = PROXY_ENV.map(name => (env[name] ?? '').trim());
+  if (!server) return undefined;
+  return { server: /^[a-z][a-z0-9+.-]*:\/\//i.test(server) ? server : `http://${server}`,
+    ...(username ? { username, password } : {}) };
+}
+
 // Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio
 // routing (PULSE_SINK/PULSE_SOURCE) is per browser so a page never hears or
 // speaks into another browser's audio.
@@ -57,12 +69,15 @@ export async function launchCamoufox(profileRoot, { display, audio } = {}, {
     (audio !== undefined && (!SINK.test(audio?.sink ?? '') || !SINK.test(audio?.source ?? '')))) {
     throw new Error('Browser profile or display is unavailable');
   }
+  const proxy = proxyFromEnv();
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !PROXY_ENV.includes(key)));
   const prepared = await prepareOptions({
+    ...(proxy ? { proxy } : {}),
     os: 'linux', headless: !display, window: [1280, 800],
     humanize: false, block_webrtc: false, geoip: false,
     // No runtime extension downloads or third-party network setup calls.
     exclude_addons: ['UBO'],
-    env: { ...process.env, ...(display ? { DISPLAY: display, MOZ_ENABLE_WAYLAND: '0' } : {}),
+    env: { ...env, ...(display ? { DISPLAY: display, MOZ_ENABLE_WAYLAND: '0' } : {}),
       ...(audio ? { PULSE_SINK: audio.sink, PULSE_SOURCE: audio.source } : {}) },
     firefox_user_prefs: {
       'media.navigator.streams.fake': false,
