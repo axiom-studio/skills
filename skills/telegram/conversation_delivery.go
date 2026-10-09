@@ -128,6 +128,23 @@ func (a *telegramConversationAdapter) deliverTelegram(ctx context.Context, token
 				return telegramFailedDelivery("invalid_review_link", "The Telegram web review link contains credential parameters."), nil
 			}
 		}
+		presentation, _ := review["presentation"].(map[string]interface{})
+		title, _ := presentation["title"].(string)
+		if strings.TrimSpace(title) == "" || request.Message == nil {
+			return telegramFailedDelivery("invalid_review", "The review description is missing."), nil
+		}
+		// The kernel's description is the card text, verbatim; the button
+		// carries the link. A decided update states its outcome the same way.
+		text := []string{strings.TrimSpace(title)}
+		lines, _ := presentation["lines"].([]interface{})
+		for _, raw := range lines {
+			if line, ok := raw.(string); ok && strings.TrimSpace(line) != "" {
+				text = append(text, strings.TrimSpace(line))
+			}
+		}
+		message := *request.Message
+		message.Content = strings.Join(text, "\n")
+		request.Message = &message
 		parameters["reply_markup"] = map[string]interface{}{"inline_keyboard": [][]map[string]string{{{"text": label, "url": link}}}}
 	}
 	operation := request.Delivery.Operation
