@@ -199,7 +199,12 @@ export const SCAN_PAY_JS = `(source) => {
 const BODY_TEXT = 'document.body ? document.body.innerText.slice(0, 200000) : ""';
 
 // A one-time code field (3-D Secure or a wallet's OTP) and its submit
-// button in one document, plus whether it asks to approve in an app.
+// button in one document, plus whether it asks to approve in an app. Banks'
+// 3-D Secure (ACS) pages name the field otpValue, txtOtp, otp_input, ... or
+// only label it in nearby text ("Enter OTP", "One Time Password", "OTP sent
+// to"); some split the code into one box per character.
+// data-live-otp = code | code-N | submit; sent: the field already got a code
+// (data-live-otp-sent, set before submitting it).
 export const SCAN_OTP_JS = `() => {
   const selector = 'input,button,[role="button"]';
   ${COLLECT}
@@ -208,30 +213,56 @@ export const SCAN_OTP_JS = `() => {
   const mark = (e, kind) => { e.setAttribute('data-live-otp', kind); marked.push(e); };
   const text = (document.body?.innerText || '').slice(0, 8000).toLowerCase();
   const fields = all.filter(e => e.tagName === 'INPUT' && ['', 'text', 'tel', 'number', 'password'].includes((e.getAttribute('type') || '').toLowerCase()) && usable(e));
-  const NOT_CODE = /card|cvv|cvc|expir|search|coupon|promo|zip|postal|captcha|\\bpin\\b/;
-  const notCode = e => NOT_CODE.test(describe(e)) || /email|username|tel|cc-|address/.test(e.getAttribute('autocomplete') || '');
-  const CODE = /one-time-code|\\botp\\b|one.?time|verification.?code|auth(entication)?.?code|passcode|\\bcode\\b/;
-  const asked = /\\botp\\b|one.?time (password|pass ?code|code)|verification code|authentication code/.test(text);
-  const code = fields.find(e => !notCode(e) && ((e.getAttribute('autocomplete') || '').includes('one-time-code') || CODE.test(describe(e)))) ||
-    (asked && fields.length === 1 && !notCode(fields[0]) ? fields[0] : undefined);
+  // An explicit one-time code field (autocomplete one-time-code, OTP or
+  // "one time password" in its name or label) wins even when its label
+  // mentions the card or phone the code went to; a generic "code" field
+  // must not look like any other kind of field.
+  const NEVER = /cvv|cvc|card.?num|expir|search|coupon|promo|voucher|gift|zip|postal|captcha/;
+  const OTHER = /card|\\bpin\\b|mobile|phone|e-?mail|user|amount/;
+  const kindOf = e => (e.getAttribute('autocomplete') || '').toLowerCase();
+  const notCode = e => NEVER.test(describe(e)) || /email|username|tel|cc-|address|name/.test(kindOf(e));
+  const OTP = /(^|[^a-z])otp|otp($|[^a-z]|val|code|input|field|box|text|num|pass)|one.?time/;
+  const CODE = /verification.?code|auth(entication)?.?code|passcode|\\bcode\\b/;
+  const explicit = e => kindOf(e).includes('one-time-code') || OTP.test(describe(e));
+  const generic = e => CODE.test(describe(e)) && !OTHER.test(describe(e));
+  const asked = /\\botp\\b|one.?time.?(password|pass ?code|code)|verification code|authentication code|security code (has been )?sent|enter (the )?(\\d-digit )?code|code (has been |was )?sent|sent (a |an |the )?(\\d-digit )?(code|otp)/.test(text);
+  const short = e => (e.maxLength >= 4 && e.maxLength <= 8) || /numeric|decimal/.test(e.getAttribute('inputmode') || '') ||
+    /\\[0-9\\]|\\\\d/.test(e.getAttribute('pattern') || '');
+  const candidates = fields.filter(e => !notCode(e));
+  const singles = candidates.filter(e => e.maxLength === 1);
+  let split = [];
+  if (singles.length >= 4) {
+    const groups = new Map();
+    for (const e of singles) { const key = e.form || e.closest('form') || e.parentElement?.parentElement || document.body; groups.set(key, [...(groups.get(key) || []), e]); }
+    split = [...groups.values()].find(group => group.length >= 4 && group.length <= 8) || [];
+  }
+  const shortOnes = candidates.filter(short);
+  const code = split.length ? undefined
+    : candidates.find(explicit) || candidates.find(generic) ||
+      (asked && candidates.length === 1 ? candidates[0] : undefined) || (asked && shortOnes.length === 1 ? shortOnes[0] : undefined);
   let submit;
-  if (code) {
-    mark(code, 'code');
+  const first = code || split[0];
+  if (first) {
+    if (code) mark(code, 'code');
+    split.forEach((e, i) => mark(e, 'code-' + (i + 1)));
     const named = e => (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-    const buttons = all.filter(e => e !== code && shown(e) && !e.disabled && (e.tagName === 'BUTTON' || e.matches('[role="button"]') ||
+    const buttons = all.filter(e => e !== first && shown(e) && !e.disabled && (e.tagName === 'BUTTON' || e.matches('[role="button"]') ||
       (e.tagName === 'INPUT' && ['submit', 'button'].includes(e.type))) && !/resend|cancel|back|another|help|change/.test(named(e)));
-    const form = code.form || code.closest('form');
+    const form = first.form || first.closest('form');
     submit = (form && buttons.find(e => (e.form || e.closest('form')) === form && (e.type === 'submit' || /^(submit|verify|confirm|continue|proceed|pay|ok|done|authenticate|authori[sz]e)/.test(named(e))))) ||
       buttons.find(e => /^(submit|verify|confirm|continue|proceed|pay|ok|done|authenticate|authori[sz]e)/.test(named(e)) && named(e).length <= 40);
     if (submit) mark(submit, 'submit');
   }
   const app = /(approve|confirm|authori[sz]e) (it |this |the )?(payment|transaction|purchase|request)? ?(in|on|using|with|from) (your|the) .{0,40}app|open (your|the) .{0,40}app|notification (has been )?sent to your (phone|device|mobile)|waiting for (your )?approval|check your (phone|mobile app)/.test(text);
-  return { code: Boolean(code), submit: Boolean(submit), app };
+  return { code: Boolean(first), split: split.length, submit: Boolean(submit), app, sent: Boolean(first && first.hasAttribute('data-live-otp-sent')) };
 }`;
 
 const CONFIRMED = /\b(order (has been )?(placed|confirmed|received)|thank you for (your )?(order|purchase|booking)|booking (is )?confirmed|payment (was )?(successful|received|complete)|your order number|order confirmation)\b/i;
 const VERIFY = /\b(3-?d ?secure|verified by visa|mastercard (securecode|identity check)|safekey|enter (the )?(otp|one.time password)|otp (has been )?sent|authenticate (this|the|your) (payment|transaction)|bank verification)\b/i;
 const REFERENCE = /\b(?:order|booking|confirmation|reference)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,39})\b/i;
+const FAILED = /\b(payment (has |was )?(failed|declined|unsuccessful|not successful|could not be (processed|completed))|transaction (has |was )?(failed|declined|unsuccessful|not successful)|(card|payment) (was )?declined|your payment did not go through)\b/i;
+// A page between the click and the outcome: the payment is under way.
+const PROCESSING = /\b(processing your (request|payment|order)|please wait|do not (refresh|close|press back|go back)|redirecting( you)? to (your |the )?bank|complete your payment in|connecting to (your |the )?bank)\b/i;
 
 // What the page says after the pay click. The summary is page text:
 // untrusted data for the model, bounded.
@@ -240,8 +271,8 @@ export function paymentOutcome(text) {
   const lines = body.split(/\n+/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const reference = lines.map(line => CONFIRMED.test(line) || /order|booking|confirmation/i.test(line) ? REFERENCE.exec(line)?.[1] : undefined)
     .find(value => value && /[0-9]/.test(value));
-  return { confirmed: CONFIRMED.test(body), verification: VERIFY.test(body), ...(reference ? { orderReference: reference } : {}),
-    summary: lines.join('\n').slice(0, 2000) };
+  return { confirmed: CONFIRMED.test(body), failed: FAILED.test(body), processing: PROCESSING.test(body), verification: VERIFY.test(body),
+    ...(reference ? { orderReference: reference } : {}), summary: lines.join('\n').slice(0, 2000) };
 }
 
 // Known card processors' frame hosts (exact host or a subdomain).
@@ -412,19 +443,39 @@ export class SignIn {
         if (frame.isDetached?.() || frame.url() !== url) throw notActionable(...ORIGIN_CHANGED);
       };
     }
+    const baseline = await this.#baseline();
     await guarded(async () => {
       (check ?? (() => this.#check(origin)))();
       await locator.click({ timeout: 10000 });
     });
-    await this.#afterPayment();
+    return baseline;
   }
 
-  async #afterPayment() {
-    await this.#settle();
-    // Payment confirmation usually redirects once or twice.
-    await this.#page.waitForLoadState?.('load', { timeout: 15000 }).catch(() => {});
-    await this.#page.waitForTimeout?.(1500).catch(() => {});
-    await this.#settle();
+  // The page before a click, so the outcome is read from what changed: a
+  // checkout's own "order confirmation" or "payment failed" wording is not
+  // an outcome.
+  async #baseline() {
+    const outcome = paymentOutcome(await this.#page.evaluate(BODY_TEXT).catch(() => ''));
+    return { url: this.#page.url(), confirmed: outcome.confirmed, failed: outcome.failed };
+  }
+
+  // Watches the page after the pay click (or a submitted code) until the
+  // outcome is clear, for at most watchMs: the click often leads through a
+  // "Processing your request" page and redirects before the bank's code
+  // page, whose field is usually in the bank's (any-origin) frame and appears
+  // seconds later. Returns as soon as the page is confirmed, failed, asks for
+  // a code (a new field: not the one the code was just typed into) or for
+  // approval in the bank's app; otherwise the last state seen.
+  async awaitPaymentOutcome(baseline, { watchMs = 45000, pollMs = 1000, now = Date.now } = {}) {
+    const deadline = now() + watchMs;
+    for (;;) {
+      await this.#settle();
+      const outcome = await this.paymentState(baseline);
+      const done = ['confirmed', 'payment_failed', 'approve_in_app'].includes(outcome.state) || (outcome.state === 'otp_required' && !outcome.sent);
+      const left = deadline - now();
+      if (done || left <= 0) return outcome;
+      await new Promise(resolve => setTimeout(resolve, Math.min(pollMs, left)));
+    }
   }
 
   // The top document, same-site frames and known processor frames.
@@ -447,23 +498,29 @@ export class SignIn {
   // Where a payment stands after the pay click or a code: confirmed, a
   // one-time code asked for in any frame (3-D Secure challenges are bank
   // frames of any origin), approval in the bank's app, or unknown.
-  async paymentState() {
+  // baseline (from before the click) keeps the checkout's own wording from
+  // counting as an outcome. moved: the page is no longer the one clicked on.
+  async paymentState(baseline) {
     const outcome = paymentOutcome(await this.#page.evaluate(BODY_TEXT).catch(() => ''));
-    if (outcome.confirmed) return { ...outcome, state: 'confirmed' };
+    const moved = !baseline || this.#page.url() !== baseline.url;
+    const result = { ...outcome, moved };
+    if (outcome.confirmed && (moved || !baseline.confirmed)) return { ...result, state: 'confirmed' };
     let app = false;
     for (const frame of this.#page.frames()) {
       if (frame.isDetached?.()) continue;
       const scan = await frame.evaluate(`(${SCAN_OTP_JS})()`).catch(() => undefined);
-      if (scan?.code) return { ...outcome, state: 'otp_required' };
+      if (scan?.code) return { ...result, state: 'otp_required', sent: scan.sent === true };
       if (scan?.app) app = true;
     }
-    if (app) return { ...outcome, state: 'approve_in_app' };
-    return { ...outcome, state: outcome.verification ? 'payment_verification' : 'clicked' };
+    if (app) return { ...result, state: 'approve_in_app' };
+    if (outcome.failed && (moved || !baseline.failed)) return { ...result, state: 'payment_failed' };
+    return { ...result, state: outcome.verification ? 'payment_verification' : 'clicked' };
   }
 
   // Types the user's bank code into the payment's code field (any frame of
   // the current page, while its top-level origin is one the payment went
   // through) and submits it.
+  // Returns the baseline to watch the outcome from.
   async submitPaymentCode(code, origins) {
     const top = this.origin();
     if (!top || !origins.includes(top)) throw notActionable(...ORIGIN_CHANGED);
@@ -479,13 +536,22 @@ export class SignIn {
       this.#check(top);
       if (frame.isDetached?.() || frame.url() !== url) throw notActionable(...ORIGIN_CHANGED);
     };
-    await this.#type(frame.locator('[data-live-otp="code"]').first(), code, check);
+    const characters = [...code];
+    if (scan.split && characters.length !== scan.split) throw notActionable('The code does not fit the code boxes on this page', 'Check the code with the user.');
+    const boxes = scan.split ? characters.map((_, index) => `code-${index + 1}`) : ['code'];
+    for (const [index, box] of boxes.entries()) {
+      await this.#type(frame.locator(`[data-live-otp="${box}"]`).first(), scan.split ? characters[index] : code, check);
+    }
+    const last = frame.locator(`[data-live-otp="${boxes.at(-1)}"]`).first();
+    // A field still showing after this is the one the code went into.
+    await guarded(() => frame.locator(`[data-live-otp="${boxes[0]}"]`).first().evaluate(e => e.setAttribute('data-live-otp-sent', '1'), undefined, { timeout: 5000 }));
+    const baseline = await this.#baseline();
     await guarded(async () => {
       check();
       if (scan.submit) await frame.locator('[data-live-otp="submit"]').first().click({ timeout: 10000 });
-      else await frame.locator('[data-live-otp="code"]').first().press('Enter', { timeout: 5000 });
+      else await last.press('Enter', { timeout: 5000 });
     });
-    await this.#afterPayment();
+    return baseline;
   }
 
   // Card values into recognized card fields of the top document, same-site
