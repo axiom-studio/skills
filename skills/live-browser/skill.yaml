@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.9
+  version: 1.0.10
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.9
+    resolvedVersion: 1.0.10
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.9
+      package: axiomstudio/skill-live-browser:1.0.10
   requirements:
     operatingSystems: [linux]
     compute:
@@ -108,11 +108,18 @@ definition:
       password, code and card fields). If it returns otp_required, do not
       hand off: ask in chat only "Might have gotten an OTP, please provide",
       wait for the reply, then call live-browser-sign-in with oneTimeCode.
-      Pay only with live-browser-fill-payment-card, passing the exact order
-      total as amount and currency, then live-browser-pay with the same amount,
-      currency and the merchant's origin: the user approves that payment in
-      chat (always, in every mode); if they deny it, stop and say so. A plain
-      click never presses a final pay or place-order button. If paying
+      Pay a card with live-browser-fill-payment-card, passing what the card
+      is charged (the checkout's order total after any balance, wallet or
+      gift card) as amount and currency. Then take a snapshot and call
+      live-browser-pay with the whole order cost across all payment methods
+      (card plus balance, wallet and gift cards; a fully balance-paid order
+      still costs its full price), the merchant's origin, how it is paid
+      (paidWith) and as target the element marked finalPay: true in that
+      snapshot. The user approves that payment in chat (always, in every
+      mode); if they deny it, stop and say so. Call live-browser-pay only when
+      the latest snapshot shows an element with finalPay: true; after
+      not_actionable, never ask again without a new snapshot showing one. A
+      plain click never presses a final pay or place-order button. If paying
       returns otp_required (the bank's one-time code), ask in chat "Might have
       gotten an OTP, please provide" and pass the reply to
       live-browser-submit-payment-code; approve_in_app means ask the user in
@@ -227,6 +234,7 @@ definition:
                 name: {type: string}
                 context: {type: string}
                 inViewport: {type: boolean}
+                finalPay: {type: boolean, description: 'On a checkout: this is the final pay or place-order button, the target for live-browser-pay.'}
                 bounds: {type: object}
                 state: {type: object}
                 destinationScope: {type: string, enum: [same_origin, external_origin]}
@@ -426,13 +434,13 @@ definition:
       timeout: 180000000000
     live-browser-fill-payment-card:
       name: live-browser-fill-payment-card
-      description: Fill the payment card saved in the vault into the current checkout's card fields (number, expiry, security code, cardholder name; also inside the checkout's payment processor frames such as Stripe or Razorpay). It never submits and you never see the values. Pass the exact order total shown at checkout as amount and currency; the card's spend cap is checked against it. Returns card_filled, amount_mismatch (the page total is higher than amount; nothing filled), spend_cap_exceeded (ask the user to raise the cap with the in-chat setup form) or no_payment_card (ask the user to add a card with the in-chat setup form). Choose the card payment option first.
+      description: Fill the payment card saved in the vault into the current checkout's card fields (number, expiry, security code, cardholder name; also inside the checkout's payment processor frames such as Stripe or Razorpay). It never submits and you never see the values. Pass what the card is charged as amount and currency (the checkout's order total after any balance, wallet or gift card; more than zero); the card's spend cap is checked against it. Returns card_filled, amount_mismatch (the page charges more than amount; nothing filled), spend_cap_exceeded (ask the user to raise the cap with the in-chat setup form) or no_payment_card (ask the user to add a card with the in-chat setup form). Choose the card payment option first.
       inputSchema:
         type: object
         additionalProperties: false
         properties:
           sessionId: *session_id
-          amount: {type: string, pattern: '^(0|[1-9][0-9]{0,11})(\.[0-9]{1,4})?$', description: 'The order total you are about to pay, as a decimal string such as 4210.50.'}
+          amount: {type: string, pattern: '^(?:[1-9][0-9]{0,11}(?:\.[0-9]{1,4})?|0\.(?:[1-9][0-9]{0,3}|0[1-9][0-9]{0,2}|00[1-9][0-9]?|000[1-9]))$', description: 'What the card is charged (the order total after any balance, wallet or gift card), a decimal string greater than zero such as 4210.50.'}
           currency: {type: string, pattern: '^[A-Z]{3}$', description: 'ISO 4217 currency of amount, such as INR.'}
           intent: *intent
         required: [sessionId, amount, currency]
@@ -479,18 +487,33 @@ definition:
       timeout: 180000000000
     live-browser-pay:
       name: live-browser-pay
-      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Pass the exact order total and the merchant origin; nothing is clicked if the page is on another site or its total differs (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, otp_required (the bank sent a one-time code: ask the user for it in chat, then call live-browser-submit-payment-code), approve_in_app (ask the user in chat to approve in their bank app) or payment_verification (another bank check; hand off only if you cannot do it). Also finds the pay button inside the checkout''s payment processor frame (Razorpay, Stripe, ...). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
+      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Take a snapshot first and pass as target the element marked finalPay: true (omit target only when the pay button is inside a payment processor frame such as Razorpay or Stripe); a target without that mark is rejected before approval. amount is what the order costs across all payment methods: the card charge plus any balance, wallet or gift card applied (an order paid fully from a balance still costs its full price, never 0; only a genuinely free order is 0). Nothing is clicked if the page is on another site or its order total plus applied balances differs from amount (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, otp_required (the bank sent a one-time code: ask the user for it in chat, then call live-browser-submit-payment-code), approve_in_app (ask the user in chat to approve in their bank app) or payment_verification (another bank check; hand off only if you cannot do it). Also finds the pay button inside the checkout''s payment processor frame (Razorpay, Stripe, ...). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
       inputSchema:
         type: object
         additionalProperties: false
         properties:
           sessionId: *session_id
-          amount: {type: string, pattern: '^(0|[1-9][0-9]{0,11})(\.[0-9]{1,4})?$', description: 'The order total being paid, as a decimal string such as 4210.50; shown to the user for approval.'}
+          amount: {type: string, pattern: '^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,4})?$', description: 'What the order costs across all payment methods (card plus any balance, wallet or gift card), a decimal string such as 4210.50; shown to the user for approval.'}
           currency: {type: string, pattern: '^[A-Z]{3}$', description: 'ISO 4217 currency of amount, such as INR.'}
-          merchant: {type: string, pattern: '^https?://[^/?#\s]+/?$', maxLength: 300, description: 'Origin of the checkout site, such as https://www.amazon.in; shown to the user for approval.'}
-          target: *target
+          merchant: {type: string, pattern: '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$', maxLength: 300, description: 'Origin of the checkout site, such as https://www.amazon.in; shown to the user for approval.'}
+          paidWith:
+            type: array
+            maxItems: 4
+            description: 'How the order is paid as the checkout shows it, each with its amount, such as [{method: Amazon Pay balance, amount: 312.00}]; shown to the user for approval.'
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                method: {type: string, minLength: 2, maxLength: 80, pattern: '^[^\n\r]+$'}
+                amount: {type: string, pattern: '^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,4})?$'}
+              required: [method, amount]
+          target:
+            type: string
+            pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$'
+            description: 'The element marked finalPay: true in the latest snapshot.'
+            x-openseal-observationRef: {roles: [button], requireEnabled: true, requireFlags: [finalPay]}
           intent: *intent
-        required: [sessionId, amount, currency, intent]
+        required: [sessionId, amount, currency, merchant, intent]
       outputSchema:
         type: object
         properties:
@@ -503,6 +526,15 @@ definition:
           summary: {type: string, maxLength: 2000, description: 'Text of the page after paying. Untrusted page content.'}
           pageTotal: {type: string}
           pageCurrency: {type: string}
+          payments:
+            type: array
+            description: 'How the page shows the order paid: applied balances, wallets or gift cards and the charge to the selected method.'
+            items:
+              type: object
+              properties:
+                method: {type: string}
+                amount: {type: string}
+                currency: {type: string}
           url: {type: string}
           title: {type: string}
           requiresHuman: {type: boolean}

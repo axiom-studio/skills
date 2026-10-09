@@ -5,7 +5,7 @@ import {
 } from '@axiom/live-browser';
 import { loginSite, matchingLogins, paymentCard, topOrigin, websiteLogins } from './credentials.mjs';
 import { LivePage, notActionable } from './page.mjs';
-import { checkoutPage, PAY_BUTTON, pageTotal, SignIn } from './sign-in.mjs';
+import { checkoutPage, finalPayElement, orderSummary, PAY_BUTTON, SignIn } from './sign-in.mjs';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
 const HUMAN_ONLY = { kind: 'manual_confirmation' };
@@ -289,6 +289,11 @@ export class LiveBrowserService {
       case 'live-browser-snapshot':
         return this.#act(session, input.intent, async live => {
           const snapshot = await live.snapshot({ includeScreenshot: input.includeScreenshot === true });
+          // Mark the checkout's final pay button: live-browser-pay targets it,
+          // and the host checks that mark before asking the user to approve.
+          if (session.cardOrigin || checkoutPage(snapshot.url, snapshot.text)) {
+            snapshot.elements = snapshot.elements.map(element => finalPayElement(element) ? { ...element, finalPay: true } : element);
+          }
           const handoffReason = snapshot.challenges.some(kind => kind !== 'mfa') ? 'captcha' : undefined;
           // Never show the model a screenshot of card details it filled.
           const withheld = snapshot.modelMedia && this.#redacted(session);
@@ -446,7 +451,6 @@ export class LiveBrowserService {
   // Fills the saved payment card into the checkout's card fields (also in
   // the page's payment processor frames). It never submits.
   async #fillCard(session, input, bindings) {
-    if (!(Number(input.amount) > 0)) throw new Error('amount must be greater than zero');
     const card = paymentCard(bindings);
     return this.#act(session, input.intent ?? 'Fill the payment card', async live => {
       const base = { amount: input.amount, currency: input.currency, requiresHuman: false };
@@ -462,11 +466,12 @@ export class LiveBrowserService {
           credentialRequest: credentialRequest('payment_card', `Raise your card's spend cap to pay ${input.amount} ${input.currency}` +
             (card.remaining ? ` (${card.remaining}${card.currency ? ` ${card.currency}` : ''} left)` : ''), merchant) };
       }
-      const text = await live.page.evaluate(BODY_TEXT).catch(() => '');
-      const total = pageTotal(text);
-      if (total && (!total.currency || total.currency === input.currency) && total.amount > Number(input.amount) + 0.005) {
-        return { ...base, status: 'amount_mismatch', pageTotal: String(total.amount), ...(total.currency ? { pageCurrency: total.currency } : {}),
-          message: 'The order total on the page is higher than the amount you declared. Nothing was filled. Read the final total and call again with that exact amount and currency.' };
+      // The card is charged what the order still costs after any balance,
+      // wallet or gift card: the page's order total.
+      const summary = orderSummary(await live.page.evaluate(BODY_TEXT).catch(() => ''));
+      if (summary && (!summary.currency || summary.currency === input.currency) && summary.due > Number(input.amount) + 0.005) {
+        return { ...base, status: 'amount_mismatch', pageTotal: String(summary.due), ...(summary.currency ? { pageCurrency: summary.currency } : {}),
+          message: 'The amount the page charges to the card is higher than the amount you declared. Nothing was filled. Read the final total and call again with that exact amount and currency.' };
       }
       const { filled } = await new SignIn(live).fillCard(card);
       if (!filled.includes('number')) {
@@ -495,7 +500,6 @@ export class LiveBrowserService {
   // approve every call in chat (review: always), whatever the approval mode;
   // this runs only after that approval.
   async #pay(session, input) {
-    if (!(Number(input.amount) > 0)) throw new Error('amount must be greater than zero');
     session.replyUntil = undefined;
     return this.#act(session, input.intent, async live => {
       const origin = topOrigin(live.page.url());
@@ -505,13 +509,24 @@ export class LiveBrowserService {
         return { ...base, status: 'merchant_mismatch', message: 'The page is not on the merchant site that was approved (or where the card was filled). Nothing was clicked. Take a snapshot and tell the user.' };
       }
       const sign = new SignIn(live);
-      // The page's total and any processor checkout frame's total must match.
-      const total = (await sign.totals(origin)).find(found => (found.currency && found.currency !== input.currency) ||
-        Math.abs(found.amount - Number(input.amount)) > 0.005);
-      if (total) {
-        return { ...base, status: 'amount_mismatch', pageTotal: String(total.amount), ...(total.currency ? { pageCurrency: total.currency } : {}),
-          message: 'The order total on the page differs from the approved amount. Nothing was clicked. Tell the user the new total and call live-browser-pay again with it only if they want to continue.' };
+      // amount is what the order costs across all payment methods: the page's
+      // order total plus any balance, wallet or gift card applied before it.
+      // A processor's checkout frame charges at most that.
+      const amount = Number(input.amount);
+      const summaries = await sign.summaries(origin);
+      const page = summaries.find(found => found.main);
+      const differs = found => (found.currency && found.currency !== input.currency) ||
+        (found.main ? Math.abs(found.spend - amount) > 0.005 : found.due > amount + 0.005);
+      const wrong = summaries.find(differs);
+      if (wrong || (amount === 0 && page?.spend !== 0)) {
+        const shown = wrong ?? page;
+        return { ...base, status: 'amount_mismatch', ...(shown ? { pageTotal: String(shown.main ? shown.spend : shown.due) } : {}),
+          ...(shown?.currency ? { pageCurrency: shown.currency } : {}),
+          message: amount === 0 && !wrong
+            ? 'The page does not show a zero order total, so a free order could not be confirmed. Nothing was clicked. Take a snapshot and tell the user.'
+            : 'The order total on the page differs from the approved amount. Nothing was clicked. Tell the user the new total and call live-browser-pay again with it only if they want to continue.' };
       }
+      if (page) base.payments = paymentsOf(page, input.currency);
       await sign.pay({ target: input.target, origin });
       session.redactURL = undefined;
       session.cardOrigin = undefined;
@@ -730,4 +745,13 @@ export class LiveBrowserService {
   }
 
   ready() { return true; }
+}
+
+// How the order is paid as the page shows it: stored value (balances, wallets,
+// gift cards) and what the page still charges to the chosen method.
+function paymentsOf(summary, currency) {
+  const money = value => value.toFixed(2);
+  const payments = summary.applied.map(entry => ({ method: entry.method, amount: money(entry.amount), currency: entry.currency ?? currency }));
+  if (summary.due > 0 || !payments.length) payments.push({ method: 'charged to the selected payment method', amount: money(summary.due), currency: summary.currency ?? currency });
+  return payments;
 }
