@@ -674,8 +674,10 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.3.9
+          package: axiomstudio/skill-slack:2.3.10
     name: Slack Skill
+    requirements:
+        tenancy: shared
     source:
         format: axiom.skill/v1
         homepage: ""
@@ -684,7 +686,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.3.9
+        resolvedVersion: 2.3.10
     tags:
         - chat
         - messaging
@@ -693,7 +695,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.3.9
+    version: 2.3.10
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.

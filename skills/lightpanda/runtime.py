@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
 
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
