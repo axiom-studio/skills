@@ -616,7 +616,7 @@ func TestSlackReviewButtonOpensCanonicalWebRequest(t *testing.T) {
 	config := deliveryConfig("deliver")
 	envelope := config[adapterEnvelopeKey].(map[string]interface{})
 	delivery := envelope["delivery"].(*conversationDelivery)
-	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"label": "Complete setup", "reason": "Connect **GitHub**.", "url": "https://seal.example/chat/agent?setup=request&conversation=chat"}}
+	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"label": "Complete setup", "presentation": map[string]interface{}{"title": "Connect **GitHub**."}, "url": "https://seal.example/chat/agent?setup=request&conversation=chat"}}
 	result, err := adapter.delivery(t.Context(), config)
 	if err != nil || result["outcome"] != "delivered" {
 		t.Fatalf("button delivery %#v %v", result, err)
@@ -647,9 +647,12 @@ func TestSlackOriginApprovalButtonsAndResolvedCard(t *testing.T) {
 	config := deliveryConfig("deliver")
 	delivery := config[adapterEnvelopeKey].(map[string]interface{})["delivery"].(*conversationDelivery)
 	approval := map[string]interface{}{"id": "approval", "revision": int64(1), "actionCallId": "call", "invocationDigest": strings.Repeat("a", 64), "expiresAt": time.Now().Add(time.Hour), "status": "pending"}
-	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"kind": "approval", "label": "Review approval", "reason": "Post this comment?", "url": "https://seal.example/chat/agent?approval=approval", "approval": approval}}
+	delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"kind": "approval", "label": "Review approval", "presentation": map[string]interface{}{"title": "Payment — needs your approval", "lines": []interface{}{"Approve paying 312.00 INR to https://www.amazon.in", "Merchant: amazon.in · Amount: ₹312.00 · Card: Card ending 1001", "Always asks, even with approvals skipped"}}, "url": "https://seal.example/chat/agent?approval=approval", "approval": approval}}
 	if out, err := adapter.delivery(t.Context(), config); err != nil || out["outcome"] != "delivered" {
 		t.Fatalf("delivery %v %v", out, err)
+	}
+	if text := bodies[0]["blocks"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["text"]; text != "*Payment — needs your approval*\nApprove paying 312.00 INR to <https://www.amazon.in|https://www.amazon.in>\nMerchant: amazon.in · Amount: ₹312.00 · Card: Card ending 1001\nAlways asks, even with approvals skipped" {
+		t.Fatalf("approval card text %q", text)
 	}
 	buttons := bodies[0]["blocks"].([]interface{})[1].(map[string]interface{})["elements"].([]interface{})
 	if len(buttons) != 3 {
@@ -668,6 +671,7 @@ func TestSlackOriginApprovalButtonsAndResolvedCard(t *testing.T) {
 	approval["revision"] = int64(2)
 	delivery.Operation = "message.update"
 	delivery.Parameters["providerMessageId"] = "1720000000.1"
+	delivery.Parameters["reviewRequest"].(map[string]interface{})["presentation"] = map[string]interface{}{"title": "Payment approved · ₹312.00 to amazon.in · card ending 1001", "lines": []interface{}{}}
 	if out, err := adapter.delivery(t.Context(), config); err != nil || out["outcome"] != "delivered" {
 		t.Fatalf("update %v %v", out, err)
 	}
@@ -675,8 +679,8 @@ func TestSlackOriginApprovalButtonsAndResolvedCard(t *testing.T) {
 	if len(buttons) != 1 || buttons[0].(map[string]interface{})["url"] == nil {
 		t.Fatalf("resolved card still accepts decisions %#v", buttons)
 	}
-	if !strings.Contains(bodies[1]["blocks"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["text"].(string), "Approved") {
-		t.Fatal("missing resolved state")
+	if text := bodies[1]["blocks"].([]interface{})[0].(map[string]interface{})["text"].(map[string]interface{})["text"]; text != "*Payment approved · ₹312.00 to amazon.in · card ending 1001*" {
+		t.Fatalf("resolved card text %q", text)
 	}
 }
 
