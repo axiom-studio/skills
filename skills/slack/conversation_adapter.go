@@ -850,10 +850,13 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	}
 	if review, ok := envelope.Delivery.Parameters["reviewRequest"].(map[string]interface{}); ok {
 		label, _ := review["label"].(string)
-		reason, _ := review["reason"].(string)
 		link, _ := review["url"].(string)
 		if (label != "Review approval" && label != "Complete setup") || !safeSlackLink(link) || !strings.HasPrefix(link, "http") {
 			return failedDelivery("invalid_review_link", "The review link is invalid."), nil
+		}
+		description, ok := reviewPresentationMarkdown(review["presentation"])
+		if !ok {
+			return failedDelivery("invalid_review", "The review description is missing."), nil
 		}
 		buttons := []map[string]interface{}{}
 		if raw, ok := review["approval"].(map[string]interface{}); ok {
@@ -874,18 +877,14 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 				buttons = append(buttons,
 					map[string]interface{}{"type": "button", "action_id": "openseal_approval_approve", "text": map[string]interface{}{"type": "plain_text", "text": "Approve"}, "style": "primary", "value": string(value)},
 					map[string]interface{}{"type": "button", "action_id": "openseal_approval_reject", "text": map[string]interface{}{"type": "plain_text", "text": "Decline"}, "value": string(value)})
-			} else {
-				state := map[string]string{"approved": "Approved", "rejected": "Declined", "expired": "Expired", "canceled": "Canceled"}[approval.Status]
-				if state == "" {
-					return failedDelivery("invalid_approval", "The approval status is invalid."), nil
-				}
-				reason += "\n\n" + state
+			} else if approval.Status != "approved" && approval.Status != "rejected" && approval.Status != "expired" && approval.Status != "canceled" {
+				return failedDelivery("invalid_approval", "The approval status is invalid."), nil
 			}
 			label = "Learn more"
 		}
 		buttons = append(buttons, map[string]interface{}{"type": "button", "action_id": "openseal_review_web_open", "text": map[string]interface{}{"type": "plain_text", "text": label}, "url": link})
 		body["blocks"] = []map[string]interface{}{
-			{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": markdownToSlack(reason)}},
+			{"type": "section", "text": map[string]interface{}{"type": "mrkdwn", "text": description}},
 			{"type": "actions", "elements": buttons},
 		}
 	}
@@ -989,6 +988,28 @@ func (a *slackAdapter) setThreadStatus(ctx context.Context, token string, envelo
 	}, nil
 }
 
+// reviewPresentationMarkdown renders the kernel's review description
+// verbatim: the title (bold unless it carries its own emphasis), then each
+// line.
+func reviewPresentationMarkdown(value interface{}) (string, bool) {
+	presentation, _ := value.(map[string]interface{})
+	title, _ := presentation["title"].(string)
+	if strings.TrimSpace(title) == "" {
+		return "", false
+	}
+	text := markdownToSlack(strings.TrimSpace(title))
+	if !strings.Contains(text, "*") {
+		text = "*" + text + "*"
+	}
+	lines, _ := presentation["lines"].([]interface{})
+	for _, raw := range lines {
+		if line, ok := raw.(string); ok && strings.TrimSpace(line) != "" {
+			text += "\n" + markdownToSlack(strings.TrimSpace(line))
+		}
+	}
+	return text, true
+}
+
 func slackApprovalBlocks(approval map[string]interface{}, destinationID string) ([]map[string]interface{}, error) {
 	encoded, err := json.Marshal(approval)
 	if err != nil {
@@ -1003,6 +1024,7 @@ func slackApprovalBlocks(approval map[string]interface{}, destinationID string) 
 		Summary          string                 `json:"summary"`
 		PolicyReason     string                 `json:"policyReason"`
 		ProposedAction   map[string]interface{} `json:"proposedAction"`
+		Presentation     map[string]interface{} `json:"presentation"`
 		ExpiresAt        time.Time              `json:"expiresAt"`
 		Status           string                 `json:"status"`
 		ActionStatus     string                 `json:"actionStatus"`
@@ -1029,7 +1051,11 @@ func slackApprovalBlocks(approval map[string]interface{}, destinationID string) 
 	}
 	header, progress := slackApprovalState(reviewed.Status, reviewed.ActionStatus, reviewed.DecisionReason)
 	contextText := slackApprovalContext(reviewed.ID, reviewed.Risk, reviewed.ExpiresAt, reviewed.DecidedAt, reviewed.ProviderApprover, reviewed.DecisionBy)
-	detail := "*" + reviewed.Summary + "*"
+	title := reviewed.Summary
+	if presentation, ok := reviewed.Presentation["title"].(string); ok && strings.TrimSpace(presentation) != "" {
+		title = presentation
+	}
+	detail := "*" + title + "*"
 	if strings.TrimSpace(reviewed.PolicyReason) != "" {
 		detail += "\n" + reviewed.PolicyReason
 	}

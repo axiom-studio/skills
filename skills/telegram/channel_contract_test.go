@@ -299,12 +299,16 @@ func TestTelegramReviewLinkUsesOnlyWebButton(t *testing.T) {
 		if string(raw) != `{"inline_keyboard":[[{"text":"Review approval","url":"https://app.example.com/approval/123"}]]}` || strings.Contains(string(raw), "callback_data") {
 			t.Error(string(raw))
 		}
+		if body["text"] != "Payment — needs your approval\nApprove paying 312.00 INR to https://www.amazon.in" {
+			t.Errorf("review text %q", body["text"])
+		}
 		_, _ = io.WriteString(w, `{"ok":true,"result":{"message_id":11,"chat":{"id":99}}}`)
 	}))
 	defer server.Close()
 	config := telegramDeliveryConfig("message.send", "")
 	request := config[telegramAdapterEnvelope].(*telegramAdapterRequest)
-	request.Delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"label": "Review approval", "url": "https://app.example.com/approval/123"}}
+	request.Delivery.Parameters = map[string]interface{}{"reviewRequest": map[string]interface{}{"label": "Review approval", "url": "https://app.example.com/approval/123",
+		"presentation": map[string]interface{}{"title": "Payment — needs your approval", "lines": []interface{}{"Approve paying 312.00 INR to https://www.amazon.in"}}}}
 	output, err := newTelegramConversationAdapter(server.URL+"/bot", server.Client()).delivery(t.Context(), config)
 	if err != nil || output["outcome"] != "delivered" || requests != 1 {
 		t.Fatal(output, err)
