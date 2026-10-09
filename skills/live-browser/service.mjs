@@ -14,6 +14,12 @@ const REQUEST_CREDENTIAL = 'openseal.skills.request_credential';
 const ASK_CREDENTIAL = `Do not hand off and do not use request_setup (the live browser is built in and needs no setup). Call ${REQUEST_CREDENTIAL} ` +
   'with exactly the arguments in credentialRequest: the user saves it in their vault through an in-chat card and this work resumes when they do.';
 
+// live-browser-fill-payment-card on a page that asks for no card details:
+// the site's saved card or other payment method is used instead.
+const NO_CARD_FIELDS = ['This page has no card fields',
+  'If the site shows a saved card or payment method, select it (live-browser-click) and place the order with live-browser-pay. ' +
+  'Only use live-browser-fill-payment-card when the page asks for card details.'];
+
 // The exact request_credential arguments for a missing login, card or cap,
 // so the model never has to construct them.
 function credentialRequest(kind, reason, website) {
@@ -309,7 +315,11 @@ export class LiveBrowserService {
           // Never show the model a screenshot of card details it filled.
           const withheld = snapshot.modelMedia && this.#redacted(session);
           if (withheld) delete snapshot.modelMedia;
-          return { ...snapshot, ...payment, requiresHuman: false, ...(withheld ? { screenshotWithheld: true } : {}), ...(handoffReason ? { handoffReason } : {}) };
+          // Whether the page asks for new card details. The host releases the
+          // saved card to live-browser-fill-payment-card only right after a
+          // snapshot that says so.
+          const cardFields = (await new SignIn(live).cardForm().catch(() => undefined))?.entry === true;
+          return { ...snapshot, ...payment, cardFields, requiresHuman: false, ...(withheld ? { screenshotWithheld: true } : {}), ...(handoffReason ? { handoffReason } : {}) };
         });
       case 'live-browser-click':
         return this.#act(session, input.intent, async live => {
@@ -460,11 +470,23 @@ export class LiveBrowserService {
   }
 
   // Fills the saved payment card into the checkout's card fields (also in
-  // the page's payment processor frames). It never submits.
+  // the page's payment processor frames). It never submits. A page without
+  // card-entry fields (saved cards, wallets, UPI to choose from) is answered
+  // first, without looking at any card: the site's own saved method is used
+  // with live-browser-click and live-browser-pay instead.
   async #fillCard(session, input, bindings) {
-    const card = paymentCard(bindings);
     return this.#act(session, input.intent ?? 'Fill the payment card', async live => {
       const base = { amount: input.amount, currency: input.currency, requiresHuman: false };
+      const sign = new SignIn(live);
+      const form = await sign.cardForm();
+      if (!form.entry) throw notActionable(...NO_CARD_FIELDS);
+      const card = paymentCard(bindings);
+      if (card?.refused === 'no_card_fields') {
+        // The host saw no card fields in this browser's latest snapshot, so it
+        // released no card; the form appeared after that snapshot.
+        throw notActionable('The card form appeared after the latest snapshot, so no card was released',
+          'Take a new snapshot of the card form, then call live-browser-fill-payment-card again right after it.');
+      }
       const merchant = topOrigin(live.page.url());
       if (!card) {
         return { ...base, status: 'no_payment_card', message: `No saved payment card. ${ASK_CREDENTIAL} After it is saved, call live-browser-fill-payment-card again. Never ask for card details in chat.`,
@@ -484,10 +506,8 @@ export class LiveBrowserService {
         return { ...base, status: 'amount_mismatch', pageTotal: String(summary.due), ...(summary.currency ? { pageCurrency: summary.currency } : {}),
           message: 'The amount the page charges to the card is higher than the amount you declared. Nothing was filled. Read the final total and call again with that exact amount and currency.' };
       }
-      const { filled } = await new SignIn(live).fillCard(card);
-      if (!filled.includes('number')) {
-        throw notActionable('No card number field on this page', "Choose the checkout's card payment option (for example 'Credit or debit card' or 'Add a new card'), take a new snapshot, then call again.");
-      }
+      const { filled } = await sign.fillCard(card, form);
+      if (!filled.includes('number')) throw notActionable(...NO_CARD_FIELDS);
       session.redactURL = live.page.url();
       session.cardOrigin = topOrigin(live.page.url());
       // Next comes the user's approval of live-browser-pay: keep the browser open.

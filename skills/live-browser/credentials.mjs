@@ -115,6 +115,9 @@ const CURRENCY = /^[A-Z]{3}$/;
 export function paymentCard(bindings = {}) {
   const object = value(bindings[CARD_SLOT]);
   if (!object) return undefined;
+  // The host releases no card unless this browser's latest snapshot showed
+  // card fields.
+  if (object.status === 'no_card_fields') return { refused: 'no_card_fields' };
   if (object.error === 'spend_cap_exceeded') {
     const remaining = field(object, 'remaining', 'spendRemaining');
     const cap = field(object, 'cap', 'spendCap');

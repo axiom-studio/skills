@@ -554,11 +554,13 @@ export class SignIn {
     return baseline;
   }
 
-  // Card values into recognized card fields of the top document, same-site
-  // frames and known processor frames. Returns the kinds filled.
-  async fillCard(card) {
+  // The card-entry fields of the top document, same-site frames and known
+  // processor frames; no card values are involved. entry is true when a card
+  // number field is there: a form that asks for new card details. A page
+  // listing the site's saved cards or other payment methods has none.
+  async cardForm() {
     const top = this.origin();
-    if (!top) throw notActionable('This page is not a website checkout', 'Navigate to the checkout page first.');
+    if (!top) return { top, frames: [], entry: false };
     const main = this.#page.mainFrame();
     const frames = [];
     for (const frame of this.#page.frames()) {
@@ -567,7 +569,14 @@ export class SignIn {
       const found = await frame.evaluate(`(${SCAN_CARD_JS})(${loose})`).catch(() => ({}));
       if (found && Object.keys(found).length) frames.push({ frame, url: frame.url(), found });
     }
-    if (!frames.some(entry => entry.found.number)) return { filled: [] };
+    return { top, frames, entry: frames.some(entry => entry.found.number) };
+  }
+
+  // Card values into the card fields cardForm found. Returns the kinds filled.
+  async fillCard(card, form) {
+    const { top, frames, entry } = form ?? await this.cardForm();
+    if (!top) throw notActionable('This page is not a website checkout', 'Navigate to the checkout page first.');
+    if (!entry) return { filled: [] };
     const filled = new Set();
     for (const { frame, url, found } of frames) {
       const own = Object.keys(found);
