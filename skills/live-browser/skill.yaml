@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.11
+  version: 1.0.12
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.11
+    resolvedVersion: 1.0.12
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.11
+      package: axiomstudio/skill-live-browser:1.0.12
   requirements:
     operatingSystems: [linux]
     compute:
@@ -70,7 +70,8 @@ definition:
       the browser live in Seal Chat with a Take control button. Reuse that
       sessionId for every later action in this conversation. If you no longer
       have it (for example in a later turn), call live-browser-start again: it
-      reattaches to this conversation's open browser and its current page.
+      reattaches to this conversation's open browser and its current page,
+      without opening any url (use live-browser-navigate for that).
       The browser closes after 30 minutes without actions, but stays open
       while it waits for the user (a handoff or a one-time code you asked for
       in chat), up to 8 hours. After live-browser-snapshot use the returned element
@@ -108,9 +109,15 @@ definition:
       password, code and card fields). If it returns otp_required, do not
       hand off: ask in chat only "Might have gotten an OTP, please provide",
       wait for the reply, then call live-browser-sign-in with oneTimeCode.
-      Pay a card with live-browser-fill-payment-card, passing what the card
-      is charged (the checkout's order total after any balance, wallet or
-      gift card) as amount and currency. Then take a snapshot and call
+      If the checkout already shows a saved card or payment method (saved
+      cards, Amazon Pay balance, UPI, wallets), select it with
+      live-browser-click and place the order with live-browser-pay; no vault
+      card is needed. Use live-browser-fill-payment-card only when the page
+      asks for card details (its snapshot has cardFields: true), right after
+      that snapshot, passing what the card is charged (the checkout's order
+      total after any balance, wallet or gift card) as amount and currency.
+      If it returns not_actionable because the page has no card fields, use
+      the site's saved method instead and never request a card. Then take a snapshot and call
       live-browser-pay with the whole order cost across all payment methods
       (card plus balance, wallet and gift cards; a fully balance-paid order
       still costs its full price), the merchant's origin, how it is paid
@@ -124,7 +131,8 @@ definition:
       gotten an OTP, please provide" and pass the reply to
       live-browser-submit-payment-code; approve_in_app means ask the user in
       chat to approve in their bank app, then snapshot. Never click pay twice.
-      no_matching_login, no_payment_card and spend_cap_exceeded mean: call
+      no_matching_login, no_payment_card (returned only on a page with card
+      fields) and spend_cap_exceeded mean: call
       openseal.skills.request_credential with exactly the arguments in the
       result's credentialRequest, so the user adds the login or card, or
       raises the cap, in their vault through an in-chat card; this work
@@ -157,7 +165,7 @@ definition:
   actions:
     live-browser-start:
       name: live-browser-start
-      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Only one live browser runs at a time for the team; if another task's browser is open, this waits up to two minutes for it to close and otherwise fails, so try again later. Returns the sessionId used by every other live-browser action. If this conversation's browser is already open (also from an earlier turn), it reattaches to it and its current page.
+      description: Open the agent's live browser for this conversation (optionally at a URL) and register it so the user can watch it live and take control. It starts with the team's saved sign-ins. Only one live browser runs at a time for the team; if another task's browser is open, this waits up to two minutes for it to close and otherwise fails, so try again later. Returns the sessionId used by every other live-browser action. If this conversation's browser is already open (also from an earlier turn), it reattaches to it and returns its current page unchanged (reattached: true): it never opens url then, so a bank one-time code page or a checkout stays as it was; use live-browser-navigate to go elsewhere.
       inputSchema:
         type: object
         additionalProperties: false
@@ -177,6 +185,7 @@ definition:
           requiresHuman: {type: boolean}
           intervention: {type: object}
           message: {type: string}
+          reattached: {type: boolean, description: 'live-browser-start found this conversation''s browser already open and returned its current page without navigating.'}
       permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:audio']
       idempotency: supported
       retry: {maxAttempts: 1}
@@ -245,6 +254,7 @@ definition:
             maxItems: 4
             uniqueItems: true
             items: {type: string, enum: [captcha, mfa, anti_bot, manual_confirmation]}
+          cardFields: {type: boolean, description: 'The page (or its payment processor frame) has a card number field: it asks for new card details, so live-browser-fill-payment-card applies. False on pages that list saved cards or other payment methods.'}
           paymentChallenge: {type: string, enum: [otp_required, approve_in_app], description: 'Only while a payment of this session (live-browser-pay, last 15 minutes) waits for the bank: otp_required = a bank one-time code field is on the page or in any of its frames; approve_in_app = the bank asks for approval in its app. Follow message.'}
           message: {type: string, description: 'With paymentChallenge: what to do next, the same instruction live-browser-pay gives.'}
           requiresHuman: {type: boolean}
@@ -436,7 +446,7 @@ definition:
       timeout: 180000000000
     live-browser-fill-payment-card:
       name: live-browser-fill-payment-card
-      description: Fill the payment card saved in the vault into the current checkout's card fields (number, expiry, security code, cardholder name; also inside the checkout's payment processor frames such as Stripe or Razorpay). It never submits and you never see the values. Pass what the card is charged as amount and currency (the checkout's order total after any balance, wallet or gift card; more than zero); the card's spend cap is checked against it. Returns card_filled, amount_mismatch (the page charges more than amount; nothing filled), spend_cap_exceeded (ask the user to raise the cap with the in-chat setup form) or no_payment_card (ask the user to add a card with the in-chat setup form). Choose the card payment option first.
+      description: Fill the payment card saved in the vault into the current checkout's card fields (number, expiry, security code, cardholder name; also inside the checkout's payment processor frames such as Stripe or Razorpay). It never submits and you never see the values. Pass what the card is charged as amount and currency (the checkout's order total after any balance, wallet or gift card; more than zero); the card's spend cap is checked against it. Use it only when the page asks for card details (the latest snapshot, taken right before, has cardFields: true). If the site already shows a saved card or payment method, do not use it: select that method with live-browser-click and place the order with live-browser-pay. Returns not_actionable when the page has no card fields (nothing is looked up or charged), card_filled, amount_mismatch (the page charges more than amount; nothing filled), spend_cap_exceeded (call openseal.skills.request_credential with the result's credentialRequest so the user raises the cap) or no_payment_card (the page has card fields but no card is saved: call openseal.skills.request_credential with the result's credentialRequest).
       inputSchema:
         type: object
         additionalProperties: false

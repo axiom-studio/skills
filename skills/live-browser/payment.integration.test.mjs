@@ -199,3 +199,41 @@ test('bank code fields are recognized; other fields are not', { skip }, async ()
     assert.equal((await scan('<p>Approve this payment in your HDFC Bank mobile app</p>')).app, true);
   } finally { await page.close(); }
 });
+
+// Dev run e655b041: Amazon's payment page lists the saved cards with radios
+// and "Use this payment method"; it has no card-number input, so it is not a
+// card form. A real card form, also inside a processor frame, still is.
+const SAVED_METHODS = `<h2>Payment method</h2><form><p>CREDIT &amp; DEBIT CARDS</p>
+  <label><input type="radio" name="pm" checked> Visa ending in 1001</label> <input type="text" name="nickname" placeholder="Nickname">
+  <label><input type="radio" name="pm"> MasterCard ending in 5130</label>
+  <label><input type="radio" name="pm"> Amazon Pay Balance</label><label><input type="radio" name="pm"> UPI</label>
+  <input type="text" name="upiId" placeholder="Enter UPI ID">
+  <button type="submit">Use this payment method</button></form><p>Order Total: ₹319.00</p>`;
+const CARD_FORM = `<p>Order Total: ₹319.00</p><label>Card number <input autocomplete="cc-number" name="cardnumber"></label>
+  <label>Expiry <input autocomplete="cc-exp" placeholder="MM / YY"></label><label>CVV <input autocomplete="cc-csc" name="cvv"></label>`;
+
+test('a saved payment methods page has no card form; a card form (also in a processor frame) fills', { skip }, async () => {
+  const s = await site({
+    'https://www.amazon.in/checkout/p/p-1/pay': SAVED_METHODS,
+    'https://shop.example/checkout': CARD_FORM,
+    'https://pay.example.com/checkout': '<p>Order Total: ₹319.00</p><iframe src="https://js.stripe.com/v3/elements" width="400" height="200"></iframe>',
+    'https://js.stripe.com/v3/elements': '<input name="number" autocomplete="cc-number" placeholder="1234 1234 1234 1234"><input name="expiry" autocomplete="cc-exp" placeholder="MM / YY"><input name="cvc" autocomplete="cc-csc" placeholder="CVC">',
+  });
+  const card = { number: '4242424242424242', month: '07', year: '2029', cvc: '123' };
+  try {
+    await s.page.goto('https://www.amazon.in/checkout/p/p-1/pay');
+    const saved = await new SignIn(s.live).cardForm();
+    assert.equal(saved.entry, false);
+    assert.deepEqual((await new SignIn(s.live).fillCard(card)).filled, []);
+    await s.page.goto('https://shop.example/checkout');
+    const form = await new SignIn(s.live).cardForm();
+    assert.equal(form.entry, true);
+    assert.deepEqual((await new SignIn(s.live).fillCard(card, form)).filled.sort(), ['cvc', 'exp', 'number']);
+    assert.equal(await s.page.inputValue('[name=cardnumber]'), '4242424242424242');
+    await s.page.goto('https://pay.example.com/checkout');
+    await s.page.frameLocator('iframe').locator('[name=number]').waitFor();
+    const framed = await new SignIn(s.live).cardForm();
+    assert.equal(framed.entry, true);
+    assert.deepEqual((await new SignIn(s.live).fillCard(card, framed)).filled.sort(), ['cvc', 'exp', 'number']);
+  } finally { await s.close(); }
+});

@@ -176,9 +176,18 @@ test('status and the live view work while the browser is still launching', async
 test('a later turn of the same conversation reattaches to the open browser and its page', async () => {
   const h = harness();
   await h.run('live-browser-start', { url: 'https://www.amazon.in/ap/signin' });
-  const second = await h.run('live-browser-start', {}, 'run-2');
+  assert.equal(h.pages[0].current, 'https://www.amazon.in/ap/signin', 'a fresh start opens url');
+  const gotos = [];
+  const goto = h.pages[0].goto;
+  h.pages[0].goto = async url => { gotos.push(url); return goto(url); };
+  const second = await h.run('live-browser-start', { url: 'https://www.amazon.in/' }, 'run-2');
   assert.equal(second.sessionId, 'b-1');
   assert.equal(second.url, 'https://www.amazon.in/ap/signin', 'the same page');
+  assert.equal(second.reattached, true);
+  assert.match(second.message, /Reattached .* the url was not opened\. Use live-browser-navigate/);
+  const same = await h.run('live-browser-start', { url: 'https://www.flipkart.com/' }, 'run-2');
+  assert.equal(same.url, 'https://www.amazon.in/ap/signin', 'the same run does not navigate either');
+  assert.deepEqual(gotos, [], 'reattaching never navigates');
   assert.ok(h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-2'), 'the duplicate registration is revoked');
   assert.ok(!h.calls.some(call => call[0] === 'revoke' && call[1] === 'b-1'));
   assert.equal(h.calls.filter(call => call[0] === 'launch').length, 1);
@@ -546,6 +555,7 @@ test('the saved card: in-chat credential request when missing, spend cap and amo
   await h.run('live-browser-start', { url: 'https://www.amazon.in/checkout' });
   const page = h.pages[0];
   const pay = (extra, amount = '4210.00') => h.run('live-browser-fill-payment-card', { sessionId: 'b-1', amount, currency: 'INR' }, 'run-1', extra);
+  page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] } };
   const missing = await pay({});
   assert.equal(missing.status, 'no_payment_card');
   assert.match(missing.message, /openseal\.skills\.request_credential/);
@@ -563,7 +573,13 @@ test('the saved card: in-chat credential request when missing, spend cap and amo
   page.cardScan = {};
   const noFields = await pay(savedCard, '4910.00');
   assert.equal(noFields.status, 'not_actionable');
-  assert.match(noFields.reason, /No card number field/);
+  assert.match(noFields.reason, /This page has no card fields/);
+  assert.deepEqual(page.typed, [], 'nothing filled');
+  page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] } };
+  const stale = await pay({ 'payment-card': JSON.stringify({ status: 'no_card_fields' }) }, '4910.00');
+  assert.equal(stale.status, 'not_actionable', 'the host released no card: the latest snapshot showed no card fields');
+  assert.match(stale.hint, /new snapshot of the card form/);
+  assert.ok(!('credentialRequest' in stale));
   page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] }, exp: { select: false, placeholder: 'mm / yy', maxLength: 7, options: [] },
     cvc: { select: false, placeholder: 'cvc', maxLength: 4, options: [] } };
   const filled = await pay(savedCard, '4910.00');
@@ -577,6 +593,42 @@ test('the saved card: in-chat credential request when missing, spend cap and amo
   const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1', includeScreenshot: true });
   assert.equal(snapshot.screenshotWithheld, true);
   assert.ok(!('modelMedia' in snapshot));
+  await h.service.closeAll();
+});
+
+// Dev run e655b041: Amazon's payment page lists the saved cards ("Visa ending
+// in 1001", "Use this payment method") and has no card-number input. The
+// site's saved card is used; no vault card is looked up or requested.
+test('a saved-methods page: not_actionable before any card lookup, and the snapshot says it has no card fields', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/checkout/p/p-404-9727577-4407532/pay' });
+  const page = h.pages[0];
+  page.snapshot = { url: page.current, title: 'Place Your Order - Amazon Checkout', text: 'Payment method\nVisa ending in 1001\nOrder Total:\n₹319.00', elements: [
+    { ref: 1, role: 'button', name: 'Use this payment method', context: '', href: '', inViewport: true, bounds: {}, state: { type: 'submit' } },
+    { ref: 2, role: 'radio', name: 'Visa ending in 1001', context: 'form', href: '', inViewport: true, bounds: {}, state: { type: 'radio', checked: true } }] };
+  page.bodyText = 'Payment method\nVisa ending in 1001\nOrder Total:\n₹319.00';
+  page.cardScan = {};
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(snapshot.cardFields, false);
+  let looked = 0;
+  const bindings = new Proxy({}, { get: () => { looked++; return undefined; }, has: () => { looked++; return false; },
+    ownKeys: () => { looked++; return []; }, getOwnPropertyDescriptor: () => { looked++; return undefined; } });
+  const result = await h.service.execute('live-browser-fill-payment-card', { runID: 'run-1', agentID: 'agent-1',
+    input: { sessionId: 'b-1', amount: '319.00', currency: 'INR', intent: 'Fill the selected Visa ending in 1001' }, bindings });
+  assert.equal(result.status, 'not_actionable');
+  assert.equal(result.reason, 'This page has no card fields');
+  assert.match(result.hint, /select it \(live-browser-click\) and place the order with live-browser-pay/);
+  assert.match(result.hint, /Only use live-browser-fill-payment-card when the page asks for card details/);
+  assert.doesNotMatch(JSON.stringify(result), /request_credential|no_payment_card/);
+  assert.ok(!('credentialRequest' in result));
+  assert.equal(looked, 0, 'the bound card was never looked at');
+  assert.deepEqual(page.typed, []);
+  // A card form on the same page is filled.
+  page.cardScan = { number: { select: false, placeholder: '', maxLength: 0, options: [] }, cvc: { select: false, placeholder: 'cvv', maxLength: 4, options: [] } };
+  assert.equal((await h.run('live-browser-snapshot', { sessionId: 'b-1' })).cardFields, true);
+  const filled = await h.run('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '319.00', currency: 'INR' }, 'run-1', savedCard);
+  assert.equal(filled.status, 'card_filled');
+  assert.deepEqual(filled.filled, ['number', 'cvc']);
   await h.service.closeAll();
 });
 
@@ -699,6 +751,12 @@ test('pay stays on the site where the card was filled and reports a bank verific
   assert.equal(result.requiresHuman, false);
   assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating', 'no handoff');
   noSecrets(result);
+  // Dev runs 79f3ca2b -> 475327c4: the user's reply started a new run whose
+  // live-browser-start {url} used to navigate away from the bank code page.
+  const reattached = await h.run('live-browser-start', { url: 'https://shop.example/' }, 'run-2');
+  assert.deepEqual([reattached.sessionId, reattached.url, reattached.reattached], ['b-1', 'https://acs.bank.example/challenge', true]);
+  assert.match(reattached.message, /one-time code page is open, so call live-browser-submit-payment-code/);
+  assert.equal(page.current, 'https://acs.bank.example/challenge', 'the bank page stays open');
   // A wrong code: still asked.
   const wrong = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '000000' }, 'run-2');
   assert.deepEqual([wrong.status, wrong.retry], ['otp_required', true]);
