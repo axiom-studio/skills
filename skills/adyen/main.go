@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
@@ -19,7 +18,8 @@ import (
 )
 
 const (
-	iconAdyen = "credit-card"
+	iconAdyen    = "credit-card"
+	adyenVersion = "1.0.1"
 
 	// Adyen API endpoints
 	adyenAPIVersion   = "v70"
@@ -31,16 +31,20 @@ const (
 
 // AdyenConfig holds Adyen API configuration
 type AdyenConfig struct {
-	APIKey          string `json:"apiKey" description:"Adyen API key"`
+	APIKey          string `json:"-"`
 	MerchantAccount string `json:"merchantAccount" description:"Adyen merchant account"`
 	Environment     string `json:"environment" default:"test" options:"Test:test,Live:live" description:"Adyen environment"`
 }
 
-// HTTP client cache
-var (
-	httpClients = make(map[string]*http.Client)
-	clientMux   sync.RWMutex
-)
+// adyenClient is shared by every request; it holds no credentials.
+var adyenClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
 
 func main() {
 	// Get port from env or use default
@@ -50,7 +54,7 @@ func main() {
 	}
 
 	// Create skill server
-	server := grpc.NewSkillServer("skill-adyen", "1.0.0")
+	server := grpc.NewSkillServer("skill-adyen", adyenVersion)
 
 	// Register Payment executors with schemas
 	server.RegisterExecutorWithSchema("adyen-payment", &PaymentExecutor{}, PaymentSchema)
@@ -81,35 +85,6 @@ func getBaseURL(env string) string {
 	return defaultTestURL
 }
 
-// getHTTPClient returns an HTTP client (cached)
-func getHTTPClient() *http.Client {
-	clientMux.RLock()
-	client, ok := httpClients["default"]
-	clientMux.RUnlock()
-
-	if ok {
-		return client
-	}
-
-	clientMux.Lock()
-	defer clientMux.Unlock()
-
-	if client, ok := httpClients["default"]; ok {
-		return client
-	}
-
-	client = &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-		},
-	}
-	httpClients["default"] = client
-	return client
-}
-
 // adyenRequest performs an Adyen API request
 func adyenRequest(ctx context.Context, cfg AdyenConfig, endpoint string, requestBody interface{}) (map[string]interface{}, error) {
 	baseURL := getBaseURL(cfg.Environment)
@@ -132,10 +107,10 @@ func adyenRequest(ctx context.Context, cfg AdyenConfig, endpoint string, request
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", cfg.APIKey)
-	req.Header.Set("User-Agent", "skill-adyen/1.0.0")
+	req.Header.Set("User-Agent", "skill-adyen/"+adyenVersion)
 
 	// Make request
-	client := getHTTPClient()
+	client := adyenClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
@@ -188,10 +163,10 @@ func adyenGetRequest(ctx context.Context, cfg AdyenConfig, endpoint string, quer
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", cfg.APIKey)
-	req.Header.Set("User-Agent", "skill-adyen/1.0.0")
+	req.Header.Set("User-Agent", "skill-adyen/"+adyenVersion)
 
 	// Make request
-	client := getHTTPClient()
+	client := adyenClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
@@ -290,17 +265,21 @@ func getStringSlice(config map[string]interface{}, key string) []string {
 	return nil
 }
 
-// parseAdyenConfig extracts Adyen configuration from config map
-func parseAdyenConfig(config map[string]interface{}) AdyenConfig {
-	env := getString(config, "environment")
-	if env == "" {
-		env = "test"
+// adyenCredentialName is the action credential the host binds per request.
+const adyenCredentialName = "adyen-credential"
+
+// adyenCredential reads the API key the host bound to this request only; the
+// shared runtime keeps no credential between requests.
+func adyenCredential(resolver executor.TemplateResolver) string {
+	bindings, ok := resolver.(executor.BindingResolver)
+	if !ok {
+		return ""
 	}
-	return AdyenConfig{
-		APIKey:          getString(config, "apiKey"),
-		MerchantAccount: getString(config, "merchantAccount"),
-		Environment:     env,
+	key, _ := bindings.GetBinding(adyenCredentialName).(string)
+	if strings.ContainsAny(key, "\r\n") {
+		return ""
 	}
+	return strings.TrimSpace(key)
 }
 
 // ============================================================================
@@ -314,12 +293,6 @@ var PaymentSchema = resolver.NewSchemaBuilder("adyen-payment").
 	WithIcon(iconAdyen).
 	WithDescription("Process a payment through Adyen").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-		resolver.WithPlaceholder("YOUR_API_KEY"),
-		resolver.WithHint("Adyen API key from Customer Area"),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 		resolver.WithPlaceholder("YourMerchantAccount"),
@@ -416,10 +389,6 @@ var CaptureSchema = resolver.NewSchemaBuilder("adyen-capture").
 	WithIcon(iconAdyen).
 	WithDescription("Capture a previously authorized payment").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -455,10 +424,6 @@ var RefundSchema = resolver.NewSchemaBuilder("adyen-refund").
 	WithIcon(iconAdyen).
 	WithDescription("Refund a previously captured payment").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -504,10 +469,6 @@ var CancelSchema = resolver.NewSchemaBuilder("adyen-cancel").
 	WithIcon(iconAdyen).
 	WithDescription("Cancel a previously authorized payment").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -539,10 +500,6 @@ var PaymentListSchema = resolver.NewSchemaBuilder("adyen-payment-list").
 	WithIcon(iconAdyen).
 	WithDescription("List payments with optional filters").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -588,10 +545,6 @@ var PaymentGetSchema = resolver.NewSchemaBuilder("adyen-payment-get").
 	WithIcon(iconAdyen).
 	WithDescription("Get details of a specific payment").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -619,10 +572,6 @@ var PayoutSchema = resolver.NewSchemaBuilder("adyen-payout").
 	WithIcon(iconAdyen).
 	WithDescription("Process a payout to a shopper").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -688,10 +637,6 @@ var ThreeDSAuthenticateSchema = resolver.NewSchemaBuilder("adyen-3ds-authenticat
 	WithIcon(iconAdyen).
 	WithDescription("Authenticate a payment with 3D Secure").
 	AddSection("Authentication").
-	AddExpressionField("apiKey", "API Key",
-		resolver.WithRequired(),
-		resolver.WithSensitive(),
-	).
 	AddExpressionField("merchantAccount", "Merchant Account",
 		resolver.WithRequired(),
 	).
@@ -771,7 +716,7 @@ func (e *PaymentExecutor) Execute(ctx context.Context, step *executor.StepDefini
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -780,7 +725,7 @@ func (e *PaymentExecutor) Execute(ctx context.Context, step *executor.StepDefini
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -907,7 +852,7 @@ func (e *CaptureExecutor) Execute(ctx context.Context, step *executor.StepDefini
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -916,7 +861,7 @@ func (e *CaptureExecutor) Execute(ctx context.Context, step *executor.StepDefini
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -980,7 +925,7 @@ func (e *RefundExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -989,7 +934,7 @@ func (e *RefundExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -1063,7 +1008,7 @@ func (e *CancelExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -1072,7 +1017,7 @@ func (e *CancelExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -1128,7 +1073,7 @@ func (e *PaymentListExecutor) Execute(ctx context.Context, step *executor.StepDe
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -1137,7 +1082,7 @@ func (e *PaymentListExecutor) Execute(ctx context.Context, step *executor.StepDe
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -1207,7 +1152,7 @@ func (e *PaymentGetExecutor) Execute(ctx context.Context, step *executor.StepDef
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -1216,7 +1161,7 @@ func (e *PaymentGetExecutor) Execute(ctx context.Context, step *executor.StepDef
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -1261,7 +1206,7 @@ func (e *PayoutExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -1270,7 +1215,7 @@ func (e *PayoutExecutor) Execute(ctx context.Context, step *executor.StepDefinit
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")
@@ -1369,7 +1314,7 @@ func (e *ThreeDSAuthenticateExecutor) Execute(ctx context.Context, step *executo
 
 	// Parse Adyen config
 	adyenCfg := AdyenConfig{
-		APIKey:          resolver.ResolveString(getString(config, "apiKey")),
+		APIKey:          adyenCredential(resolver),
 		MerchantAccount: resolver.ResolveString(getString(config, "merchantAccount")),
 		Environment:     resolver.ResolveString(getString(config, "environment")),
 	}
@@ -1378,7 +1323,7 @@ func (e *ThreeDSAuthenticateExecutor) Execute(ctx context.Context, step *executo
 	}
 
 	if adyenCfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
+		return nil, fmt.Errorf("connect an Adyen API key before using this action")
 	}
 	if adyenCfg.MerchantAccount == "" {
 		return nil, fmt.Errorf("merchantAccount is required")

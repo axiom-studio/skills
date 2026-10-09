@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -28,16 +29,6 @@ const (
 	iconAWS = "cloud"
 )
 
-// AWS clients cache
-var (
-	awsConfigs  = make(map[string]aws.Config)
-	awsConfigMux sync.RWMutex
-	s3Clients    = make(map[string]*s3.Client)
-	ec2Clients   = make(map[string]*ec2.Client)
-	lambdaClients = make(map[string]*lambda.Client)
-	clientMux    sync.RWMutex
-)
-
 func main() {
 	// Get port from env or use default
 	port := os.Getenv("SKILL_PORT")
@@ -46,7 +37,7 @@ func main() {
 	}
 
 	// Create skill server
-	server := grpc.NewSkillServer("skill-aws", "1.0.0")
+	server := grpc.NewSkillServer("skill-aws", awsSkillVersion)
 
 	// Register S3 executors with schemas
 	server.RegisterExecutorWithSchema("aws-s3-list-buckets", &S3ListBucketsExecutor{}, S3ListBucketsSchema)
@@ -77,142 +68,68 @@ func main() {
 // AWS CLIENT HELPERS
 // ============================================================================
 
-// AWSConfig holds AWS connection configuration
-type AWSConfig struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	Region          string
-	SessionToken    string
-	Profile         string
+// The host binds the two fields of one AWS credential to every request. A
+// shared runtime builds its AWS configuration from them alone: no profile,
+// environment or instance-role fallback, and nothing cached across requests.
+const (
+	awsAccessKeyIDCredential     = "aws_access_key_id"
+	awsSecretAccessKeyCredential = "aws_secret_access_key"
+	awsDefaultRegion             = "us-east-1"
+	awsSkillVersion              = "1.1.0"
+)
+
+var (
+	awsRegionPattern = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
+	// awsEndpointOverride redirects every service client in tests.
+	awsEndpointOverride string
+)
+
+func boundAWSCredential(templateResolver executor.TemplateResolver, name string) string {
+	bindings, ok := templateResolver.(executor.BindingResolver)
+	if !ok {
+		return ""
+	}
+	value, _ := bindings.GetBinding(name).(string)
+	if strings.ContainsAny(value, "\r\n") {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
-// getAWSConfig returns an AWS config (cached)
-func getAWSConfig(awsCfg AWSConfig) (aws.Config, error) {
-	// Create cache key
-	cacheKey := fmt.Sprintf("%s:%s:%s", awsCfg.AccessKeyID, awsCfg.Region, awsCfg.Profile)
-
-	awsConfigMux.RLock()
-	cfg, ok := awsConfigs[cacheKey]
-	awsConfigMux.RUnlock()
-
-	if ok {
-		return cfg, nil
+// parseAWSConfig builds the AWS configuration of one request.
+func parseAWSConfig(step *executor.StepDefinition, templateResolver executor.TemplateResolver) (aws.Config, error) {
+	accessKeyID := boundAWSCredential(templateResolver, awsAccessKeyIDCredential)
+	secretAccessKey := boundAWSCredential(templateResolver, awsSecretAccessKeyCredential)
+	if accessKeyID == "" || secretAccessKey == "" {
+		return aws.Config{}, fmt.Errorf("connect AWS credentials (access key ID and secret access key) before using this action")
 	}
-
-	awsConfigMux.Lock()
-	defer awsConfigMux.Unlock()
-
-	// Double check
-	if cfg, ok := awsConfigs[cacheKey]; ok {
-		return cfg, nil
+	region := strings.TrimSpace(getString(step.Config, "region"))
+	if region == "" {
+		region = awsDefaultRegion
 	}
-
-	// Build config options
-	var opts []func(*config.LoadOptions) error
-
-	if awsCfg.Region != "" {
-		opts = append(opts, config.WithRegion(awsCfg.Region))
+	if !awsRegionPattern.MatchString(region) {
+		return aws.Config{}, fmt.Errorf("region %q is not a valid AWS region", region)
 	}
-
-	if awsCfg.Profile != "" {
-		opts = append(opts, config.WithSharedConfigProfile(awsCfg.Profile))
+	cfg := aws.Config{
+		Region:      region,
+		Credentials: credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""),
+		HTTPClient:  awsHTTPClient,
 	}
-
-	if awsCfg.AccessKeyID != "" && awsCfg.SecretAccessKey != "" {
-		opts = append(opts, config.WithCredentialsProvider(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-			return aws.Credentials{
-				AccessKeyID:     awsCfg.AccessKeyID,
-				SecretAccessKey: awsCfg.SecretAccessKey,
-				SessionToken:    awsCfg.SessionToken,
-			}, nil
-		})))
+	if awsEndpointOverride != "" {
+		cfg.BaseEndpoint = aws.String(awsEndpointOverride)
 	}
-
-	// Load AWS config
-	cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
-	if err != nil {
-		return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	// Cache the config
-	awsConfigs[cacheKey] = cfg
 	return cfg, nil
 }
 
-// getS3Client returns an S3 client (cached)
-func getS3Client(awsCfg AWSConfig) (*s3.Client, error) {
-	cacheKey := fmt.Sprintf("%s:%s:%s", awsCfg.AccessKeyID, awsCfg.Region, awsCfg.Profile)
+var awsHTTPClient = awshttp.NewBuildableClient().WithTimeout(60 * time.Second)
 
-	clientMux.RLock()
-	client, ok := s3Clients[cacheKey]
-	clientMux.RUnlock()
-
-	if ok {
-		return client, nil
-	}
-
-	cfg, err := getAWSConfig(awsCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	clientMux.Lock()
-	defer clientMux.Unlock()
-
-	client = s3.NewFromConfig(cfg)
-	s3Clients[cacheKey] = client
-	return client, nil
+func getS3Client(cfg aws.Config) (*s3.Client, error) {
+	return s3.NewFromConfig(cfg, func(o *s3.Options) { o.UsePathStyle = awsEndpointOverride != "" }), nil
 }
 
-// getEC2Client returns an EC2 client (cached)
-func getEC2Client(awsCfg AWSConfig) (*ec2.Client, error) {
-	cacheKey := fmt.Sprintf("%s:%s:%s", awsCfg.AccessKeyID, awsCfg.Region, awsCfg.Profile)
+func getEC2Client(cfg aws.Config) (*ec2.Client, error) { return ec2.NewFromConfig(cfg), nil }
 
-	clientMux.RLock()
-	client, ok := ec2Clients[cacheKey]
-	clientMux.RUnlock()
-
-	if ok {
-		return client, nil
-	}
-
-	cfg, err := getAWSConfig(awsCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	clientMux.Lock()
-	defer clientMux.Unlock()
-
-	client = ec2.NewFromConfig(cfg)
-	ec2Clients[cacheKey] = client
-	return client, nil
-}
-
-// getLambdaClient returns a Lambda client (cached)
-func getLambdaClient(awsCfg AWSConfig) (*lambda.Client, error) {
-	cacheKey := fmt.Sprintf("%s:%s:%s", awsCfg.AccessKeyID, awsCfg.Region, awsCfg.Profile)
-
-	clientMux.RLock()
-	client, ok := lambdaClients[cacheKey]
-	clientMux.RUnlock()
-
-	if ok {
-		return client, nil
-	}
-
-	cfg, err := getAWSConfig(awsCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	clientMux.Lock()
-	defer clientMux.Unlock()
-
-	client = lambda.NewFromConfig(cfg)
-	lambdaClients[cacheKey] = client
-	return client, nil
-}
+func getLambdaClient(cfg aws.Config) (*lambda.Client, error) { return lambda.NewFromConfig(cfg), nil }
 
 // ============================================================================
 // CONFIG HELPERS
@@ -283,17 +200,6 @@ func getMap(config map[string]interface{}, key string) map[string]interface{} {
 	return nil
 }
 
-// parseAWSConfig extracts AWS configuration from config map
-func parseAWSConfig(config map[string]interface{}) AWSConfig {
-	return AWSConfig{
-		AccessKeyID:     getString(config, "awsAccessKeyId"),
-		SecretAccessKey: getString(config, "awsSecretAccessKey"),
-		Region:          getString(config, "awsRegion"),
-		SessionToken:    getString(config, "awsSessionToken"),
-		Profile:         getString(config, "awsProfile"),
-	}
-}
-
 // Helper to convert string to pointer
 func strPtr(s string) *string {
 	if s == "" {
@@ -332,24 +238,12 @@ var S3ListBucketsSchema = resolver.NewSchemaBuilder("aws-s3-list-buckets").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("List all S3 buckets in your AWS account").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-			resolver.WithHint("AWS Access Key ID (optional if using IAM roles or AWS credentials file)"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-			resolver.WithHint("AWS Secret Access Key (optional if using IAM roles or AWS credentials file)"),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithPlaceholder("us-east-1"),
-			resolver.WithHint("AWS region (e.g., us-east-1, eu-west-1)"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-			resolver.WithHint("AWS profile name from credentials file"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithPlaceholder("us-east-1"),
+		resolver.WithHint("AWS region (e.g., us-east-1, eu-west-1)"),
+	).
+	EndSection().
 	Build()
 
 // S3ListObjectsSchema is the UI schema for aws-s3-list-objects
@@ -358,42 +252,33 @@ var S3ListObjectsSchema = resolver.NewSchemaBuilder("aws-s3-list-objects").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("List objects in an S3 bucket").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Bucket").
-		AddExpressionField("bucket", "Bucket Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-bucket"),
-			resolver.WithHint("Name of the S3 bucket"),
-		).
-		AddExpressionField("prefix", "Prefix",
-			resolver.WithPlaceholder("folder/"),
-			resolver.WithHint("Filter objects by prefix (folder path)"),
-		).
-		AddExpressionField("delimiter", "Delimiter",
-			resolver.WithPlaceholder("/"),
-			resolver.WithHint("Delimiter for grouping objects (e.g., / for folder-like structure)"),
-		).
-		EndSection().
+	AddExpressionField("bucket", "Bucket Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-bucket"),
+		resolver.WithHint("Name of the S3 bucket"),
+	).
+	AddExpressionField("prefix", "Prefix",
+		resolver.WithPlaceholder("folder/"),
+		resolver.WithHint("Filter objects by prefix (folder path)"),
+	).
+	AddExpressionField("delimiter", "Delimiter",
+		resolver.WithPlaceholder("/"),
+		resolver.WithHint("Delimiter for grouping objects (e.g., / for folder-like structure)"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddNumberField("limit", "Limit",
-			resolver.WithDefault(1000),
-			resolver.WithMinMax(1, 10000),
-			resolver.WithHint("Maximum number of objects to return"),
-		).
-		EndSection().
+	AddNumberField("limit", "Limit",
+		resolver.WithDefault(1000),
+		resolver.WithMinMax(1, 10000),
+		resolver.WithHint("Maximum number of objects to return"),
+	).
+	EndSection().
 	Build()
 
 // S3GetObjectSchema is the UI schema for aws-s3-get-object
@@ -402,45 +287,36 @@ var S3GetObjectSchema = resolver.NewSchemaBuilder("aws-s3-get-object").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Download an object from an S3 bucket").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Object").
-		AddExpressionField("bucket", "Bucket Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-bucket"),
-			resolver.WithHint("Name of the S3 bucket"),
-		).
-		AddExpressionField("key", "Object Key",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("path/to/file.txt"),
-			resolver.WithHint("Key (path) of the object to retrieve"),
-		).
-		AddExpressionField("versionId", "Version ID",
-			resolver.WithHint("Specific version ID to retrieve (for versioned buckets)"),
-		).
-		EndSection().
+	AddExpressionField("bucket", "Bucket Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-bucket"),
+		resolver.WithHint("Name of the S3 bucket"),
+	).
+	AddExpressionField("key", "Object Key",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("path/to/file.txt"),
+		resolver.WithHint("Key (path) of the object to retrieve"),
+	).
+	AddExpressionField("versionId", "Version ID",
+		resolver.WithHint("Specific version ID to retrieve (for versioned buckets)"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddToggleField("base64Encode", "Base64 Encode",
-			resolver.WithDefault(false),
-			resolver.WithHint("Encode the content as base64 (useful for binary files)"),
-		).
-		AddNumberField("maxSize", "Max Size (bytes)",
-			resolver.WithDefault(10485760),
-			resolver.WithHint("Maximum object size to download (default: 10MB)"),
-		).
-		EndSection().
+	AddToggleField("base64Encode", "Base64 Encode",
+		resolver.WithDefault(false),
+		resolver.WithHint("Encode the content as base64 (useful for binary files)"),
+	).
+	AddNumberField("maxSize", "Max Size (bytes)",
+		resolver.WithDefault(10485760),
+		resolver.WithHint("Maximum object size to download (default: 10MB)"),
+	).
+	EndSection().
 	Build()
 
 // S3PutObjectSchema is the UI schema for aws-s3-put-object
@@ -449,57 +325,48 @@ var S3PutObjectSchema = resolver.NewSchemaBuilder("aws-s3-put-object").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Upload an object to an S3 bucket").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Object").
-		AddExpressionField("bucket", "Bucket Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-bucket"),
-			resolver.WithHint("Name of the S3 bucket"),
-		).
-		AddExpressionField("key", "Object Key",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("path/to/file.txt"),
-			resolver.WithHint("Key (path) for the object"),
-		).
-		EndSection().
+	AddExpressionField("bucket", "Bucket Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-bucket"),
+		resolver.WithHint("Name of the S3 bucket"),
+	).
+	AddExpressionField("key", "Object Key",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("path/to/file.txt"),
+		resolver.WithHint("Key (path) for the object"),
+	).
+	EndSection().
 	AddSection("Content").
-		AddTextareaField("content", "Content",
-			resolver.WithRequired(),
-			resolver.WithRows(6),
-			resolver.WithPlaceholder("File content here..."),
-			resolver.WithHint("Content to upload (text or base64 for binary)"),
-		).
-		AddToggleField("base64Decode", "Base64 Decode",
-			resolver.WithDefault(false),
-			resolver.WithHint("Decode content from base64 before uploading"),
-		).
-		AddExpressionField("contentType", "Content Type",
-			resolver.WithPlaceholder("text/plain"),
-			resolver.WithHint("MIME type of the content"),
-		).
-		EndSection().
+	AddTextareaField("content", "Content",
+		resolver.WithRequired(),
+		resolver.WithRows(6),
+		resolver.WithPlaceholder("File content here..."),
+		resolver.WithHint("Content to upload (text or base64 for binary)"),
+	).
+	AddToggleField("base64Decode", "Base64 Decode",
+		resolver.WithDefault(false),
+		resolver.WithHint("Decode content from base64 before uploading"),
+	).
+	AddExpressionField("contentType", "Content Type",
+		resolver.WithPlaceholder("text/plain"),
+		resolver.WithHint("MIME type of the content"),
+	).
+	EndSection().
 	AddSection("Metadata").
-		AddKeyValueField("metadata", "Custom Metadata",
-			resolver.WithHint("Custom metadata key-value pairs"),
-		).
-		AddExpressionField("cacheControl", "Cache Control",
-			resolver.WithPlaceholder("max-age=3600"),
-			resolver.WithHint("Cache-Control header value"),
-		).
-		EndSection().
+	AddKeyValueField("metadata", "Custom Metadata",
+		resolver.WithHint("Custom metadata key-value pairs"),
+	).
+	AddExpressionField("cacheControl", "Cache Control",
+		resolver.WithPlaceholder("max-age=3600"),
+		resolver.WithHint("Cache-Control header value"),
+	).
+	EndSection().
 	Build()
 
 // S3DeleteObjectSchema is the UI schema for aws-s3-delete-object
@@ -508,35 +375,26 @@ var S3DeleteObjectSchema = resolver.NewSchemaBuilder("aws-s3-delete-object").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Delete an object from an S3 bucket").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Object").
-		AddExpressionField("bucket", "Bucket Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-bucket"),
-			resolver.WithHint("Name of the S3 bucket"),
-		).
-		AddExpressionField("key", "Object Key",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("path/to/file.txt"),
-			resolver.WithHint("Key (path) of the object to delete"),
-		).
-		AddExpressionField("versionId", "Version ID",
-			resolver.WithHint("Specific version ID to delete (for versioned buckets)"),
-		).
-		EndSection().
+	AddExpressionField("bucket", "Bucket Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-bucket"),
+		resolver.WithHint("Name of the S3 bucket"),
+	).
+	AddExpressionField("key", "Object Key",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("path/to/file.txt"),
+		resolver.WithHint("Key (path) of the object to delete"),
+	).
+	AddExpressionField("versionId", "Version ID",
+		resolver.WithHint("Specific version ID to delete (for versioned buckets)"),
+	).
+	EndSection().
 	Build()
 
 // EC2ListInstancesSchema is the UI schema for aws-ec2-list-instances
@@ -545,41 +403,32 @@ var EC2ListInstancesSchema = resolver.NewSchemaBuilder("aws-ec2-list-instances")
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("List EC2 instances in your AWS account").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-			resolver.WithHint("AWS region to list instances from"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+		resolver.WithHint("AWS region to list instances from"),
+	).
+	EndSection().
 	AddSection("Filters").
-		AddTagsField("instanceIds", "Instance IDs",
-			resolver.WithHint("Filter by specific instance IDs"),
-		).
-		AddExpressionField("state", "State",
-			resolver.WithPlaceholder("running, stopped, terminated"),
-			resolver.WithHint("Filter by instance state"),
-		).
-		AddTagsField("tags", "Tags",
-			resolver.WithHint("Filter by tags (format: key=value)"),
-		).
-		EndSection().
+	AddTagsField("instanceIds", "Instance IDs",
+		resolver.WithHint("Filter by specific instance IDs"),
+	).
+	AddExpressionField("state", "State",
+		resolver.WithPlaceholder("running, stopped, terminated"),
+		resolver.WithHint("Filter by instance state"),
+	).
+	AddTagsField("tags", "Tags",
+		resolver.WithHint("Filter by tags (format: key=value)"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddNumberField("limit", "Limit",
-			resolver.WithDefault(100),
-			resolver.WithMinMax(1, 1000),
-			resolver.WithHint("Maximum number of instances to return"),
-		).
-		EndSection().
+	AddNumberField("limit", "Limit",
+		resolver.WithDefault(100),
+		resolver.WithMinMax(1, 1000),
+		resolver.WithHint("Maximum number of instances to return"),
+	).
+	EndSection().
 	Build()
 
 // EC2StartInstanceSchema is the UI schema for aws-ec2-start-instance
@@ -588,28 +437,19 @@ var EC2StartInstanceSchema = resolver.NewSchemaBuilder("aws-ec2-start-instance")
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Start a stopped EC2 instance").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Instance").
-		AddExpressionField("instanceId", "Instance ID",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("i-1234567890abcdef0"),
-			resolver.WithHint("ID of the EC2 instance to start"),
-		).
-		EndSection().
+	AddExpressionField("instanceId", "Instance ID",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("i-1234567890abcdef0"),
+		resolver.WithHint("ID of the EC2 instance to start"),
+	).
+	EndSection().
 	Build()
 
 // EC2StopInstanceSchema is the UI schema for aws-ec2-stop-instance
@@ -618,38 +458,29 @@ var EC2StopInstanceSchema = resolver.NewSchemaBuilder("aws-ec2-stop-instance").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Stop a running EC2 instance").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Instance").
-		AddExpressionField("instanceId", "Instance ID",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("i-1234567890abcdef0"),
-			resolver.WithHint("ID of the EC2 instance to stop"),
-		).
-		EndSection().
+	AddExpressionField("instanceId", "Instance ID",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("i-1234567890abcdef0"),
+		resolver.WithHint("ID of the EC2 instance to stop"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddToggleField("force", "Force Stop",
-			resolver.WithDefault(false),
-			resolver.WithHint("Force stop the instance (like pulling the power cord)"),
-		).
-		AddToggleField("hibernate", "Hibernate",
-			resolver.WithDefault(false),
-			resolver.WithHint("Hibernate the instance instead of stopping"),
-		).
-		EndSection().
+	AddToggleField("force", "Force Stop",
+		resolver.WithDefault(false),
+		resolver.WithHint("Force stop the instance (like pulling the power cord)"),
+	).
+	AddToggleField("hibernate", "Hibernate",
+		resolver.WithDefault(false),
+		resolver.WithHint("Hibernate the instance instead of stopping"),
+	).
+	EndSection().
 	Build()
 
 // EC2RebootInstanceSchema is the UI schema for aws-ec2-reboot-instance
@@ -658,28 +489,19 @@ var EC2RebootInstanceSchema = resolver.NewSchemaBuilder("aws-ec2-reboot-instance
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Reboot a running EC2 instance").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Instance").
-		AddExpressionField("instanceId", "Instance ID",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("i-1234567890abcdef0"),
-			resolver.WithHint("ID of the EC2 instance to reboot"),
-		).
-		EndSection().
+	AddExpressionField("instanceId", "Instance ID",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("i-1234567890abcdef0"),
+		resolver.WithHint("ID of the EC2 instance to reboot"),
+	).
+	EndSection().
 	Build()
 
 // LambdaListFunctionsSchema is the UI schema for aws-lambda-list-functions
@@ -688,28 +510,19 @@ var LambdaListFunctionsSchema = resolver.NewSchemaBuilder("aws-lambda-list-funct
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("List Lambda functions in your AWS account").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddNumberField("limit", "Limit",
-			resolver.WithDefault(50),
-			resolver.WithMinMax(1, 10000),
-			resolver.WithHint("Maximum number of functions to return"),
-		).
-		EndSection().
+	AddNumberField("limit", "Limit",
+		resolver.WithDefault(50),
+		resolver.WithMinMax(1, 10000),
+		resolver.WithHint("Maximum number of functions to return"),
+	).
+	EndSection().
 	Build()
 
 // LambdaInvokeSchema is the UI schema for aws-lambda-invoke
@@ -718,49 +531,40 @@ var LambdaInvokeSchema = resolver.NewSchemaBuilder("aws-lambda-invoke").
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Invoke a Lambda function").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Function").
-		AddExpressionField("functionName", "Function Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-function"),
-			resolver.WithHint("Name or ARN of the Lambda function"),
-		).
-		AddExpressionField("qualifier", "Qualifier",
-			resolver.WithPlaceholder("$LATEST or version number"),
-			resolver.WithHint("Version or alias to invoke"),
-		).
-		EndSection().
+	AddExpressionField("functionName", "Function Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-function"),
+		resolver.WithHint("Name or ARN of the Lambda function"),
+	).
+	AddExpressionField("qualifier", "Qualifier",
+		resolver.WithPlaceholder("$LATEST or version number"),
+		resolver.WithHint("Version or alias to invoke"),
+	).
+	EndSection().
 	AddSection("Payload").
-		AddJSONField("payload", "Payload",
-			resolver.WithHeight(150),
-			resolver.WithHint("JSON payload to pass to the function"),
-		).
-		EndSection().
+	AddJSONField("payload", "Payload",
+		resolver.WithHeight(150),
+		resolver.WithHint("JSON payload to pass to the function"),
+	).
+	EndSection().
 	AddSection("Options").
-		AddSelectField("invocationType", "Invocation Type",
-			[]resolver.SelectOption{
-				{Label: "RequestResponse", Value: "RequestResponse"},
-				{Label: "Event (Async)", Value: "Event"},
-				{Label: "DryRun", Value: "DryRun"},
-			},
-			resolver.WithDefault("RequestResponse"),
-			resolver.WithHint("Invocation type: RequestResponse (sync), Event (async), or DryRun"),
-		).
-		EndSection().
+	AddSelectField("invocationType", "Invocation Type",
+		[]resolver.SelectOption{
+			{Label: "RequestResponse", Value: "RequestResponse"},
+			{Label: "Event (Async)", Value: "Event"},
+			{Label: "DryRun", Value: "DryRun"},
+		},
+		resolver.WithDefault("RequestResponse"),
+		resolver.WithHint("Invocation type: RequestResponse (sync), Event (async), or DryRun"),
+	).
+	EndSection().
 	Build()
 
 // LambdaGetFunctionSchema is the UI schema for aws-lambda-get-function
@@ -769,32 +573,23 @@ var LambdaGetFunctionSchema = resolver.NewSchemaBuilder("aws-lambda-get-function
 	WithCategory("action").
 	WithIcon(iconAWS).
 	WithDescription("Get details about a Lambda function").
-	AddSection("AWS Connection").
-		AddExpressionField("awsAccessKeyId", "Access Key ID",
-			resolver.WithPlaceholder("AKIAIOSFODNN7EXAMPLE"),
-		).
-		AddExpressionField("awsSecretAccessKey", "Secret Access Key",
-			resolver.WithSensitive(),
-		).
-		AddExpressionField("awsRegion", "Region",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("us-east-1"),
-		).
-		AddExpressionField("awsProfile", "Profile",
-			resolver.WithPlaceholder("default"),
-		).
-		EndSection().
+	AddSection("AWS Region").
+	AddExpressionField("region", "Region",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("us-east-1"),
+	).
+	EndSection().
 	AddSection("Function").
-		AddExpressionField("functionName", "Function Name",
-			resolver.WithRequired(),
-			resolver.WithPlaceholder("my-function"),
-			resolver.WithHint("Name or ARN of the Lambda function"),
-		).
-		AddExpressionField("qualifier", "Qualifier",
-			resolver.WithPlaceholder("$LATEST or version number"),
-			resolver.WithHint("Version or alias to retrieve"),
-		).
-		EndSection().
+	AddExpressionField("functionName", "Function Name",
+		resolver.WithRequired(),
+		resolver.WithPlaceholder("my-function"),
+		resolver.WithHint("Name or ARN of the Lambda function"),
+	).
+	AddExpressionField("qualifier", "Qualifier",
+		resolver.WithPlaceholder("$LATEST or version number"),
+		resolver.WithHint("Version or alias to retrieve"),
+	).
+	EndSection().
 	Build()
 
 // ============================================================================
@@ -807,7 +602,10 @@ type S3ListBucketsExecutor struct{}
 func (e *S3ListBucketsExecutor) Type() string { return "aws-s3-list-buckets" }
 
 func (e *S3ListBucketsExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 
 	client, err := getS3Client(awsCfg)
 	if err != nil {
@@ -843,7 +641,10 @@ type S3ListObjectsExecutor struct{}
 func (e *S3ListObjectsExecutor) Type() string { return "aws-s3-list-objects" }
 
 func (e *S3ListObjectsExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	bucket := getString(step.Config, "bucket")
 	prefix := getString(step.Config, "prefix")
 	delimiter := getString(step.Config, "delimiter")
@@ -926,7 +727,10 @@ type S3GetObjectExecutor struct{}
 func (e *S3GetObjectExecutor) Type() string { return "aws-s3-get-object" }
 
 func (e *S3GetObjectExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	bucket := getString(step.Config, "bucket")
 	key := getString(step.Config, "key")
 	versionID := getString(step.Config, "versionId")
@@ -1006,7 +810,10 @@ type S3PutObjectExecutor struct{}
 func (e *S3PutObjectExecutor) Type() string { return "aws-s3-put-object" }
 
 func (e *S3PutObjectExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	bucket := getString(step.Config, "bucket")
 	key := getString(step.Config, "key")
 	content := getString(step.Config, "content")
@@ -1069,12 +876,12 @@ func (e *S3PutObjectExecutor) Execute(ctx context.Context, step *executor.StepDe
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"success":  true,
-			"bucket":   bucket,
-			"key":      key,
-			"etag":     strings.Trim(aws.ToString(result.ETag), "\""),
+			"success":   true,
+			"bucket":    bucket,
+			"key":       key,
+			"etag":      strings.Trim(aws.ToString(result.ETag), "\""),
 			"versionId": aws.ToString(result.VersionId),
-			"size":     len(contentBytes),
+			"size":      len(contentBytes),
 		},
 	}, nil
 }
@@ -1085,7 +892,10 @@ type S3DeleteObjectExecutor struct{}
 func (e *S3DeleteObjectExecutor) Type() string { return "aws-s3-delete-object" }
 
 func (e *S3DeleteObjectExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	bucket := getString(step.Config, "bucket")
 	key := getString(step.Config, "key")
 	versionID := getString(step.Config, "versionId")
@@ -1118,11 +928,11 @@ func (e *S3DeleteObjectExecutor) Execute(ctx context.Context, step *executor.Ste
 
 	return &executor.StepResult{
 		Output: map[string]interface{}{
-			"success":  true,
-			"bucket":   bucket,
-			"key":      key,
+			"success":   true,
+			"bucket":    bucket,
+			"key":       key,
 			"versionId": versionID,
-			"message":  "Object deleted successfully",
+			"message":   "Object deleted successfully",
 		},
 	}, nil
 }
@@ -1137,7 +947,10 @@ type EC2ListInstancesExecutor struct{}
 func (e *EC2ListInstancesExecutor) Type() string { return "aws-ec2-list-instances" }
 
 func (e *EC2ListInstancesExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	instanceIDs := getStringSlice(step.Config, "instanceIds")
 	state := getString(step.Config, "state")
 	tags := getStringSlice(step.Config, "tags")
@@ -1264,7 +1077,10 @@ type EC2StartInstanceExecutor struct{}
 func (e *EC2StartInstanceExecutor) Type() string { return "aws-ec2-start-instance" }
 
 func (e *EC2StartInstanceExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	instanceID := getString(step.Config, "instanceId")
 
 	if awsCfg.Region == "" {
@@ -1311,7 +1127,10 @@ type EC2StopInstanceExecutor struct{}
 func (e *EC2StopInstanceExecutor) Type() string { return "aws-ec2-stop-instance" }
 
 func (e *EC2StopInstanceExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	instanceID := getString(step.Config, "instanceId")
 	force := getBool(step.Config, "force", false)
 	hibernate := getBool(step.Config, "hibernate", false)
@@ -1365,7 +1184,10 @@ type EC2RebootInstanceExecutor struct{}
 func (e *EC2RebootInstanceExecutor) Type() string { return "aws-ec2-reboot-instance" }
 
 func (e *EC2RebootInstanceExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	instanceID := getString(step.Config, "instanceId")
 
 	if awsCfg.Region == "" {
@@ -1408,7 +1230,10 @@ type LambdaListFunctionsExecutor struct{}
 func (e *LambdaListFunctionsExecutor) Type() string { return "aws-lambda-list-functions" }
 
 func (e *LambdaListFunctionsExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	limit := getInt(step.Config, "limit", 50)
 
 	if awsCfg.Region == "" {
@@ -1439,18 +1264,18 @@ func (e *LambdaListFunctionsExecutor) Execute(ctx context.Context, step *executo
 
 		for _, fn := range result.Functions {
 			functionInfo := map[string]interface{}{
-				"functionName":    aws.ToString(fn.FunctionName),
-				"functionArn":     aws.ToString(fn.FunctionArn),
-				"runtime":         string(fn.Runtime),
-				"handler":         aws.ToString(fn.Handler),
-				"codeSize":        fn.CodeSize,
-				"description":     aws.ToString(fn.Description),
-				"timeout":         fn.Timeout,
-				"memorySize":      fn.MemorySize,
-				"lastModified":    aws.ToString(fn.LastModified),
-				"codeSha256":      aws.ToString(fn.CodeSha256),
-				"version":         aws.ToString(fn.Version),
-				"role":            aws.ToString(fn.Role),
+				"functionName": aws.ToString(fn.FunctionName),
+				"functionArn":  aws.ToString(fn.FunctionArn),
+				"runtime":      string(fn.Runtime),
+				"handler":      aws.ToString(fn.Handler),
+				"codeSize":     fn.CodeSize,
+				"description":  aws.ToString(fn.Description),
+				"timeout":      fn.Timeout,
+				"memorySize":   fn.MemorySize,
+				"lastModified": aws.ToString(fn.LastModified),
+				"codeSha256":   aws.ToString(fn.CodeSha256),
+				"version":      aws.ToString(fn.Version),
+				"role":         aws.ToString(fn.Role),
 			}
 
 			if fn.LastUpdateStatus != "" {
@@ -1482,7 +1307,10 @@ type LambdaInvokeExecutor struct{}
 func (e *LambdaInvokeExecutor) Type() string { return "aws-lambda-invoke" }
 
 func (e *LambdaInvokeExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	functionName := getString(step.Config, "functionName")
 	qualifier := getString(step.Config, "qualifier")
 	payload := getMap(step.Config, "payload")
@@ -1530,9 +1358,9 @@ func (e *LambdaInvokeExecutor) Execute(ctx context.Context, step *executor.StepD
 	}
 
 	output := map[string]interface{}{
-		"success":      true,
-		"functionName": functionName,
-		"statusCode":   result.StatusCode,
+		"success":         true,
+		"functionName":    functionName,
+		"statusCode":      result.StatusCode,
 		"executedVersion": aws.ToString(result.ExecutedVersion),
 	}
 
@@ -1567,7 +1395,10 @@ type LambdaGetFunctionExecutor struct{}
 func (e *LambdaGetFunctionExecutor) Type() string { return "aws-lambda-get-function" }
 
 func (e *LambdaGetFunctionExecutor) Execute(ctx context.Context, step *executor.StepDefinition, templateResolver executor.TemplateResolver) (*executor.StepResult, error) {
-	awsCfg := parseAWSConfig(step.Config)
+	awsCfg, err := parseAWSConfig(step, templateResolver)
+	if err != nil {
+		return nil, err
+	}
 	functionName := getString(step.Config, "functionName")
 	qualifier := getString(step.Config, "qualifier")
 
@@ -1604,19 +1435,19 @@ func (e *LambdaGetFunctionExecutor) Execute(ctx context.Context, step *executor.
 	if result.Configuration != nil {
 		cfg := result.Configuration
 		output["configuration"] = map[string]interface{}{
-			"functionName":    aws.ToString(cfg.FunctionName),
-			"functionArn":     aws.ToString(cfg.FunctionArn),
-			"runtime":         string(cfg.Runtime),
-			"handler":         aws.ToString(cfg.Handler),
-			"codeSize":        cfg.CodeSize,
-			"description":     aws.ToString(cfg.Description),
-			"timeout":         cfg.Timeout,
-			"memorySize":      cfg.MemorySize,
-			"lastModified":    aws.ToString(cfg.LastModified),
-			"codeSha256":      aws.ToString(cfg.CodeSha256),
-			"version":         aws.ToString(cfg.Version),
-			"role":            aws.ToString(cfg.Role),
-			"state":           string(cfg.State),
+			"functionName":     aws.ToString(cfg.FunctionName),
+			"functionArn":      aws.ToString(cfg.FunctionArn),
+			"runtime":          string(cfg.Runtime),
+			"handler":          aws.ToString(cfg.Handler),
+			"codeSize":         cfg.CodeSize,
+			"description":      aws.ToString(cfg.Description),
+			"timeout":          cfg.Timeout,
+			"memorySize":       cfg.MemorySize,
+			"lastModified":     aws.ToString(cfg.LastModified),
+			"codeSha256":       aws.ToString(cfg.CodeSha256),
+			"version":          aws.ToString(cfg.Version),
+			"role":             aws.ToString(cfg.Role),
+			"state":            string(cfg.State),
 			"lastUpdateStatus": string(cfg.LastUpdateStatus),
 		}
 	}
@@ -1624,9 +1455,9 @@ func (e *LambdaGetFunctionExecutor) Execute(ctx context.Context, step *executor.
 	// Code location
 	if result.Code != nil {
 		output["code"] = map[string]interface{}{
-			"repositoryType":  aws.ToString(result.Code.RepositoryType),
-			"location":        aws.ToString(result.Code.Location),
-			"imageUri":        aws.ToString(result.Code.ImageUri),
+			"repositoryType":   aws.ToString(result.Code.RepositoryType),
+			"location":         aws.ToString(result.Code.Location),
+			"imageUri":         aws.ToString(result.Code.ImageUri),
 			"resolvedImageUri": aws.ToString(result.Code.ResolvedImageUri),
 		}
 	}
