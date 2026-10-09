@@ -125,7 +125,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
     assert.match(sessionGrant, /^grant-/);
     return { userID: 'human-1', tenantID: '7', agentID: agentId, requestID: `r-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command };
   };
-  const service = new LiveBrowserService({ api, authorize, deps, profile, humanWaitMs: 200, tenantID: '7', closeTimeoutMs: 50,
+  const service = new LiveBrowserService({ api, authorize, deps, profile, humanWaitMs: 200, tenantID: '7', closeTimeoutMs: 50, paymentWatchMs: 40, paymentPollMs: 5,
     authorizeProfile: authorizeProfile ?? (async ({ command }) => ({ userID: 'human-1', tenantID: '7', agentID: agentId,
       requestID: `p-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command })),
     ...(leaseMs ? { leaseMs } : {}), ...(profileWaitMs ? { profileWaitMs } : {}), ...lifetime });
@@ -713,6 +713,147 @@ test('pay stays on the site where the card was filled and reports a bank verific
   const other = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
   assert.match((await h.run('live-browser-pay', { sessionId: 'b-1', amount: '25.00', currency: 'USD', target: other.elements[0].ref, intent: 'Pay' })).reason,
     /not a final pay/);
+  await h.service.closeAll();
+});
+
+// A bank (3-D Secure) frame of the fake page: its code scan and what was typed.
+function bankFrame(page, url, scan) {
+  const frame = { url: () => url, isDetached: () => false, scan, typed: [] };
+  frame.evaluate = async script => (String(script).includes('__liveOtp') ? frame.scan : '');
+  frame.locator = selector => ({ first() { return this; }, focus: async () => {}, fill: async () => {},
+    evaluate: async () => { frame.marked = selector; },
+    click: async () => { if (selector.includes('submit')) { frame.typed.push(['submit']); frame.onSubmit?.(); } },
+    press: async key => { frame.typed.push(['press', selector, key]); frame.onSubmit?.(); },
+    pressSequentially: async text => frame.typed.push([selector, text]) });
+  return frame;
+}
+
+const amazonCheckout = 'https://www.amazon.in/checkout/p/p-404-4245310-6116300/spc?pipelineType=Chewbacca';
+const processPayment = 'https://www.amazon.in/aips/process-payment?clientId=AmazonRetail%3AChewbacca&purchaseId=404-4245310-6116300';
+
+async function amazonPay(h, onPay) {
+  await h.run('live-browser-start', { url: amazonCheckout });
+  const page = h.pages[0];
+  page.bodyText = 'Order Total:\n₹703.00\nPlace your order';
+  page.payCount = 1;
+  page.onPay = () => onPay(page);
+  return { page, pay: () => h.run('live-browser-pay', { sessionId: 'b-1', amount: '703.00', currency: 'INR', merchant: 'https://www.amazon.in', intent: 'Place the order' }) };
+}
+
+// Regression (dev runs 5560f9e2, f5f1f1f5): the pay click led to Amazon's
+// "Processing your request" page and only later to the bank's OTP page,
+// whose field is in the issuer's frame; pay returned clicked and the
+// snapshots showed no sign of the code.
+test('pay keeps watching through the processing page until the bank frame asks for the code', async () => {
+  const h = harness({ lifetime: { paymentWatchMs: 2000, paymentPollMs: 5 } });
+  let acs;
+  const { page, pay } = await amazonPay(h, page => {
+    page.current = processPayment;
+    page.bodyText = 'Processing your request';
+    setTimeout(() => { page.bodyText = 'Paying Amazon:\n₹703.00\nComplete your payment in\n08:55\nmins'; }, 20);
+    setTimeout(() => {
+      acs = bankFrame(page, 'https://acs.icicibank.example/acs/challenge', { code: true, submit: true, split: 0, app: false, sent: false });
+      const main = page.mainFrame();
+      page.frames = () => [main, acs];
+    }, 60);
+  });
+  const result = await pay();
+  assert.equal(result.status, 'otp_required');
+  assert.match(result.message, /Might have gotten an OTP, please provide/);
+  assert.match(result.message, /live-browser-submit-payment-code/);
+  assert.equal(result.url, processPayment);
+  assert.equal((await h.control('b-1', { type: 'status' })).status, 'automating', 'no handoff');
+  // The same field is flagged by a snapshot, and the code goes into the bank frame.
+  page.snapshot = { url: processPayment, title: '', text: 'Paying Amazon:\n₹703.00\nComplete your payment in\n08:55\nmins', elements: [] };
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(snapshot.paymentChallenge, 'otp_required');
+  assert.match(snapshot.message, /Might have gotten an OTP, please provide/);
+  assert.equal(snapshot.requiresHuman, false);
+  acs.onSubmit = () => { acs.scan = {}; page.current = 'https://www.amazon.in/gp/buy/thankyou/handlers/display.html'; page.bodyText = 'Order placed, thank you!\nOrder number: 404-4245310-6116300'; };
+  const done = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '482913' }, 'run-2');
+  assert.deepEqual([done.status, done.orderReference], ['confirmed', '404-4245310-6116300']);
+  assert.deepEqual(acs.typed, [['[data-live-otp="code"]', '482913'], ['submit']]);
+  assert.equal(acs.marked, '[data-live-otp="code"]', 'the field is marked as sent before submitting');
+  await h.service.closeAll();
+});
+
+test('pay that only reaches the processing page returns clicked; a later snapshot flags the bank code, approval or nothing', async () => {
+  const h = harness();
+  const { page, pay } = await amazonPay(h, page => { page.current = processPayment; page.bodyText = 'Processing your request'; });
+  const result = await pay();
+  assert.equal(result.status, 'clicked');
+  assert.match(result.message, /still processing/);
+  assert.match(result.message, /paymentChallenge/);
+  page.snapshot = { url: processPayment, title: '', text: 'Processing your request', elements: [] };
+  const waiting = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(waiting.paymentChallenge, undefined);
+  // The bank page appears: the snapshot says so explicitly.
+  const acs = bankFrame(page, 'https://acs.bank.example/challenge', { code: true, submit: false, split: 6, app: false, sent: false });
+  const main = page.mainFrame();
+  page.frames = () => [main, acs];
+  const flagged = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(flagged.paymentChallenge, 'otp_required');
+  assert.match(flagged.message, /Might have gotten an OTP, please provide.*live-browser-submit-payment-code/);
+  // Split code boxes: one character per box, Enter in the last one.
+  assert.equal((await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '12345' })).status, 'not_actionable');
+  acs.onSubmit = () => { acs.scan = { code: true, split: 6, sent: false }; };
+  const wrong = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '123456' });
+  assert.deepEqual([wrong.status, wrong.retry], ['otp_required', true]);
+  assert.deepEqual(acs.typed.slice(0, 7), [...'123456'].map((c, i) => [`[data-live-otp="code-${i + 1}"]`, c]).concat([['press', '[data-live-otp="code-6"]', 'Enter']]));
+  // Approval in the bank's app instead.
+  acs.scan = { app: true };
+  const app = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(app.paymentChallenge, 'approve_in_app');
+  assert.match(app.message, /bank app/);
+  // Pages the agent opens itself are not the payment's.
+  acs.scan = { code: true };
+  page.snapshot.url = 'https://mail.example/inbox';
+  await h.run('live-browser-navigate', { sessionId: 'b-1', url: 'https://mail.example/inbox' });
+  assert.equal((await h.run('live-browser-snapshot', { sessionId: 'b-1' })).paymentChallenge, undefined);
+  await h.service.closeAll();
+});
+
+test('a code field without a pending payment is not a payment challenge', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://shop.example/account' });
+  const page = h.pages[0];
+  page.otpScan = { code: true };
+  page.snapshot = { url: 'https://shop.example/account', title: 'Verify', text: 'Enter the one-time password', elements: [] };
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(snapshot.paymentChallenge, undefined);
+  assert.equal(snapshot.message, undefined);
+  await h.service.closeAll();
+});
+
+test('the bank\'s own top-level page: the code is asked for and submitted there', async () => {
+  const h = harness();
+  const { page, pay } = await amazonPay(h, page => { page.current = processPayment; page.bodyText = 'Redirecting to your bank'; });
+  assert.equal((await pay()).status, 'clicked');
+  // The processing page hands over to the issuer's page a while later.
+  page.current = 'https://secure.issuer-acs.example/3ds/otp?txn=1';
+  page.bodyText = 'One Time Password (OTP) sent to your mobile ending 42\nEnter OTP';
+  page.otpScan = { code: true, submit: true, split: 0, sent: false };
+  page.snapshot = { url: page.current, title: 'Authentication', text: page.bodyText, elements: [] };
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.equal(snapshot.paymentChallenge, 'otp_required');
+  page.onCode = () => { page.current = 'https://www.amazon.in/gp/buy/thankyou'; page.otpScan = {}; page.bodyText = 'Thank you for your order\nOrder number: 404-4245310-6116300'; };
+  const done = await h.run('live-browser-submit-payment-code', { sessionId: 'b-1', oneTimeCode: '482913' });
+  assert.equal(done.status, 'confirmed');
+  assert.deepEqual(page.typed.filter(entry => entry[0] === '[data-live-otp="code"]').map(entry => entry[1]), ['482913']);
+  await h.service.closeAll();
+});
+
+test('a checkout\'s own wording is not an outcome; a failure page is', async () => {
+  const h = harness();
+  const { page, pay } = await amazonPay(h, () => {});
+  page.bodyText = 'Order Total:\n₹703.00\nYou will get an order confirmation by email\nPlace your order';
+  const unchanged = await pay();
+  assert.equal(unchanged.status, 'clicked');
+  assert.match(unchanged.message, /did not change/);
+  page.onPay = () => { page.current = 'https://www.amazon.in/aips/failed'; page.bodyText = 'Your payment was declined by the bank.'; };
+  const failed = await pay();
+  assert.equal(failed.status, 'payment_failed');
+  assert.match(failed.message, /did not go through/);
   await h.service.closeAll();
 });
 
