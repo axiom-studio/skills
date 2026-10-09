@@ -66,6 +66,30 @@ test('Execute validates input, passes bindings privately and never echoes them',
   assert.equal(types.node_types.length, 16);
 });
 
+test('payment inputs are validated before the approval is asked', () => {
+  const pay = { sessionId: 'b-1', amount: '312.00', currency: 'INR', merchant: 'https://www.amazon.in', intent: 'Place the order' };
+  assert.equal(validateInput('live-browser-pay', { ...pay, paidWith: [{ method: 'Amazon Pay balance', amount: '312.00' }] }).amount, '312.00');
+  assert.equal(validateInput('live-browser-pay', { ...pay, amount: '0' }).amount, '0', 'a free order is checked against the page');
+  for (const [field, value] of [['amount', '-1'], ['amount', '1e3'], ['amount', '012'], ['currency', 'inr'], ['merchant', 'https://u@shop.example'],
+    ['merchant', 'https://www.amazon.in/checkout'], ['paidWith', [{ method: 'x', amount: '1' }]], ['paidWith', [{ method: 'Card', amount: '-1' }]]]) {
+    assert.throws(() => validateInput('live-browser-pay', { ...pay, [field]: value }), new RegExp(`${field} is invalid`), `${field}=${JSON.stringify(value)}`);
+  }
+  const { merchant: _, ...noMerchant } = pay;
+  assert.throws(() => validateInput('live-browser-pay', noMerchant), /merchant is required/);
+  for (const amount of ['0', '0.00', '-5']) {
+    assert.throws(() => validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount, currency: 'INR' }), /amount is invalid/);
+  }
+  assert.equal(validateInput('live-browser-fill-payment-card', { sessionId: 'b-1', amount: '0.50', currency: 'INR' }).amount, '0.50');
+  // The manifest declares the same patterns and the pre-approval target check.
+  const block = manifest.slice(manifest.indexOf('    live-browser-pay:\n')).split(/\n    live-browser-/)[0];
+  assert.match(block, /x-openseal-observationRef: \{roles: \[button\], requireEnabled: true, requireFlags: \[finalPay\]\}/);
+  assert.deepEqual(schemas['live-browser-pay'].properties.target['x-openseal-observationRef'], { roles: ['button'], requireEnabled: true, requireFlags: ['finalPay'] });
+  for (const [action, pattern] of [['live-browser-pay', schemas['live-browser-pay'].properties.amount.pattern], ['live-browser-fill-payment-card', schemas['live-browser-fill-payment-card'].properties.amount.pattern]]) {
+    const actionBlock = manifest.slice(manifest.indexOf(`    ${action}:\n`)).split(/\n    live-browser-/)[0];
+    assert.ok(actionBlock.includes(`amount: {type: string, pattern: '${pattern}'`), action);
+  }
+});
+
 test('input validation enforces the declared shapes', () => {
   assert.throws(() => validateInput('live-browser-click', { sessionId: 'b-1', intent: 'Click it' }), /either target/);
   assert.throws(() => validateInput('live-browser-click', { sessionId: 'b-1', intent: 'Click it', target: 's1:e1', generation: 1, x: 1, y: 1 }), /either target/);

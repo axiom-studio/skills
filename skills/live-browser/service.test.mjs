@@ -577,7 +577,6 @@ test('the saved card: in-chat credential request when missing, spend cap and amo
   const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1', includeScreenshot: true });
   assert.equal(snapshot.screenshotWithheld, true);
   assert.ok(!('modelMedia' in snapshot));
-  await assert.rejects(pay(savedCard, '0'), /greater than zero/);
   await h.service.closeAll();
 });
 
@@ -729,4 +728,73 @@ test('a bank app approval is asked for in chat, and the pay button in a processo
   assert.match(result.message, /bank app/);
   assert.equal(result.requiresHuman, false);
   await h.service.closeAll();
+});
+
+// Regression (dev run 310b96cc): Amazon's final button is "Pay with credit card
+// **1001" (top and bottom of the page), and "Total" is before the shipping
+// discount while "Order Total" is what is paid.
+test('Amazon checkout: the "Pay with ..." button is the final pay button and the order total is checked', async () => {
+  const h = harness();
+  const url = 'https://www.amazon.in/checkout/p/p-404-7245393-2573108/spc?pipelineType=Chewbacca&cartItemCount=1&hasWorkingJavascript=1';
+  await h.run('live-browser-start', { url });
+  const page = h.pages[0];
+  const text = 'Secure checkout\nPay with credit card **1001\nItems:\n₹307.00\nDelivery:\n₹19.00\nMarketplace Fee:\n₹5.00\nTotal:\n₹331.00\n' +
+    'Free Shipping\n-₹19.00\nOrder Total:\n₹312.00\nPaying with Amazon Pay ICICI Bank Credit Card 1001\nUse a gift card, voucher or promo code\nArriving Today 2 PM - 6 PM';
+  const button = (ref, name, role = 'button') => ({ ref, role, name, context: 'form', href: '', inViewport: true, bounds: {}, state: role === 'button' ? { type: 'submit' } : {} });
+  page.snapshot = { url, title: 'Place Your Order - Amazon Checkout', text, elements: [
+    button(3, 'Learn more about secure checkout'), button(5, 'Pay with credit card **1001'), button(12, 'Use this payment method'),
+    button(14, 'Change payment method', 'link'), button(15, 'Continue'), button(28, 'Pay with credit card **1001')] };
+  page.bodyText = text;
+  const snapshot = await h.run('live-browser-snapshot', { sessionId: 'b-1' });
+  assert.deepEqual(snapshot.elements.filter(element => element.finalPay).map(element => element.name), ['Pay with credit card **1001', 'Pay with credit card **1001']);
+  const target = snapshot.elements.find(element => element.finalPay).ref;
+  const pay = input => h.run('live-browser-pay', { sessionId: 'b-1', amount: '312.00', currency: 'INR', merchant: 'https://www.amazon.in', target, intent: 'Place the order', ...input });
+  const before = await pay({ amount: '331.00' });
+  assert.deepEqual([before.status, before.pageTotal], ['amount_mismatch', '312']);
+  const notFinal = await pay({ target: snapshot.elements.find(element => element.name === 'Use this payment method').ref });
+  assert.equal(notFinal.status, 'not_actionable');
+  assert.equal(page.clicked, undefined);
+  page.clickable = true;
+  page.onPay = () => { page.current = 'https://www.amazon.in/gp/buy/thankyou'; page.bodyText = 'Order placed, thank you!\nOrder number: 404-7245393-2573108'; };
+  const paid = await pay({});
+  assert.equal(paid.status, 'confirmed');
+  assert.deepEqual(paid.payments, [{ method: 'charged to the selected payment method', amount: '312.00', currency: 'INR' }]);
+  await h.service.closeAll();
+});
+
+// Regression (dev run 6f36af4e): an order paid fully from the Amazon Pay
+// balance shows "Order Total: ₹0.00"; it still costs its full price.
+test('a balance-paid order: amount is the whole cost, and a zero amount needs a zero-cost page', async () => {
+  const h = harness();
+  await h.run('live-browser-start', { url: 'https://www.amazon.in/checkout/p/p-404-0270622-7960367/spc' });
+  const page = h.pages[0];
+  page.bodyText = 'Items:\n₹307.00\nDelivery:\n₹19.00\nMarketplace Fee:\n₹5.00\nTotal:\n₹331.00\nAmazon Pay balance:\n-₹312.00\nFree Shipping\n-₹19.00\nOrder Total:\n₹0.00\n' +
+    'Paying with Amazon Pay Balance\nUse a gift card, voucher or promo code';
+  page.payCount = 1;
+  const pay = amount => h.run('live-browser-pay', { sessionId: 'b-1', amount, currency: 'INR', merchant: 'https://www.amazon.in', intent: 'Place the order' });
+  const free = await pay('0.00');
+  assert.deepEqual([free.status, free.pageTotal], ['amount_mismatch', '312']);
+  assert.equal(page.clicked, undefined);
+  page.onPay = () => { page.bodyText = 'Order placed, thank you!\nOrder number: 404-0270622-7960367'; };
+  const paid = await pay('312.00');
+  assert.equal(paid.status, 'confirmed');
+  assert.deepEqual(paid.payments, [{ method: 'Amazon Pay balance', amount: '312.00', currency: 'INR' }]);
+  page.bodyText = 'Order Summary\nItems: ₹10.00\nPromotion: -₹10.00\nOrder Total: ₹0.00';
+  page.clicked = undefined;
+  assert.equal((await pay('0')).status, 'confirmed', 'a genuinely free order shows a zero total');
+  await h.service.closeAll();
+});
+
+test('final pay labels and order summaries', async () => {
+  const { PAY_BUTTON, orderSummary } = await import('./sign-in.mjs');
+  for (const name of ['Pay with credit card **1001', 'Place your order', 'Place your order and pay', 'Pay ₹312', 'Pay ₹4,910.00', 'Pay now', 'Confirm and pay',
+    'Complete purchase', 'Submit order', 'Buy now', 'Pay with UPI', 'Proceed to pay']) assert.ok(PAY_BUTTON.test(name), name);
+  for (const name of ['Use this payment method', 'Continue', 'Proceed to checkout', 'Change payment method', 'Pay later', 'Pay on delivery',
+    'Add a new card', 'Paying with Amazon Pay Balance', 'Payment options']) assert.ok(!PAY_BUTTON.test(name), name);
+  assert.deepEqual(orderSummary('Items: ₹307.00\nTotal:\n₹331.00\nAmazon Pay balance:\n-₹312.00\nFree Shipping\n-₹19.00\nOrder Total:\n₹0.00\nPaying with Amazon Pay Balance\nUse a gift card, voucher or promo code\nArriving Today 4 PM - 8 PM'),
+    { due: 0, spend: 312, currency: 'INR', applied: [{ method: 'Amazon Pay balance', amount: 312, currency: 'INR' }] });
+  assert.deepEqual(orderSummary('Total:\n₹331.00\nFree Shipping\n-₹19.00\nOrder Total:\n₹312.00'), { due: 312, spend: 312, currency: 'INR', applied: [] });
+  // A wallet's available balance is not money applied to the order.
+  assert.equal(orderSummary('Wallet balance: ₹5,000.00\nGift card: -₹100.00\nAmount payable: ₹400.00').spend, 500);
+  assert.equal(orderSummary('No totals here'), undefined);
 });

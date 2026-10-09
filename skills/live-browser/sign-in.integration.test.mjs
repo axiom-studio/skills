@@ -250,7 +250,7 @@ test('pay inside a processor frame, then a 3-D Secure code in the bank frame', {
     const button = await rzp.locator('button').boundingBox(); // page coordinates
     assert.equal(await s.live.pointName(button.x + 5, button.y + 5), 'Pay ₹4,910');
     const sign = new SignIn(s.live);
-    assert.deepEqual((await sign.totals('https://shop.example')).map(total => total.amount), [4910, 4910]);
+    assert.deepEqual((await sign.summaries('https://shop.example')).map(summary => summary.due), [4910, 4910]);
     await sign.pay({ origin: 'https://shop.example' });
     assert.deepEqual(s.posts.map(post => post.url), ['https://api.razorpay.com/v1/pay'], 'the processor button, not the page or ad button');
     const acs = () => s.page.frames().find(frame => frame.url().startsWith('https://acs.bank.example/'));
