@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readlink, rm, symlink, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { launchCamoufox } from './camoufox-browser.mjs';
+import { launchCamoufox, proxyFromEnv } from './camoufox-browser.mjs';
 
 async function profileRoot() {
   const dir = await mkdtemp(join(tmpdir(), 'camoufox-test-'));
@@ -95,4 +95,33 @@ test('invalid private display or missing profile fails before browser preparatio
   await assert.rejects(launchCamoufox('', {}, options), /profile or display/);
   await assert.rejects(launchCamoufox('/profile', { display: 'remote:0' }, options), /profile or display/);
   await assert.rejects(launchCamoufox('/profile', { audio: { sink: 'x;rm', source: 'ok' } }, options), /profile or display/);
+});
+
+test('the shared upstream proxy routes page traffic and its credentials stay out of the browser environment', async () => {
+  const { dir, cleanup } = await profileRoot();
+  const saved = { ...process.env };
+  try {
+    Object.assign(process.env, { LIVE_BROWSER_PROXY_SERVER: 'p.example.test:80',
+      LIVE_BROWSER_PROXY_USERNAME: 'user-rotate', LIVE_BROWSER_PROXY_PASSWORD: 'secret' });
+    const { seen, prepareOptions } = preparer();
+    let launched;
+    await launchCamoufox(dir, {}, { prepareOptions, browserType: { launchPersistentContext: async (_profile, options) => {
+      launched = options;
+      return {};
+    } } });
+    assert.deepEqual(seen[0].proxy, { server: 'http://p.example.test:80', username: 'user-rotate', password: 'secret' });
+    for (const name of ['LIVE_BROWSER_PROXY_SERVER', 'LIVE_BROWSER_PROXY_USERNAME', 'LIVE_BROWSER_PROXY_PASSWORD']) {
+      assert.equal(seen[0].env[name], undefined);
+      assert.equal(launched.env[name], undefined);
+    }
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    await cleanup();
+  }
+});
+
+test('without a configured proxy the browser connects directly', () => {
+  assert.equal(proxyFromEnv({}), undefined);
+  assert.equal(proxyFromEnv({ LIVE_BROWSER_PROXY_SERVER: ' ' }), undefined);
+  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXY_SERVER: 'socks5://proxy:1080' }), { server: 'socks5://proxy:1080' });
 });
