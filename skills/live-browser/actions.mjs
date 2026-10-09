@@ -5,6 +5,10 @@ const url = { type: 'string', pattern: '^https?://', maxLength: 2048 };
 const intent = { type: 'string', minLength: 3, maxLength: 500 };
 const target = { type: 'string', pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$' };
 const label = { type: 'string', minLength: 1, maxLength: 100 };
+// A decimal amount; a card charge is more than zero.
+const AMOUNT = '^(?:0|[1-9][0-9]{0,11})(?:\\.[0-9]{1,4})?$';
+const CHARGE = '^(?:[1-9][0-9]{0,11}(?:\\.[0-9]{1,4})?|0\\.(?:[1-9][0-9]{0,3}|0[1-9][0-9]{0,2}|00[1-9][0-9]?|000[1-9]))$';
+const currency = { type: 'string', pattern: '^[A-Z]{3}$' };
 const object = (properties, required = []) => ({ type: 'object', additionalProperties: false, properties, required });
 
 export const REASONS = ['payment', 'submit', 'login', 'personal_data', 'destructive', 'captcha', 'other'];
@@ -27,11 +31,13 @@ export const schemas = Object.freeze({
     summary: { type: 'string', minLength: 1, maxLength: 500 } }, ['sessionId', 'reason', 'summary']),
   'live-browser-sign-in': object({ sessionId, credential: { type: 'string', minLength: 1, maxLength: 200 },
     oneTimeCode: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$' }, intent }, ['sessionId']),
-  'live-browser-fill-payment-card': object({ sessionId, amount: { type: 'string', pattern: '^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,4})?$' },
-    currency: { type: 'string', pattern: '^[A-Z]{3}$' }, intent }, ['sessionId', 'amount', 'currency']),
-  'live-browser-pay': object({ sessionId, amount: { type: 'string', pattern: '^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,4})?$' },
-    currency: { type: 'string', pattern: '^[A-Z]{3}$' }, merchant: { type: 'string', pattern: '^https?://[^/?#\\s]+/?$', maxLength: 300 },
-    target, intent }, ['sessionId', 'amount', 'currency', 'intent']),
+  'live-browser-fill-payment-card': object({ sessionId, amount: { type: 'string', pattern: CHARGE }, currency, intent }, ['sessionId', 'amount', 'currency']),
+  'live-browser-pay': object({ sessionId, amount: { type: 'string', pattern: AMOUNT }, currency,
+    merchant: { type: 'string', pattern: '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$', maxLength: 300 },
+    paidWith: { type: 'array', maxItems: 4, items: object({ method: { type: 'string', minLength: 2, maxLength: 80, pattern: '^[^\\n\\r]+$' },
+      amount: { type: 'string', pattern: AMOUNT } }, ['method', 'amount']) },
+    target: { ...target, 'x-openseal-observationRef': { roles: ['button'], requireEnabled: true, requireFlags: ['finalPay'] } }, intent },
+  ['sessionId', 'amount', 'currency', 'merchant', 'intent']),
   'live-browser-submit-payment-code': object({ sessionId, oneTimeCode: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$' }, intent },
     ['sessionId', 'oneTimeCode']),
   'live-browser-close': object({ sessionId }, ['sessionId']),
@@ -60,7 +66,7 @@ export function validateInput(action, input) {
     if (typeof value === 'number' && ((rule.minimum !== undefined && value < rule.minimum) || (rule.maximum !== undefined && value > rule.maximum))) {
       throw new Error(`${key} is out of range`);
     }
-    if (Array.isArray(value) && (value.length > rule.maxItems || value.some(item => typeof item !== 'string' || !item.length || item.length > rule.items.maxLength))) {
+    if (Array.isArray(value) && (value.length > rule.maxItems || value.some(item => !validItem(rule.items, item)))) {
       throw new Error(`${key} is invalid`);
     }
   }
@@ -69,3 +75,15 @@ export function validateInput(action, input) {
   }
   return input;
 }
+
+function validItem(rule, item) {
+  if (rule.type === 'object') {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    if (Object.keys(item).some(key => !Object.hasOwn(rule.properties, key)) || rule.required.some(key => item[key] === undefined)) return false;
+    return Object.entries(item).every(([key, value]) => validItem(rule.properties[key], value));
+  }
+  return validString(rule, item);
+}
+
+const validString = (rule, value) => typeof value === 'string' && !(rule.maxLength && value.length > rule.maxLength) &&
+  !(rule.minLength !== undefined ? value.length < rule.minLength : !value.length) && !(rule.pattern && !new RegExp(rule.pattern).test(value));
