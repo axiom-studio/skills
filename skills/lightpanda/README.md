@@ -42,9 +42,13 @@ python3 -m unittest discover -s skills/lightpanda -p 'test_*.py'
 Build the image from the repository root:
 
 ```bash
-docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.0.0 .
+docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.0.1 .
 ```
 
 Version 3.0.0 removed every `camoufox-*` action, the Camoufox engine, its
 profile storage and its target/profile/proxy inventory (`CAMOUFOX_*`
 environment variables are no longer read).
+
+Version 3.0.1 declares `tenancy: shared`: the host runs one Browser Skill
+runtime for every tenant. Each action is a separate Lightpanda process with no
+cookies, profile or cache carried between requests.

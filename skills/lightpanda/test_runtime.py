@@ -22,6 +22,9 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(sorted(definition["actions"]), ["lightpanda-fetch", "lightpanda-read-many", "lightpanda-search"])
         self.assertEqual(sorted(definition["prompt"]["allowedTools"]), sorted(definition["actions"]))
         self.assertNotIn("storage", definition["requirements"])
+        self.assertEqual(definition["requirements"]["tenancy"], "shared")
+        for requirement in ("environment", "configuration", "storage"):
+            self.assertNotIn(requirement, definition["requirements"])
         for name, action in definition["actions"].items():
             self.assertEqual((action["risk"], action["sideEffect"]), ("read", "read"))
             self.assertNotIn("sessionId", action["inputSchema"]["properties"])
@@ -206,6 +209,37 @@ class LightpandaTest(unittest.TestCase):
                     {"kind": "url", "value": "https://user:secret@example.com"},
                 ]})
             execute.assert_not_called()
+
+
+
+
+class SharedRuntimeIsolationTest(unittest.TestCase):
+    """One runtime serves every tenant: concurrent reads stay separate."""
+
+    def test_concurrent_tenants_only_receive_their_own_pages(self):
+        def fake_run(command, **_):
+            url = command[2]
+            marker = "marker-tenant-a" if "tenant-a" in url else "marker-tenant-b"
+            body = json.dumps({"url": url, "http_status": 200, "content": f"page for {marker}"})
+            return subprocess.CompletedProcess(command, 0, stdout=body, stderr="")
+
+        runtime = LightpandaRuntime(binary="/bin/true", run=fake_run)
+        failures = []
+
+        def tenant(name, other):
+            for index in range(32):
+                result = runtime.execute("lightpanda-fetch", {"url": f"https://{name}.example.com/{index}"})
+                text = json.dumps(result)
+                if f"marker-{other}" in text or f"marker-{name}" not in text:
+                    failures.append(text)
+
+        threads = [threading.Thread(target=tenant, args=("tenant-a", "tenant-b")),
+                   threading.Thread(target=tenant, args=("tenant-b", "tenant-a"))]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(failures, [])
 
 
 if __name__ == "__main__":

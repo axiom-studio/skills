@@ -93,7 +93,7 @@ func TestManifestMatchesCompleteGitHubSurface(t *testing.T) {
 			t.Fatalf("allowed tool %q has no action", action)
 		}
 	}
-	if len(manifest.Definition.Installers) != 1 || manifest.Definition.Installers[0].Package != "axiomstudio/skill-github:latest" {
+	if len(manifest.Definition.Installers) != 1 || manifest.Definition.Installers[0].Package != "axiomstudio/skill-github:"+skillVersion {
 		t.Fatalf("installer = %#v", manifest.Definition.Installers)
 	}
 }

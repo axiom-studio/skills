@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
     id: skill-github
-    version: 1.3.0
+    version: 1.3.1
     name: GitHub Skill
     description: Governed GitHub repository, issue, pull-request, and Actions operations for OpenSeal Agents.
     category: devops
@@ -603,11 +603,13 @@ definition:
         instructions: "Use GitHub reads to verify repository, issue, pull-request, check, and workflow state. Read the exact pull request, changed files, reviews, and checks before reviewing or merging. Supply the inspected headSha when merging. Use github-branch-create to create an explicitly requested branch from an inspected commit. Use github-commit-create to create, edit or delete files and commit and publish them together; this GitHub API path does not require workspace Git. Read the destination branch head first and supply expectedHeadSha. On a head conflict, inspect the new changes and reconcile before proposing another commit; never overwrite or force-push. Preserve exact file contents and executable modes. Existing bindings do not gain new actions automatically: use the normal setup flow to request github:contents:write when needed. Create or update external GitHub state only when requested. Never request, print, or expose credential values."
         userInvocable: true
         allowedTools: [github-repository-get, github-repository-content-get, github-branch-list, github-branch-create, github-commit-list, github-commit-create, github-issue-list, github-issue-get, github-issue-create, github-issue-update, github-issue-comments-list, github-issue-comment-create, github-pull-request-list, github-pull-request-get, github-pull-request-files, github-pull-request-create, github-pull-request-update, github-pull-request-comments-list, github-pull-request-comment-create, github-pull-request-reviews-list, github-pull-request-review-create, github-pull-request-checks-list, github-pull-request-merge, github-workflow-list, github-workflow-runs-list, github-workflow-dispatch]
+    requirements:
+        tenancy: shared
     installers:
         - id: oci
           kind: oci
           label: GitHub Skill service image
-          package: axiomstudio/skill-github:latest
+          package: axiomstudio/skill-github:1.3.1
     source:
         format: axiom.skill/v1
         identity: https://github.com/axiom-studio/skills::skill-github
@@ -615,7 +617,7 @@ definition:
         publisher: Axiom Studio
         license: MIT
         reference: skill-github
-        resolvedVersion: 1.2.2
+        resolvedVersion: 1.3.1
 diagnostics:
     - code: forward_ported
       message: Authored as a canonical OpenSeal Skill with bounded GitHub API actions.
