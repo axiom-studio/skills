@@ -115,11 +115,15 @@ there is no site-specific code.
   transcription and speech. `CORTEX_TENANT_ID`: the tenant this runtime
   serves (set by Cortex's Skill hosting); profile commands for any other
   tenant are refused.
-- `LIVE_BROWSER_PROXY_SERVER`, `LIVE_BROWSER_PROXY_USERNAME`,
-  `LIVE_BROWSER_PROXY_PASSWORD` (optional): the upstream proxy for page
-  traffic. Cortex injects them into every tenant's runtime from the platform
-  Secret `live-browser-proxy` in the Skill namespace; without them the browser
-  connects directly. They are not passed on to the browser process.
+- `LIVE_BROWSER_PROXIES` (optional): the upstream proxies for page traffic,
+  one per line or comma-separated, each a proxy URL
+  (`http://user:pass@host:port`) or a provider list line
+  (`host:port:user:pass`). Cortex injects it into every tenant's runtime from
+  the platform Secret `live-browser-proxy` in the Skill namespace. Each tenant
+  always uses the same entry (rendezvous hash of `CORTEX_TENANT_ID`), so sites
+  see one stable IP; changing the list only moves the tenants of the entries
+  that were removed or added. Without it the browser connects directly. It is
+  not passed on to the browser process.
 - `BrowserControlService.Control` also takes two session-less profile
   commands, `{"type":"profileStatus"}` (returns `{state, origins, updatedAt,
   sizeBytes}`) and `{"type":"forgetProfile"}` (stops the open browser cleanly,
@@ -170,5 +174,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.13 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.14 .
 ```

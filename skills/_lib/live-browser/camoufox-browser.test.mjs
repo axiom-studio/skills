@@ -97,31 +97,55 @@ test('invalid private display or missing profile fails before browser preparatio
   await assert.rejects(launchCamoufox('/profile', { audio: { sink: 'x;rm', source: 'ok' } }, options), /profile or display/);
 });
 
-test('the shared upstream proxy routes page traffic and its credentials stay out of the browser environment', async () => {
+const POOL = ['31.59.20.176:6754:user:p:ss', '45.38.107.97:6014:user:p:ss', 'http://u%40x:pw@64.137.96.74:6641', '198.23.243.226:6361:user:p:ss'].join('\n');
+
+test('each tenant browses through its own stable proxy from the shared list, which stays out of the browser environment', async () => {
   const { dir, cleanup } = await profileRoot();
   const saved = { ...process.env };
   try {
-    Object.assign(process.env, { LIVE_BROWSER_PROXY_SERVER: 'p.example.test:80',
-      LIVE_BROWSER_PROXY_USERNAME: 'user-rotate', LIVE_BROWSER_PROXY_PASSWORD: 'secret' });
+    Object.assign(process.env, { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' });
     const { seen, prepareOptions } = preparer();
     let launched;
     await launchCamoufox(dir, {}, { prepareOptions, browserType: { launchPersistentContext: async (_profile, options) => {
       launched = options;
       return {};
     } } });
-    assert.deepEqual(seen[0].proxy, { server: 'http://p.example.test:80', username: 'user-rotate', password: 'secret' });
-    for (const name of ['LIVE_BROWSER_PROXY_SERVER', 'LIVE_BROWSER_PROXY_USERNAME', 'LIVE_BROWSER_PROXY_PASSWORD']) {
-      assert.equal(seen[0].env[name], undefined);
-      assert.equal(launched.env[name], undefined);
-    }
+    assert.deepEqual(seen[0].proxy, proxyFromEnv({ LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' }));
+    assert.equal(seen[0].env.LIVE_BROWSER_PROXIES, undefined);
+    assert.equal(launched.env.LIVE_BROWSER_PROXIES, undefined);
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
     await cleanup();
   }
 });
 
-test('without a configured proxy the browser connects directly', () => {
+test('a tenant keeps its proxy across launches and when other entries are added or removed', () => {
+  const entries = POOL.split('\n');
+  const pick = (list, tenant) => proxyFromEnv({ LIVE_BROWSER_PROXIES: list.join(','), CORTEX_TENANT_ID: String(tenant) });
+  const servers = new Set();
+  for (let tenant = 1; tenant <= 200; tenant++) {
+    const chosen = pick(entries, tenant);
+    servers.add(chosen.server);
+    assert.deepEqual(pick(entries, tenant), chosen);
+    const added = pick([...entries, '191.96.254.138:6185:user:p:ss'], tenant);
+    assert.ok(added.server === chosen.server || added.server === 'http://191.96.254.138:6185', 'an added proxy only takes tenants, never reshuffles them');
+    const removed = entries.find(entry => !entry.includes(chosen.server.split('//')[1]));
+    assert.deepEqual(pick(entries.filter(entry => entry !== removed), tenant), chosen);
+  }
+  assert.equal(servers.size, entries.length, 'tenants spread across the whole list');
+});
+
+test('proxy list entries parse from provider lines and URLs', () => {
+  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: '31.59.20.176:6754:hsk:p:ss' }),
+    { server: 'http://31.59.20.176:6754', username: 'hsk', password: 'p:ss' });
+  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: 'http://u%40x:pw@64.137.96.74:6641' }),
+    { server: 'http://64.137.96.74:6641', username: 'u@x', password: 'pw' });
+  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: 'socks5://proxy:1080' }), { server: 'socks5://proxy:1080' });
+  assert.throws(() => proxyFromEnv({ LIVE_BROWSER_PROXIES: 'not-a-proxy' }), /invalid/);
+});
+
+test('without a configured proxy list the browser connects directly', () => {
   assert.equal(proxyFromEnv({}), undefined);
-  assert.equal(proxyFromEnv({ LIVE_BROWSER_PROXY_SERVER: ' ' }), undefined);
-  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXY_SERVER: 'socks5://proxy:1080' }), { server: 'socks5://proxy:1080' });
+  assert.equal(proxyFromEnv({ LIVE_BROWSER_PROXIES: ' \n , ' }), undefined);
 });
