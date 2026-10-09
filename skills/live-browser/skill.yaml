@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.0.10
+  version: 1.0.11
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.0.10
+    resolvedVersion: 1.0.11
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.0.10
+      package: axiomstudio/skill-live-browser:1.0.11
   requirements:
     operatingSystems: [linux]
     compute:
@@ -203,7 +203,7 @@ definition:
       timeout: 180000000000
     live-browser-snapshot:
       name: live-browser-snapshot
-      description: Read the current page as compact text plus interactive elements with references (sN:eM) for click, fill and select. Optionally attach a small screenshot for a vision-capable model.
+      description: 'Read the current page as compact text plus interactive elements with references (sN:eM) for click, fill and select. Optionally attach a small screenshot for a vision-capable model. While a payment made with live-browser-pay in the last 15 minutes waits for the bank, the result carries paymentChallenge: otp_required (the bank''s one-time code field, also inside the bank''s frame, which text and elements do not show: ask the user in chat "Might have gotten an OTP, please provide", then call live-browser-submit-payment-code) or approve_in_app (ask the user in chat to approve in their bank app), with message saying exactly what to do.'
       inputSchema:
         type: object
         additionalProperties: false
@@ -245,6 +245,8 @@ definition:
             maxItems: 4
             uniqueItems: true
             items: {type: string, enum: [captcha, mfa, anti_bot, manual_confirmation]}
+          paymentChallenge: {type: string, enum: [otp_required, approve_in_app], description: 'Only while a payment of this session (live-browser-pay, last 15 minutes) waits for the bank: otp_required = a bank one-time code field is on the page or in any of its frames; approve_in_app = the bank asks for approval in its app. Follow message.'}
+          message: {type: string, description: 'With paymentChallenge: what to do next, the same instruction live-browser-pay gives.'}
           requiresHuman: {type: boolean}
           modelMedia:
             type: object
@@ -487,7 +489,7 @@ definition:
       timeout: 180000000000
     live-browser-pay:
       name: live-browser-pay
-      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Take a snapshot first and pass as target the element marked finalPay: true (omit target only when the pay button is inside a payment processor frame such as Razorpay or Stripe); a target without that mark is rejected before approval. amount is what the order costs across all payment methods: the card charge plus any balance, wallet or gift card applied (an order paid fully from a balance still costs its full price, never 0; only a genuinely free order is 0). Nothing is clicked if the page is on another site or its order total plus applied balances differs from amount (merchant_mismatch, amount_mismatch). Returns confirmed (with orderReference and a summary of the confirmation page), clicked, otp_required (the bank sent a one-time code: ask the user for it in chat, then call live-browser-submit-payment-code), approve_in_app (ask the user in chat to approve in their bank app) or payment_verification (another bank check; hand off only if you cannot do it). Also finds the pay button inside the checkout''s payment processor frame (Razorpay, Stripe, ...). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
+      description: 'Press the final pay or place-order button of the current checkout, after the user approves the payment in chat (always asked, in every approval mode). Take a snapshot first and pass as target the element marked finalPay: true (omit target only when the pay button is inside a payment processor frame such as Razorpay or Stripe); a target without that mark is rejected before approval. amount is what the order costs across all payment methods: the card charge plus any balance, wallet or gift card applied (an order paid fully from a balance still costs its full price, never 0; only a genuinely free order is 0). Nothing is clicked if the page is on another site or its order total plus applied balances differs from amount (merchant_mismatch, amount_mismatch). After the click it keeps watching the page (up to 45 seconds, through processing pages and redirects, in every frame) until the outcome is clear. Returns confirmed (with orderReference and a summary of the confirmation page), otp_required (the bank asks for a one-time code: ask the user in chat "Might have gotten an OTP, please provide", then call live-browser-submit-payment-code), approve_in_app (ask the user in chat to approve in their bank app), payment_failed (the page says the payment did not go through), payment_verification (another bank check; hand off only if you cannot do it) or clicked (no outcome yet: take a snapshot, which reports paymentChallenge when the bank page arrives). Also finds the pay button inside the checkout''s payment processor frame (Razorpay, Stripe, ...). Fill the card with live-browser-fill-payment-card first when the checkout needs one.'
       inputSchema:
         type: object
         additionalProperties: false
@@ -518,7 +520,7 @@ definition:
         type: object
         properties:
           sessionId: {type: string}
-          status: {type: string, enum: &payment_statuses [confirmed, clicked, otp_required, approve_in_app, payment_verification, merchant_mismatch, amount_mismatch, not_actionable, awaiting_user, paused_by_user]}
+          status: {type: string, enum: &payment_statuses [confirmed, clicked, otp_required, approve_in_app, payment_failed, payment_verification, merchant_mismatch, amount_mismatch, not_actionable, awaiting_user, paused_by_user]}
           amount: {type: string}
           currency: {type: string}
           origin: {type: string}
@@ -552,7 +554,7 @@ definition:
       timeout: 180000000000
     live-browser-submit-payment-code:
       name: live-browser-submit-payment-code
-      description: 'Type the one-time code the user gave you in chat into the bank''s payment check (3-D Secure, or a wallet''s OTP) after live-browser-pay returned otp_required, and submit it. Only for the payment just approved (within 15 minutes), on the checkout or the bank page it led to. Returns the same statuses as live-browser-pay; otp_required with retry means the code was not accepted.'
+      description: 'Type the one-time code the user gave you in chat into the bank''s payment check (3-D Secure, or a wallet''s OTP) after live-browser-pay returned otp_required or a snapshot showed paymentChallenge: otp_required, and submit it. Finds the code field on the page or in any of its frames (the bank''s 3-D Secure frame), including codes split into one box per character. Only for the payment just approved (within 15 minutes), on the checkout or the pages it led to. Watches the result like live-browser-pay and returns the same statuses; otp_required with retry means the code was not accepted.'
       inputSchema:
         type: object
         additionalProperties: false

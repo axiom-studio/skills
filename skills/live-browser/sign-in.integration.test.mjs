@@ -217,7 +217,8 @@ test('pay finds the place-order button, re-checks the origin and reads the confi
     const box = await s.page.locator('form button').boundingBox();
     assert.equal(await s.page.evaluate(`(${POINT_NAME_JS})(${box.x + 5}, ${box.y + 5})`), 'Place your order');
     await s.page.locator('button').first().evaluate(e => e.remove());
-    await new SignIn(s.live).pay({ origin: 'https://shop.example' });
+    const sign = new SignIn(s.live);
+    assert.equal((await sign.awaitPaymentOutcome(await sign.pay({ origin: 'https://shop.example' }), { watchMs: 10000, pollMs: 200 })).state, 'confirmed');
     assert.deepEqual(s.posts.map(post => post.url), ['https://shop.example/place']);
     const outcome = paymentOutcome(await s.page.evaluate('document.body.innerText'));
     assert.equal(outcome.confirmed, true);
@@ -251,14 +252,12 @@ test('pay inside a processor frame, then a 3-D Secure code in the bank frame', {
     assert.equal(await s.live.pointName(button.x + 5, button.y + 5), 'Pay ₹4,910');
     const sign = new SignIn(s.live);
     assert.deepEqual((await sign.summaries('https://shop.example')).map(summary => summary.due), [4910, 4910]);
-    await sign.pay({ origin: 'https://shop.example' });
+    // The bank's frame loads after the click: pay watches until it asks.
+    const outcome = await sign.awaitPaymentOutcome(await sign.pay({ origin: 'https://shop.example' }), { watchMs: 10000, pollMs: 200 });
     assert.deepEqual(s.posts.map(post => post.url), ['https://api.razorpay.com/v1/pay'], 'the processor button, not the page or ad button');
-    const acs = () => s.page.frames().find(frame => frame.url().startsWith('https://acs.bank.example/'));
-    while (!acs()) await new Promise(resolve => setTimeout(resolve, 50));
-    await acs().waitForLoadState('domcontentloaded');
-    assert.equal((await sign.paymentState()).state, 'otp_required');
+    assert.equal(outcome.state, 'otp_required');
     await assert.rejects(sign.submitPaymentCode('482913', ['https://other.example']), error => error.notActionable === true);
-    await sign.submitPaymentCode('482913', ['https://shop.example']);
+    await sign.awaitPaymentOutcome(await sign.submitPaymentCode('482913', ['https://shop.example']), { watchMs: 3000, pollMs: 200 });
     assert.equal(s.posts.at(-1).url, 'https://acs.bank.example/verify');
     assert.equal(s.posts.at(-1).body.otpValue, '482913');
   } finally { await s.close(); }
