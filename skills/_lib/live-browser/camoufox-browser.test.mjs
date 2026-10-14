@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readlink, rm, symlink, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { launchCamoufox, proxyFromEnv } from './camoufox-browser.mjs';
+import { createServer } from 'node:net';
+import { launchCamoufox, probeProxy, proxiesFromEnv, reachableProxy } from './camoufox-browser.mjs';
+
+const proxyFromEnv = env => proxiesFromEnv(env)[0];
 
 async function profileRoot() {
   const dir = await mkdtemp(join(tmpdir(), 'camoufox-test-'));
@@ -106,7 +109,7 @@ test('each tenant browses through its own stable proxy from the shared list, whi
     Object.assign(process.env, { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' });
     const { seen, prepareOptions } = preparer();
     let launched;
-    await launchCamoufox(dir, {}, { prepareOptions, browserType: { launchPersistentContext: async (_profile, options) => {
+    await launchCamoufox(dir, {}, { prepareOptions, probe: async () => true, browserType: { launchPersistentContext: async (_profile, options) => {
       launched = options;
       return {};
     } } });
@@ -145,7 +148,64 @@ test('proxy list entries parse from provider lines and URLs', () => {
   assert.throws(() => proxyFromEnv({ LIVE_BROWSER_PROXIES: 'not-a-proxy' }), /invalid/);
 });
 
-test('without a configured proxy list the browser connects directly', () => {
+test('without a configured proxy list the browser connects directly', async () => {
   assert.equal(proxyFromEnv({}), undefined);
   assert.equal(proxyFromEnv({ LIVE_BROWSER_PROXIES: ' \n , ' }), undefined);
+  assert.equal(await reachableProxy({}, () => { throw new Error('must not probe'); }), undefined);
+});
+
+test('a tenant whose proxy does not answer moves to its next proxy, and back once it recovers', async () => {
+  const env = { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' };
+  const [first, second, third] = proxiesFromEnv(env);
+  const probed = [];
+  const down = new Set([first.server]);
+  const probe = async proxy => { probed.push(proxy.server); return !down.has(proxy.server); };
+  assert.deepEqual(await reachableProxy(env, probe), second);
+  assert.deepEqual(probed, [first.server, second.server]);
+  down.add(second.server);
+  assert.deepEqual(await reachableProxy(env, probe), third);
+  down.clear();
+  assert.deepEqual(await reachableProxy(env, probe), first);
+});
+
+test('launch fails clearly when no proxy in the list answers', async () => {
+  const { dir, cleanup } = await profileRoot();
+  const saved = { ...process.env };
+  try {
+    Object.assign(process.env, { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' });
+    await assert.rejects(launchCamoufox(dir, {}, { probe: async () => false,
+      prepareOptions: () => { throw new Error('must not run'); } }), /No browser proxy is reachable/);
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+    await cleanup();
+  }
+});
+
+async function fakeProxy(onRequest) {
+  const server = createServer(socket => {
+    let request = '';
+    socket.on('data', data => {
+      request += data;
+      if (request.includes('\r\n\r\n')) onRequest(request, socket);
+    });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return { server: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(resolve => server.close(resolve)) };
+}
+
+test('a proxy is usable only when it opens an authenticated tunnel in time', async () => {
+  let seen = '';
+  const open = await fakeProxy((request, socket) => { seen = request; socket.end('HTTP/1.1 200 Connection established\r\n\r\n'); });
+  const denied = await fakeProxy((_request, socket) => socket.end('HTTP/1.1 407 Proxy Authentication Required\r\n\r\n'));
+  const silent = await fakeProxy(() => {});
+  try {
+    assert.equal(await probeProxy({ server: open.server, username: 'u', password: 'p:w' }), true);
+    assert.match(seen, /^CONNECT example\.com:443 HTTP\/1\.1\r\n/);
+    assert.match(seen, new RegExp(`Proxy-Authorization: Basic ${Buffer.from('u:p:w').toString('base64')}\r\n`));
+    assert.equal(await probeProxy({ server: denied.server }), false);
+    assert.equal(await probeProxy({ server: silent.server }, { timeoutMs: 100 }), false);
+    assert.equal(await probeProxy({ server: 'http://127.0.0.1:1' }), false);
+    assert.equal(await probeProxy({ server: 'socks5://proxy:1080' }), true);
+  } finally { await Promise.all([open.close(), denied.close(), silent.close()]); }
 });

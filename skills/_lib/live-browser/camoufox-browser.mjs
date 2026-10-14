@@ -3,6 +3,8 @@ import { launchOptions } from 'camoufox-js';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
+import net from 'node:net';
+import tls from 'node:tls';
 import { IDENTITY_FILE } from './browser-profile.mjs';
 
 const SINK = /^[a-z][a-z0-9_]{0,62}$/;
@@ -51,12 +53,16 @@ async function stableIdentity(profileRoot, options) {
 // Upstream proxies for page traffic, shared by every tenant's runtime: hosting
 // injects the list from one platform Secret. Each entry is a proxy URL
 // (http://user:pass@host:port) or a provider list line (host:port:user:pass);
-// entries are separated by newlines or commas. A tenant always uses the same
-// entry, so sites see one stable IP for its sign-ins; rendezvous hashing
-// keeps every other tenant on its proxy when the list changes. The list stays
-// out of the browser process environment.
+// entries are separated by newlines or commas. A tenant always prefers the
+// same entry, so sites see one stable IP for its sign-ins; rendezvous hashing
+// keeps every other tenant on its proxy when the list changes. When the
+// preferred proxy does not answer, the tenant moves to the next one in its own
+// order rather than timing out on every page. The list stays out of the
+// browser process environment.
 const PROXY_ENV = 'LIVE_BROWSER_PROXIES';
 const TENANT_ENV = 'CORTEX_TENANT_ID';
+const PROXY_PROBE_TARGET = 'example.com:443';
+const PROXY_PROBE_TIMEOUT_MS = 5000;
 
 function parseProxy(entry) {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(entry)) {
@@ -69,26 +75,61 @@ function parseProxy(entry) {
   return { server: `http://${host}:${port}`, ...(username ? { username, password: password.join(':') } : {}) };
 }
 
-export function proxyFromEnv(env = process.env) {
+// The tenant's proxies, most preferred first.
+export function proxiesFromEnv(env = process.env) {
   const entries = (env[PROXY_ENV] ?? '').split(/[\n,]/).map(entry => entry.trim()).filter(Boolean);
-  if (!entries.length) return undefined;
   const tenant = (env[TENANT_ENV] ?? '').trim();
   const score = entry => createHash('sha256').update(`${tenant}\n${entry}`).digest().readBigUInt64BE();
-  const [chosen] = entries.map(entry => ({ entry, score: score(entry) })).sort((a, b) => (a.score < b.score ? 1 : a.score > b.score ? -1 : 0));
-  return parseProxy(chosen.entry);
+  return entries.map(entry => ({ entry, score: score(entry) }))
+    .sort((a, b) => (a.score < b.score ? 1 : a.score > b.score ? -1 : 0))
+    .map(({ entry }) => parseProxy(entry));
+}
+
+// An HTTP(S) proxy is usable when it accepts a tunnel within the timeout.
+// Other schemes (SOCKS) are not probed.
+export function probeProxy(proxy, { timeoutMs = PROXY_PROBE_TIMEOUT_MS } = {}) {
+  const url = new URL(proxy.server);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return Promise.resolve(true);
+  return new Promise(resolve => {
+    const secure = url.protocol === 'https:';
+    const port = Number(url.port) || (secure ? 443 : 80);
+    const socket = secure ? tls.connect({ host: url.hostname, port, servername: url.hostname }) : net.connect(port, url.hostname);
+    const done = ok => { socket.destroy(); resolve(ok); };
+    const auth = proxy.username === undefined ? '' :
+      `Proxy-Authorization: Basic ${Buffer.from(`${proxy.username}:${proxy.password ?? ''}`).toString('base64')}\r\n`;
+    socket.once(secure ? 'secureConnect' : 'connect', () =>
+      socket.write(`CONNECT ${PROXY_PROBE_TARGET} HTTP/1.1\r\nHost: ${PROXY_PROBE_TARGET}\r\n${auth}\r\n`));
+    let reply = '';
+    socket.on('data', data => {
+      reply += data.toString('latin1');
+      const end = reply.indexOf('\r\n');
+      if (end >= 0) done(/^HTTP\/1\.[01] 200 /.test(reply.slice(0, end)));
+      else if (reply.length > 1024) done(false);
+    });
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once('error', () => done(false));
+    socket.once('end', () => done(false));
+  });
+}
+
+export async function reachableProxy(env = process.env, probe = probeProxy) {
+  const proxies = proxiesFromEnv(env);
+  if (!proxies.length) return undefined;
+  for (const proxy of proxies) if (await probe(proxy)) return proxy;
+  throw new Error('No browser proxy is reachable');
 }
 
 // Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio
 // routing (PULSE_SINK/PULSE_SOURCE) is per browser so a page never hears or
 // speaks into another browser's audio.
 export async function launchCamoufox(profileRoot, { display, audio } = {}, {
-  prepareOptions = launchOptions, browserType = firefox,
+  prepareOptions = launchOptions, browserType = firefox, probe = probeProxy,
 } = {}) {
   if (!profileRoot || (display !== undefined && !/^:[0-9]{1,5}$/.test(display)) ||
     (audio !== undefined && (!SINK.test(audio?.sink ?? '') || !SINK.test(audio?.source ?? '')))) {
     throw new Error('Browser profile or display is unavailable');
   }
-  const proxy = proxyFromEnv();
+  const proxy = await reachableProxy(process.env, probe);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== PROXY_ENV));
   const prepared = await prepareOptions({
     ...(proxy ? { proxy } : {}),
