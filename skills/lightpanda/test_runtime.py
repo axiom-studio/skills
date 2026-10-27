@@ -391,7 +391,7 @@ class SearchProviderTest(unittest.TestCase):
                 self.assertIsNone(caught.exception.__cause__)
 
     def test_tavily_provider_failures_fall_back_to_yahoo_when_allowed(self):
-        for item in [http_error(401), http_error(403), http_error(400), http_error(429), http_error(432),
+        for item in [http_error(400), http_error(429, {"Retry-After": "3"}), http_error(432),
                      http_error(433), http_error(500), http_error(502), urllib.error.URLError("down"),
                      FakeResponse(b"not json")]:
             with self.subTest(item=item):
@@ -400,6 +400,15 @@ class SearchProviderTest(unittest.TestCase):
                 self.assertEqual(self.fetches, ["https://search.yahoo.com/search?p=capital"])
                 self.assertEqual(page["text"], "Yahoo results")
                 self.assertEqual(self.sleeps, [])
+
+    def test_rejected_tavily_key_is_not_hidden_by_fallback(self):
+        for status in (401, 403):
+            with self.subTest(status=status):
+                service = self.runtime([http_error(status)])
+                with self.assertRaises(BrowserActionFailure) as caught:
+                    service.execute("lightpanda-search", {"query": "q", **TAVILY_FALLBACK}, BINDINGS)
+                self.assertEqual(caught.exception.code, "search_provider_authentication_failed")
+                self.assertEqual(self.fetches, [])
 
     def test_tavily_short_retry_after_is_waited_once(self):
         service = self.runtime([http_error(429, {"Retry-After": "3"}), FakeResponse(TAVILY_BODY)])

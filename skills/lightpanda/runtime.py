@@ -270,16 +270,17 @@ class LightpandaRuntime:
             if settings.api_key is None:
                 raise search_provider_unconfigured()
             try:
-                return self.tavily_search(query, settings.api_key)
-            except BrowserActionFailure:
-                # With fallback enabled, any Tavily failure (rate limit, quota,
-                # 5xx, unreachable, or a rejected key) still answers from Yahoo;
-                # the Tavily endpoint URL is how callers tell which one served.
-                if settings.fallback != "yahoo":
+                return self.tavily_search(query, settings.api_key, retry=settings.fallback != "yahoo")
+            except BrowserActionFailure as exc:
+                # Fallback covers Tavily being unavailable (rate limit, quota,
+                # 5xx, unreachable). A rejected key is an operator error and
+                # must surface, not hide behind Yahoo. The Tavily endpoint URL
+                # is how callers tell which provider served.
+                if settings.fallback != "yahoo" or exc.code == "search_provider_authentication_failed":
                     raise
         return self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(query)})
 
-    def tavily_search(self, query, api_key, *, retried=False):
+    def tavily_search(self, query, api_key, *, retry=True):
         """One Tavily Search API call; the key travels only in the header."""
         body = json.dumps({"query": query, "max_results": TAVILY_MAX_RESULTS,
                            "search_depth": "basic"}).encode("utf-8")
@@ -296,10 +297,11 @@ class LightpandaRuntime:
             retry_after = source_retry_after({"headers": {"Retry-After": exc.headers.get("Retry-After")}}
                                              if exc.headers is not None else {})
             exc.close()
-            if status == 429 and not retried and retry_after is not None \
+            # With a Yahoo fallback, answering from Yahoo beats waiting.
+            if status == 429 and retry and retry_after is not None \
                     and retry_after <= MAX_INLINE_RETRY_AFTER_SECONDS:
                 self._sleep(retry_after)
-                return self.tavily_search(query, api_key, retried=True)
+                return self.tavily_search(query, api_key, retry=False)
             raise tavily_http_failure(status, retry_after) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise BrowserActionFailure("source_unavailable",

@@ -24,10 +24,10 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
-            timeout: 15000000000
+            timeout: 45000000000
         lightpanda-search:
             name: lightpanda-search
-            description: Prefer Lightpanda for public web searches and return bounded Markdown results. Source HTTP 429 is a rate-limit failure, not evidence of bot detection; report it and suggest trying later or another permitted source. When a page needs interaction or sign-in, use the live browser instead; never retry a rate-limited source there.
+            description: Prefer Lightpanda for public web searches and return bounded Markdown results. A source_rate_limited failure means the search provider is rate limiting; source_access_challenge means it served a bot check. Report either plainly; do not promise that retrying later will work. When a page needs interaction or sign-in, use the live browser instead; never retry a rate-limited source there.
             inputSchema:
                 type: object
                 additionalProperties: false
@@ -48,7 +48,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
-            timeout: 15000000000
+            timeout: 55000000000
         lightpanda-read-many:
             name: lightpanda-read-many
             description: Run two to four independent public searches or page reads concurrently. Preserve each result's success or explicit failure in input order. Mixed results are partial; if every read fails, the action fails with structured per-source failure metadata. Never summarize failed items as inspected pages.
@@ -101,7 +101,7 @@ definition:
             retry: {maxAttempts: 1}
             risk: read
             sideEffect: read
-            timeout: 20000000000
+            timeout: 60000000000
     category: research
     description: Fast, sessionless Lightpanda page reading and web search that returns bounded Markdown.
     icon: search
