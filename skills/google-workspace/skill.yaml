@@ -3384,6 +3384,60 @@ definition:
             risk: write
             sideEffect: write
     category: productivity
+    config:
+        fields:
+            - audience: host
+              description: Ends in .apps.googleusercontent.com. Changing it disconnects every Google account; each person must reconnect Google Workspace.
+              key: oauthClientId
+              label: OAuth client ID
+              pattern: ^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$
+              required: true
+              summary: true
+              type: string
+            - audience: host
+              key: oauthClientSecret
+              label: OAuth client secret
+              required: true
+              summary: true
+              type: secret
+        scopes:
+            - global
+        setup:
+            - description: Web application type, in Google Cloud Console.
+              links:
+                - label: Google Cloud Console
+                  url: https://console.cloud.google.com/apis/credentials
+              title: Create an OAuth client
+            - copy:
+                platform: oauthCallbackUrl
+              description: Add exactly this under the client's authorized redirect URIs.
+              title: Add the redirect URI
+            - description: A disabled API makes that service fail for everyone, and reconnecting won't fix it.
+              links:
+                - label: Gmail API
+                  url: https://console.cloud.google.com/apis/library/gmail.googleapis.com
+                - label: Google Drive API
+                  url: https://console.cloud.google.com/apis/library/drive.googleapis.com
+                - label: Google Docs API
+                  url: https://console.cloud.google.com/apis/library/docs.googleapis.com
+                - label: Google Sheets API
+                  url: https://console.cloud.google.com/apis/library/sheets.googleapis.com
+                - label: Google Slides API
+                  url: https://console.cloud.google.com/apis/library/slides.googleapis.com
+                - label: Google Calendar API
+                  url: https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
+                - label: People API
+                  url: https://console.cloud.google.com/apis/library/people.googleapis.com
+                - label: Google Tasks API
+                  url: https://console.cloud.google.com/apis/library/tasks.googleapis.com
+                - label: Google Meet REST API
+                  url: https://console.cloud.google.com/apis/library/meet.googleapis.com
+              title: Enable the APIs
+            - description: Add test users while the app is in testing. Public access to sensitive scopes may need Google verification.
+              links:
+                - label: OAuth consent screen
+                  url: https://console.cloud.google.com/apis/credentials/consent
+              title: Configure the consent screen
     description: One Google connection for Gmail, Drive, Docs, Sheets, Slides, Calendar, Contacts, Tasks and Meet.
     icon: google
     id: skill-google-workspace
@@ -3391,7 +3445,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Workspace Skill service
-          package: axiomstudio/skill-google-workspace:1.1.1
+          package: axiomstudio/skill-google-workspace:1.2.0
     name: Google Workspace
     prompt:
         allowedTools:
@@ -3471,7 +3525,7 @@ definition:
         publisher: Axiom Studio
         reference: skill-google-workspace
         registry: https://github.com/axiom-studio/skills
-        resolvedVersion: 1.1.1
+        resolvedVersion: 1.2.0
     tags:
         - google
         - workspace
@@ -3487,5 +3541,5 @@ definition:
     transport:
         endpoint: skill-google-workspace
         kind: tool
-    version: 1.1.1
+    version: 1.2.0
 kind: SkillDefinition
