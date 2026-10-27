@@ -22,7 +22,7 @@ from urllib.parse import quote_plus, urlparse
 
 from skill_config import ConfigSpec, Secret, check_result, setting
 
-VERSION = "3.2.0"
+VERSION = "3.2.1"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
@@ -30,7 +30,7 @@ SEARCH_URL = "https://search.yahoo.com/search?p="
 TAVILY_URL = "https://api.tavily.com/search"
 # Account usage endpoint: authenticates the key without spending search credits.
 TAVILY_USAGE_URL = "https://api.tavily.com/usage"
-YAHOO_PROBE_URL = "https://search.yahoo.com/"
+YAHOO_CHECK_QUERY = "weather"
 CONFIG_CHECK_TIMEOUT_SECONDS = 8
 TAVILY_TIMEOUT_SECONDS = 10
 TAVILY_MAX_RESULTS = 8
@@ -223,7 +223,7 @@ class LightpandaRuntime:
     def check_config(self, cfg):
         """Health config check: can the configured search provider answer?
 
-        Yahoo gets a cheap reachability probe; a Tavily key is authenticated
+        Yahoo gets one real search through Lightpanda; a Tavily key is authenticated
         against Tavily's usage endpoint, which spends no search credits. Rows
         never include the key.
         """
@@ -272,16 +272,18 @@ class LightpandaRuntime:
         return {**row, "status": "fail", "detail": f"Tavily returned HTTP {status}."}
 
     def _check_yahoo(self):
+        """One real Yahoo search through Lightpanda, the path searches take.
+
+        A plain HTTP probe proves nothing: Yahoo answers it with bot checks or
+        errors either way, so only search results Lightpanda can read count.
+        """
         row = {"id": "yahoo", "label": "Yahoo search"}
-        status, _ = self._probe(urllib.request.Request(YAHOO_PROBE_URL, method="GET", headers={
-            "Accept": "text/html"}))
-        if status is None:
-            return {**row, "status": "fail", "detail": "Yahoo search could not be reached."}
-        if status == 429:
-            return {**row, "status": "warn", "detail": "Yahoo search is rate limiting (HTTP 429)."}
-        # Yahoo answers plain HTTP clients with bot-check redirects or errors
-        # that Lightpanda does not get; any answer proves it is reachable.
-        return {**row, "status": "ok", "detail": f"Yahoo search is reachable (HTTP {status})."}
+        try:
+            self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(YAHOO_CHECK_QUERY)})
+        except BrowserActionFailure as exc:
+            status = "warn" if exc.code == "source_rate_limited" else "fail"
+            return {**row, "status": status, "detail": f"Yahoo search failed: {exc}"}
+        return {**row, "status": "ok", "detail": "Yahoo returned search results."}
 
     def lightpanda_fetch(self, config):
         """Read a public page; private/internal networks are blocked after DNS."""

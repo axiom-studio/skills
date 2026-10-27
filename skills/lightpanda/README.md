@@ -42,7 +42,7 @@ python3 -m unittest discover -s skills/lightpanda -p 'test_*.py'
 Build the image from the repository root:
 
 ```bash
-docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.2.0 .
+docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.2.1 .
 ```
 
 Version 3.0.0 removed every `camoufox-*` action, the Camoufox engine, its
@@ -84,3 +84,8 @@ enum fails the call with error type `config`. The Health RPC reports the
 config schema and, when asked, checks the given values: a reachability probe
 for Yahoo and an authenticated `GET https://api.tavily.com/usage` (no search
 credits) for a Tavily key.
+
+Version 3.2.1 checks Yahoo with one real search through Lightpanda, the path
+searches take, instead of a plain HTTP probe that counted any answer, even
+HTTP 500, as healthy. An error status, access challenge, empty page or reader
+failure fails the check; HTTP 429 is a warning.

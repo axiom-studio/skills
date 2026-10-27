@@ -259,9 +259,21 @@ def http_error(url, status):
     return urllib.error.HTTPError(url, status, "error", email.message.Message(), None)
 
 
+YAHOO = "yahoo"
+
+
+def yahoo_read(status=200, content="Yahoo results for weather", returncode=0):
+    def run(command, **_):
+        payload = {"url": command[2], "http_status": status, "content": content, "error": None}
+        return subprocess.CompletedProcess(command, returncode, json.dumps(payload), "")
+    return run
+
+
 class ConfigCheckTest(unittest.TestCase):
     def runtime(self, responses):
         self.requests = []
+        self.reads = []
+        yahoo = responses.get(YAHOO, yahoo_read())
 
         def urlopen(request, timeout):
             self.requests.append(request)
@@ -269,7 +281,13 @@ class ConfigCheckTest(unittest.TestCase):
             if isinstance(item, BaseException):
                 raise item
             return item
-        return LightpandaRuntime(binary="/bin/true", urlopen=urlopen)
+
+        def run(command, **kwargs):
+            self.reads.append(command[2])
+            if isinstance(yahoo, BaseException):
+                raise yahoo
+            return yahoo(command, **kwargs)
+        return LightpandaRuntime(binary="/bin/true", run=run, urlopen=urlopen, sleep=lambda _: None)
 
     def check(self, values, responses):
         spec = config_spec(check=self.runtime(responses).check_config)
@@ -277,16 +295,23 @@ class ConfigCheckTest(unittest.TestCase):
         self.assertNotIn(KEY, json.dumps(result))
         return result
 
-    def test_yahoo_is_probed_for_reachability(self):
-        result = self.check(None, {"https://search.yahoo.com/": FakeResponse()})
+    def test_yahoo_is_checked_with_a_real_search(self):
+        result = self.check(None, {})
         self.assertEqual(result["status"], "ok")
         self.assertEqual([r["id"] for r in result["checks"]], ["yahoo"])
-        result = self.check({}, {"https://search.yahoo.com/": urllib.error.URLError("down")})
-        self.assertEqual(result["status"], "fail")
-        result = self.check({}, {"https://search.yahoo.com/": http_error("https://search.yahoo.com/", 429)})
-        self.assertEqual(result["status"], "warn")
-        result = self.check({}, {"https://search.yahoo.com/": http_error("https://search.yahoo.com/", 500)})
-        self.assertEqual(result["status"], "ok")
+        self.assertEqual(self.reads, ["https://search.yahoo.com/search?p=weather"])
+        self.assertEqual(self.requests, [])
+        for name, yahoo, expected in [
+            ("server error", yahoo_read(status=500), "fail"),
+            ("rate limited", yahoo_read(status=429, content="Too many requests, slow down. " * 50), "warn"),
+            ("access challenge", yahoo_read(status=200, content="Our systems have detected unusual traffic from your network."), "fail"),
+            ("empty page", yahoo_read(content="  "), "fail"),
+            ("reader crashed", yahoo_read(returncode=1), "fail"),
+            ("reader missing", FileNotFoundError("lightpanda"), "fail"),
+        ]:
+            with self.subTest(name):
+                result = self.check({}, {YAHOO: yahoo})
+                self.assertEqual(result["status"], expected, result)
 
     def test_tavily_key_is_validated_without_a_search(self):
         tavily = {"searchProvider": "tavily", "tavilyApiKey": KEY}
@@ -301,12 +326,10 @@ class ConfigCheckTest(unittest.TestCase):
 
     def test_tavily_outage_with_yahoo_fallback_is_a_warning_but_a_rejected_key_fails(self):
         values = {"searchProvider": "tavily", "tavilyApiKey": KEY, "fallbackToYahoo": True}
-        down = {"https://api.tavily.com/usage": urllib.error.URLError("down"),
-                "https://search.yahoo.com/": FakeResponse()}
+        down = {"https://api.tavily.com/usage": urllib.error.URLError("down")}
         result = self.check(values, down)
         self.assertEqual((result["status"], [r["id"] for r in result["checks"]]), ("warn", ["tavily", "yahoo"]))
-        rejected = {"https://api.tavily.com/usage": http_error("https://api.tavily.com/usage", 401),
-                    "https://search.yahoo.com/": FakeResponse()}
+        rejected = {"https://api.tavily.com/usage": http_error("https://api.tavily.com/usage", 401)}
         self.assertEqual(self.check(values, rejected)["status"], "fail")
 
     def test_invalid_values_are_a_failed_check(self):

@@ -132,7 +132,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda
-          package: axiomstudio/skill-browser:3.2.0
+          package: axiomstudio/skill-browser:3.2.1
     name: Browser Skill
     prompt:
         allowedTools:
@@ -154,10 +154,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 3.2.0
+        resolvedVersion: 3.2.1
     tags: [browser, lightpanda, search, research]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 3.2.0
+    version: 3.2.1
 kind: SkillDefinition
