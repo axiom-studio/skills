@@ -11,16 +11,31 @@ import json
 import os
 import re
 import subprocess
+import time
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
 
-VERSION = "3.0.2"
+VERSION = "3.1.0"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
 SEARCH_URL = "https://search.yahoo.com/search?p="
+TAVILY_URL = "https://api.tavily.com/search"
+TAVILY_TIMEOUT_SECONDS = 10
+TAVILY_MAX_RESULTS = 8
+MAX_TAVILY_RESPONSE_BYTES = 1024 * 1024
+# A source's own Retry-After at or below this is waited out once in-action.
+MAX_INLINE_RETRY_AFTER_SECONDS = 10
+# Host-owned config key (sentinel injects it; the action schemas never expose it).
+SEARCH_PROVIDER_CONFIG_KEY = "searchProvider"
+SEARCH_API_KEY_BINDING = "searchApiKey"
+SEARCH_PROVIDERS = ("yahoo", "tavily")
+SEARCH_FALLBACKS = ("yahoo", None)
+API_KEY = re.compile(r"[\x21-\x7e]{1,512}")
 
 CAPTCHA = re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I)
 # Challenge language or provider markers, never a vendor name by itself.
@@ -73,6 +88,42 @@ def navigation_url(value):
     return value
 
 
+class SearchSettings:
+    """The host-resolved search provider for one action, with its credential."""
+
+    __slots__ = ("kind", "fallback", "api_key")
+
+    def __init__(self, kind="yahoo", fallback=None, api_key=None):
+        self.kind = kind
+        self.fallback = fallback
+        self.api_key = api_key
+
+    def __repr__(self):
+        # Never render the credential.
+        return f"SearchSettings(kind={self.kind!r}, fallback={self.fallback!r})"
+
+
+def search_settings(raw, bindings):
+    """Validate the host-injected searchProvider; absent means Yahoo."""
+    if raw is None:
+        return SearchSettings()
+    if (not isinstance(raw, dict) or "kind" not in raw or not set(raw) <= {"kind", "fallback"}
+            or raw["kind"] not in SEARCH_PROVIDERS or raw.get("fallback") not in SEARCH_FALLBACKS):
+        raise ValueError("searchProvider must be {kind: yahoo|tavily, fallback: yahoo|null}")
+    key = None
+    if raw["kind"] == "tavily":
+        candidate = (bindings or {}).get(SEARCH_API_KEY_BINDING)
+        if isinstance(candidate, str) and API_KEY.fullmatch(candidate.strip()):
+            key = candidate.strip()
+    return SearchSettings(raw["kind"], raw.get("fallback"), key)
+
+
+def search_provider_unconfigured():
+    return BrowserActionFailure("search_provider_unconfigured",
+                                "Web search is set to Tavily but no usable Tavily API key is configured. "
+                                "An operator must set the key in HelloSeal settings.")
+
+
 def source_retry_after(result, now=None):
     """Use an actual response header when available; never invent a delay."""
     headers = result.get("headers")
@@ -114,7 +165,7 @@ def source_has_access_challenge(status, content):
         return False
     if status == 200:
         return bool(ANTI_BOT.search(content))
-    if status not in (403, 503):
+    if status not in (403, 429, 503):
         return False
     # A bare forbidden/access-denied page is not evidence of bot detection.
     # Error-status pages need an explicit challenge instruction or marker.
@@ -122,16 +173,21 @@ def source_has_access_challenge(status, content):
 
 
 class LightpandaRuntime:
-    def __init__(self, binary=None, run=None):
+    def __init__(self, binary=None, run=None, urlopen=None, sleep=None):
         self.binary = binary or os.environ.get("LIGHTPANDA_BINARY", "/usr/local/bin/lightpanda")
         self._run = run
+        self._urlopen = urlopen or urllib.request.urlopen
+        self._sleep = sleep or time.sleep
 
     def execute(self, action, config=None, bindings=None, context=None):
-        config = config or {}
+        # The host-owned provider key is removed before any action reads its
+        # model-supplied arguments, so the actions only ever see their schema.
+        config = dict(config or {})
+        settings = search_settings(config.pop(SEARCH_PROVIDER_CONFIG_KEY, None), bindings)
         handlers = {
             "lightpanda-fetch": lambda: self.lightpanda_fetch(config),
-            "lightpanda-search": lambda: self.lightpanda_search(config),
-            "lightpanda-read-many": lambda: self.lightpanda_read_many(config),
+            "lightpanda-search": lambda: self.lightpanda_search(config, settings),
+            "lightpanda-read-many": lambda: self.lightpanda_read_many(config, settings),
         }
         if action not in handlers:
             raise ValueError(f"unsupported browser action {action}")
@@ -143,6 +199,16 @@ class LightpandaRuntime:
     def lightpanda_fetch(self, config):
         """Read a public page; private/internal networks are blocked after DNS."""
         url = navigation_url(config.get("url"))
+        completed, result = self._lightpanda_read(url)
+        status = result.get("http_status")
+        if type(status) is int and status == 429 and not source_has_access_challenge(status, result.get("content")):
+            delay = source_retry_after(result)
+            if delay is not None and delay <= MAX_INLINE_RETRY_AFTER_SECONDS:
+                self._sleep(delay)
+                completed, result = self._lightpanda_read(url)
+        return self._lightpanda_page(url, completed, result)
+
+    def _lightpanda_read(self, url):
         command = [
             self.binary,
             "fetch", url, "--json", "--dump", "markdown", "--strip-mode", "clutter",
@@ -163,15 +229,19 @@ class LightpandaRuntime:
             raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid page result.") from exc
         if not isinstance(result, dict):
             raise BrowserActionFailure("source_invalid_response", "The page reader did not return a valid page result.")
+        return completed, result
+
+    def _lightpanda_page(self, url, completed, result):
         status = result.get("http_status")
-        # Rate limiting remains its own failure even if its response body
-        # mentions challenges. Never derive a browser switch from HTTP 429.
-        if type(status) is int and status == 429:
-            raise source_http_failure(status, source_retry_after(result))
+        # A short challenge body (captcha, bot check) is an access challenge
+        # whatever the status; a plain 429 stays rate limiting. Neither
+        # authorizes switching to another browser.
         if type(status) is int and source_has_access_challenge(status, result.get("content")):
             raise BrowserActionFailure("source_access_challenge",
                                        f"This source returned an access challenge (HTTP {status}) instead of readable page content.",
                                        http_status=status)
+        if type(status) is int and status == 429:
+            raise source_http_failure(status, source_retry_after(result))
         if type(status) is int and 100 <= status <= 599 and status != 200:
             raise source_http_failure(status, source_retry_after(result))
         if completed.returncode != 0 or result.get("error"):
@@ -190,13 +260,66 @@ class LightpandaRuntime:
             "truncated": len(content) > MAX_LIGHTPANDA_TEXT or content.endswith("[truncated]"),
         }
 
-    def lightpanda_search(self, config):
+    def lightpanda_search(self, config, settings=None):
+        settings = settings or SearchSettings()
         query = config.get("query")
         if not isinstance(query, str) or not query.strip() or len(query) > 512:
             raise ValueError("search query must be between 1 and 512 characters")
-        return self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(query.strip())})
+        query = query.strip()
+        if settings.kind == "tavily":
+            if settings.api_key is None:
+                raise search_provider_unconfigured()
+            try:
+                return self.tavily_search(query, settings.api_key)
+            except BrowserActionFailure:
+                # With fallback enabled, any Tavily failure (rate limit, quota,
+                # 5xx, unreachable, or a rejected key) still answers from Yahoo;
+                # the Tavily endpoint URL is how callers tell which one served.
+                if settings.fallback != "yahoo":
+                    raise
+        return self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(query)})
 
-    def lightpanda_read_many(self, config):
+    def tavily_search(self, query, api_key, *, retried=False):
+        """One Tavily Search API call; the key travels only in the header."""
+        body = json.dumps({"query": query, "max_results": TAVILY_MAX_RESULTS,
+                           "search_depth": "basic"}).encode("utf-8")
+        request = urllib.request.Request(TAVILY_URL, data=body, method="POST", headers={
+            "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+            "Accept": "application/json",
+        })
+        try:
+            with self._urlopen(request, timeout=TAVILY_TIMEOUT_SECONDS) as response:
+                status = response.status
+                raw = response.read(MAX_TAVILY_RESPONSE_BYTES + 1)
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            retry_after = source_retry_after({"headers": {"Retry-After": exc.headers.get("Retry-After")}}
+                                             if exc.headers is not None else {})
+            exc.close()
+            if status == 429 and not retried and retry_after is not None \
+                    and retry_after <= MAX_INLINE_RETRY_AFTER_SECONDS:
+                self._sleep(retry_after)
+                return self.tavily_search(query, api_key, retried=True)
+            raise tavily_http_failure(status, retry_after) from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise BrowserActionFailure("source_unavailable",
+                                       "The Tavily search service could not be reached. Try again later.") from None
+        if status != 200:
+            raise tavily_http_failure(status, None)
+        try:
+            if len(raw) > MAX_TAVILY_RESPONSE_BYTES:
+                raise ValueError("oversized")
+            results = json.loads(raw.decode("utf-8")).get("results")
+            if not isinstance(results, list):
+                raise ValueError("no results list")
+        except (ValueError, AttributeError, UnicodeDecodeError):
+            raise BrowserActionFailure("source_invalid_response",
+                                       "The Tavily search service did not return valid search results.") from None
+        text = tavily_markdown(results)
+        return {"url": TAVILY_URL, "httpStatus": 200, "text": text[:MAX_LIGHTPANDA_TEXT],
+                "truncated": len(text) > MAX_LIGHTPANDA_TEXT}
+
+    def lightpanda_read_many(self, config, settings=None):
         """Run independent public reads concurrently and retain each result."""
         reads = config.get("reads")
         if not isinstance(reads, list) or not 2 <= len(reads) <= 4:
@@ -211,11 +334,14 @@ class LightpandaRuntime:
                 normalized.append(("query", item["value"].strip()))
             else:
                 raise ValueError("each read needs a valid URL or search query")
+        settings = settings or SearchSettings()
+        if settings.kind == "tavily" and settings.api_key is None and any(k == "query" for k, _ in normalized):
+            raise search_provider_unconfigured()
 
         def read(item):
             kind, value = item
             try:
-                page = self.lightpanda_fetch({"url": value}) if kind == "url" else self.lightpanda_search({"query": value})
+                page = self.lightpanda_fetch({"url": value}) if kind == "url" else self.lightpanda_search({"query": value}, settings)
             except BrowserActionFailure as exc:
                 failure = {"kind": kind, "input": value, "status": "failed", "error": str(exc)[:240],
                            "failureKind": exc.code, "retryable": False}
@@ -243,8 +369,49 @@ class LightpandaRuntime:
                 failure = source_http_failure(429, max(delays) if len(delays) == len(failed) else None)
                 failure.failures = failures
                 raise failure
+            codes = {result["failureKind"] for result in failed}
+            if len(codes) == 1 and next(iter(codes)).startswith("search_provider_"):
+                failure = BrowserActionFailure(next(iter(codes)), failed[0]["error"], failures=failures)
+                raise failure
             raise BrowserActionFailure("source_reads_failed",
                                        "None of the requested pages could be read. Review the individual source failures and try later or use other permitted sources.",
                                        failures=failures)
         return {"status": "partial" if failed else "succeeded", "succeededCount": len(results) - len(failed),
                 "failedCount": len(failed), "results": results}
+
+
+def tavily_http_failure(status, retry_after_seconds):
+    if status in (401, 403):
+        return BrowserActionFailure("search_provider_authentication_failed",
+                                    f"The Tavily search service rejected the configured API key (HTTP {status}). "
+                                    "An operator must update the key in HelloSeal settings.", http_status=status)
+    if status == 429:
+        return source_http_failure(429, retry_after_seconds)
+    if status in (432, 433):
+        return BrowserActionFailure("search_provider_quota_exceeded",
+                                    f"The Tavily search plan limit is exhausted (HTTP {status}). Try again later.",
+                                    http_status=status)
+    return BrowserActionFailure("source_http_error",
+                                f"The Tavily search service returned HTTP {status}; no results could be read.",
+                                http_status=status)
+
+
+def _one_line(value, limit):
+    return re.sub(r"\s+", " ", value).strip()[:limit] if isinstance(value, str) else ""
+
+
+def tavily_markdown(results):
+    entries = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        try:
+            url = navigation_url(item.get("url"))
+        except ValueError:
+            continue
+        title = _one_line(item.get("title"), 300) or url
+        snippet = _one_line(item.get("content"), 1200)
+        entries.append(f"### {title}\n{url}\n{snippet}".rstrip())
+    if not entries:
+        return "No search results were found for this query."
+    return "\n\n".join(entries)

@@ -42,7 +42,7 @@ python3 -m unittest discover -s skills/lightpanda -p 'test_*.py'
 Build the image from the repository root:
 
 ```bash
-docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.0.2 .
+docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.1.0 .
 ```
 
 Version 3.0.0 removed every `camoufox-*` action, the Camoufox engine, its
@@ -56,3 +56,18 @@ cookies, profile or cache carried between requests.
 Version 3.0.2 sends `lightpanda-search` to Yahoo Search. Brave, DuckDuckGo,
 Google, Mojeek, Ecosia and Yandex answer Lightpanda with bot challenges, and
 Bing returns unrelated results to it.
+
+Version 3.1.0 lets the host choose the search provider. Sentinel injects the
+host-owned config `searchProvider` (`{"kind": "yahoo"|"tavily", "fallback":
+"yahoo"|null}`) and, for Tavily, the credential binding `searchApiKey`; neither
+is in any action schema, and without them search uses Yahoo. Tavily searches
+call `POST https://api.tavily.com/search` and return the same
+`{url, httpStatus, text, truncated}` shape, with `text` a Markdown list of
+titles, URLs and snippets. A missing key fails as
+`search_provider_unconfigured`, a rejected key (401/403) as
+`search_provider_authentication_failed`, a 429 as `source_rate_limited` and
+432/433 as `search_provider_quota_exceeded`. With `fallback` set to `yahoo`,
+any Tavily failure answers from Yahoo instead; the result `url` (the Tavily
+endpoint or the Yahoo search URL) shows which one served. A short
+captcha or bot-check body is now `source_access_challenge` even on HTTP 429,
+and a 429 whose `Retry-After` is 10 seconds or less is retried once.
