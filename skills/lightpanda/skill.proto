@@ -1,27 +1,146 @@
 syntax = "proto3";
+
 package axiom.skill.v1;
 
+option go_package = "github.com/axiom-studio/skills.sdk/grpc/skillpb";
+
+import "google/protobuf/struct.proto";
+
+// SkillService is the gRPC service that external Skills implement.
+// An installing runtime calls this service to execute typed actions.
 service SkillService {
-  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
-  rpc GetNodeTypes(GetNodeTypesRequest) returns (GetNodeTypesResponse);
-  rpc GetNodeSchema(GetNodeSchemaRequest) returns (GetNodeSchemaResponse);
-  rpc Health(HealthRequest) returns (HealthResponse);
+    // Execute runs a single node
+    rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+    
+    // GetNodeTypes returns all node types this skill provides
+    rpc GetNodeTypes(GetNodeTypesRequest) returns (GetNodeTypesResponse);
+    
+    // GetNodeSchema returns the JSON schema for a node type
+    rpc GetNodeSchema(GetNodeSchemaRequest) returns (GetNodeSchemaResponse);
+    
+    // Health check
+    rpc Health(HealthRequest) returns (HealthResponse);
 }
 
+// ExecuteRequest is sent by an authorized runtime to execute a node.
 message ExecuteRequest {
-  string node_id = 1;
-  string node_type = 2;
-  map<string, bytes> config = 3;
-  map<string, bytes> input = 4;
-  ExecutionContext context = 5;
-  map<string, bytes> bindings = 6;
+    // Node identification
+    string node_id = 1;
+    string node_type = 2;
+
+    // Node configuration (from the workflow definition)
+    map<string, bytes> config = 3;
+
+    // Input data from previous node
+    map<string, bytes> input = 4;
+
+    // Execution context
+    ExecutionContext context = 5;
+
+    // Resolved bindings (connection strings, API keys, etc.)
+    map<string, bytes> bindings = 6;
 }
-message ExecutionContext { string run_id = 1; string agent_id = 2; string namespace = 3; map<string, string> variables = 4; }
-message ExecuteResponse { map<string, bytes> output = 1; Error error = 2; string next_step = 3; }
-message Error { string message = 1; string type = 2; map<string, string> details = 3; }
+
+// ExecutionContext provides runtime information
+message ExecutionContext {
+    string run_id = 1;
+    string agent_id = 2;
+    string namespace = 3;
+    map<string, string> variables = 4;
+    // Authenticated tenant of the call, set by the platform from the caller's
+    // identity (never from action arguments). config below is resolved for
+    // it, and the SDK keys its decoded-config cache by it.
+    string tenant_id = 5;
+    // Effective operator config of the Skill for tenant_id (declared fields
+    // only, secrets included, host-audience fields never), resolved by the
+    // platform for this call. Unset means the Skill runs on declared defaults.
+    google.protobuf.Struct config = 6;
+    // Version of tenant_id's effective config, set by the platform; it changes
+    // whenever config does. The SDK caches decoded config by (tenant_id,
+    // config_version). Empty disables caching for the call.
+    string config_version = 7;
+}
+
+// ExecuteResponse is returned by the skill
+message ExecuteResponse {
+    // Output data for next node
+    map<string, bytes> output = 1;
+    
+    // Error if execution failed
+    Error error = 2;
+    
+    // Next step for branching nodes (if, switch)
+    string next_step = 3;
+}
+
+// Error represents an execution error
+message Error {
+    string message = 1;
+    string type = 2;  // "validation", "execution", "timeout", etc.
+    map<string, string> details = 3;
+}
+
+// GetNodeTypesRequest
 message GetNodeTypesRequest {}
-message GetNodeTypesResponse { repeated string node_types = 1; }
-message GetNodeSchemaRequest { string node_type = 1; }
-message GetNodeSchemaResponse { bytes schema = 1; }
-message HealthRequest {}
-message HealthResponse { bool healthy = 1; string skill_id = 2; string version = 3; }
+
+// GetNodeTypesResponse
+message GetNodeTypesResponse {
+    repeated string node_types = 1;
+}
+
+// GetNodeSchemaRequest
+message GetNodeSchemaRequest {
+    string node_type = 1;
+}
+
+// GetNodeSchemaResponse
+message GetNodeSchemaResponse {
+    // JSON schema for the node configuration
+    bytes schema = 1;
+}
+
+// HealthRequest
+message HealthRequest {
+    // Run the Skill's config check (WithConfigCheck) and include the result.
+    bool config_check = 1;
+    // Tenant config_values were resolved for (informational; empty means the
+    // global effective config).
+    string config_tenant_id = 2;
+    // Effective config the check runs against (same shape as
+    // ExecutionContext.config). Unset means declared defaults.
+    google.protobuf.Struct config_values = 3;
+}
+
+// HealthResponse
+message HealthResponse {
+    bool healthy = 1;
+    string skill_id = 2;
+    string version = 3;
+    // Operator config status; unset when the Skill declares no config.
+    ConfigStatus config = 4;
+}
+
+// ConfigStatus reports a Skill's operator config.
+message ConfigStatus {
+    // Declared config section as JSON: {"scopes":[...],"fields":[...]} using
+    // the shared field schema.
+    bytes schema = 1;
+    // Whether the Skill declares a config check (WithConfigCheck).
+    bool has_config_check = 2;
+    // Result of the config check; set only when requested and declared.
+    ConfigCheckResult config_check = 3;
+}
+
+// ConfigCheckResult is the outcome of a Skill's config check.
+message ConfigCheckResult {
+    string status = 1; // "ok" | "warn" | "fail"
+    repeated ConfigCheck checks = 2;
+}
+
+// ConfigCheck is one row of a config check.
+message ConfigCheck {
+    string id = 1;
+    string label = 2;
+    string status = 3; // "ok" | "warn" | "fail"
+    string detail = 4;
+}

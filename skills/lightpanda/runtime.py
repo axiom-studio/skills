@@ -15,26 +15,28 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
 
-VERSION = "3.1.0"
+from skill_config import ConfigSpec, Secret, check_result, setting
+
+VERSION = "3.2.0"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
 SEARCH_URL = "https://search.yahoo.com/search?p="
 TAVILY_URL = "https://api.tavily.com/search"
+# Account usage endpoint: authenticates the key without spending search credits.
+TAVILY_USAGE_URL = "https://api.tavily.com/usage"
+YAHOO_PROBE_URL = "https://search.yahoo.com/"
+CONFIG_CHECK_TIMEOUT_SECONDS = 8
 TAVILY_TIMEOUT_SECONDS = 10
 TAVILY_MAX_RESULTS = 8
 MAX_TAVILY_RESPONSE_BYTES = 1024 * 1024
 # A source's own Retry-After at or below this is waited out once in-action.
 MAX_INLINE_RETRY_AFTER_SECONDS = 10
-# Host-owned config key (sentinel injects it; the action schemas never expose it).
-SEARCH_PROVIDER_CONFIG_KEY = "searchProvider"
-SEARCH_API_KEY_BINDING = "searchApiKey"
-SEARCH_PROVIDERS = ("yahoo", "tavily")
-SEARCH_FALLBACKS = ("yahoo", None)
 API_KEY = re.compile(r"[\x21-\x7e]{1,512}")
 
 CAPTCHA = re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I)
@@ -88,8 +90,34 @@ def navigation_url(value):
     return value
 
 
+@dataclass(frozen=True)
+class BrowserConfig:
+    """Operator config of the Browser Skill; must match skill.yaml's config section."""
+
+    search_provider: str = setting(
+        "searchProvider", label="Search provider", type="enum", enum=("yahoo", "tavily"),
+        default="yahoo", summary=True, description="Engine behind web search.")
+    tavily_api_key: Secret = setting(
+        "tavilyApiKey", label="Tavily API key", type="secret",
+        required_when={"searchProvider": "tavily"}, summary=True,
+        description="Used when the search provider is Tavily.")
+    fallback_to_yahoo: bool = setting(
+        "fallbackToYahoo", label="Fall back to Yahoo", type="bool", default=False, summary=True,
+        description="Search Yahoo when Tavily is unavailable or out of quota. A rejected key is never hidden.")
+
+
+CONFIG_SCOPES = ("global", "tenant")
+
+
+def config_spec(check=None):
+    return ConfigSpec(BrowserConfig, scopes=CONFIG_SCOPES, check=check)
+
+
+DEFAULT_CONFIG = config_spec().defaults
+
+
 class SearchSettings:
-    """The host-resolved search provider for one action, with its credential."""
+    """The operator's search provider for one call, with its usable key."""
 
     __slots__ = ("kind", "fallback", "api_key")
 
@@ -103,19 +131,15 @@ class SearchSettings:
         return f"SearchSettings(kind={self.kind!r}, fallback={self.fallback!r})"
 
 
-def search_settings(raw, bindings):
-    """Validate the host-injected searchProvider; absent means Yahoo."""
-    if raw is None:
-        return SearchSettings()
-    if (not isinstance(raw, dict) or "kind" not in raw or not set(raw) <= {"kind", "fallback"}
-            or raw["kind"] not in SEARCH_PROVIDERS or raw.get("fallback") not in SEARCH_FALLBACKS):
-        raise ValueError("searchProvider must be {kind: yahoo|tavily, fallback: yahoo|null}")
+def search_settings(cfg):
+    """Search settings from the call's operator config (defaults: Yahoo)."""
+    cfg = cfg or DEFAULT_CONFIG
     key = None
-    if raw["kind"] == "tavily":
-        candidate = (bindings or {}).get(SEARCH_API_KEY_BINDING)
-        if isinstance(candidate, str) and API_KEY.fullmatch(candidate.strip()):
-            key = candidate.strip()
-    return SearchSettings(raw["kind"], raw.get("fallback"), key)
+    if cfg.search_provider == "tavily":
+        candidate = cfg.tavily_api_key.reveal().strip()
+        if API_KEY.fullmatch(candidate):
+            key = candidate
+    return SearchSettings(cfg.search_provider, "yahoo" if cfg.fallback_to_yahoo else None, key)
 
 
 def search_provider_unconfigured():
@@ -179,11 +203,11 @@ class LightpandaRuntime:
         self._urlopen = urlopen or urllib.request.urlopen
         self._sleep = sleep or time.sleep
 
-    def execute(self, action, config=None, bindings=None, context=None):
-        # The host-owned provider key is removed before any action reads its
-        # model-supplied arguments, so the actions only ever see their schema.
+    def execute(self, action, config=None, operator_config=None):
+        """Run an action. config holds its arguments; operator_config is the
+        call's decoded BrowserConfig (declared defaults when None)."""
         config = dict(config or {})
-        settings = search_settings(config.pop(SEARCH_PROVIDER_CONFIG_KEY, None), bindings)
+        settings = search_settings(operator_config)
         handlers = {
             "lightpanda-fetch": lambda: self.lightpanda_fetch(config),
             "lightpanda-search": lambda: self.lightpanda_search(config, settings),
@@ -195,6 +219,69 @@ class LightpandaRuntime:
 
     def ready(self):
         return os.access(self.binary, os.X_OK)
+
+    def check_config(self, cfg):
+        """Health config check: can the configured search provider answer?
+
+        Yahoo gets a cheap reachability probe; a Tavily key is authenticated
+        against Tavily's usage endpoint, which spends no search credits. Rows
+        never include the key.
+        """
+        rows = []
+        if cfg.search_provider == "tavily":
+            rows.append(self._check_tavily(cfg.tavily_api_key))
+        if cfg.search_provider == "yahoo" or cfg.fallback_to_yahoo:
+            rows.append(self._check_yahoo())
+        if cfg.search_provider == "tavily" and cfg.fallback_to_yahoo and rows[0]["status"] == "fail" \
+                and rows[0]["id"] != "tavilyKey" and rows[1]["status"] == "ok":
+            # Searches still answer from Yahoo; only a rejected key is fatal.
+            rows[0]["status"] = "warn"
+        return check_result(rows)
+
+    def _probe(self, request):
+        """(HTTP status, None) or (None, reason) for one bounded request."""
+        try:
+            with self._urlopen(request, timeout=CONFIG_CHECK_TIMEOUT_SECONDS) as response:
+                response.read(1024)
+                return response.status, None
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            return exc.code, None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return None, "unreachable"
+
+    def _check_tavily(self, key):
+        row = {"id": "tavily", "label": "Tavily API key"}
+        candidate = key.reveal().strip()
+        if not API_KEY.fullmatch(candidate):
+            return {**row, "id": "tavilyKey", "status": "fail",
+                    "detail": "No usable Tavily API key is set."}
+        status, reason = self._probe(urllib.request.Request(TAVILY_USAGE_URL, method="GET", headers={
+            "Authorization": f"Bearer {candidate}", "Accept": "application/json"}))
+        if status == 200:
+            return {**row, "status": "ok", "detail": "Tavily accepted the key."}
+        if status in (401, 403):
+            return {**row, "id": "tavilyKey", "status": "fail",
+                    "detail": f"Tavily rejected the key (HTTP {status})."}
+        if status == 429:
+            return {**row, "status": "warn", "detail": "Tavily is rate limiting this key (HTTP 429)."}
+        if status in (432, 433):
+            return {**row, "status": "warn", "detail": f"The Tavily plan limit is exhausted (HTTP {status})."}
+        if status is None:
+            return {**row, "status": "fail", "detail": "The Tavily API could not be reached."}
+        return {**row, "status": "fail", "detail": f"Tavily returned HTTP {status}."}
+
+    def _check_yahoo(self):
+        row = {"id": "yahoo", "label": "Yahoo search"}
+        status, _ = self._probe(urllib.request.Request(YAHOO_PROBE_URL, method="GET", headers={
+            "Accept": "text/html"}))
+        if status is None:
+            return {**row, "status": "fail", "detail": "Yahoo search could not be reached."}
+        if status == 429:
+            return {**row, "status": "warn", "detail": "Yahoo search is rate limiting (HTTP 429)."}
+        # Yahoo answers plain HTTP clients with bot-check redirects or errors
+        # that Lightpanda does not get; any answer proves it is reachable.
+        return {**row, "status": "ok", "detail": f"Yahoo search is reachable (HTTP {status})."}
 
     def lightpanda_fetch(self, config):
         """Read a public page; private/internal networks are blocked after DNS."""

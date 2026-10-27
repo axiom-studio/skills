@@ -9,7 +9,8 @@ import yaml
 
 import skill_pb2
 import skill_pb2_grpc
-from runtime import SKILL_ID, VERSION, BrowserActionFailure, LightpandaRuntime
+from runtime import SKILL_ID, VERSION, BrowserActionFailure, LightpandaRuntime, config_spec
+from skill_config import ConfigError
 
 ACTIONS = [
     "lightpanda-fetch",
@@ -46,9 +47,16 @@ def load_action_schemas(path=MANIFEST_PATH):
     return schemas
 
 
-def redact_error(error, bindings):
+def secret_values(cfg):
+    """Revealed secret values of a decoded config, for error redaction only."""
+    if cfg is None:
+        return []
+    return [value.reveal() for value in vars(cfg).values() if hasattr(value, "reveal")]
+
+
+def redact_error(error, bindings, secrets=()):
     message = str(error) or error.__class__.__name__
-    for value in bindings.values():
+    for value in [*bindings.values(), *secrets]:
         if isinstance(value, str) and len(value) >= 3:
             message = message.replace(value, "[REDACTED]")
     return message
@@ -64,21 +72,29 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
     def __init__(self):
         self.runtime = LightpandaRuntime()
         self.schemas = load_action_schemas()
+        self.config = config_spec(check=self.runtime.check_config)
 
     def Execute(self, request, _context):
         bindings = decode(request.bindings)
+        # Operator config comes only from the execution context, resolved by
+        # the platform for the call's authenticated tenant.
         try:
-            result = self.runtime.execute(request.node_type, decode(request.config), bindings)
+            operator_config = self.config.for_call(request.context)
+        except ConfigError as exc:
+            return skill_pb2.ExecuteResponse(error=skill_pb2.Error(message=str(exc), type=exc.type))
+        secrets = secret_values(operator_config)
+        try:
+            result = self.runtime.execute(request.node_type, decode(request.config), operator_config)
             return skill_pb2.ExecuteResponse(output=encode_output(result))
         except BrowserActionFailure as exc:
             return skill_pb2.ExecuteResponse(
-                error=skill_pb2.Error(message=redact_error(exc, bindings), type=exc.code,
+                error=skill_pb2.Error(message=redact_error(exc, bindings, secrets), type=exc.code,
                                       details=exc.failure_details())
             )
         except Exception as exc:
             error_type = "validation" if isinstance(exc, (TypeError, ValueError)) else "execution"
             return skill_pb2.ExecuteResponse(
-                error=skill_pb2.Error(message=redact_error(exc, bindings), type=error_type)
+                error=skill_pb2.Error(message=redact_error(exc, bindings, secrets), type=error_type)
             )
 
     def GetNodeTypes(self, _request, _context):
@@ -92,8 +108,9 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
             return skill_pb2.GetNodeSchemaResponse()
         return skill_pb2.GetNodeSchemaResponse(schema=json.dumps(schema, sort_keys=True).encode("utf-8"))
 
-    def Health(self, _request, _context):
-        return skill_pb2.HealthResponse(healthy=self.runtime.ready(), skill_id=SKILL_ID, version=VERSION)
+    def Health(self, request, _context):
+        return skill_pb2.HealthResponse(healthy=self.runtime.ready(), skill_id=SKILL_ID, version=VERSION,
+                                        config=self.config.health_status(skill_pb2, request))
 
 
 def serve():

@@ -42,7 +42,7 @@ python3 -m unittest discover -s skills/lightpanda -p 'test_*.py'
 Build the image from the repository root:
 
 ```bash
-docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.1.0 .
+docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.2.0 .
 ```
 
 Version 3.0.0 removed every `camoufox-*` action, the Camoufox engine, its
@@ -71,3 +71,16 @@ any Tavily failure answers from Yahoo instead; the result `url` (the Tavily
 endpoint or the Yahoo search URL) shows which one served. A short
 captcha or bot-check body is now `source_access_challenge` even on HTTP 429,
 and a 429 whose `Retry-After` is 10 seconds or less is retried once.
+
+Version 3.2.0 reads the search provider from the Skill's operator config, the
+standard `config` section in `skill.yaml` (`searchProvider`: `yahoo`|`tavily`,
+default `yahoo`; `tavilyApiKey`, a secret required when the provider is
+Tavily; `fallbackToYahoo`, default `false`). Operators set it globally or per
+tenant in HelloSeal; the platform attaches the calling tenant's effective
+values to every call in `ExecutionContext.config`, and `skill_config.py`
+decodes them with declared defaults. The host-injected `searchProvider` config
+and `searchApiKey` binding are gone. A value of the wrong type or outside the
+enum fails the call with error type `config`. The Health RPC reports the
+config schema and, when asked, checks the given values: a reachability probe
+for Yahoo and an authenticated `GET https://api.tavily.com/usage` (no search
+credits) for a Tavily key.

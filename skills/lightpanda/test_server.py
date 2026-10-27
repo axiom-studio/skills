@@ -37,15 +37,18 @@ class BrowserTransportTest(unittest.TestCase):
     def setUpClass(cls):
         cls.server = load_server()
 
-    def execute(self, *, result=None, error=None, bindings=None):
+    def execute(self, *, result=None, error=None, bindings=None, config=None):
         service = self.server.SkillService.__new__(self.server.SkillService)
+        service.config = self.server.config_spec()
         service.runtime = mock.Mock()
         service.runtime.execute.return_value = result
         service.runtime.execute.side_effect = error
         request = SimpleNamespace(
             node_type="lightpanda-fetch", config={}, bindings=bindings or {},
-            context=SimpleNamespace(run_id="run", agent_id="agent", namespace="tenant"),
+            context=SimpleNamespace(run_id="run", agent_id="agent", namespace="tenant",
+                                    tenant_id="tenant", config_version="", config=config),
         )
+        self.service = service
         return service.Execute(request, mock.Mock())
 
     def test_rate_limit_is_error_not_success_output(self):
@@ -85,6 +88,32 @@ class BrowserTransportTest(unittest.TestCase):
         self.assertEqual(response.error.type, "validation")
         self.assertEqual(response.error.message, "invalid binding [REDACTED]")
 
+    def test_operator_config_reaches_the_runtime_from_the_execution_context(self):
+        self.execute(result={"ok": True}, config={"searchProvider": "tavily", "tavilyApiKey": "tvly-abc",
+                                                   "fallbackToYahoo": True, "unknownKey": 1})
+        cfg = self.service.runtime.execute.call_args.args[2]
+        self.assertEqual((cfg.search_provider, cfg.tavily_api_key.reveal(), cfg.fallback_to_yahoo),
+                         ("tavily", "tvly-abc", True))
+        self.execute(result={"ok": True})
+        cfg = self.service.runtime.execute.call_args.args[2]
+        self.assertEqual((cfg.search_provider, cfg.tavily_api_key.is_set(), cfg.fallback_to_yahoo),
+                         ("yahoo", False, False))
+
+    def test_invalid_operator_config_fails_the_call_with_config_error_type(self):
+        for config, needle in [({"searchProvider": "bing"}, "searchProvider"),
+                               ({"fallbackToYahoo": "yes"}, "fallbackToYahoo"),
+                               ({"tavilyApiKey": 42}, "tavilyApiKey"),
+                               ({"searchProvider": "tavily", "tavilyApiKey": ""}, "tavilyApiKey")]:
+            with self.subTest(config=config):
+                response = self.execute(result={"ok": True}, config=config)
+                self.assertEqual(response.error.type, "config")
+                self.assertIn(needle, response.error.message)
+                self.service.runtime.execute.assert_not_called()
+
+    def test_config_error_never_echoes_a_secret(self):
+        response = self.execute(result={"ok": True}, config={"searchProvider": "nope", "tavilyApiKey": ["tvly-leak"]})
+        self.assertEqual(response.error.type, "config")
+        self.assertNotIn("tvly-leak", response.error.message)
 
     def test_catalog_and_health_cover_only_lightpanda(self):
         self.assertEqual(self.server.ACTIONS, ["lightpanda-fetch", "lightpanda-search", "lightpanda-read-many"])

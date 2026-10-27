@@ -10,8 +10,9 @@ import yaml
 
 import urllib.error
 
-from runtime import (TAVILY_URL, VERSION, BrowserActionFailure, LightpandaRuntime, navigation_url,
-                     source_retry_after)
+from runtime import (TAVILY_URL, VERSION, BrowserActionFailure, BrowserConfig, LightpandaRuntime,
+                     navigation_url, source_retry_after)
+from skill_config import Secret
 
 
 class ManifestTest(unittest.TestCase):
@@ -50,7 +51,7 @@ class LightpandaTest(unittest.TestCase):
         result = {"url": "https://example.com/", "http_status": 200, "content": "# Example Domain", "error": None}
         completed = subprocess.CompletedProcess([], 0, json.dumps(result), "")
         with mock.patch("runtime.subprocess.run", return_value=completed) as execute:
-            page = service.execute("lightpanda-fetch", {"url": "https://example.com"}, context={"runId": "run-1", "agentId": "agent-1"})
+            page = service.execute("lightpanda-fetch", {"url": "https://example.com"})
         self.assertEqual(page, {"url": "https://example.com/", "httpStatus": 200, "text": "# Example Domain", "truncated": False})
         command = execute.call_args.args[0]
         self.assertIn("--block-private-networks", command)
@@ -192,7 +193,7 @@ class LightpandaTest(unittest.TestCase):
             result = service.execute("lightpanda-read-many", {"reads": [
                 {"kind": "url", "value": "https://example.com/useful"},
                 {"kind": "url", "value": "https://example.com/blocked"},
-            ]}, context={"runId": "run-1", "agentId": "agent-1"})
+            ]})
         self.assertEqual(execute.call_count, 2)
         self.assertEqual((result["status"], result["succeededCount"], result["failedCount"]), ("partial", 1, 1))
         good, blocked = result["results"]
@@ -275,10 +276,11 @@ def http_error(status, headers=None):
     return urllib.error.HTTPError(TAVILY_URL, status, "error", message, None)
 
 
-TAVILY = {"searchProvider": {"kind": "tavily", "fallback": None}}
-TAVILY_FALLBACK = {"searchProvider": {"kind": "tavily", "fallback": "yahoo"}}
 KEY = "tvly-secret-key-123"
-BINDINGS = {"searchApiKey": KEY}
+TAVILY = BrowserConfig(search_provider="tavily", tavily_api_key=Secret(KEY))
+TAVILY_FALLBACK = BrowserConfig(search_provider="tavily", tavily_api_key=Secret(KEY), fallback_to_yahoo=True)
+# Not decodable from the wire (requiredWhen), but the runtime still refuses it.
+TAVILY_NO_KEY = BrowserConfig(search_provider="tavily")
 TAVILY_BODY = {"results": [
     {"title": "Dodoma\n- Wikipedia", "url": "https://en.wikipedia.org/wiki/Dodoma", "content": "Dodoma is the\ncapital.", "score": 0.9},
     {"title": "Bad", "url": "javascript:alert(1)", "content": "skip"},
@@ -309,39 +311,29 @@ class SearchProviderTest(unittest.TestCase):
 
     def test_absent_provider_searches_yahoo_without_calling_tavily(self):
         service = self.runtime()
-        page = service.execute("lightpanda-search", {"query": "capital of Tanzania"}, BINDINGS)
+        page = service.execute("lightpanda-search", {"query": "capital of Tanzania"})
         self.assertEqual(self.fetches, ["https://search.yahoo.com/search?p=capital+of+Tanzania"])
         self.assertEqual(self.requests, [])
         self.assertEqual(page["text"], "Yahoo results")
 
     def test_explicit_yahoo_provider_dispatches_to_yahoo(self):
         service = self.runtime()
-        service.execute("lightpanda-search", {"query": "q", "searchProvider": {"kind": "yahoo", "fallback": None}}, {})
+        service.execute("lightpanda-search", {"query": "q"},
+                        BrowserConfig(search_provider="yahoo", tavily_api_key=Secret(KEY), fallback_to_yahoo=True))
         self.assertEqual(len(self.fetches), 1)
         self.assertEqual(self.requests, [])
 
-    def test_invalid_search_provider_is_rejected_before_any_request(self):
-        for raw in ["tavily", {"kind": "bing"}, {"kind": "tavily", "fallback": "bing"},
-                    {"kind": "tavily", "fallback": None, "apiKey": KEY}, {"fallback": "yahoo"}, [], 1,
-                    {"kind": ["tavily"]}]:
-            with self.subTest(raw=raw):
-                service = self.runtime()
-                with self.assertRaisesRegex(ValueError, "searchProvider"):
-                    service.execute("lightpanda-search", {"query": "q", "searchProvider": raw}, BINDINGS)
-                self.assertEqual((self.fetches, self.requests), ([], []))
-
-    def test_host_key_is_stripped_before_actions_see_their_arguments(self):
+    def test_search_settings_are_never_read_from_action_arguments(self):
         service = self.runtime()
         seen = {}
         service.lightpanda_fetch = lambda config: seen.update(config) or {"url": "https://a.example/", "httpStatus": 200, "text": "x", "truncated": False}
-        original = {"url": "https://a.example/", "searchProvider": {"kind": "yahoo", "fallback": None}}
-        service.execute("lightpanda-fetch", original, {})
-        self.assertEqual(seen, {"url": "https://a.example/"})
-        self.assertIn("searchProvider", original)
+        service.execute("lightpanda-search", {"query": "q", "searchProvider": {"kind": "tavily", "fallback": None}})
+        self.assertEqual(seen, {"url": "https://search.yahoo.com/search?p=q"})
+        self.assertEqual(self.requests, [])
 
     def test_tavily_success_is_formatted_as_bounded_markdown(self):
         service = self.runtime([FakeResponse(TAVILY_BODY)])
-        page = service.execute("lightpanda-search", {"query": " capital of Tanzania ", **TAVILY}, BINDINGS)
+        page = service.execute("lightpanda-search", {"query": " capital of Tanzania "}, TAVILY)
         request, timeout = self.requests[0]
         self.assertEqual((request.full_url, request.get_method(), timeout), (TAVILY_URL, "POST", 10))
         self.assertEqual(request.get_header("Authorization"), f"Bearer {KEY}")
@@ -353,15 +345,16 @@ class SearchProviderTest(unittest.TestCase):
 
     def test_tavily_text_is_capped(self):
         body = {"results": [{"title": f"t{i}", "url": f"https://example.com/{i}", "content": "x" * 5000} for i in range(30)]}
-        page = self.runtime([FakeResponse(body)]).execute("lightpanda-search", {"query": "q", **TAVILY}, BINDINGS)
+        page = self.runtime([FakeResponse(body)]).execute("lightpanda-search", {"query": "q"}, TAVILY)
         self.assertEqual((len(page["text"]), page["truncated"]), (24 * 1024, True))
 
-    def test_tavily_without_key_is_unconfigured(self):
-        for bindings in [{}, {"searchApiKey": ""}, {"searchApiKey": "bad key\r\nX: y"}, {"searchApiKey": 123}]:
-            with self.subTest(bindings=bindings):
+    def test_tavily_without_usable_key_is_unconfigured(self):
+        for key in [None, "", "bad key\r\nX: y", "x" * 513]:
+            with self.subTest(key=key):
                 service = self.runtime()
+                cfg = BrowserConfig(search_provider="tavily", tavily_api_key=Secret(key), fallback_to_yahoo=True)
                 with self.assertRaises(BrowserActionFailure) as caught:
-                    service.execute("lightpanda-search", {"query": "q", **TAVILY_FALLBACK}, bindings)
+                    service.execute("lightpanda-search", {"query": "q"}, cfg)
                 self.assertEqual(caught.exception.code, "search_provider_unconfigured")
                 self.assertEqual((self.fetches, self.requests), ([], []))
 
@@ -373,7 +366,7 @@ class SearchProviderTest(unittest.TestCase):
             with self.subTest(status=status):
                 service = self.runtime([http_error(status)])
                 with self.assertRaises(BrowserActionFailure) as caught:
-                    service.execute("lightpanda-search", {"query": "q", **TAVILY}, BINDINGS)
+                    service.execute("lightpanda-search", {"query": "q"}, TAVILY)
                 self.assertEqual((caught.exception.code, caught.exception.http_status), (code, status))
                 self.assertEqual(self.fetches, [])
                 self.assertNotIn(KEY, str(caught.exception) + json.dumps(caught.exception.failure_details()))
@@ -385,7 +378,7 @@ class SearchProviderTest(unittest.TestCase):
                            (FakeResponse({"answer": "x"}), "source_invalid_response")]:
             with self.subTest(code=code, item=item):
                 with self.assertRaises(BrowserActionFailure) as caught:
-                    self.runtime([item]).execute("lightpanda-search", {"query": "q", **TAVILY}, BINDINGS)
+                    self.runtime([item]).execute("lightpanda-search", {"query": "q"}, TAVILY)
                 self.assertEqual(caught.exception.code, code)
                 self.assertNotIn(KEY, str(caught.exception))
                 self.assertIsNone(caught.exception.__cause__)
@@ -396,7 +389,7 @@ class SearchProviderTest(unittest.TestCase):
                      FakeResponse(b"not json")]:
             with self.subTest(item=item):
                 service = self.runtime([item])
-                page = service.execute("lightpanda-search", {"query": "capital", **TAVILY_FALLBACK}, BINDINGS)
+                page = service.execute("lightpanda-search", {"query": "capital"}, TAVILY_FALLBACK)
                 self.assertEqual(self.fetches, ["https://search.yahoo.com/search?p=capital"])
                 self.assertEqual(page["text"], "Yahoo results")
                 self.assertEqual(self.sleeps, [])
@@ -406,37 +399,39 @@ class SearchProviderTest(unittest.TestCase):
             with self.subTest(status=status):
                 service = self.runtime([http_error(status)])
                 with self.assertRaises(BrowserActionFailure) as caught:
-                    service.execute("lightpanda-search", {"query": "q", **TAVILY_FALLBACK}, BINDINGS)
+                    service.execute("lightpanda-search", {"query": "q"}, TAVILY_FALLBACK)
                 self.assertEqual(caught.exception.code, "search_provider_authentication_failed")
                 self.assertEqual(self.fetches, [])
 
     def test_tavily_short_retry_after_is_waited_once(self):
         service = self.runtime([http_error(429, {"Retry-After": "3"}), FakeResponse(TAVILY_BODY)])
-        page = service.execute("lightpanda-search", {"query": "q", **TAVILY}, BINDINGS)
+        page = service.execute("lightpanda-search", {"query": "q"}, TAVILY)
         self.assertEqual((self.sleeps, len(self.requests), page["url"]), ([3], 2, TAVILY_URL))
         service = self.runtime([http_error(429, {"Retry-After": "3"}), http_error(429, {"Retry-After": "3"})])
         with self.assertRaises(BrowserActionFailure) as caught:
-            service.execute("lightpanda-search", {"query": "q", **TAVILY}, BINDINGS)
+            service.execute("lightpanda-search", {"query": "q"}, TAVILY)
         self.assertEqual((caught.exception.code, self.sleeps, len(self.requests)), ("source_rate_limited", [3], 2))
 
     def test_key_is_redacted_by_the_transport_and_never_in_the_settings_repr(self):
         from runtime import search_settings
-        self.assertNotIn(KEY, repr(search_settings({"kind": "tavily", "fallback": None}, BINDINGS)))
+        self.assertNotIn(KEY, repr(search_settings(TAVILY)) + repr(TAVILY) + str(TAVILY))
         import test_server
         server = test_server.load_server()
         service = server.SkillService.__new__(server.SkillService)
+        service.config = server.config_spec()
         service.runtime = mock.Mock()
         service.runtime.execute.side_effect = RuntimeError(f"upstream echoed {KEY}")
-        request = mock.Mock(node_type="lightpanda-search", config={"query": b'"q"'}, bindings={"searchApiKey": KEY.encode()})
+        context = mock.Mock(tenant_id="t1", config_version="", config={"searchProvider": "tavily", "tavilyApiKey": KEY})
+        request = mock.Mock(node_type="lightpanda-search", config={"query": b'"q"'}, bindings={}, context=context)
         response = service.Execute(request, mock.Mock())
         self.assertEqual(response.error.message, "upstream echoed [REDACTED]")
-        self.assertEqual(service.runtime.execute.call_args.args[2], BINDINGS)
+        self.assertEqual(service.runtime.execute.call_args.args[2].tavily_api_key.reveal(), KEY)
 
     def test_read_many_queries_use_the_provider(self):
         service = self.runtime([FakeResponse(TAVILY_BODY), FakeResponse(TAVILY_BODY)])
         result = service.execute("lightpanda-read-many", {"reads": [
             {"kind": "query", "value": "one"}, {"kind": "query", "value": "two"},
-            {"kind": "url", "value": "https://example.com/page"}], **TAVILY}, BINDINGS)
+            {"kind": "url", "value": "https://example.com/page"}]}, TAVILY)
         self.assertEqual(result["status"], "succeeded")
         self.assertEqual([r["url"] for r in result["results"]], [TAVILY_URL, TAVILY_URL, "https://example.com/page"])
         self.assertEqual(sorted(json.loads(r.data)["query"] for r, _ in self.requests), ["one", "two"])
@@ -446,25 +441,25 @@ class SearchProviderTest(unittest.TestCase):
         service = self.runtime()
         with self.assertRaises(BrowserActionFailure) as caught:
             service.execute("lightpanda-read-many", {"reads": [
-                {"kind": "query", "value": "one"}, {"kind": "url", "value": "https://example.com/"}], **TAVILY}, {})
+                {"kind": "query", "value": "one"}, {"kind": "url", "value": "https://example.com/"}]}, TAVILY_NO_KEY)
         self.assertEqual(caught.exception.code, "search_provider_unconfigured")
         self.assertEqual(self.fetches, [])
         # Only URL reads need no provider key.
         self.runtime().execute("lightpanda-read-many", {"reads": [
-            {"kind": "url", "value": "https://example.com/a"}, {"kind": "url", "value": "https://example.com/b"}], **TAVILY}, {})
+            {"kind": "url", "value": "https://example.com/a"}, {"kind": "url", "value": "https://example.com/b"}]}, TAVILY_NO_KEY)
 
     def test_read_many_rejected_key_everywhere_is_one_provider_failure(self):
         service = self.runtime([http_error(401), http_error(401)])
         with self.assertRaises(BrowserActionFailure) as caught:
             service.execute("lightpanda-read-many", {"reads": [
-                {"kind": "query", "value": "one"}, {"kind": "query", "value": "two"}], **TAVILY}, BINDINGS)
+                {"kind": "query", "value": "one"}, {"kind": "query", "value": "two"}]}, TAVILY)
         self.assertEqual(caught.exception.code, "search_provider_authentication_failed")
         self.assertEqual(len(json.loads(caught.exception.failure_details()["failures"])), 2)
 
     def test_read_many_falls_back_per_query(self):
         service = self.runtime([http_error(433), http_error(433)])
         result = service.execute("lightpanda-read-many", {"reads": [
-            {"kind": "query", "value": "one"}, {"kind": "query", "value": "two"}], **TAVILY_FALLBACK}, BINDINGS)
+            {"kind": "query", "value": "one"}, {"kind": "query", "value": "two"}]}, TAVILY_FALLBACK)
         self.assertEqual(result["succeededCount"], 2)
         self.assertEqual(sorted(self.fetches), ["https://search.yahoo.com/search?p=one", "https://search.yahoo.com/search?p=two"])
 

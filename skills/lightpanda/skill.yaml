@@ -103,6 +103,28 @@ definition:
             sideEffect: read
             timeout: 60000000000
     category: research
+    config:
+        scopes: [global, tenant]
+        fields:
+            - key: searchProvider
+              label: Search provider
+              description: Engine behind web search.
+              type: enum
+              enum: [yahoo, tavily]
+              default: yahoo
+              summary: true
+            - key: tavilyApiKey
+              label: Tavily API key
+              description: Used when the search provider is Tavily.
+              type: secret
+              requiredWhen: {searchProvider: tavily}
+              summary: true
+            - key: fallbackToYahoo
+              label: Fall back to Yahoo
+              description: Search Yahoo when Tavily is unavailable or out of quota. A rejected key is never hidden.
+              type: bool
+              default: false
+              summary: true
     description: Fast, sessionless Lightpanda page reading and web search that returns bounded Markdown.
     icon: search
     id: skill-browser
@@ -110,7 +132,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda
-          package: axiomstudio/skill-browser:3.1.0
+          package: axiomstudio/skill-browser:3.2.0
     name: Browser Skill
     prompt:
         allowedTools:
@@ -132,10 +154,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 3.1.0
+        resolvedVersion: 3.2.0
     tags: [browser, lightpanda, search, research]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 3.1.0
+    version: 3.2.0
 kind: SkillDefinition
