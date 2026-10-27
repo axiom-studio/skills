@@ -3391,7 +3391,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Workspace Skill service
-          package: axiomstudio/skill-google-workspace:1.1.0
+          package: axiomstudio/skill-google-workspace:1.1.1
     name: Google Workspace
     prompt:
         allowedTools:
@@ -3471,7 +3471,7 @@ definition:
         publisher: Axiom Studio
         reference: skill-google-workspace
         registry: https://github.com/axiom-studio/skills
-        resolvedVersion: 1.1.0
+        resolvedVersion: 1.1.1
     tags:
         - google
         - workspace
@@ -3487,5 +3487,5 @@ definition:
     transport:
         endpoint: skill-google-workspace
         kind: tool
-    version: 1.1.0
+    version: 1.1.1
 kind: SkillDefinition

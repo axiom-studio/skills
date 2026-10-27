@@ -395,3 +395,17 @@ func TestDriveUploadStreamsTheChatFileIntoAResumableSession(t *testing.T) {
 		t.Fatal("uploaded a path the host did not hand over")
 	}
 }
+
+func TestDriveUploadExplainsARejectedUploadSession(t *testing.T) {
+	previous := client
+	t.Cleanup(func() { client = previous })
+	client = &http.Client{Transport: workspaceTransport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 403, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":{"errors":[{"reason":"accessNotConfigured"}]}}`))}, nil
+	})}
+	config := map[string]any{credentialName: "host-token",
+		"file": map[string]any{"name": "report.pdf", "path": "docs/report.pdf", "mediaType": "application/pdf", "sizeBytes": 3, "url": "https://files.example/report.pdf"}}
+	_, err := (&workspaceExecutor{op: operationNamed(t, "google-drive-upload-file")}).Execute(context.Background(), &executor.StepDefinition{Config: config}, nil)
+	if err == nil || !strings.Contains(err.Error(), "enable the service API") {
+		t.Fatalf("session rejection lost Google's reason: %v", err)
+	}
+}

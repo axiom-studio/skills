@@ -28,7 +28,7 @@ import (
 )
 
 const skillID = "skill-google-workspace"
-const skillVersion = "1.1.0"
+const skillVersion = "1.1.1"
 const credentialName = "google_access_token"
 const maxContentBytes = 2 * 1024 * 1024
 
@@ -494,10 +494,11 @@ func upload(ctx context.Context, op operation, token, endpoint string, metadata 
 	if err != nil {
 		return nil, errors.New("Google request failed; no automatic retry was attempted")
 	}
-	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, googleResponseError(op, resp.StatusCode, strings.NewReader(""))
+		defer resp.Body.Close()
+		return nil, googleResponseError(op, resp.StatusCode, resp.Body)
 	}
+	resp.Body.Close()
 	session, err := url.Parse(resp.Header.Get("Location"))
 	if err != nil || session.Scheme != "https" || !strings.HasSuffix(session.Host, "googleapis.com") {
 		return nil, errors.New("Google did not open an upload session")
