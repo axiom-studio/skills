@@ -59,7 +59,7 @@ class LightpandaTest(unittest.TestCase):
 
     def test_lightpanda_search_encodes_query(self):
         service = LightpandaRuntime()
-        result = {"url": "https://search.brave.com/search?q=capital+of+Tanzania", "http_status": 200, "content": "Dodoma", "error": None}
+        result = {"url": "https://search.yahoo.com/search?p=capital+of+Tanzania", "http_status": 200, "content": "Dodoma", "error": None}
         with mock.patch("runtime.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(result), "")) as execute:
             page = service.execute("lightpanda-search", {"query": "capital of Tanzania"})
         self.assertEqual(page["text"], "Dodoma")

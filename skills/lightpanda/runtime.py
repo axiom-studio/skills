@@ -16,11 +16,11 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
 
-VERSION = "3.0.1"
+VERSION = "3.0.2"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
-SEARCH_URL = "https://search.brave.com/search?q="
+SEARCH_URL = "https://search.yahoo.com/search?p="
 
 CAPTCHA = re.compile(r"\b(captcha|recaptcha|hcaptcha|verify you are human)\b", re.I)
 # Challenge language or provider markers, never a vendor name by itself.
