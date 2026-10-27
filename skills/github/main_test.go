@@ -138,3 +138,30 @@ func TestRepositoryConfigurationRejectsUnsafeIdentityAndMissingCredential(t *tes
 		})
 	}
 }
+
+func TestRepositoryContentGetListsTheRootForAnEmptyOrSlashPath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/axiom-studio/axiomcloud/contents/" {
+			t.Fatalf("request URL = %s", request.URL.String())
+		}
+		_ = json.NewEncoder(response).Encode([]interface{}{map[string]interface{}{"name": "README.md", "path": "README.md", "type": "file"}})
+	}))
+	defer server.Close()
+	previousBase, previousClient := githubAPIBase, githubClient
+	githubAPIBase, githubClient = server.URL, server.Client()
+	defer func() { githubAPIBase, githubClient = previousBase, previousClient }()
+	for _, path := range []interface{}{"/", "", nil} {
+		config := map[string]interface{}{"owner": "axiom-studio", "repository": "axiomcloud"}
+		if path != nil {
+			config["path"] = path
+		}
+		result, err := executeRepositoryContentGet(context.Background(), &executor.StepDefinition{Config: config}, githubBindingResolver{bindings: map[string]interface{}{"token": "SECRET"}})
+		if err != nil || result.Output["count"] != 1 {
+			t.Fatalf("path %#v: result=%#v err=%v", path, result, err)
+		}
+	}
+	step := &executor.StepDefinition{Config: map[string]interface{}{"owner": "axiom-studio", "repository": "axiomcloud", "path": "docs/../.."}}
+	if _, err := executeRepositoryContentGet(context.Background(), step, githubBindingResolver{bindings: map[string]interface{}{"token": "SECRET"}}); err == nil {
+		t.Fatal("a path that climbs out of the repository must still be refused")
+	}
+}

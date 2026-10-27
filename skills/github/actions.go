@@ -162,8 +162,9 @@ func executeRepositoryContentGet(ctx context.Context, step *executor.StepDefinit
 	if err != nil {
 		return nil, err
 	}
+	// An empty path or "/" is the repository root, which lists its top level.
 	path := strings.Trim(strings.TrimSpace(configString(step, "path")), "/")
-	if path == "" || unsafePath(path) {
+	if unsafePath(path) {
 		return nil, errors.New("a safe repository path is required")
 	}
 	endpoint := repositoryEndpoint(owner, repo) + "/contents/" + escapePath(path)
