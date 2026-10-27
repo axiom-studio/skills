@@ -12,10 +12,8 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"mime/multipart"
 	"net/http"
 	"net/mail"
-	"net/textproto"
 	"net/url"
 	"os"
 	"regexp"
@@ -30,13 +28,17 @@ import (
 )
 
 const skillID = "skill-google-workspace"
-const skillVersion = "1.0.2"
+const skillVersion = "1.1.0"
 const credentialName = "google_access_token"
 const maxContentBytes = 2 * 1024 * 1024
 
 //go:embed operations.json
 var operationJSON []byte
 var client = &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+// transfers sends file bytes, which can take longer than an API call; the
+// action's context bounds it.
+var transfers = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 var placeholder = regexp.MustCompile(`\{(\+?)([A-Za-z0-9_]+)\}`)
 
 type parameter struct {
@@ -114,6 +116,9 @@ func (e *workspaceExecutor) Execute(ctx context.Context, step *executor.StepDefi
 	endpoint, body, contentType, err := e.op.request(step.Config)
 	if err != nil {
 		return nil, err
+	}
+	if e.op.BodyFormat == "upload" {
+		return upload(ctx, e.op, token, endpoint, body, step.Config)
 	}
 	req, err := http.NewRequestWithContext(ctx, e.op.Method, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -222,9 +227,9 @@ func (op operation) request(config map[string]any) (string, []byte, string, erro
 		body = []byte(`{"trashed":true}`)
 	case "email":
 		body, err = emailPayload(config, strings.HasSuffix(op.Name, "draft-email"))
-	case "multipart":
-		body, contentType, err = uploadPayload(config)
-		query.Set("uploadType", "multipart")
+	case "upload":
+		body, err = uploadMetadata(config)
+		query.Set("uploadType", "resumable")
 	default:
 		if op.Body {
 			value, ok := config["body"].(map[string]any)
@@ -444,45 +449,86 @@ func emailPayload(config map[string]any, draft bool) ([]byte, error) {
 	}
 	return json.Marshal(message)
 }
-func uploadPayload(config map[string]any) ([]byte, string, error) {
-	name, _ := config["name"].(string)
-	kind, _ := config["mimeType"].(string)
-	encoded, _ := config["contentBase64"].(string)
-	if name == "" || len(name) > 256 || strings.ContainsAny(name, "\r\n") {
-		return nil, "", errors.New("A valid file name is required")
-	}
-	if _, _, err := mime.ParseMediaType(kind); err != nil || strings.ContainsAny(kind, "\r\n") {
-		return nil, "", errors.New("A valid MIME type is required")
-	}
-	if len(encoded) > base64.StdEncoding.EncodedLen(maxContentBytes) {
-		return nil, "", errors.New("File exceeds the 2 MiB limit")
-	}
-	content, err := base64.StdEncoding.DecodeString(encoded)
+
+// uploadMetadata is the Drive file a chat file is uploaded as.
+func uploadMetadata(config map[string]any) ([]byte, error) {
+	file, err := executor.FileInput(config, "file")
 	if err != nil {
-		return nil, "", errors.New("Invalid base64 file content")
+		return nil, err
+	}
+	name := file.Name
+	if value, ok := config["name"].(string); ok && value != "" {
+		name = value
+	}
+	if len(name) > 256 || strings.ContainsAny(name, "\r\n") {
+		return nil, errors.New("A valid file name is required")
 	}
 	metadata := map[string]any{"name": name}
 	if parent, ok := config["parentId"].(string); ok && parent != "" {
 		metadata["parents"] = []string{parent}
 	}
-	var out bytes.Buffer
-	writer := multipart.NewWriter(&out)
-	part, _ := writer.CreatePart(textproto.MIMEHeader{"Content-Type": {"application/json; charset=UTF-8"}})
-	if err := json.NewEncoder(part).Encode(metadata); err != nil {
-		return nil, "", err
-	}
-	part, _ = writer.CreatePart(textproto.MIMEHeader{"Content-Type": {kind}})
-	if _, err := part.Write(content); err != nil {
-		return nil, "", err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, "", err
-	}
-	return out.Bytes(), "multipart/related; boundary=" + writer.Boundary(), nil
+	return json.Marshal(metadata)
 }
 
-// Google error messages and metadata may contain identifiers or user content.
-// Expose only recognized machine reasons and reviewed corrective guidance.
+// upload sends a chat file to Drive with a resumable upload: Google opens an
+// upload session for the metadata, then the file streams from its link
+// straight into that session, so even a 100 MB file is never held in memory.
+func upload(ctx context.Context, op operation, token, endpoint string, metadata []byte, config map[string]any) (*executor.StepResult, error) {
+	file, err := executor.FileInput(config, "file")
+	if err != nil {
+		return nil, err
+	}
+	mediaType := file.MediaType
+	if _, _, err := mime.ParseMediaType(mediaType); err != nil || strings.ContainsAny(mediaType, "\r\n") {
+		mediaType = "application/octet-stream"
+	}
+	start, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(metadata))
+	if err != nil {
+		return nil, errors.New("Invalid Google request")
+	}
+	start.Header.Set("Authorization", "Bearer "+token)
+	start.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	start.Header.Set("X-Upload-Content-Type", mediaType)
+	start.Header.Set("X-Upload-Content-Length", strconv.FormatInt(file.SizeBytes, 10))
+	resp, err := client.Do(start)
+	if err != nil {
+		return nil, errors.New("Google request failed; no automatic retry was attempted")
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, googleResponseError(op, resp.StatusCode, strings.NewReader(""))
+	}
+	session, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil || session.Scheme != "https" || !strings.HasSuffix(session.Host, "googleapis.com") {
+		return nil, errors.New("Google did not open an upload session")
+	}
+	content, err := file.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer content.Close()
+	put, err := http.NewRequestWithContext(ctx, http.MethodPut, session.String(), content)
+	if err != nil {
+		return nil, errors.New("Invalid Google request")
+	}
+	put.ContentLength = file.SizeBytes
+	put.Header.Set("Authorization", "Bearer "+token)
+	put.Header.Set("Content-Type", mediaType)
+	resp, err = transfers.Do(put)
+	if err != nil {
+		return nil, fmt.Errorf("Uploading %s to Google Drive failed; no automatic retry was attempted", file.Name)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, googleResponseError(op, resp.StatusCode, resp.Body)
+	}
+	result := map[string]any{}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxContentBytes)).Decode(&result); err != nil {
+		return nil, errors.New("Google returned an invalid JSON response")
+	}
+	return &executor.StepResult{Output: result}, nil
+}
+
 func googleResponseError(op operation, status int, body io.Reader) error {
 	var envelope struct {
 		Error struct {

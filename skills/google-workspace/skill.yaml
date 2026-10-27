@@ -1127,27 +1127,24 @@ definition:
                     scopes:
                         - https://www.googleapis.com/auth/drive
                     subject: user
-            description: Upload file with bounded file content.
+            description: Upload a file from this chat to Google Drive.
             idempotency: required
             inputSchema:
                 additionalProperties: false
                 properties:
-                    contentBase64:
-                        maxLength: 4.194304e+06
-                        type: string
-                    mimeType:
-                        maxLength: 4.194304e+06
-                        type: string
+                    file:
+                        description: The file to upload.
+                        type: file
                     name:
-                        maxLength: 4.194304e+06
+                        description: Name for the file in Drive. Defaults to the file's own name.
+                        maxLength: 256
                         type: string
                     parentId:
-                        maxLength: 4.194304e+06
+                        description: ID of the Drive folder to upload into.
+                        maxLength: 1024
                         type: string
                 required:
-                    - contentBase64
-                    - mimeType
-                    - name
+                    - file
                 type: object
             name: google-drive-upload-file
             outputSchema:
@@ -3394,7 +3391,7 @@ definition:
         - id: oci
           kind: oci
           label: Google Workspace Skill service
-          package: axiomstudio/skill-google-workspace:1.0.2
+          package: axiomstudio/skill-google-workspace:1.1.0
     name: Google Workspace
     prompt:
         allowedTools:
@@ -3474,7 +3471,7 @@ definition:
         publisher: Axiom Studio
         reference: skill-google-workspace
         registry: https://github.com/axiom-studio/skills
-        resolvedVersion: 1.0.2
+        resolvedVersion: 1.1.0
     tags:
         - google
         - workspace
@@ -3490,5 +3487,5 @@ definition:
     transport:
         endpoint: skill-google-workspace
         kind: tool
-    version: 1.0.2
+    version: 1.1.0
 kind: SkillDefinition

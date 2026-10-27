@@ -2948,7 +2948,7 @@
     "method": "POST",
     "baseURL": "https://www.googleapis.com/upload/drive/v3/",
     "path": "files",
-    "description": "Upload file with bounded file content.",
+    "description": "Upload a file from this chat to Google Drive.",
     "params": {},
     "body": false,
     "scopes": [
@@ -2956,7 +2956,7 @@
     ],
     "risk": "write",
     "responseFormat": "json",
-    "bodyFormat": "multipart"
+    "bodyFormat": "upload"
   },
   {
     "name": "google-drive-download-file",

@@ -544,7 +544,7 @@ github.com/aws/smithy-go/tracing
 github.com/aws/smithy-go/transport/http
 github.com/aws/smithy-go/transport/http/internal/io
 github.com/aws/smithy-go/waiter
-# github.com/axiom-studio/skills.sdk v0.0.0-20260923173003-cf5c109378fe
+# github.com/axiom-studio/skills.sdk v0.0.0-20261027122851-27f26303f7cb
 ## explicit; go 1.25
 github.com/axiom-studio/skills.sdk/executor
 github.com/axiom-studio/skills.sdk/grpc

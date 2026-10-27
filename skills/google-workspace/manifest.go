@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/axiom-studio/skills.sdk/executor"
 	"github.com/axiom-studio/skills.sdk/resolver"
 	"gopkg.in/yaml.v3"
 )
@@ -56,11 +57,11 @@ func inputProperties(op operation) (map[string]any, []string) {
 		}
 		required = append(required, "to", "subject", "text")
 	}
-	if op.BodyFormat == "multipart" {
-		for _, name := range []string{"name", "mimeType", "contentBase64", "parentId"} {
-			properties[name] = map[string]any{"type": "string", "maxLength": maxContentBytes * 2}
-		}
-		required = append(required, "name", "mimeType", "contentBase64")
+	if op.BodyFormat == "upload" {
+		properties["file"] = map[string]any{"type": executor.FileType, "description": "The file to upload."}
+		properties["name"] = map[string]any{"type": "string", "maxLength": 256, "description": "Name for the file in Drive. Defaults to the file's own name."}
+		properties["parentId"] = map[string]any{"type": "string", "maxLength": 1024, "description": "ID of the Drive folder to upload into."}
+		required = append(required, "file")
 	}
 	sort.Strings(required)
 	return properties, required

@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"mime"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,6 +34,10 @@ func TestEveryWorkspaceOperationUsesFixedRoutesAndHostToken(t *testing.T) {
 	t.Cleanup(func() { client = previous })
 	services := map[string]bool{}
 	for _, op := range operations() {
+		if op.BodyFormat == "upload" {
+			services[op.Service] = true // covered by TestDriveUploadStreamsTheChatFileIntoAResumableSession
+			continue
+		}
 		t.Run(op.Name, func(t *testing.T) {
 			config := map[string]any{credentialName: "host-token"}
 			for name, p := range op.Params {
@@ -68,11 +70,6 @@ func TestEveryWorkspaceOperationUsesFixedRoutesAndHostToken(t *testing.T) {
 				config["to"] = "seal@example.com"
 				config["subject"] = "Test"
 				config["text"] = "Body"
-			}
-			if op.BodyFormat == "multipart" {
-				config["name"] = "note.txt"
-				config["mimeType"] = "text/plain"
-				config["contentBase64"] = base64.StdEncoding.EncodeToString([]byte("hello"))
 			}
 			client = &http.Client{Transport: workspaceTransport(func(r *http.Request) (*http.Response, error) {
 				services[op.Service] = true
@@ -159,22 +156,6 @@ func TestEmailDraftAndUploadPayloads(t *testing.T) {
 	config["subject"] = "hello\r\nBcc: attacker@example.com"
 	if _, err := emailPayload(config, false); err == nil {
 		t.Fatal("accepted header injection")
-	}
-	payload, kind, err := uploadPayload(map[string]any{"name": "note.txt", "mimeType": "text/plain", "contentBase64": base64.StdEncoding.EncodeToString([]byte("hello")), "parentId": "folder"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	media, params, _ := mime.ParseMediaType(kind)
-	if media != "multipart/related" {
-		t.Fatal("wrong Google upload encoding")
-	}
-	reader := multipart.NewReader(strings.NewReader(string(payload)), params["boundary"])
-	part, _ := reader.NextPart()
-	metadata, _ := io.ReadAll(part)
-	part, _ = reader.NextPart()
-	content, _ := io.ReadAll(part)
-	if !strings.Contains(string(metadata), "folder") || string(content) != "hello" {
-		t.Fatal("lost upload metadata or bytes")
 	}
 }
 func TestManifestMatchesRuntimeActionsAndScopedOAuth(t *testing.T) {
@@ -370,5 +351,47 @@ func TestGoogleBadRequestFeedbackDoesNotEchoProviderContent(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDriveUploadStreamsTheChatFileIntoAResumableSession(t *testing.T) {
+	previousClient, previousTransfers, previousFiles := client, transfers, executor.FileClient
+	t.Cleanup(func() { client, transfers, executor.FileClient = previousClient, previousTransfers, previousFiles })
+	content := strings.Repeat("pdf", 1000)
+	var steps []string
+	transport := workspaceTransport(func(r *http.Request) (*http.Response, error) {
+		steps = append(steps, r.Method+" "+r.URL.Host+r.URL.Path)
+		switch {
+		case r.URL.Host == "files.example":
+			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(content))}, nil
+		case r.Method == http.MethodPost:
+			metadata, _ := io.ReadAll(r.Body)
+			if r.URL.Query().Get("uploadType") != "resumable" || r.Header.Get("Authorization") != "Bearer host-token" ||
+				r.Header.Get("X-Upload-Content-Type") != "application/pdf" || r.Header.Get("X-Upload-Content-Length") != "3000" ||
+				string(metadata) != `{"name":"Report.pdf","parents":["folder"]}` {
+				t.Fatalf("session request %s %v %s", r.URL, r.Header, metadata)
+			}
+			return &http.Response{StatusCode: 200, Header: http.Header{"Location": {"https://www.googleapis.com/upload/drive/v3/files?upload_id=session"}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+		default:
+			body, _ := io.ReadAll(r.Body)
+			if r.Method != http.MethodPut || r.URL.Query().Get("upload_id") != "session" || r.ContentLength != 3000 || string(body) != content {
+				t.Fatalf("upload request %s %s %d bytes", r.Method, r.URL, len(body))
+			}
+			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"drive-file","name":"Report.pdf"}`))}, nil
+		}
+	})
+	client, transfers, executor.FileClient = &http.Client{Transport: transport}, &http.Client{Transport: transport}, &http.Client{Transport: transport}
+	config := map[string]any{credentialName: "host-token", "name": "Report.pdf", "parentId": "folder",
+		"file": map[string]any{"name": "report.pdf", "path": "docs/report.pdf", "mediaType": "application/pdf", "sizeBytes": 3000, "url": "https://files.example/report.pdf"}}
+	result, err := (&workspaceExecutor{op: operationNamed(t, "google-drive-upload-file")}).Execute(context.Background(), &executor.StepDefinition{Config: config}, nil)
+	if err != nil || result.Output["id"] != "drive-file" {
+		t.Fatalf("upload = %#v, %v", result, err)
+	}
+	if strings.Join(steps, ", ") != "POST www.googleapis.com/upload/drive/v3/files, GET files.example/report.pdf, PUT www.googleapis.com/upload/drive/v3/files" {
+		t.Fatalf("steps = %v", steps)
+	}
+	config["file"] = "docs/report.pdf"
+	if _, err := (&workspaceExecutor{op: operationNamed(t, "google-drive-upload-file")}).Execute(context.Background(), &executor.StepDefinition{Config: config}, nil); err == nil {
+		t.Fatal("uploaded a path the host did not hand over")
 	}
 }

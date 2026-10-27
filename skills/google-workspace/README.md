@@ -45,7 +45,7 @@ YouTube, Maps, domain-wide delegation and Google Chat.
 
 - Gmail: messages, threads, labels, attachments, plain-text drafting/sending,
   draft reads/edits/sending, label modifications and trash.
-- Drive: file search/metadata, folder/file creation, edits/copies, bounded uploads,
+- Drive: file search/metadata, folder/file creation, edits/copies, uploads of chat files,
   downloads/exports, permissions and trash.
 - Docs, Sheets, Slides: create/read documents and presentations, service-native
   batch edits, and spreadsheet value reads/updates/appends.
@@ -66,7 +66,10 @@ upstream create/send APIs are exactly-once.
 
 Lists default to bounded pages and preserve Google page tokens. Drive listing
 uses a compact fields projection; callers can request another projection.
-Responses and file contents are bounded to 2 MiB. Exports/downloads return
+Uploads take a file from the chat (`"type": "file"`): the model passes its path,
+the host hands the Skill a short-lived link, and the file streams into a Drive
+resumable upload, up to 100 MB. Other responses and file contents are bounded to
+2 MiB. Exports/downloads return
 `contentBase64`, `mimeType`, `sizeBytes`, and text for UTF-8 text responses.
 Sheets value writes default to `RAW`; request `USER_ENTERED` explicitly for
 formulas. Plain-text email actions validate recipients and prevent MIME header
