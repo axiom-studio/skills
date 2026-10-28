@@ -1,0 +1,82 @@
+name: Publish Skill image
+
+# A tag named after the image publishes it:
+#   skill-browser-v3.2.1 -> axiomstudio/skill-browser:3.2.1
+# The Skill is the directory whose skill.yaml declares that exact package. It
+# builds from skills/<dir>/Dockerfile when there is one, else the root
+# Dockerfile, must pass scripts/verify-image.sh, and is pushed to Docker Hub,
+# where Sentinel stages it from. A tag already on Docker Hub is left alone.
+on:
+  push:
+    tags:
+      - 'skill-*-v*.*.*'
+
+concurrency:
+  group: publish-skill-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+
+      - name: Resolve the Skill
+        id: skill
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='${{ github.ref_name }}'
+          if [[ ! "$tag" =~ ^(skill-.+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Unsupported Skill release tag: $tag"
+            exit 1
+          fi
+          image="axiomstudio/${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
+          mapfile -t manifests < <(grep -lE "^[[:space:]]+package:[[:space:]]+${image//./\\.}[[:space:]]*$" skills/*/skill.yaml)
+          if [[ ${#manifests[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one skills/*/skill.yaml declaring package $image, found ${#manifests[@]}"
+            exit 1
+          fi
+          dir="$(basename "$(dirname "${manifests[0]}")")"
+          dockerfile=Dockerfile
+          if [[ -f "skills/$dir/Dockerfile" ]]; then dockerfile="skills/$dir/Dockerfile"; fi
+          {
+            echo "image=$image"
+            echo "dir=$dir"
+            echo "manifest=${manifests[0]}"
+            echo "dockerfile=$dockerfile"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: axiomstudio
+          password: ${{ secrets.DOCKERHUB_AXIOMSTUDIO_PUSH_SECRET }}
+
+      - name: Skip a tag already on Docker Hub
+        id: existing
+        run: |
+          if docker manifest inspect '${{ steps.skill.outputs.image }}' >/dev/null 2>&1; then
+            echo "::notice::${{ steps.skill.outputs.image }} is already on Docker Hub; not rebuilding it"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.existing.outputs.published != 'true'
+        run: >
+          docker build --file '${{ steps.skill.outputs.dockerfile }}'
+          --build-arg SKILL_NAME='${{ steps.skill.outputs.dir }}' --build-arg SKILL_PORT=50051
+          --tag '${{ steps.skill.outputs.image }}' .
+
+      - name: Verify
+        if: steps.existing.outputs.published != 'true'
+        run: scripts/verify-image.sh '${{ steps.skill.outputs.image }}' '${{ steps.skill.outputs.manifest }}'
+
+      - name: Push
+        if: steps.existing.outputs.published != 'true'
+        run: docker push '${{ steps.skill.outputs.image }}'
