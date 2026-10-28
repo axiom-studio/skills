@@ -702,3 +702,31 @@ func TestSlackReviewNavigationAcknowledgesSignedGatewayAndRejectsUnsigned(t *tes
 		t.Fatalf("unsigned navigation accepted %v %v", out, err)
 	}
 }
+
+func TestSlackDeletesAStreamedMessage(t *testing.T) {
+	for _, reply := range []string{`{"ok":true,"channel":"C123","ts":"1720000001.123"}`, `{"ok":false,"error":"message_not_found"}`} {
+		var deleted map[string]interface{}
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/chat.delete" {
+				t.Fatalf("path = %s", request.URL.Path)
+			}
+			if err := json.NewDecoder(request.Body).Decode(&deleted); err != nil {
+				t.Error(err)
+			}
+			_, _ = io.WriteString(response, reply)
+		}))
+		adapter := newSlackAdapter("", server.URL, server.Client())
+		config := deliveryConfig("deliver")
+		delivery := config[adapterEnvelopeKey].(map[string]interface{})["delivery"].(*conversationDelivery)
+		delivery.Operation = "message.delete"
+		delivery.Parameters = map[string]interface{}{"providerMessageId": "1720000001.123"}
+		output, err := adapter.delivery(context.Background(), config)
+		server.Close()
+		if err != nil || output["outcome"] != "delivered" || output["providerMessageId"] != "1720000001.123" {
+			t.Fatalf("delete = %#v, %v", output, err)
+		}
+		if deleted["channel"] != "C123" || deleted["ts"] != "1720000001.123" {
+			t.Fatalf("Slack delete = %#v", deleted)
+		}
+	}
+}

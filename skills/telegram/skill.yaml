@@ -367,6 +367,7 @@ definition:
         kind: telegram_bot
       delivery:
         operations:
+        - message.delete
         - message.send
         - message.update
         - typing.set
@@ -414,7 +415,7 @@ definition:
   - id: oci
     kind: oci
     label: Telegram Skill service image
-    package: axiomstudio/skill-telegram:1.2.5
+    package: axiomstudio/skill-telegram:1.2.6
   name: Telegram Skill
   requirements:
     tenancy: shared
@@ -426,7 +427,7 @@ definition:
     publisher: Axiom Studio
     registry: https://github.com/axiom-studio/skills
     reference: skill-telegram
-    resolvedVersion: 1.2.5
+    resolvedVersion: 1.2.6
   tags:
   - bot
   - chat
@@ -435,7 +436,7 @@ definition:
   transport:
     endpoint: skill-telegram
     kind: tool
-  version: 1.2.5
+  version: 1.2.6
   prompt:
     allowedTools:
     - telegram-get-me

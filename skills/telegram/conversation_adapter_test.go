@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -130,6 +131,69 @@ func TestTelegramDeliverySendsAndUpdatesMessages(t *testing.T) {
 	want := []string{"/bot" + testTelegramBotToken + "/sendMessage", "/bot" + testTelegramBotToken + "/editMessageText"}
 	if strings.Join(methods, ",") != strings.Join(want, ",") {
 		t.Fatalf("methods = %v, want %v", methods, want)
+	}
+}
+
+func TestTelegramUpdateEditsFirstPartAndSendsTheRest(t *testing.T) {
+	var calls []map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		body["method"] = request.URL.Path[strings.LastIndex(request.URL.Path, "/")+1:]
+		calls = append(calls, body)
+		response.Header().Set("Content-Type", "application/json")
+		if body["method"] == "editMessageText" && len(calls) > 2 {
+			response.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(response, `{"ok":false,"error_code":400,"description":"Bad Request: message is not modified: specified new message content and reply markup are exactly the same"}`)
+			return
+		}
+		id := 77 + len(calls) - 1
+		_, _ = io.WriteString(response, `{"ok":true,"result":{"message_id":`+strconv.Itoa(id)+`,"chat":{"id":99,"type":"private"}}}`)
+	}))
+	defer server.Close()
+	adapter := newTelegramConversationAdapter(server.URL+"/bot", server.Client())
+	config := telegramDeliveryConfig("message.update", "99:77")
+	request := config[telegramAdapterEnvelope].(*telegramAdapterRequest)
+	request.Message.Content = strings.Repeat("a", 4096) + "tail"
+	updated, err := adapter.delivery(context.Background(), config)
+	if err != nil || updated["outcome"] != "delivered" || updated["providerMessageId"] != "99:78" {
+		t.Fatalf("update = %#v, %v", updated, err)
+	}
+	if len(calls) != 2 || calls[0]["method"] != "editMessageText" || calls[0]["message_id"] != float64(77) || len(calls[0]["text"].(string)) != 4096 ||
+		calls[1]["method"] != "sendMessage" || calls[1]["text"] != "tail" {
+		t.Fatalf("calls = %#v", calls)
+	}
+	// Repeating an edit to the text the message already shows succeeds.
+	unchanged, err := adapter.delivery(context.Background(), telegramDeliveryConfig("message.update", "99:77"))
+	if err != nil || unchanged["outcome"] != "delivered" || unchanged["providerMessageId"] != "99:77" {
+		t.Fatalf("unchanged update = %#v, %v", unchanged, err)
+	}
+}
+
+func TestTelegramDeletesAStreamedMessage(t *testing.T) {
+	for _, reply := range []string{`{"ok":true,"result":true}`, `{"ok":false,"error_code":400,"description":"Bad Request: message to delete not found"}`} {
+		var body map[string]interface{}
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if !strings.HasSuffix(request.URL.Path, "/deleteMessage") {
+				t.Errorf("path = %s", request.URL.Path)
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			response.Header().Set("Content-Type", "application/json")
+			if strings.Contains(reply, "not found") {
+				response.WriteHeader(http.StatusBadRequest)
+			}
+			_, _ = io.WriteString(response, reply)
+		}))
+		adapter := newTelegramConversationAdapter(server.URL+"/bot", server.Client())
+		deleted, err := adapter.delivery(context.Background(), telegramDeliveryConfig("message.delete", "99:77"))
+		server.Close()
+		if err != nil || deleted["outcome"] != "delivered" || body["chat_id"] != "99" || body["message_id"] != float64(77) {
+			t.Fatalf("delete = %#v, %v, body %#v", deleted, err, body)
+		}
 	}
 }
 

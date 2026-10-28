@@ -839,6 +839,9 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	if envelope.Delivery.Operation == "typing.set" {
 		return a.setThreadStatus(ctx, token, envelope)
 	}
+	if envelope.Delivery.Operation == "message.delete" {
+		return a.deleteMessage(ctx, token, envelope)
+	}
 	path := "/chat.postMessage"
 	body := map[string]interface{}{
 		"channel": envelope.Endpoint.Address,
@@ -937,6 +940,39 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	return map[string]interface{}{
 		"outcome": "delivered", "providerMessageId": result.Timestamp,
 		"summary": "Slack accepted the message.",
+	}, nil
+}
+
+// deleteMessage removes a message the app posted, such as a streamed reply
+// preview that the committed reply does not finish.
+func (a *slackAdapter) deleteMessage(ctx context.Context, token string, envelope *adapterEnvelope) (map[string]interface{}, error) {
+	providerMessageID, _ := envelope.Delivery.Parameters["providerMessageId"].(string)
+	providerMessageID = strings.TrimSpace(providerMessageID)
+	if providerMessageID == "" {
+		return failedDelivery("invalid_delete", "The Slack message to delete is unavailable."), nil
+	}
+	response, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/chat.delete", nil, map[string]interface{}{
+		"channel": envelope.Endpoint.Address, "ts": providerMessageID,
+	})
+	if err != nil || status >= 500 {
+		return retryDelivery("slack_unavailable", "Slack could not be reached.", retryAfter), nil
+	}
+	if status == http.StatusTooManyRequests {
+		return retryDelivery("rate_limited", "Slack asked the Skill to retry later.", retryAfter), nil
+	}
+	var result slackDeliveryResponse
+	if status < 200 || status >= 300 || json.Unmarshal(response, &result) != nil {
+		return failedDelivery("slack_rejected", "Slack rejected the message deletion."), nil
+	}
+	// A message someone already deleted needs no second removal.
+	if !result.OK && result.Error != "message_not_found" {
+		if transientSlackError(result.Error) {
+			return retryDelivery(safeSlackError(result.Error), "Slack asked the Skill to retry the deletion.", retryAfter), nil
+		}
+		return failedDelivery(safeSlackError(result.Error), "Slack rejected the message deletion."), nil
+	}
+	return map[string]interface{}{
+		"outcome": "delivered", "providerMessageId": providerMessageID, "summary": "Slack deleted the message.",
 	}, nil
 }
 

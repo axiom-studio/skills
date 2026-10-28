@@ -109,6 +109,28 @@ func telegramDeliveryResponse(response TelegramResponse, status int, err error) 
 	}
 	return nil
 }
+
+// editTelegramText replaces a message's text. An edit to the text it already
+// shows is a success, so a retried or repeated edit stays idempotent.
+func (a *telegramConversationAdapter) editTelegramText(ctx context.Context, token string, request *telegramAdapterRequest, target map[string]interface{}, messageID int64, text string) (string, map[string]interface{}) {
+	parameters := map[string]interface{}{"chat_id": target["chat_id"], "message_id": messageID, "text": text}
+	if markup, ok := target["reply_markup"]; ok {
+		parameters["reply_markup"] = markup
+	}
+	response, status, err := a.telegramJSON(ctx, token, "editMessageText", parameters)
+	if err == nil && status == 400 && strings.Contains(response.Description, "message is not modified") {
+		return strconv.FormatInt(messageID, 10), nil
+	}
+	if failure := telegramDeliveryResponse(response, status, err); failure != nil {
+		return "", failure
+	}
+	receipt, err := telegramAcknowledgement(response, request.Endpoint.Address)
+	if err != nil {
+		return "", telegramFailedDelivery("delivery_unconfirmed", err.Error())
+	}
+	return receipt, nil
+}
+
 func (a *telegramConversationAdapter) deliverTelegram(ctx context.Context, token string, request *telegramAdapterRequest) (map[string]interface{}, error) {
 	parameters, err := telegramDeliveryTarget(request)
 	if err != nil {
@@ -166,38 +188,47 @@ func (a *telegramConversationAdapter) deliverTelegram(ctx context.Context, token
 		}
 		return map[string]interface{}{"outcome": "delivered", "providerMessageId": request.Endpoint.Address + ":typing:" + request.Delivery.ID, "summary": "Telegram typing updated."}, nil
 	}
-	if operation == "message.update" {
-		if request.Operation == "lookup" {
+	edit := int64(0)
+	if operation == "message.update" || operation == "message.delete" {
+		if request.Operation == "lookup" && operation == "message.delete" {
 			return map[string]interface{}{"status": "unknown"}, nil
 		}
 		id := strings.TrimSpace(request.Delivery.ProviderMessageID)
 		if id == "" {
 			id, _ = request.Delivery.Parameters["providerMessageId"].(string)
 		}
-		id = telegramRawMessageID(id, request.Endpoint.Address)
-		parsed, err := strconv.ParseInt(id, 10, 64)
-		if err != nil || parsed < 1 {
+		var err error
+		edit, err = strconv.ParseInt(telegramRawMessageID(id, request.Endpoint.Address), 10, 64)
+		if err != nil || edit < 1 {
 			return telegramFailedDelivery("invalid_update", "The Telegram message update target is unavailable."), nil
 		}
+	}
+	if operation == "message.delete" {
+		response, status, err := a.telegramJSON(ctx, token, "deleteMessage", map[string]interface{}{"chat_id": parameters["chat_id"], "message_id": edit})
+		// A message someone already deleted needs no second removal.
+		if !(status == 400 && strings.Contains(response.Description, "message to delete not found")) {
+			if failure := telegramDeliveryResponse(response, status, err); failure != nil {
+				return failure, nil
+			}
+		}
+		return map[string]interface{}{"outcome": "delivered", "providerMessageId": request.Endpoint.Address + ":" + strconv.FormatInt(edit, 10), "summary": "Telegram deleted the message."}, nil
+	}
+	if operation == "message.update" && len(telegramTextChunks(request.Message.Content)) <= 1 {
+		if request.Operation == "lookup" {
+			return map[string]interface{}{"status": "unknown"}, nil
+		}
 		if len(telegramTextChunks(request.Message.Content)) != 1 {
-			return telegramFailedDelivery("invalid_update", "A Telegram message update must contain at most 4096 characters."), nil
+			return telegramFailedDelivery("invalid_update", "A Telegram message update needs text."), nil
 		}
-		delete(parameters, "reply_parameters")
-		delete(parameters, "message_thread_id")
-		delete(parameters, "direct_messages_topic_id")
-		parameters["message_id"] = parsed
-		parameters["text"] = request.Message.Content
-		response, status, err := a.telegramJSON(ctx, token, "editMessageText", parameters)
-		if failure := telegramDeliveryResponse(response, status, err); failure != nil {
+		receipt, failure := a.editTelegramText(ctx, token, request, parameters, edit, request.Message.Content)
+		if failure != nil {
 			return failure, nil
-		}
-		receipt, err := telegramAcknowledgement(response, request.Endpoint.Address)
-		if err != nil {
-			return telegramFailedDelivery("delivery_unconfirmed", err.Error()), nil
 		}
 		return map[string]interface{}{"outcome": "delivered", "providerMessageId": request.Endpoint.Address + ":" + receipt, "summary": "Telegram accepted the update."}, nil
 	}
-	if operation != "message.send" {
+	// A longer update edits its first part in place and sends the rest, like a
+	// reply split across messages.
+	if operation != "message.send" && operation != "message.update" {
 		return telegramFailedDelivery("unsupported_operation", "Telegram does not support this delivery operation."), nil
 	}
 	if len(request.Attachments) > maximumTelegramAttachments {
@@ -239,6 +270,17 @@ func (a *telegramConversationAdapter) deliverTelegram(ctx context.Context, token
 	}
 	checkpoint.SafeRetryAfterAttempt = 0
 	for i := len(checkpoint.TextReceipts); i < len(texts); i++ {
+		if i == 0 && edit > 0 {
+			id, failure := a.editTelegramText(ctx, token, request, parameters, edit, texts[0])
+			if failure != nil {
+				if failure["outcome"] == "retry" {
+					checkpoint.SafeRetryAfterAttempt = request.Delivery.Attempt
+				}
+				return telegramProgress(failure, checkpoint), nil
+			}
+			checkpoint.TextReceipts = append(checkpoint.TextReceipts, id)
+			continue
+		}
 		parameters["text"] = texts[i]
 		response, status, err := a.telegramJSON(ctx, token, "sendMessage", parameters)
 		delete(parameters, "text")
