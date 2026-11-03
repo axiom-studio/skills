@@ -34,8 +34,11 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 	// Optional for compilation-only bindings; execution fails without configuration.
 	config := object(map[string]interface{}{"integration": integration})
 	definition := map[string]interface{}{
-		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": map[string]string{"api": "API", "mcp": "MCP server"}[transport], "description": "Learn service contracts and execute governed provider-neutral blocks",
-		"category": "integration", "tags": []string{"generic", transport, "integration"}, "bindingConfigSchema": config, "actions": actions,
+		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": map[string]string{"api": "API", "mcp": "MCP server"}[transport], "description": map[string]string{
+			"api": "Connect any service that has a documented HTTP API: learn its contract, then call it with your key or sign-in",
+			"mcp": "Connect any service that publishes an MCP server: paste its address, sign in, then use its tools",
+		}[transport],
+		"category": "integration", "tags": []string{transport, "connect", "connection", "connector", "integration"}, "bindingConfigSchema": config, "actions": actions,
 		"prompt":     map[string]interface{}{"instructions": instructions, "userInvocable": true},
 		"transport":  map[string]interface{}{"kind": "tool", "endpoint": compileName},
 		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":latest"}},

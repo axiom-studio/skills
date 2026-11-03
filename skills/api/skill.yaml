@@ -132,7 +132,7 @@ definition:
                 type: object
         type: object
     category: integration
-    description: Learn service contracts and execute governed provider-neutral blocks
+    description: 'Connect any service that has a documented HTTP API: learn its contract, then call it with your key or sign-in'
     id: skill-api
     installers:
         - id: oci
@@ -443,7 +443,7 @@ definition:
 
             ## Platform activation without per-service deployments
 
-            Install the `skill-api` 0.2.2 / `skill-mcp` 0.3.1 base manifest and runtime image once using
+            Install the `skill-api` 0.2.3 / `skill-mcp` 0.3.2 base manifest and runtime image once using
             the existing platform installation flow. With no `INTEGRATION_PROFILE` environment
             variable, the service registers compilation, inspection, and effect-specific
             execution actions. It does not accept a model-controlled endpoint or profile.
@@ -556,13 +556,15 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-api
-        resolvedVersion: 0.2.2
+        resolvedVersion: 0.2.3
     tags:
-        - generic
         - api
+        - connect
+        - connection
+        - connector
         - integration
     transport:
         endpoint: api-compile
         kind: tool
-    version: 0.2.2
+    version: 0.2.3
 kind: SkillDefinition
