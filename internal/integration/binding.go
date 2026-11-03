@@ -11,8 +11,8 @@ import (
 	"github.com/axiom-studio/skills.sdk/executor"
 )
 
-const RuntimeVersion = "0.2.1"
-const MCPruntimeVersion = "0.3.0"
+const RuntimeVersion = "0.2.2"
+const MCPruntimeVersion = "0.3.1"
 
 func runtimeVersion(transport string) string {
 	if transport == "mcp" {

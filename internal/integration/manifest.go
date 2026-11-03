@@ -34,7 +34,7 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 	// Optional for compilation-only bindings; execution fails without configuration.
 	config := object(map[string]interface{}{"integration": integration})
 	definition := map[string]interface{}{
-		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": "Generic " + transport + " Skill", "description": "Learn service contracts and execute governed provider-neutral blocks",
+		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": map[string]string{"api": "API", "mcp": "MCP server"}[transport], "description": "Learn service contracts and execute governed provider-neutral blocks",
 		"category": "integration", "tags": []string{"generic", transport, "integration"}, "bindingConfigSchema": config, "actions": actions,
 		"prompt":     map[string]interface{}{"instructions": instructions, "userInvocable": true},
 		"transport":  map[string]interface{}{"kind": "tool", "endpoint": compileName},

@@ -138,7 +138,7 @@ definition:
         - id: oci
           kind: oci
           package: axiomstudio/skill-api:latest
-    name: Generic api Skill
+    name: API
     prompt:
         instructions: |
             # Learn and use an API
@@ -443,7 +443,7 @@ definition:
 
             ## Platform activation without per-service deployments
 
-            Install the `skill-api` 0.2.1 / `skill-mcp` 0.3.0 base manifest and runtime image once using
+            Install the `skill-api` 0.2.2 / `skill-mcp` 0.3.1 base manifest and runtime image once using
             the existing platform installation flow. With no `INTEGRATION_PROFILE` environment
             variable, the service registers compilation, inspection, and effect-specific
             execution actions. It does not accept a model-controlled endpoint or profile.
@@ -556,7 +556,7 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-api
-        resolvedVersion: 0.2.1
+        resolvedVersion: 0.2.2
     tags:
         - generic
         - api
@@ -564,5 +564,5 @@ definition:
     transport:
         endpoint: api-compile
         kind: tool
-    version: 0.2.1
+    version: 0.2.2
 kind: SkillDefinition
