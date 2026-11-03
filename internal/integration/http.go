@@ -78,15 +78,7 @@ func (r *Runtime) request(ctx context.Context, method, target string, body io.Re
 		return nil, fmt.Errorf("invalid request")
 	}
 	req.Header = headers.Clone()
-	if r.Profile.Transport == "mcp" && r.Profile.MCP != nil {
-		extra, err := r.mcpHeaders(ctx, token)
-		if err != nil {
-			return nil, err
-		}
-		for k, values := range extra {
-			req.Header[k] = values
-		}
-	} else if c := r.Profile.Credential; c != nil {
+	if c := r.Profile.Credential; c != nil {
 		if token == "" || strings.ContainsAny(token, "\r\n") {
 			return nil, fmt.Errorf("missing or invalid credential binding")
 		}

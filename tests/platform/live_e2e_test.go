@@ -261,7 +261,6 @@ func TestLiveExamplesE2E(t *testing.T) {
 		t.Skip("set INTEGRATION_LIVE_E2E=1 to call public services")
 	}
 	api := startLiveService(t, "api")
-	mcp := startLiveService(t, "mcp")
 	t.Run("github_repository", func(t *testing.T) {
 		p, err := integration.Load("testdata/github-public.json")
 		if err != nil {
@@ -290,42 +289,5 @@ func TestLiveExamplesE2E(t *testing.T) {
 			t.Fatal("invalid weather result")
 		}
 		t.Logf("HTTP %.0f: temperature %v at %v", out["status"], current["temperature_2m"], current["time"])
-	})
-	t.Run("cloudflare_mcp_discover_learn_call", func(t *testing.T) {
-		p, err := integration.Load("testdata/cloudflare-docs.json")
-		if err != nil {
-			t.Fatal(err)
-		}
-		h := newLiveHarness(t, "mcp", mcp)
-		h.activate(h.compile(p), 0)
-		discovery := h.call(p, "mcp-discover-bound", "", nil)
-		tools := discovery["tools"].([]interface{})
-		var selected map[string]interface{}
-		for _, raw := range tools {
-			snapshot := raw.(map[string]interface{})
-			tool := snapshot["tool"].(map[string]interface{})
-			if tool["name"] == "search_cloudflare_documentation" {
-				selected = snapshot
-				break
-			}
-		}
-		if selected == nil {
-			t.Fatal("documented search tool not discovered")
-		}
-		tool := selected["tool"].(map[string]interface{})
-		p.Operations = []integration.Operation{{Name: "documentation-search", Description: "Search Cloudflare documentation", Effect: "read", Tool: tool["name"].(string), ToolHash: selected["hash"].(string), InputSchema: tool["inputSchema"].(map[string]interface{}), OutputSchema: tool["outputSchema"].(map[string]interface{})}}
-		h.activate(h.compile(p), 1)
-		out := h.call(p, "mcp-read", "documentation-search", map[string]interface{}{"query": "Workers KV get put bindings"})
-		data := out["data"].(map[string]interface{})
-		structured := data["structuredContent"].(map[string]interface{})
-		results := structured["results"].([]interface{})
-		if len(results) == 0 {
-			t.Fatal("no search results")
-		}
-		first := results[0].(map[string]interface{})
-		if !strings.HasPrefix(first["url"].(string), "https://developers.cloudflare.com/") {
-			t.Fatal("unexpected documentation URL")
-		}
-		t.Logf("Discovered %d tools; binding revision 2; %d verified results; first: %s", len(tools), len(results), first["url"])
 	})
 }

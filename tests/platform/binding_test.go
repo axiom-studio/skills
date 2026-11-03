@@ -13,12 +13,9 @@ import (
 )
 
 func TestCompiledPlanBindsAndExecutesThroughOpenSeal(t *testing.T) {
-	for _, transport := range []string{"api", "mcp"} {
+	for _, transport := range []string{"api"} {
 		t.Run(transport, func(t *testing.T) {
 			path := "../../skills/api/examples/records.json"
-			if transport == "mcp" {
-				path = "../../skills/mcp/examples/connection.json"
-			}
 			p, err := integration.Load(path)
 			if err != nil {
 				t.Fatal(err)

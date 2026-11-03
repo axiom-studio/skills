@@ -48,7 +48,7 @@ func TestPublishedSkillImagesUseDeclaredTags(t *testing.T) {
 }
 
 func TestGeneratedSkillImagesUseLatest(t *testing.T) {
-	for _, transport := range []string{"api", "mcp"} {
+	for _, transport := range []string{"api"} {
 		manifest, err := BaseManifest(transport, "Skill instructions")
 		if err != nil {
 			t.Fatal(err)

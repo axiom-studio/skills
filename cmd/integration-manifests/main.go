@@ -15,7 +15,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for _, kind := range []string{"api", "mcp"} {
+	{
+		const kind = "api"
 		root := "skills/" + kind + "/"
 		markdown, err := os.ReadFile(root + "SKILL.md")
 		if err != nil {

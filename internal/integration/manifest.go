@@ -5,7 +5,7 @@ import "fmt"
 // BaseManifest is the installable shared runtime contract. Binding config is
 // deliberately absent from model input schemas and supplied only by the host.
 func BaseManifest(transport, instructions string) (map[string]interface{}, error) {
-	if transport != "api" && transport != "mcp" {
+	if transport != "api" {
 		return nil, fmt.Errorf("unsupported transport")
 	}
 	hash := map[string]interface{}{"type": "string", "pattern": "^[0-9a-f]{64}$"}
@@ -21,39 +21,23 @@ func BaseManifest(transport, instructions string) (map[string]interface{}, error
 	for _, effect := range []string{"read", "write"} {
 		name := transport + "-" + effect
 		entry := action(name, "Execute a pinned "+effect+" operation from this binding", effect, call, nil)
-		entry["credentials"] = integrationCredentials(transport)
+		entry["credentials"] = optionalAccess()
 		actions[name] = entry
-	}
-	if transport == "mcp" {
-		entry := action("mcp-discover-bound", "Discover tool contracts on this binding's MCP endpoint", "read", object(map[string]interface{}{"profileHash": hash}, "profileHash"), nil)
-		entry["credentials"] = integrationCredentials(transport)
-		actions["mcp-discover-bound"] = entry
 	}
 	reference := object(map[string]interface{}{"binding": map[string]interface{}{"type": "string"}, "field": map[string]interface{}{"type": "string"}, "header": map[string]interface{}{"type": "string"}, "prefix": map[string]interface{}{"type": "string"}}, "binding", "field", "header", "prefix")
 	integration := object(map[string]interface{}{"profile": map[string]interface{}{"type": "object"}, "access": reference}, "profile")
 	// Optional for compilation-only bindings; execution fails without configuration.
 	config := object(map[string]interface{}{"integration": integration})
 	definition := map[string]interface{}{
-		"id": "skill-" + transport, "version": runtimeVersion(transport), "name": map[string]string{"api": "API", "mcp": "MCP server"}[transport], "description": map[string]string{
-			"api": "Connect any service that has a documented HTTP API: learn its contract, then call it with your key or sign-in",
-			"mcp": "Connect any service that publishes an MCP server: paste its address, sign in, then use its tools",
-		}[transport],
+		"id": "skill-" + transport, "version": RuntimeVersion, "name": "API", "description": "Connect any service that has a documented HTTP API: learn its contract, then call it with your key or sign-in",
 		"category": "integration", "tags": []string{transport, "connect", "connection", "connector", "integration"}, "bindingConfigSchema": config, "actions": actions,
 		"prompt":     map[string]interface{}{"instructions": instructions, "userInvocable": true},
 		"transport":  map[string]interface{}{"kind": "tool", "endpoint": compileName},
 		"installers": []interface{}{map[string]interface{}{"id": "oci", "kind": "oci", "package": "axiomstudio/skill-" + transport + ":latest"}},
-		"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": "skill-" + transport, "resolvedVersion": runtimeVersion(transport), "publisher": "Axiom Studio", "license": "MIT"},
+		"source":     map[string]interface{}{"format": "axiom.skill/v1", "reference": "skill-" + transport, "resolvedVersion": RuntimeVersion, "publisher": "Axiom Studio", "license": "MIT"},
 	}
 	return map[string]interface{}{"apiVersion": "openseal.dev/v1alpha1", "kind": "SkillDefinition", "definition": definition}, nil
 }
 func optionalAccess() []interface{} {
 	return []interface{}{map[string]interface{}{"name": AccessBinding, "kind": AccessBinding, "optional": true}}
-}
-
-func integrationCredentials(transport string) []interface{} {
-	result := optionalAccess()
-	if transport == "mcp" {
-		result = append(result, map[string]interface{}{"name": "integration-settings", "kind": "integration-settings", "optional": true})
-	}
-	return result
 }

@@ -1,6 +1,6 @@
 # Integration platform tests
 
-This module tests the generic skills against the OpenSeal dependency used by
+This module tests the generic API skill against the OpenSeal dependency used by
 Cortex without adding OpenSeal to the production skill runtime dependencies.
 Run commands from this directory.
 
@@ -21,8 +21,8 @@ INTEGRATION_LIVE_E2E=1 go test -mod=mod -p 2 -run TestLiveExamplesE2E -v -count=
 ```
 
 Requires Go, outbound HTTPS, and localhost TCP access. No service credentials are
-needed. The test builds the actual API and MCP executables from this worktree,
-starts them on temporary gRPC ports, and removes the processes/databases afterward.
+needed. The test builds the actual API executable from this worktree,
+starts it on temporary gRPC ports, and removes the process/databases afterward.
 External outages, rate limits, and changed remote contracts fail the opt-in test;
 it does not silently skip a failing service or weaken the production network policy.
 
@@ -42,25 +42,20 @@ Each example uses the checked-in canonical Skill manifest and follows:
 |---|---|---|
 | GitHub repository metadata | [Repository API](https://docs.github.com/en/rest/repos/repos#get-a-repository) | Path substitution, HTTP 200, `golang/go` identity and branch |
 | Open-Meteo current weather | [Forecast API](https://open-meteo.com/en/docs) | Numeric query parameters, fixed query options, timestamp and temperature |
-| Cloudflare documentation MCP | [Official server catalog](https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/) | Connection bootstrap, live discovery, schema/hash capture, governed binding update to revision 2, actual tool call and structured documentation results |
 
 API fixture profiles live only under `testdata`; the runtime contains no provider
-specific handlers. MCP tools and schemas are learned from live discovery during the
-test rather than hardcoded in its connection profile.
+specific handlers.
 
 ## Verified run
 
-On 2026-09-17, all three examples passed in 9.84 seconds:
+On 2026-09-17, the examples passed:
 
 - GitHub: HTTP 200, repository `golang/go`, default branch `master`.
 - Open-Meteo: HTTP 200, temperature 24.5 °C at `2026-09-17T11:15` for the requested
   Bengaluru coordinates. This is a recorded test observation, not a current forecast.
-- Cloudflare MCP: two tools discovered, binding advanced to revision 2, seven
-  search results; the first linked to `https://developers.cloudflare.com/kv/get-started/`.
 
-A repeat with `-race` also passed all three examples in 11.07 seconds. It explicitly
-verified approval checkpoints and persisted approval attribution; the MCP query
-returned six results on that run.
+A repeat with `-race` also passed and explicitly verified approval checkpoints and
+persisted approval attribution.
 
 The result count, branch, and weather values are observations, not brittle expected
 values in the tests. Tests assert durable invariants and required response structure.

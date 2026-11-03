@@ -11,15 +11,7 @@ import (
 	"github.com/axiom-studio/skills.sdk/executor"
 )
 
-const RuntimeVersion = "0.2.3"
-const MCPruntimeVersion = "0.3.2"
-
-func runtimeVersion(transport string) string {
-	if transport == "mcp" {
-		return MCPruntimeVersion
-	}
-	return RuntimeVersion
-}
+const RuntimeVersion = "0.2.4"
 
 const AccessBinding = "integration-access"
 
@@ -55,7 +47,7 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 		names[entrypoint] = append(names[entrypoint], op.Name)
 		blocks = append(blocks, map[string]interface{}{
 			"name": op.Name, "description": op.Description, "inputSchema": op.InputSchema,
-			"skillId": "skill-" + p.Transport, "skillVersion": runtimeVersion(p.Transport), "bindingId": p.ID,
+			"skillId": "skill-" + p.Transport, "skillVersion": RuntimeVersion, "bindingId": p.ID,
 			"action": entrypoint, "arguments": map[string]interface{}{"profileHash": hash, "operation": op.Name},
 		})
 	}
@@ -71,13 +63,9 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 			risk = "production"
 		}
 	}
-	if p.Transport == "mcp" {
-		allowed = append(allowed, "mcp-discover-bound")
-		restrictions["mcp-discover-bound"] = map[string]interface{}{"profileHash": map[string]interface{}{"const": hash}}
-	}
 	sort.Strings(allowed)
 	arguments := map[string]interface{}{
-		"bindingId": p.ID, "expectedRevision": 0, "skillId": "skill-" + p.Transport, "skillVersion": runtimeVersion(p.Transport),
+		"bindingId": p.ID, "expectedRevision": 0, "skillId": "skill-" + p.Transport, "skillVersion": RuntimeVersion,
 		"allowedActions": allowed, "enablePrompt": false, "maximumRisk": risk, "argumentRestrictions": restrictions,
 		"config": map[string]interface{}{"integration": integration},
 	}
@@ -87,9 +75,6 @@ func BindingPlan(p *Profile) (map[string]interface{}, error) {
 		result["requiresAccessReference"] = true
 	} else {
 		result["requiresAccessReference"] = false
-	}
-	if p.MCP != nil && p.MCP.ValuesBinding != "" {
-		result["requiredSettings"] = map[string]interface{}{"binding": "integration-settings", "kind": "integration-settings"}
 	}
 	return result, nil
 }
@@ -103,12 +88,7 @@ type BoundAdapter struct {
 	newRuntime func(*Profile) (*Runtime, error)
 }
 
-func (a *BoundAdapter) Type() string {
-	if a.Mode == "discover" {
-		return "mcp-discover-bound"
-	}
-	return a.Transport + "-" + a.Mode
-}
+func (a *BoundAdapter) Type() string { return a.Transport + "-" + a.Mode }
 func (a *BoundAdapter) Execute(ctx context.Context, step *executor.StepDefinition, res executor.TemplateResolver) (*executor.StepResult, error) {
 	p, err := boundProfile(step.Config["integration"])
 	if err != nil {
@@ -133,34 +113,22 @@ func (a *BoundAdapter) Execute(ctx context.Context, step *executor.StepDefinitio
 		return &executor.StepResult{Output: map[string]interface{}{"profile": r.Profile, "profileHash": r.Hash}}, nil
 	}
 	name, _ := step.Config["operation"].(string)
-	if a.Mode != "discover" {
-		found := false
-		for _, op := range p.Operations {
-			if op.Name == name {
-				found = true
-				if op.Effect != a.Mode {
-					return nil, fmt.Errorf("operation effect does not match authorized action")
-				}
-				break
+	found := false
+	for _, op := range p.Operations {
+		if op.Name == name {
+			found = true
+			if op.Effect != a.Mode {
+				return nil, fmt.Errorf("operation effect does not match authorized action")
 			}
+			break
 		}
-		if !found {
-			return nil, fmt.Errorf("operation is not in bound profile")
-		}
+	}
+	if !found {
+		return nil, fmt.Errorf("operation is not in bound profile")
 	}
 	token, err := boundToken(p, step.Config, res)
 	if err != nil {
 		return nil, err
-	}
-	if a.Mode == "discover" {
-		if a.Transport != "mcp" {
-			return nil, fmt.Errorf("MCP discovery required")
-		}
-		tools, err := r.Discover(ctx, token)
-		if err != nil {
-			return nil, err
-		}
-		return &executor.StepResult{Output: map[string]interface{}{"tools": tools, "profileHash": r.Hash}}, nil
 	}
 	args, ok := step.Config["arguments"].(map[string]interface{})
 	if !ok {
@@ -215,45 +183,6 @@ func boundProfile(value interface{}) (*Profile, error) {
 	return decodeProfile(encoded)
 }
 func boundToken(p *Profile, cfg map[string]interface{}, res executor.TemplateResolver) (string, error) {
-	primary, err := boundPrimaryToken(p, cfg, res)
-	if err != nil {
-		return "", err
-	}
-	if p.MCP == nil || p.MCP.ValuesBinding == "" {
-		return primary, nil
-	}
-	var value interface{}
-	if br, ok := res.(executor.BindingResolver); ok {
-		value = br.GetBinding("integration-settings")
-	}
-	if value == nil {
-		value = cfg["integration-settings"]
-	}
-	if object, ok := value.(map[string]interface{}); ok {
-		value = object["settings"]
-	}
-	raw, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("MCP settings binding is missing")
-	}
-	var settings map[string]string
-	if json.Unmarshal([]byte(raw), &settings) != nil || len(settings) == 0 {
-		return "", fmt.Errorf("invalid MCP settings binding")
-	}
-	merged := mcpSecrets(primary)
-	if primary == "" {
-		merged = map[string]string{}
-	}
-	for key, value := range settings {
-		if _, exists := merged[key]; exists {
-			return "", fmt.Errorf("MCP settings cannot override primary authentication")
-		}
-		merged[key] = value
-	}
-	encoded, _ := json.Marshal(merged)
-	return string(encoded), nil
-}
-func boundPrimaryToken(p *Profile, cfg map[string]interface{}, res executor.TemplateResolver) (string, error) {
 	if p.Credential == nil {
 		return "", nil
 	}

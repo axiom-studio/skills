@@ -1,4 +1,4 @@
-// Package integration implements pinned, credential-separated API and MCP operations.
+// Package integration implements pinned, credential-separated API operations.
 package integration
 
 import (
@@ -36,7 +36,6 @@ type Profile struct {
 	Credential *Credential       `json:"credential,omitempty"`
 	FixedQuery map[string]string `json:"fixedQuery,omitempty"`
 	Operations []Operation       `json:"operations"`
-	MCP        *MCPOptions       `json:"mcp,omitempty"`
 }
 type Operation struct {
 	Name             string                 `json:"name"`
@@ -51,8 +50,6 @@ type Operation struct {
 	BodyEncoding     string                 `json:"bodyEncoding,omitempty"`
 	ResponseEncoding string                 `json:"responseEncoding,omitempty"`
 	BodyParam        string                 `json:"bodyParam,omitempty"`
-	Tool             string                 `json:"tool,omitempty"`
-	ToolHash         string                 `json:"toolHash,omitempty"`
 }
 
 func Load(path string) (*Profile, error) {
@@ -96,28 +93,14 @@ func endpoint(raw string) (*url.URL, error) {
 	return u, nil
 }
 func (p *Profile) Validate() error {
-	if p.Version != 1 || !identifier.MatchString(p.ID) || (p.Transport != "api" && p.Transport != "mcp") {
+	if p.Version != 1 || !identifier.MatchString(p.ID) || p.Transport != "api" {
 		return fmt.Errorf("invalid profile version, id, or transport")
 	}
-	var u *url.URL
-	var err error
-	if p.Transport == "mcp" && p.MCP != nil {
-		if err = p.MCP.Validate(p); err != nil {
-			return err
-		}
-		if p.MCP.Transport != "stdio" {
-			u, err = mcpEndpoint(p.Endpoint)
-		}
-	} else {
-		u, err = endpoint(p.Endpoint)
-	}
+	u, err := endpoint(p.Endpoint)
 	if err != nil {
 		return err
 	}
-	if p.Transport == "api" && p.MCP != nil {
-		return fmt.Errorf("MCP options are not API options")
-	}
-	if p.Transport == "api" && u.Path != "" && u.Path != "/" {
+	if u.Path != "" && u.Path != "/" {
 		return fmt.Errorf("API endpoint must be an origin; put paths on operations")
 	}
 	if len(p.Sources) == 0 {
@@ -136,7 +119,7 @@ func (p *Profile) Validate() error {
 	}
 	seen := map[string]bool{}
 	for _, op := range p.Operations {
-		if reservedAction(op.Name) || !identifier.MatchString(op.Name) || seen[op.Name] || op.Name == p.Transport+"-describe" || op.Name == p.Transport+"-execute" || op.Name == "mcp-discover" {
+		if reservedAction(op.Name) || !identifier.MatchString(op.Name) || seen[op.Name] || op.Name == p.Transport+"-describe" || op.Name == p.Transport+"-execute" {
 			return fmt.Errorf("invalid, duplicate, or reserved operation name")
 		}
 		seen[op.Name] = true
@@ -154,26 +137,11 @@ func (p *Profile) Validate() error {
 				return fmt.Errorf("%s output: %w", op.Name, err)
 			}
 		}
-		if p.Transport == "mcp" {
-			if op.Tool == "" || len(op.ToolHash) != 64 {
-				return fmt.Errorf("MCP operations require tool and discovery toolHash")
-			}
-			if _, err := hex.DecodeString(op.ToolHash); err != nil {
-				return fmt.Errorf("invalid toolHash")
-			}
-			if op.BodyEncoding != "" || op.ResponseEncoding != "" || op.Method != "" || op.Path != "" || len(op.PathParams)+len(op.QueryParams) > 0 || op.BodyParam != "" {
-				return fmt.Errorf("MCP operation contains API fields")
-			}
-			continue
-		}
 		if op.BodyEncoding != "" && op.BodyEncoding != "json" && op.BodyEncoding != "form" && op.BodyEncoding != "text" {
 			return fmt.Errorf("unsupported bodyEncoding")
 		}
 		if op.ResponseEncoding != "" && op.ResponseEncoding != "json" && op.ResponseEncoding != "text" {
 			return fmt.Errorf("unsupported responseEncoding")
-		}
-		if op.Tool != "" || op.ToolHash != "" {
-			return fmt.Errorf("API operation contains MCP fields")
 		}
 		switch op.Method {
 		case "GET", "HEAD":
@@ -243,10 +211,6 @@ func checkSchema(s map[string]interface{}) error {
 			if v != "http://json-schema.org/draft-07/schema#" && v != "https://json-schema.org/draft/2020-12/schema" {
 				return fmt.Errorf("unsupported schema dialect")
 			}
-		case "x-mcp-header":
-			if name, ok := v.(string); !ok || !headerName.MatchString(name) {
-				return fmt.Errorf("invalid MCP parameter header")
-			}
 		case "type", "title", "description", "default", "examples", "enum", "const", "required", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties":
 		case "properties", "patternProperties":
 			m, ok := v.(map[string]interface{})
@@ -301,12 +265,10 @@ func validateValue(schema map[string]interface{}, v interface{}) error {
 }
 
 func reservedAction(name string) bool {
-	for _, kind := range []string{"api", "mcp"} {
-		for _, suffix := range []string{"compile", "read", "write", "inspect"} {
-			if name == kind+"-"+suffix {
-				return true
-			}
+	for _, suffix := range []string{"compile", "read", "write", "inspect"} {
+		if name == "api-"+suffix {
+			return true
 		}
 	}
-	return name == "mcp-discover-bound"
+	return false
 }

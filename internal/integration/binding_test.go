@@ -137,7 +137,7 @@ func TestBindingConfigNeverEncodesSecretsToBypassHost(t *testing.T) {
 	}
 }
 func TestBaseManifestUsesHostOnlyConfigurationAndExactTransports(t *testing.T) {
-	for _, kind := range []string{"api", "mcp"} {
+	for _, kind := range []string{"api"} {
 		m, err := BaseManifest(kind, "Learn the service")
 		if err != nil {
 			t.Fatal(err)

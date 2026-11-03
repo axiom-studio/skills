@@ -3,10 +3,8 @@ package integration
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/netip"
 	"strings"
 	"testing"
@@ -205,122 +203,6 @@ func TestAdapterResolvesCredentialFromBinding(t *testing.T) {
 	}
 }
 
-func mcpFixture() (*Profile, map[string]interface{}) {
-	tool := map[string]interface{}{"name": "lookup", "description": "Read a value", "inputSchema": schema(`{"type":"object","properties":{"key":{"type":"string"}},"required":["key"],"additionalProperties":false}`), "outputSchema": schema(`{"type":"object","properties":{"value":{"type":"integer"}},"required":["value"]}`)}
-	p := fixture()
-	p.Transport = "mcp"
-	p.Endpoint = "https://service.example/mcp"
-	p.Operations = []Operation{{Name: "lookup-value", Description: "Lookup a value", Effect: "read", Tool: "lookup", ToolHash: Digest(tool), InputSchema: tool["inputSchema"].(map[string]interface{})}}
-	return p, tool
-}
-func mcpHandler(t *testing.T, tool map[string]interface{}, drift, toolError bool, calls *int) func(*http.Request) (*http.Response, error) {
-	return func(req *http.Request) (*http.Response, error) {
-		if req.Method == "DELETE" {
-			return response(204, ""), nil
-		}
-		var msg map[string]interface{}
-		if err := json.NewDecoder(req.Body).Decode(&msg); err != nil {
-			t.Fatal(err)
-		}
-		method := msg["method"].(string)
-		var result interface{}
-		if method != "initialize" && (req.Header.Get("Mcp-Session-Id") != "session-1" || req.Header.Get("MCP-Protocol-Version") != "2025-11-25") {
-			t.Fatal("session/version not propagated")
-		}
-		switch method {
-		case "initialize":
-			result = map[string]interface{}{"protocolVersion": "2025-11-25", "capabilities": map[string]interface{}{"tools": map[string]interface{}{}}}
-		case "notifications/initialized":
-			return response(202, ""), nil
-		case "tools/list":
-			params := msg["params"].(map[string]interface{})
-			if params["cursor"] == nil {
-				result = map[string]interface{}{"tools": []interface{}{}, "nextCursor": "page-2"}
-			} else {
-				if params["cursor"] != "page-2" {
-					t.Fatal("bad cursor")
-				}
-				if drift {
-					tool["description"] = "changed"
-				}
-				result = map[string]interface{}{"tools": []interface{}{tool}}
-			}
-		case "tools/call":
-			*calls++
-			params := msg["params"].(map[string]interface{})
-			if params["name"] != "lookup" {
-				t.Fatal("wrong tool")
-			}
-			result = map[string]interface{}{"content": []interface{}{}, "structuredContent": map[string]interface{}{"value": 7}, "isError": toolError}
-		default:
-			t.Fatal(method)
-		}
-		b, _ := json.Marshal(map[string]interface{}{"jsonrpc": "2.0", "id": msg["id"], "result": result})
-		resp := response(200, string(b))
-		if method == "initialize" {
-			resp.Header.Set("Mcp-Session-Id", "session-1")
-		}
-		return resp, nil
-	}
-}
-func TestMCPNegotiationPaginationAndCall(t *testing.T) {
-	p, tool := mcpFixture()
-	calls := 0
-	r := fakeRuntime(t, p, mcpHandler(t, tool, false, false, &calls))
-	_, err := r.Call(context.Background(), "lookup-value", r.Hash, map[string]interface{}{"key": "a"}, "token")
-	if err != nil || calls != 1 {
-		t.Fatalf("err=%v calls=%d", err, calls)
-	}
-}
-func TestMCPDriftAndToolErrors(t *testing.T) {
-	for _, drift := range []bool{false, true} {
-		p, tool := mcpFixture()
-		calls := 0
-		r := fakeRuntime(t, p, mcpHandler(t, tool, drift, true, &calls))
-		_, err := r.Call(context.Background(), "lookup-value", r.Hash, map[string]interface{}{"key": "a"}, "token")
-		if err == nil {
-			t.Fatal("expected failure")
-		}
-		if drift && calls != 0 {
-			t.Fatal("drifted tool was invoked")
-		}
-	}
-}
-func TestMCPStreamingResponseDoesNotWaitForEOF(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{}}\n\n")
-		fmt.Fprint(w, "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"ok\":true}}\n\n")
-		w.(http.Flusher).Flush()
-		<-req.Context().Done()
-	}))
-	defer server.Close()
-	p, _ := mcpFixture()
-	r, _ := New(p)
-	// Only the test transport routes to loopback. Production construction has no bypass flag.
-	r.client = &http.Client{Transport: roundTrip(func(req *http.Request) (*http.Response, error) {
-		copy := req.Clone(req.Context())
-		u := *req.URL
-		copy.URL = &u
-		copy.URL.Scheme = "http"
-		copy.URL.Host = strings.TrimPrefix(server.URL, "http://")
-		return http.DefaultTransport.RoundTrip(copy)
-	})}
-	s := &mcpSession{r: r, token: "token"}
-	result, err := s.send(context.Background(), "tools/list", map[string]interface{}{}, false)
-	if err != nil || result["ok"] != true {
-		t.Fatal(result, err)
-	}
-}
-func TestRPCRejectsWrongIDsAndServerRequests(t *testing.T) {
-	for _, body := range []string{`{"jsonrpc":"2.0","id":2,"result":{}}`, `{"jsonrpc":"2.0","id":1,"method":"sampling/createMessage"}`, `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"token-secret"}}`} {
-		_, _, err := rpcResponse([]byte(body), 1)
-		if err == nil || strings.Contains(err.Error(), "token-secret") {
-			t.Fatal("invalid envelope accepted or error leaked")
-		}
-	}
-}
-
 func TestFormAndTextBodies(t *testing.T) {
 	for _, tt := range []struct {
 		encoding          string
@@ -385,7 +267,7 @@ func TestRuntimeOwnsProfileSnapshot(t *testing.T) {
 	}
 }
 
-func TestDiscoveryRedactionPreservesSchemaProperties(t *testing.T) {
+func TestRedactionPreservesSchemaProperties(t *testing.T) {
 	tool := map[string]interface{}{"inputSchema": schema(`{"type":"object","properties":{"token":{"type":"string"}}}`), "description": "echo credential-value"}
 	original := Digest(tool)
 	safe := redactValue(tool, "credential-value", false).(map[string]interface{})

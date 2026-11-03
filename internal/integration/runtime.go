@@ -5,21 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/axiom-studio/skills.sdk/executor"
 )
 
 type Runtime struct {
-	Profile     *Profile
-	Hash        string
-	client      *http.Client
-	secretMu    sync.Mutex
-	sensitive   []string
-	oauthRaw    string
-	oauthAccess string
-	oauthUntil  time.Time
+	Profile *Profile
+	Hash    string
+	client  *http.Client
 }
 
 func New(p *Profile) (*Runtime, error) {
@@ -30,12 +24,7 @@ func New(p *Profile) (*Runtime, error) {
 	data, _ := json.Marshal(p)
 	var copy Profile
 	_ = json.Unmarshal(data, &copy)
-	r := &Runtime{Profile: &copy, Hash: Digest(copy), client: NewHTTPClient()}
-	if copy.MCP != nil {
-		r.client.Timeout = 0
-		r.client.Transport.(*http.Transport).ResponseHeaderTimeout = r.mcpTimeout()
-	}
-	return r, nil
+	return &Runtime{Profile: &copy, Hash: Digest(copy), client: NewHTTPClient()}, nil
 }
 func (r *Runtime) Call(ctx context.Context, name, hash string, args map[string]interface{}, token string) (map[string]interface{}, error) {
 	if hash != r.Hash {
@@ -58,12 +47,9 @@ func (r *Runtime) Call(ctx context.Context, name, hash string, args map[string]i
 	if err := validateValue(selected.InputSchema, args); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, r.mcpTimeout())
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	if r.Profile.Transport == "api" {
-		return r.callAPI(ctx, *selected, args, token)
-	}
-	return r.callMCP(ctx, *selected, args, token)
+	return r.callAPI(ctx, *selected, args, token)
 }
 
 type Adapter struct {
@@ -100,13 +86,6 @@ func (a *Adapter) Execute(ctx context.Context, step *executor.StepDefinition, re
 	hash, _ := cfg["profileHash"].(string)
 	if hash != r.Hash {
 		return nil, fmt.Errorf("profile hash mismatch")
-	}
-	if a.Name == "mcp-discover" {
-		tools, err := r.Discover(ctx, token)
-		if err != nil {
-			return nil, err
-		}
-		return &executor.StepResult{Output: map[string]interface{}{"tools": tools, "profileHash": r.Hash}}, nil
 	}
 	name := a.Operation
 	if name == "" {
