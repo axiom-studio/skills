@@ -549,7 +549,6 @@ github.com/aws/smithy-go/waiter
 github.com/axiom-studio/skills.sdk/executor
 github.com/axiom-studio/skills.sdk/grpc
 github.com/axiom-studio/skills.sdk/grpc/skillpb
-github.com/axiom-studio/skills.sdk/k8sclient
 github.com/axiom-studio/skills.sdk/resolver
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
@@ -904,9 +903,6 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/go-querystring v1.1.0
-## explicit; go 1.10
-github.com/google/go-querystring/query
 # github.com/google/gofuzz v1.2.0
 ## explicit; go 1.12
 github.com/google/gofuzz
@@ -984,15 +980,9 @@ github.com/gsterjov/go-libsecret
 # github.com/hashicorp/errwrap v1.1.0
 ## explicit
 github.com/hashicorp/errwrap
-# github.com/hashicorp/go-cleanhttp v0.5.2
-## explicit; go 1.13
-github.com/hashicorp/go-cleanhttp
 # github.com/hashicorp/go-multierror v1.1.1
 ## explicit; go 1.13
 github.com/hashicorp/go-multierror
-# github.com/hashicorp/go-retryablehttp v0.7.7
-## explicit; go 1.19
-github.com/hashicorp/go-retryablehttp
 # github.com/hashicorp/go-uuid v1.0.3
 ## explicit
 github.com/hashicorp/go-uuid
@@ -1345,9 +1335,6 @@ github.com/stretchr/objx
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/mock
-# github.com/xanzy/go-gitlab v0.105.0
-## explicit; go 1.19
-github.com/xanzy/go-gitlab
 # github.com/xanzy/ssh-agent v0.3.3
 ## explicit; go 1.16
 github.com/xanzy/ssh-agent
