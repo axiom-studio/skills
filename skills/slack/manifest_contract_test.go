@@ -194,7 +194,7 @@ func TestPromptAllowsGovernedMessageDelivery(t *testing.T) {
 	t.Fatal("Slack prompt does not allow slack-send-message")
 }
 
-func TestHTTPInteractionsDeclareSignedIngressWithoutSocketCredentials(t *testing.T) {
+func TestInteractionsAreSocketModeOnly(t *testing.T) {
 	data, err := os.ReadFile("skill.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -202,15 +202,8 @@ func TestHTTPInteractionsDeclareSignedIngressWithoutSocketCredentials(t *testing
 	var manifest struct {
 		Definition struct {
 			CallbackAdapters map[string]struct {
-				ProtocolVersion string               `yaml:"protocolVersion"`
-				Provider        string               `yaml:"provider"`
-				EventTypes      []string             `yaml:"eventTypes"`
-				Credentials     []manifestCredential `yaml:"credentials"`
-				Transport       struct {
-					Kind               string                 `yaml:"kind"`
-					IngressEndpoint    string                 `yaml:"ingressEndpoint"`
-					IngressCredentials []string               `yaml:"ingressCredentials"`
-					Connection         map[string]interface{} `yaml:"connection"`
+				Transport struct {
+					Connection map[string]interface{} `yaml:"connection"`
 				} `yaml:"transport"`
 			} `yaml:"callbackAdapters"`
 		} `yaml:"definition"`
@@ -218,22 +211,7 @@ func TestHTTPInteractionsDeclareSignedIngressWithoutSocketCredentials(t *testing
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	adapter, ok := manifest.Definition.CallbackAdapters["interactions_http"]
-	if !ok || adapter.ProtocolVersion != "openseal.callback.adapter/v1" || adapter.Provider != "slack" ||
-		!reflect.DeepEqual(adapter.EventTypes, []string{"approval.decided"}) {
-		t.Fatalf("HTTP callback contract is incomplete: %#v", adapter)
-	}
-	want := []string{slackBotTokenCredential, slackSigningSecretKey}
-	if len(adapter.Credentials) != len(want) {
-		t.Fatalf("HTTP callback credentials = %#v", adapter.Credentials)
-	}
-	for index, name := range want {
-		if credential := adapter.Credentials[index]; credential.Name != name || credential.Kind != name || credential.OAuth2 != nil {
-			t.Fatalf("HTTP callback credential %d = %#v", index, credential)
-		}
-	}
-	if adapter.Transport.Kind != "plugin" || adapter.Transport.IngressEndpoint != slackCallbackNodeType ||
-		!reflect.DeepEqual(adapter.Transport.IngressCredentials, want) || adapter.Transport.Connection != nil {
-		t.Fatalf("HTTP callback must use signed ingress without a connector: %#v", adapter.Transport)
+	if len(manifest.Definition.CallbackAdapters) != 1 || manifest.Definition.CallbackAdapters["interactions"].Transport.Connection == nil {
+		t.Fatalf("Slack callbacks must use only the Socket Mode interactions adapter: %#v", manifest.Definition.CallbackAdapters)
 	}
 }

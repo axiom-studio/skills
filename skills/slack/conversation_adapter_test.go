@@ -88,27 +88,29 @@ func TestSlackIngressExecutorReadsEphemeralSigningSecretFromBindingChannel(t *te
 	}
 }
 
-func TestSlackIngressAnswersChallengeAndRejectsReplaysOrWrongEndpoint(t *testing.T) {
+func TestSlackIngressIgnoresURLChallengesAndRejectsReplaysOrWrongEndpoint(t *testing.T) {
 	now := time.Unix(1_720_000_000, 0).UTC()
 	adapter := newSlackAdapter("signing-secret", "", nil)
 	adapter.now = func() time.Time { return now }
+	// Socket Mode never sends Events API URL challenges; a signed one is not
+	// answered and emits nothing.
 	challenge := []byte(`{"type":"url_verification","challenge":"verify-me"}`)
 	output, err := adapter.ingress(context.Background(), ingressConfig(now, challenge,
 		&conversationEndpoint{ID: "endpoint", Provider: "slack"}))
-	if err != nil || output["statusCode"] != http.StatusOK ||
-		!strings.Contains(output["body"].(string), "verify-me") {
+	if err != nil || output["statusCode"] != http.StatusOK || output["body"] != nil ||
+		len(output["events"].([]interface{})) != 0 {
 		t.Fatalf("challenge = %#v, %v", output, err)
 	}
 
-	stale := ingressConfig(now.Add(-10*time.Minute), challenge,
+	event := []byte(`{"type":"event_callback","team_id":"T123","event_id":"Ev1",
+		"event":{"type":"message","user":"U1","text":"hello","channel":"C-other","ts":"1720000000.1"}}`)
+	stale := ingressConfig(now.Add(-10*time.Minute), event,
 		&conversationEndpoint{ID: "endpoint", Provider: "slack"})
 	staleOutput, err := adapter.ingress(context.Background(), stale)
 	if err != nil || staleOutput["statusCode"] != http.StatusUnauthorized {
 		t.Fatalf("stale ingress = %#v, %v", staleOutput, err)
 	}
 
-	event := []byte(`{"type":"event_callback","team_id":"T123","event_id":"Ev1",
-		"event":{"type":"message","user":"U1","text":"hello","channel":"C-other","ts":"1720000000.1"}}`)
 	wrong := ingressConfig(now, event,
 		&conversationEndpoint{ID: "endpoint", Provider: "slack", Address: "C123"})
 	wrongOutput, err := adapter.ingress(context.Background(), wrong)
