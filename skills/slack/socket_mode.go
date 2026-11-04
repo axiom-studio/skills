@@ -285,6 +285,9 @@ func setSlackSocketAssistantStatus(ctx context.Context, config slackSocketModeCo
 	var eventEnvelope struct {
 		Event struct {
 			Type     string `json:"type"`
+			Subtype  string `json:"subtype"`
+			User     string `json:"user"`
+			BotID    string `json:"bot_id"`
 			Channel  string `json:"channel"`
 			TS       string `json:"ts"`
 			ThreadTS string `json:"thread_ts"`
@@ -292,6 +295,13 @@ func setSlackSocketAssistantStatus(ctx context.Context, config slackSocketModeCo
 	}
 	if json.Unmarshal(payload, &eventEnvelope) != nil || strings.TrimSpace(eventEnvelope.Event.Channel) == "" ||
 		strings.TrimSpace(eventEnvelope.Event.TS) == "" || (eventEnvelope.Event.Type != "app_mention" && eventEnvelope.Event.Type != "message") {
+		return nil
+	}
+	// Only a person's new message starts work. The Agent's own replies and
+	// edits arrive as message events too; marking those would leave the
+	// thread "working" after the reply has cleared it.
+	if event := eventEnvelope.Event; strings.TrimSpace(event.User) == "" || event.BotID != "" ||
+		(event.Subtype != "" && event.Subtype != "file_share") {
 		return nil
 	}
 	threadTS := strings.TrimSpace(eventEnvelope.Event.ThreadTS)

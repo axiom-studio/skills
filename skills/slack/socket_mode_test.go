@@ -223,6 +223,38 @@ func TestSlackSocketModeForwardsEventsAPIToConversationGateway(t *testing.T) {
 	}
 }
 
+func TestSlackSocketModeMarksWorkingOnlyForAPersonsNewMessage(t *testing.T) {
+	events := map[string]string{
+		"agent reply":  `{"type":"message","user":"UB","bot_id":"B1","channel":"D1","ts":"2.2","thread_ts":"1.1","text":"Done"}`,
+		"bot message":  `{"type":"message","subtype":"bot_message","bot_id":"B1","channel":"D1","ts":"2.2","thread_ts":"1.1"}`,
+		"reply edited": `{"type":"message","subtype":"message_changed","channel":"D1","ts":"2.3","message":{"user":"UB","bot_id":"B1","ts":"2.2"}}`,
+		"person":       `{"type":"message","user":"U1","channel":"D1","ts":"3.3","thread_ts":"1.1","text":"thanks"}`,
+	}
+	for name, event := range events {
+		statusCalled := 0
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if request.URL.Path == "/assistant.threads.setStatus" {
+				statusCalled++
+				_, _ = response.Write([]byte(`{"ok":true}`))
+				return
+			}
+			response.WriteHeader(http.StatusOK)
+		}))
+		err := forwardSlackSocketEvents(context.Background(), slackSocketModeConfig{
+			SigningSecret: "secret", BotToken: "xoxb-reviewed", APIBaseURL: server.URL, HTTPClient: server.Client(), Now: time.Now,
+			CallbackRoutes: map[string]string{"conversation_gateway:shared": server.URL},
+		}, slackSocketModeEnvelope{EnvelopeID: "e", Type: "events_api", Payload: json.RawMessage(`{"type":"event_callback","event":` + event + `}`)})
+		server.Close()
+		want := 0
+		if name == "person" {
+			want = 1
+		}
+		if err != nil || statusCalled != want {
+			t.Errorf("%s: status calls = %d, want %d (err %v)", name, statusCalled, want, err)
+		}
+	}
+}
+
 func TestSlackWebReviewNavigationAcknowledgesWithoutCallback(t *testing.T) {
 	callback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Error("navigation must not invoke approval or conversation ingress")
