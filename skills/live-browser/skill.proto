@@ -1,6 +1,8 @@
 syntax = "proto3";
 package axiom.skill.v1;
 
+import "google/protobuf/struct.proto";
+
 service SkillService {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse);
   rpc GetNodeTypes(GetNodeTypesRequest) returns (GetNodeTypesResponse);
@@ -16,12 +18,21 @@ message ExecuteRequest {
   ExecutionContext context = 5;
   map<string, bytes> bindings = 6;
 }
-message ExecutionContext { string run_id = 1; string agent_id = 2; string namespace = 3; map<string, string> variables = 4; }
+message ExecutionContext {
+  string run_id = 1; string agent_id = 2; string namespace = 3; map<string, string> variables = 4;
+  // The call's authenticated tenant and its effective operator config of this
+  // Skill (declared fields, secrets included), resolved by the platform.
+  string tenant_id = 5; google.protobuf.Struct config = 6; string config_version = 7;
+}
 message ExecuteResponse { map<string, bytes> output = 1; Error error = 2; string next_step = 3; }
 message Error { string message = 1; string type = 2; map<string, string> details = 3; }
 message GetNodeTypesRequest {}
 message GetNodeTypesResponse { repeated string node_types = 1; }
 message GetNodeSchemaRequest { string node_type = 1; }
 message GetNodeSchemaResponse { bytes schema = 1; }
-message HealthRequest {}
-message HealthResponse { bool healthy = 1; string skill_id = 2; string version = 3; }
+message HealthRequest { bool config_check = 1; string config_tenant_id = 2; google.protobuf.Struct config_values = 3; }
+message HealthResponse { bool healthy = 1; string skill_id = 2; string version = 3; ConfigStatus config = 4; }
+// The declared config section as JSON ({"scopes":[...],"fields":[...]}).
+message ConfigStatus { bytes schema = 1; bool has_config_check = 2; ConfigCheckResult config_check = 3; }
+message ConfigCheckResult { string status = 1; repeated ConfigCheck checks = 2; }
+message ConfigCheck { string id = 1; string label = 2; string status = 3; string detail = 4; }

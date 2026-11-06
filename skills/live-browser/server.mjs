@@ -4,7 +4,36 @@ import { schemas, validateInput } from './actions.mjs';
 import { LiveBrowserService } from './service.mjs';
 
 export const SKILL_ID = 'skill-live-browser';
-export const SKILL_VERSION = '1.0.17';
+export const SKILL_VERSION = '1.1.0';
+
+// Operator config; must match skill.yaml's config section (server.test.mjs).
+export const CONFIG_SCHEMA = Object.freeze({
+  scopes: ['global', 'tenant'],
+  fields: [{
+    key: 'proxies', label: 'Proxies',
+    description: 'Proxies for page traffic, comma-separated: http://user:pass@host:port or host:port:user:pass. Each tenant keeps one. Empty connects directly.',
+    type: 'secret', summary: true,
+  }],
+});
+
+// A google.protobuf.Struct (as proto-loader decodes it) as a plain object.
+function structValue(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  if ('structValue' in value) return decodeStruct(value.structValue);
+  if ('listValue' in value) return (value.listValue?.values ?? []).map(structValue);
+  for (const kind of ['stringValue', 'numberValue', 'boolValue']) if (kind in value) return value[kind];
+  return null;
+}
+
+export function decodeStruct(struct) {
+  return Object.fromEntries(Object.entries(struct?.fields ?? {}).map(([key, value]) => [key, structValue(value)]));
+}
+
+// The call's operator config: declared fields only, with their types.
+export function operatorConfig(context) {
+  const values = decodeStruct(context?.config);
+  return { proxies: typeof values.proxies === 'string' ? values.proxies : '' };
+}
 export const DEFAULT_BROWSER_API_URL = 'http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/';
 
 function decode(values = {}) {
@@ -31,7 +60,8 @@ export function handlers(service) {
         // Bindings carry host invocation grants. They are
         // passed through to the service and never logged or returned.
         const bindings = decode(call.request.bindings);
-        const result = await service.execute(action, { runID: context?.run_id, agentID: context?.agent_id, input, bindings });
+        const result = await service.execute(action, { runID: context?.run_id, agentID: context?.agent_id, input, bindings,
+          config: operatorConfig(context) });
         callback(null, { output: encode(result) });
       } catch (error) {
         callback(null, { error: { type: 'execution', message: error instanceof Error ? error.message.slice(0, 500) : 'Live browser action failed' } });
@@ -46,7 +76,10 @@ export function handlers(service) {
       }
       callback(null, { schema: Buffer.from(JSON.stringify(schema)) });
     },
-    Health(_call, callback) { callback(null, { healthy: service.ready?.() ?? true, skill_id: SKILL_ID, version: SKILL_VERSION }); },
+    Health(_call, callback) {
+      callback(null, { healthy: service.ready?.() ?? true, skill_id: SKILL_ID, version: SKILL_VERSION,
+        config: { schema: Buffer.from(JSON.stringify(CONFIG_SCHEMA)), has_config_check: false } });
+    },
   };
 }
 

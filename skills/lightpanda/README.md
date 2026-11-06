@@ -42,7 +42,7 @@ python3 -m unittest discover -s skills/lightpanda -p 'test_*.py'
 Build the image from the repository root:
 
 ```bash
-docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.2.1 .
+docker build -f skills/lightpanda/Dockerfile --build-arg SKILL_NAME=lightpanda -t axiomstudio/skill-browser:3.3.0 .
 ```
 
 Version 3.0.0 removed every `camoufox-*` action, the Camoufox engine, its
@@ -89,3 +89,14 @@ Version 3.2.1 checks Yahoo with one real search through Lightpanda, the path
 searches take, instead of a plain HTTP probe that counted any answer, even
 HTTP 500, as healthy. An error status, access challenge, empty page or reader
 failure fails the check; HTTP 429 is a warning.
+
+Version 3.3.0 reads pages through upstream proxies set by the operator in the
+Skill's `proxies` config field (secret, global with tenant overrides): proxy
+URLs (`http://user:pass@host:port`) or provider lines (`host:port:user:pass`),
+comma- or newline-separated, the same format as the live browser. Each tenant
+prefers one entry by rendezvous hash of its tenant id and the entry, so sites
+see a stable IP; when that proxy does not open a CONNECT tunnel within 5s the
+tenant uses the next in its own order (the choice is re-checked every 60s).
+With no reachable proxy, reads fail as `source_unavailable`. Lightpanda gets
+the chosen proxy as `--http-proxy`; SOCKS entries are skipped. The config
+check probes every listed proxy and runs the Yahoo check through one.

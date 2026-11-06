@@ -5,7 +5,7 @@ import { grpc, protoLoader } from '@axiom/live-browser';
 import { fileURLToPath } from 'node:url';
 import { schemas, validateInput } from './actions.mjs';
 import { CARD_SLOT, LOGIN_SLOTS } from './credentials.mjs';
-import { gracefulShutdown, handlers, SKILL_ID, SKILL_VERSION } from './server.mjs';
+import { CONFIG_SCHEMA, gracefulShutdown, handlers, operatorConfig, SKILL_ID, SKILL_VERSION } from './server.mjs';
 
 const invoke = (handler, request) => new Promise((resolve, reject) => handler({ request },
   (error, result) => error ? reject(error) : resolve(result)));
@@ -61,7 +61,8 @@ test('Execute validates input, passes bindings privately and never echoes them',
     bindings: { api_key: encode('vault-secret') } });
   assert.doesNotMatch(JSON.stringify(failed), /vault-secret/);
   const health = await invoke(handlers(service).Health, {});
-  assert.deepEqual(health, { healthy: true, skill_id: SKILL_ID, version: SKILL_VERSION });
+  assert.deepEqual({ ...health, config: { ...health.config, schema: JSON.parse(health.config.schema) } },
+    { healthy: true, skill_id: SKILL_ID, version: SKILL_VERSION, config: { schema: CONFIG_SCHEMA, has_config_check: false } });
   const types = await invoke(handlers(service).GetNodeTypes, {});
   assert.equal(types.node_types.length, 16);
 });
@@ -148,4 +149,21 @@ test('SIGTERM closes every browser before the server stops and the process exits
   await new Promise(resolve => gracefulShutdown({ service: { closeAll: () => new Promise(() => {}) }, server: { forceShutdown: () => stuck.push('force') },
     exit: code => { stuck.push(code); resolve(); }, timeoutMs: 20 })());
   assert.deepEqual(stuck, ['force', 1]);
+});
+
+test('the operator config matches skill.yaml and its proxies reach the service', async () => {
+  const section = manifest.slice(manifest.indexOf('  config:\n'), manifest.indexOf('  requirements:\n'));
+  assert.match(section, /^    scopes: \[global, tenant\]$/m);
+  for (const field of CONFIG_SCHEMA.fields) {
+    const block = section.slice(section.indexOf(`- key: ${field.key}\n`)).split('\n      - key:')[0];
+    assert.ok(block.includes(`label: ${field.label}\n`) && block.includes(`description: '${field.description}'\n`) &&
+      block.includes(`type: ${field.type}\n`) && block.includes('summary: true'), field.key);
+  }
+  const context = { config: { fields: { proxies: { stringValue: 'proxy.example:8080:u:p' }, other: { numberValue: 1 } } } };
+  assert.deepEqual(operatorConfig(context), { proxies: 'proxy.example:8080:u:p' });
+  assert.deepEqual(operatorConfig({}), { proxies: '' });
+  let seen;
+  const service = { execute: async (_action, call) => { seen = call; return { sessionId: 'b-1' }; } };
+  await invoke(handlers(service).Execute, { node_type: 'live-browser-start', context: { run_id: 'r-1', agent_id: 'a-1', ...context }, config: {}, bindings: {} });
+  assert.deepEqual(seen.config, { proxies: 'proxy.example:8080:u:p' });
 });

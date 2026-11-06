@@ -125,6 +125,11 @@ definition:
               type: bool
               default: false
               summary: true
+            - key: proxies
+              label: Proxies
+              description: 'HTTP(S) proxies for page reads, comma-separated: http://user:pass@host:port or host:port:user:pass. Each tenant keeps one. Empty connects directly.'
+              type: secret
+              summary: true
     description: Fast, sessionless Lightpanda page reading and web search that returns bounded Markdown.
     icon: search
     id: skill-browser
@@ -132,7 +137,7 @@ definition:
         - id: oci
           kind: oci
           label: Browser Skill service image with Lightpanda
-          package: axiomstudio/skill-browser:3.2.1
+          package: axiomstudio/skill-browser:3.3.0
     name: Browser Skill
     prompt:
         allowedTools:
@@ -154,10 +159,10 @@ definition:
         license: MIT
         publisher: Axiom Studio
         reference: skill-browser
-        resolvedVersion: 3.2.1
+        resolvedVersion: 3.3.0
     tags: [browser, lightpanda, search, research]
     transport:
         endpoint: skill-browser
         kind: tool
-    version: 3.2.1
+    version: 3.3.0
 kind: SkillDefinition

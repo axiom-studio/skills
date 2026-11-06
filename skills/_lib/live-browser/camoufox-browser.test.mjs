@@ -4,9 +4,9 @@ import { mkdtemp, mkdir, readlink, rm, symlink, writeFile, readdir } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
-import { launchCamoufox, probeProxy, proxiesFromEnv, reachableProxy } from './camoufox-browser.mjs';
+import { launchCamoufox, probeProxy, reachableProxy, tenantProxies } from './camoufox-browser.mjs';
 
-const proxyFromEnv = env => proxiesFromEnv(env)[0];
+const proxyFor = (list, tenant = '42') => tenantProxies(list, tenant)[0];
 
 async function profileRoot() {
   const dir = await mkdtemp(join(tmpdir(), 'camoufox-test-'));
@@ -102,30 +102,22 @@ test('invalid private display or missing profile fails before browser preparatio
 
 const POOL = ['31.59.20.176:6754:user:p:ss', '45.38.107.97:6014:user:p:ss', 'http://u%40x:pw@64.137.96.74:6641', '198.23.243.226:6361:user:p:ss'].join('\n');
 
-test('each tenant browses through its own stable proxy from the shared list, which stays out of the browser environment', async () => {
+test('each tenant browses through its own stable proxy from the configured list', async () => {
   const { dir, cleanup } = await profileRoot();
-  const saved = { ...process.env };
   try {
-    Object.assign(process.env, { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' });
     const { seen, prepareOptions } = preparer();
-    let launched;
-    await launchCamoufox(dir, {}, { prepareOptions, probe: async () => true, browserType: { launchPersistentContext: async (_profile, options) => {
-      launched = options;
-      return {};
-    } } });
-    assert.deepEqual(seen[0].proxy, proxyFromEnv({ LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' }));
-    assert.equal(seen[0].env.LIVE_BROWSER_PROXIES, undefined);
-    assert.equal(launched.env.LIVE_BROWSER_PROXIES, undefined);
+    await launchCamoufox(dir, { proxies: POOL, tenant: '42' }, { prepareOptions, probe: async () => true,
+      browserType: { launchPersistentContext: async () => ({}) } });
+    assert.deepEqual(seen[0].proxy, proxyFor(POOL));
+    assert.ok(!JSON.stringify(seen[0].env).includes('p:ss'), 'the list stays out of the browser environment');
   } finally {
-    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
-    Object.assign(process.env, saved);
     await cleanup();
   }
 });
 
 test('a tenant keeps its proxy across launches and when other entries are added or removed', () => {
   const entries = POOL.split('\n');
-  const pick = (list, tenant) => proxyFromEnv({ LIVE_BROWSER_PROXIES: list.join(','), CORTEX_TENANT_ID: String(tenant) });
+  const pick = (list, tenant) => proxyFor(list.join(','), String(tenant));
   const servers = new Set();
   for (let tenant = 1; tenant <= 200; tenant++) {
     const chosen = pick(entries, tenant);
@@ -140,44 +132,39 @@ test('a tenant keeps its proxy across launches and when other entries are added 
 });
 
 test('proxy list entries parse from provider lines and URLs', () => {
-  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: '31.59.20.176:6754:hsk:p:ss' }),
+  assert.deepEqual(proxyFor('31.59.20.176:6754:hsk:p:ss'),
     { server: 'http://31.59.20.176:6754', username: 'hsk', password: 'p:ss' });
-  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: 'http://u%40x:pw@64.137.96.74:6641' }),
+  assert.deepEqual(proxyFor('http://u%40x:pw@64.137.96.74:6641'),
     { server: 'http://64.137.96.74:6641', username: 'u@x', password: 'pw' });
-  assert.deepEqual(proxyFromEnv({ LIVE_BROWSER_PROXIES: 'socks5://proxy:1080' }), { server: 'socks5://proxy:1080' });
-  assert.throws(() => proxyFromEnv({ LIVE_BROWSER_PROXIES: 'not-a-proxy' }), /invalid/);
+  assert.deepEqual(proxyFor('socks5://proxy:1080'), { server: 'socks5://proxy:1080' });
+  assert.throws(() => proxyFor('not-a-proxy'), /invalid/);
 });
 
 test('without a configured proxy list the browser connects directly', async () => {
-  assert.equal(proxyFromEnv({}), undefined);
-  assert.equal(proxyFromEnv({ LIVE_BROWSER_PROXIES: ' \n , ' }), undefined);
-  assert.equal(await reachableProxy({}, () => { throw new Error('must not probe'); }), undefined);
+  assert.equal(proxyFor(''), undefined);
+  assert.equal(proxyFor(' \n , '), undefined);
+  assert.equal(await reachableProxy('', '42', () => { throw new Error('must not probe'); }), undefined);
 });
 
 test('a tenant whose proxy does not answer moves to its next proxy, and back once it recovers', async () => {
-  const env = { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' };
-  const [first, second, third] = proxiesFromEnv(env);
+  const [first, second, third] = tenantProxies(POOL, '42');
   const probed = [];
   const down = new Set([first.server]);
   const probe = async proxy => { probed.push(proxy.server); return !down.has(proxy.server); };
-  assert.deepEqual(await reachableProxy(env, probe), second);
+  assert.deepEqual(await reachableProxy(POOL, '42', probe), second);
   assert.deepEqual(probed, [first.server, second.server]);
   down.add(second.server);
-  assert.deepEqual(await reachableProxy(env, probe), third);
+  assert.deepEqual(await reachableProxy(POOL, '42', probe), third);
   down.clear();
-  assert.deepEqual(await reachableProxy(env, probe), first);
+  assert.deepEqual(await reachableProxy(POOL, '42', probe), first);
 });
 
 test('launch fails clearly when no proxy in the list answers', async () => {
   const { dir, cleanup } = await profileRoot();
-  const saved = { ...process.env };
   try {
-    Object.assign(process.env, { LIVE_BROWSER_PROXIES: POOL, CORTEX_TENANT_ID: '42' });
-    await assert.rejects(launchCamoufox(dir, {}, { probe: async () => false,
+    await assert.rejects(launchCamoufox(dir, { proxies: POOL, tenant: '42' }, { probe: async () => false,
       prepareOptions: () => { throw new Error('must not run'); } }), /No browser proxy is reachable/);
   } finally {
-    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
-    Object.assign(process.env, saved);
     await cleanup();
   }
 });

@@ -50,17 +50,15 @@ async function stableIdentity(profileRoot, options) {
   return options;
 }
 
-// Upstream proxies for page traffic, shared by every tenant's runtime: hosting
-// injects the list from one platform Secret. Each entry is a proxy URL
+// Upstream proxies for page traffic: the operator sets the list in the live
+// browser Skill's `proxies` config (global, with tenant overrides), which
+// arrives with each call and is passed to launch. Each entry is a proxy URL
 // (http://user:pass@host:port) or a provider list line (host:port:user:pass);
 // entries are separated by newlines or commas. A tenant always prefers the
 // same entry, so sites see one stable IP for its sign-ins; rendezvous hashing
 // keeps every other tenant on its proxy when the list changes. When the
 // preferred proxy does not answer, the tenant moves to the next one in its own
-// order rather than timing out on every page. The list stays out of the
-// browser process environment.
-const PROXY_ENV = 'LIVE_BROWSER_PROXIES';
-const TENANT_ENV = 'CORTEX_TENANT_ID';
+// order rather than timing out on every page.
 const PROXY_PROBE_TARGET = 'example.com:443';
 const PROXY_PROBE_TIMEOUT_MS = 5000;
 
@@ -75,10 +73,10 @@ function parseProxy(entry) {
   return { server: `http://${host}:${port}`, ...(username ? { username, password: password.join(':') } : {}) };
 }
 
-// The tenant's proxies, most preferred first.
-export function proxiesFromEnv(env = process.env) {
-  const entries = (env[PROXY_ENV] ?? '').split(/[\n,]/).map(entry => entry.trim()).filter(Boolean);
-  const tenant = (env[TENANT_ENV] ?? '').trim();
+// The tenant's proxies from the configured list, most preferred first.
+export function tenantProxies(list, tenant) {
+  const entries = String(list ?? '').split(/[\n,]/).map(entry => entry.trim()).filter(Boolean);
+  tenant = String(tenant ?? '').trim();
   const score = entry => createHash('sha256').update(`${tenant}\n${entry}`).digest().readBigUInt64BE();
   return entries.map(entry => ({ entry, score: score(entry) }))
     .sort((a, b) => (a.score < b.score ? 1 : a.score > b.score ? -1 : 0))
@@ -112,8 +110,8 @@ export function probeProxy(proxy, { timeoutMs = PROXY_PROBE_TIMEOUT_MS } = {}) {
   });
 }
 
-export async function reachableProxy(env = process.env, probe = probeProxy) {
-  const proxies = proxiesFromEnv(env);
+export async function reachableProxy(list, tenant, probe = probeProxy) {
+  const proxies = tenantProxies(list, tenant);
   if (!proxies.length) return undefined;
   for (const proxy of proxies) if (await probe(proxy)) return proxy;
   throw new Error('No browser proxy is reachable');
@@ -122,22 +120,21 @@ export async function reachableProxy(env = process.env, probe = probeProxy) {
 // Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio
 // routing (PULSE_SINK/PULSE_SOURCE) is per browser so a page never hears or
 // speaks into another browser's audio.
-export async function launchCamoufox(profileRoot, { display, audio } = {}, {
+export async function launchCamoufox(profileRoot, { display, audio, proxies, tenant } = {}, {
   prepareOptions = launchOptions, browserType = firefox, probe = probeProxy,
 } = {}) {
   if (!profileRoot || (display !== undefined && !/^:[0-9]{1,5}$/.test(display)) ||
     (audio !== undefined && (!SINK.test(audio?.sink ?? '') || !SINK.test(audio?.source ?? '')))) {
     throw new Error('Browser profile or display is unavailable');
   }
-  const proxy = await reachableProxy(process.env, probe);
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== PROXY_ENV));
+  const proxy = await reachableProxy(proxies, tenant, probe);
   const prepared = await prepareOptions({
     ...(proxy ? { proxy } : {}),
     os: 'linux', headless: !display, window: [1280, 800],
     humanize: false, block_webrtc: false, geoip: false,
     // No runtime extension downloads or third-party network setup calls.
     exclude_addons: ['UBO'],
-    env: { ...env, ...(display ? { DISPLAY: display, MOZ_ENABLE_WAYLAND: '0' } : {}),
+    env: { ...process.env, ...(display ? { DISPLAY: display, MOZ_ENABLE_WAYLAND: '0' } : {}),
       ...(audio ? { PULSE_SINK: audio.sink, PULSE_SOURCE: audio.source } : {}) },
     firefox_user_prefs: {
       'media.navigator.streams.fake': false,

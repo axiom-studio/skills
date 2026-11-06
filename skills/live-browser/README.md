@@ -115,15 +115,18 @@ there is no site-specific code.
   transcription and speech. `CORTEX_TENANT_ID`: the tenant this runtime
   serves (set by Cortex's Skill hosting); profile commands for any other
   tenant are refused.
-- `LIVE_BROWSER_PROXIES` (optional): the upstream proxies for page traffic,
-  one per line or comma-separated, each a proxy URL
+- Operator config `proxies` (secret, global with tenant overrides; set on the
+  Skill's page in HelloSeal operator settings): the upstream proxies for page
+  traffic, comma- or newline-separated, each a proxy URL
   (`http://user:pass@host:port`) or a provider list line
-  (`host:port:user:pass`). Cortex injects it into every tenant's runtime from
-  the platform Secret `live-browser-proxy` in the Skill namespace. Each tenant
-  always uses the same entry (rendezvous hash of `CORTEX_TENANT_ID`), so sites
+  (`host:port:user:pass`). It arrives in `ExecutionContext.config` with
+  `live-browser-start` and is used when the browser launches. Each tenant
+  always prefers the same entry (rendezvous hash of the tenant id), so sites
   see one stable IP; changing the list only moves the tenants of the entries
-  that were removed or added. Without it the browser connects directly. It is
-  not passed on to the browser process.
+  that were removed or added. When that proxy does not open a tunnel within 5s
+  the browser uses the tenant's next entry. Empty: the browser connects
+  directly. The list is not passed on to the browser process. Health reports
+  the config schema (no config check).
 - `BrowserControlService.Control` also takes two session-less profile
   commands, `{"type":"profileStatus"}` (returns `{state, origins, updatedAt,
   sizeBytes}`) and `{"type":"forgetProfile"}` (stops the open browser cleanly,
@@ -174,5 +177,5 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.0.17 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.1.0 .
 ```

@@ -114,7 +114,7 @@ export class LiveBrowserService {
     };
   }
 
-  async start({ runID, agentID, input, bindings }) {
+  async start({ runID, agentID, input, bindings, config }) {
     agentID = validID(agentID, 'agent ID');
     runID = validID(runID, 'run ID');
     const url = input.url;
@@ -181,8 +181,11 @@ export class LiveBrowserService {
       session.route = await this.#deps.createAudioRoute(session.id.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24));
       // The persistent profile: everything from earlier sessions is there
       // before the first page loads.
+      // The operator's proxies arrive with the starting call; the tenant
+      // pins which one this browser uses.
       session.launching = this.#deps.launch(this.#profile.root, { display: session.desktop.display,
-        audio: { sink: session.route.sink, source: session.route.source } });
+        audio: { sink: session.route.sink, source: session.route.source },
+        proxies: config?.proxies ?? '', tenant: this.#options.tenantID ?? session.tenantID });
       session.context = await session.launching;
       if (session.closed) throw new Error('closed while starting');
       this.#profile.track(session.context);
@@ -295,8 +298,8 @@ export class LiveBrowserService {
         : 'The user was asked to take control. Continue after they hand back.' };
   }
 
-  async execute(action, { runID, agentID, input, bindings }) {
-    if (action === 'live-browser-start') return this.start({ runID, agentID, input, bindings });
+  async execute(action, { runID, agentID, input, bindings, config }) {
+    if (action === 'live-browser-start') return this.start({ runID, agentID, input, bindings, config });
     const session = this.#owned(agentID, input.sessionId);
     session.runIDs.add(validID(runID, 'run ID'));
     switch (action) {

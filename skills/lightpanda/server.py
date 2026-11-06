@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from concurrent import futures
 
 import grpc
@@ -9,6 +10,7 @@ import yaml
 
 import skill_pb2
 import skill_pb2_grpc
+from proxy_pool import proxy_entries
 from runtime import SKILL_ID, VERSION, BrowserActionFailure, LightpandaRuntime, config_spec
 from skill_config import ConfigError
 
@@ -51,7 +53,12 @@ def secret_values(cfg):
     """Revealed secret values of a decoded config, for error redaction only."""
     if cfg is None:
         return []
-    return [value.reveal() for value in vars(cfg).values() if hasattr(value, "reveal")]
+    values = [value.reveal() for value in vars(cfg).values() if hasattr(value, "reveal")]
+    # Each proxy entry and its password, not only the whole list.
+    for entry in proxy_entries(cfg.proxies.reveal()):
+        values.append(entry)
+        values.extend(part for part in re.split(r"[:@/]", entry) if len(part) >= 6)
+    return values
 
 
 def redact_error(error, bindings, secrets=()):
@@ -84,7 +91,8 @@ class SkillService(skill_pb2_grpc.SkillServiceServicer):
             return skill_pb2.ExecuteResponse(error=skill_pb2.Error(message=str(exc), type=exc.type))
         secrets = secret_values(operator_config)
         try:
-            result = self.runtime.execute(request.node_type, decode(request.config), operator_config)
+            result = self.runtime.execute(request.node_type, decode(request.config), operator_config,
+                                          tenant=request.context.tenant_id)
             return skill_pb2.ExecuteResponse(output=encode_output(result))
         except BrowserActionFailure as exc:
             return skill_pb2.ExecuteResponse(

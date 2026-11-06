@@ -20,9 +20,10 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
 
+from proxy_pool import ProxyListError, ProxyPool, ProxyUnreachable
 from skill_config import ConfigSpec, Secret, check_result, setting
 
-VERSION = "3.2.1"
+VERSION = "3.3.0"
 SKILL_ID = "skill-browser"
 MAX_LIGHTPANDA_TEXT = 24 * 1024
 MAX_LIGHTPANDA_BATCH_TEXT = 6 * 1024
@@ -104,6 +105,10 @@ class BrowserConfig:
     fallback_to_yahoo: bool = setting(
         "fallbackToYahoo", label="Fall back to Yahoo", type="bool", default=False, summary=True,
         description="Search Yahoo when Tavily is unavailable or out of quota. A rejected key is never hidden.")
+    proxies: Secret = setting(
+        "proxies", label="Proxies", type="secret", summary=True,
+        description="HTTP(S) proxies for page reads, comma-separated: http://user:pass@host:port or "
+                    "host:port:user:pass. Each tenant keeps one. Empty connects directly.")
 
 
 CONFIG_SCOPES = ("global", "tenant")
@@ -197,45 +202,67 @@ def source_has_access_challenge(status, content):
 
 
 class LightpandaRuntime:
-    def __init__(self, binary=None, run=None, urlopen=None, sleep=None):
+    def __init__(self, binary=None, run=None, urlopen=None, sleep=None, proxies=None):
         self.binary = binary or os.environ.get("LIGHTPANDA_BINARY", "/usr/local/bin/lightpanda")
+        self.proxies = proxies or ProxyPool()
         self._run = run
         self._urlopen = urlopen or urllib.request.urlopen
         self._sleep = sleep or time.sleep
 
-    def execute(self, action, config=None, operator_config=None):
+    def execute(self, action, config=None, operator_config=None, tenant=""):
         """Run an action. config holds its arguments; operator_config is the
-        call's decoded BrowserConfig (declared defaults when None)."""
+        call's decoded BrowserConfig (declared defaults when None); tenant is
+        the call's authenticated tenant, which pins its proxy."""
         config = dict(config or {})
         settings = search_settings(operator_config)
-        handlers = {
-            "lightpanda-fetch": lambda: self.lightpanda_fetch(config),
-            "lightpanda-search": lambda: self.lightpanda_search(config, settings),
-            "lightpanda-read-many": lambda: self.lightpanda_read_many(config, settings),
-        }
-        if action not in handlers:
+        if action not in ("lightpanda-fetch", "lightpanda-search", "lightpanda-read-many"):
             raise ValueError(f"unsupported browser action {action}")
+        proxy = self.call_proxy(operator_config, tenant)
+        handlers = {
+            "lightpanda-fetch": lambda: self.lightpanda_fetch(config, proxy),
+            "lightpanda-search": lambda: self.lightpanda_search(config, settings, proxy),
+            "lightpanda-read-many": lambda: self.lightpanda_read_many(config, settings, proxy),
+        }
         return handlers[action]()
 
     def ready(self):
         return os.access(self.binary, os.X_OK)
 
-    def check_config(self, cfg):
-        """Health config check: can the configured search provider answer?
+    def call_proxy(self, cfg, tenant):
+        """The tenant's reachable proxy from the operator's list, or None."""
+        value = (cfg or DEFAULT_CONFIG).proxies.reveal()
+        try:
+            return self.proxies.choose(value, tenant)
+        except ProxyListError as exc:
+            raise BrowserActionFailure("source_unavailable", f"{exc}. The operator must fix the Browser Skill's proxies.") from None
+        except ProxyUnreachable:
+            raise BrowserActionFailure("source_unavailable", "No browser proxy is reachable. Try again later.") from None
 
-        Yahoo gets one real search through Lightpanda; a Tavily key is authenticated
+    def check_config(self, cfg):
+        """Health config check: do the proxies and the search provider answer?
+
+        Each listed proxy must open a CONNECT tunnel; searches are checked
+        through the proxy they would use. Yahoo gets one real search through
+        Lightpanda; a Tavily key is authenticated
         against Tavily's usage endpoint, which spends no search credits. Rows
         never include the key.
         """
         rows = []
+        proxy_row = self.proxies.check(cfg.proxies.reveal())
+        if proxy_row is not None and proxy_row["status"] == "fail":
+            return check_result([proxy_row])
+        # Searches go through a proxy when one is set, so the check does too.
+        proxy = self.call_proxy(cfg, "") if proxy_row is not None else None
         if cfg.search_provider == "tavily":
             rows.append(self._check_tavily(cfg.tavily_api_key))
         if cfg.search_provider == "yahoo" or cfg.fallback_to_yahoo:
-            rows.append(self._check_yahoo())
+            rows.append(self._check_yahoo(proxy))
         if cfg.search_provider == "tavily" and cfg.fallback_to_yahoo and rows[0]["status"] == "fail" \
                 and rows[0]["id"] != "tavilyKey" and rows[1]["status"] == "ok":
             # Searches still answer from Yahoo; only a rejected key is fatal.
             rows[0]["status"] = "warn"
+        if proxy_row is not None:
+            rows.insert(0, proxy_row)
         return check_result(rows)
 
     def _probe(self, request):
@@ -271,7 +298,7 @@ class LightpandaRuntime:
             return {**row, "status": "fail", "detail": "The Tavily API could not be reached."}
         return {**row, "status": "fail", "detail": f"Tavily returned HTTP {status}."}
 
-    def _check_yahoo(self):
+    def _check_yahoo(self, proxy=None):
         """One real Yahoo search through Lightpanda, the path searches take.
 
         A plain HTTP probe proves nothing: Yahoo answers it with bot checks or
@@ -279,25 +306,25 @@ class LightpandaRuntime:
         """
         row = {"id": "yahoo", "label": "Yahoo search"}
         try:
-            self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(YAHOO_CHECK_QUERY)})
+            self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(YAHOO_CHECK_QUERY)}, proxy)
         except BrowserActionFailure as exc:
             status = "warn" if exc.code == "source_rate_limited" else "fail"
             return {**row, "status": status, "detail": f"Yahoo search failed: {exc}"}
         return {**row, "status": "ok", "detail": "Yahoo returned search results."}
 
-    def lightpanda_fetch(self, config):
+    def lightpanda_fetch(self, config, proxy=None):
         """Read a public page; private/internal networks are blocked after DNS."""
         url = navigation_url(config.get("url"))
-        completed, result = self._lightpanda_read(url)
+        completed, result = self._lightpanda_read(url, proxy)
         status = result.get("http_status")
         if type(status) is int and status == 429 and not source_has_access_challenge(status, result.get("content")):
             delay = source_retry_after(result)
             if delay is not None and delay <= MAX_INLINE_RETRY_AFTER_SECONDS:
                 self._sleep(delay)
-                completed, result = self._lightpanda_read(url)
+                completed, result = self._lightpanda_read(url, proxy)
         return self._lightpanda_page(url, completed, result)
 
-    def _lightpanda_read(self, url):
+    def _lightpanda_read(self, url, proxy=None):
         command = [
             self.binary,
             "fetch", url, "--json", "--dump", "markdown", "--strip-mode", "clutter",
@@ -305,6 +332,8 @@ class LightpandaRuntime:
             "--terminate-ms", "12000", "--http-timeout", "8000",
             "--log-level", "error", "--log-filter", "note",
         ]
+        if proxy is not None:
+            command += ["--http-proxy", proxy.url()]
         run = self._run or subprocess.run
         try:
             completed = run(command, capture_output=True, text=True, timeout=15, check=False)
@@ -349,7 +378,7 @@ class LightpandaRuntime:
             "truncated": len(content) > MAX_LIGHTPANDA_TEXT or content.endswith("[truncated]"),
         }
 
-    def lightpanda_search(self, config, settings=None):
+    def lightpanda_search(self, config, settings=None, proxy=None):
         settings = settings or SearchSettings()
         query = config.get("query")
         if not isinstance(query, str) or not query.strip() or len(query) > 512:
@@ -367,7 +396,7 @@ class LightpandaRuntime:
                 # is how callers tell which provider served.
                 if settings.fallback != "yahoo" or exc.code == "search_provider_authentication_failed":
                     raise
-        return self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(query)})
+        return self.lightpanda_fetch({"url": SEARCH_URL + quote_plus(query)}, proxy)
 
     def tavily_search(self, query, api_key, *, retry=True):
         """One Tavily Search API call; the key travels only in the header."""
@@ -410,7 +439,7 @@ class LightpandaRuntime:
         return {"url": TAVILY_URL, "httpStatus": 200, "text": text[:MAX_LIGHTPANDA_TEXT],
                 "truncated": len(text) > MAX_LIGHTPANDA_TEXT}
 
-    def lightpanda_read_many(self, config, settings=None):
+    def lightpanda_read_many(self, config, settings=None, proxy=None):
         """Run independent public reads concurrently and retain each result."""
         reads = config.get("reads")
         if not isinstance(reads, list) or not 2 <= len(reads) <= 4:
@@ -432,7 +461,7 @@ class LightpandaRuntime:
         def read(item):
             kind, value = item
             try:
-                page = self.lightpanda_fetch({"url": value}) if kind == "url" else self.lightpanda_search({"query": value}, settings)
+                page = self.lightpanda_fetch({"url": value}, proxy) if kind == "url" else self.lightpanda_search({"query": value}, settings, proxy)
             except BrowserActionFailure as exc:
                 failure = {"kind": kind, "input": value, "status": "failed", "error": str(exc)[:240],
                            "failureKind": exc.code, "retryable": False}
