@@ -13,12 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pulseaudio pulseaudio-utils ffmpeg xvfb xdotool openbox x11-utils x11vnc ca-certificates tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Camoufox (~2.6 GB) is fetched before anything from the repository is copied,
-# so it is rebuilt only when this pin changes. Keep CAMOUFOX_JS_VERSION equal to
-# camoufox-js in package-lock.json; the check after npm ci enforces it.
+# Camoufox (~2.6 GB) is copied before anything from the repository, so it is
+# rebuilt only when this pin changes. `camoufox-js fetch` always downloads the
+# newest build, so the pinned build is taken from the published 1.0.17 image
+# by digest. Keep CAMOUFOX_JS_VERSION equal to camoufox-js in
+# package-lock.json; the check after npm ci enforces it.
 ARG CAMOUFOX_JS_VERSION=0.12.0
 ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
-RUN IMPIT_VERBOSE=1 npx -y camoufox-js@${CAMOUFOX_JS_VERSION} fetch && chmod -R a+rX /opt/camoufox && rm -rf /root/.npm
+COPY --from=axiomstudio/skill-live-browser:1.0.17@sha256:626e1bce0eeaaf6215134ba39999f21f5ce13e617efc8d2e4504b766346519a2 /opt/camoufox /opt/camoufox
 RUN node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=JSON.parse(readFileSync('/opt/camoufox/version.json')); if(v.version!=='156.0.1'||v.release!=='beta.36') throw new Error('Camoufox build changed; review and retest before updating the release pin');"
 
 # The shared library is installed from its relative file: path, so it must sit
