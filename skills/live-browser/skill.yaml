@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.1.1
+  version: 1.1.2
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.1.1
+    resolvedVersion: 1.1.2
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.1.1
+      package: axiomstudio/skill-live-browser:1.1.2
   config:
     scopes: [global, tenant]
     fields:
@@ -305,6 +305,7 @@ definition:
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: write
+      repeatable: true
       semanticArguments: {intent: intent}
       timeout: 180000000000
     live-browser-fill:
@@ -325,6 +326,7 @@ definition:
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: write
+      repeatable: true
       semanticArguments: {target: target, intent: intent}
       timeout: 180000000000
     live-browser-select:
@@ -345,6 +347,7 @@ definition:
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: write
+      repeatable: true
       semanticArguments: {target: target, intent: intent}
       timeout: 180000000000
     live-browser-scroll:
@@ -659,6 +662,7 @@ definition:
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: write
+      repeatable: true
       timeout: 60000000000
     live-browser-speak:
       name: live-browser-speak
@@ -683,4 +687,5 @@ definition:
       retry: {maxAttempts: 1}
       risk: write
       sideEffect: write
+      repeatable: true
       timeout: 180000000000
