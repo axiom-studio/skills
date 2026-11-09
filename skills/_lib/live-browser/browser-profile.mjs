@@ -1,14 +1,15 @@
-// The tenant's browser profile: one real Camoufox (Firefox) profile directory
-// on the runtime's persistent volume. Everything a normal browser keeps stays
-// in it between sessions: first- and third-party cookies, localStorage,
-// IndexedDB (including non-extractable CryptoKeys, e.g. WhatsApp Web's),
-// Cache Storage, service workers, history, permissions, site settings and
-// saved logins. Nothing is exported or uploaded; Firefox itself owns the files
-// and flushes them when the browser closes.
+// The owner's browser profile: one real Camoufox (Firefox) profile directory
+// in the runtime's slot. Everything a normal browser keeps stays in it
+// between sessions: first- and third-party cookies, localStorage, IndexedDB
+// (including non-extractable CryptoKeys, e.g. WhatsApp Web's), Cache Storage,
+// service workers, history, permissions, site settings and saved logins.
+// Firefox itself owns the files and flushes them when the browser closes; the
+// browser pool restores the directory into the slot before the runtime starts
+// and saves it (encrypted, outside the slot) when the browser closes.
 //
 // Firefox can open a profile only once, so the profile is an exclusive lease:
-// one live browser at a time per tenant runtime, later starts wait in FIFO
-// order (bounded) for the current browser to close.
+// one live browser at a time per runtime, later starts wait in FIFO order
+// (bounded) for the current browser to close.
 //
 // The "saved sign-ins" list is the set of top-level sites (eTLD+1) the
 // browser has visited, persisted next to the profile. Third-party sites whose
@@ -20,13 +21,13 @@ import { mkdir, readFile, rename, rm, stat, readdir, writeFile, lstat } from 'no
 import { join } from 'node:path';
 import { getDomain, getHostname } from 'tldts';
 
-export const PROFILE_ROOT = '/var/lib/axiom-live-browser';
+export const PROFILE_ROOT = '/tmp/profile';
 export const PROFILE_WAIT_MS = 120000;
 const BROWSER_DIR = 'camoufox';
 const SITES_FILE = 'sites.json';
 // The launch fingerprint kept with the profile (see camoufox-browser.mjs).
 export const IDENTITY_FILE = 'identity.json';
-// Everything this runtime keeps on the volume. Forget removes exactly these.
+// Everything this runtime keeps in the profile. Forget removes exactly these.
 const PROFILE_FILES = [BROWSER_DIR, SITES_FILE, `${SITES_FILE}.tmp`, IDENTITY_FILE, `${IDENTITY_FILE}.tmp`];
 const MAX_SITES = 500;
 const SITES_WRITE_DELAY_MS = 2000;

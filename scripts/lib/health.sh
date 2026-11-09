@@ -6,8 +6,8 @@ verify_skill_image() (
   set -euo pipefail
   local image="$1" supplied_manifest="${2:-}" root workspace container=""
   local image_id image_os image_arch host_os host_arch checker metadata manifest="" count=0 image_metadata environment exposures
-  local identity version declared_image transport port candidate
-  local -a configured_ports exposed_ports
+  local identity version declared_image transport port candidate runtime_command runtime_user
+  local -a configured_ports exposed_ports runtime_options=()
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   if [[ ! "$image" =~ ^axiomstudio/skill-[a-zA-Z0-9-]+:(latest|[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?)$ ]]; then
     echo "Unsupported official Skill image: $image" >&2
@@ -59,9 +59,24 @@ verify_skill_image() (
     printf '%s\n' "$image_id"
     return 0
   fi
+  # An image whose entrypoint is a host for the runtime (the live browser's
+  # pool pods run the slot server) names the runtime's own command, port and
+  # user in labels; Health is checked on that runtime.
+  runtime_command="$(docker image inspect --format '{{index .Config.Labels "ai.axiom.skill.runtime.command"}}' "$image_id")" || return 1
+  if [[ -n "$runtime_command" ]]; then
+    port="$(docker image inspect --format '{{index .Config.Labels "ai.axiom.skill.runtime.port"}}' "$image_id")" || return 1
+    runtime_user="$(docker image inspect --format '{{index .Config.Labels "ai.axiom.skill.runtime.user"}}' "$image_id")" || return 1
+    if [[ ! "$runtime_command" =~ ^/[A-Za-z0-9._/-]+$ || ! "$runtime_user" =~ ^[1-9][0-9]{0,9}$ ]]; then
+      echo "Invalid runtime labels for $image" >&2
+      return 1
+    fi
+    runtime_options=(--user "$runtime_user" --entrypoint "$runtime_command")
+  fi
   environment="$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image_id")" || return 1
   mapfile -t configured_ports < <(printf '%s\n' "$environment" | awk -F= '$1 == "SKILL_PORT" {print substr($0, 12)}')
-  if [[ ${#configured_ports[@]} -eq 1 ]]; then
+  if [[ -n "$runtime_command" ]]; then
+    :
+  elif [[ ${#configured_ports[@]} -eq 1 ]]; then
     port="${configured_ports[0]}"
   elif [[ ${#configured_ports[@]} -eq 0 ]]; then
     exposures="$(docker image inspect --format '{{range $port, $_ := .Config.ExposedPorts}}{{println $port}}{{end}}' "$image_id")" || return 1
@@ -89,7 +104,7 @@ verify_skill_image() (
   # Know the cleanup identity even if Docker starts the container but loses its
   # response. Never depend on a successful run response to find the container.
   container="axiom-skill-health-$(basename "$workspace")"
-  docker run --detach --name "$container" --network none \
+  docker run --detach --name "$container" --network none "${runtime_options[@]}" \
     --mount "type=bind,source=$checker,target=/axiom-skill-healthcheck,readonly" \
     --mount "type=bind,source=$workspace/skill.yaml,target=/axiom-skill-health-manifest.yaml,readonly" \
     "$image_id" >/dev/null || return 1

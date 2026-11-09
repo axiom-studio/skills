@@ -1,17 +1,17 @@
 import { fileURLToPath } from 'node:url';
-import { addBrowserControlService, browserAuthorizer, BrowserSessionAPI, grpc, PersistentBrowserProfile, profileAuthorizer, PROFILE_ROOT, protoLoader } from '@axiom/live-browser';
+import { addBrowserControlService, browserAuthorizer, BrowserSessionAPI, grpc, guardPlaywrightNullResponse, PersistentBrowserProfile, profileAuthorizer, PROFILE_ROOT, protoLoader, slotProxy } from '@axiom/live-browser';
 import { schemas, validateInput } from './actions.mjs';
 import { LiveBrowserService } from './service.mjs';
 
 export const SKILL_ID = 'skill-live-browser';
-export const SKILL_VERSION = '1.1.3';
+export const SKILL_VERSION = '2.0.0';
 
 // Operator config; must match skill.yaml's config section (server.test.mjs).
 export const CONFIG_SCHEMA = Object.freeze({
   scopes: ['global', 'tenant'],
   fields: [{
     key: 'proxies', label: 'Proxies',
-    description: 'Proxies for page traffic, comma-separated: http://user:pass@host:port or host:port:user:pass. Each tenant keeps one. Empty connects directly.',
+    description: 'Proxies for page traffic, comma-separated: http://user:pass@host:port or host:port:user:pass. The browser pool chains each tenant through one of them, kept stable per tenant. Empty connects directly.',
     type: 'secret', summary: true,
   }],
 });
@@ -105,23 +105,40 @@ export function gracefulShutdown({ service, server, exit = code => process.exit(
   };
 }
 
+// The service's settings from the environment the browser pool gives the
+// runtime in its slot.
+export function serviceOptions(env = process.env) {
+  // Fails before serving when the slot proxy is malformed.
+  const proxy = slotProxy(env.LIVE_BROWSER_SLOT_PROXY);
+  return {
+    // Set by the browser pool for the slot's tenant.
+    tenantID: env.CORTEX_TENANT_ID,
+    ...(proxy ? { slotProxy: proxy.server } : {}),
+    profileRoot: env.LIVE_BROWSER_PROFILE_ROOT || PROFILE_ROOT,
+    ...(env.AXIOM_SPEECH_API_URL ? { speechBaseURL: env.AXIOM_SPEECH_API_URL } : {}),
+  };
+}
+
 export async function serve(env = process.env) {
+  guardPlaywrightNullResponse();
   const baseURL = env.CORTEX_BROWSER_API_URL || DEFAULT_BROWSER_API_URL;
+  const { profileRoot, ...options } = serviceOptions(env);
   const service = new LiveBrowserService({
     api: new BrowserSessionAPI({ baseURL }),
     authorize: browserAuthorizer({ baseURL }),
     authorizeProfile: profileAuthorizer({ baseURL }),
-    // Set by Cortex's Skill hosting for this tenant's runtime.
-    tenantID: env.CORTEX_TENANT_ID,
-    profile: new PersistentBrowserProfile({ root: env.LIVE_BROWSER_PROFILE_ROOT || PROFILE_ROOT }),
-    ...(env.AXIOM_SPEECH_API_URL ? { speechBaseURL: env.AXIOM_SPEECH_API_URL } : {}),
+    ...options,
+    profile: new PersistentBrowserProfile({ root: profileRoot }),
   });
   const definition = protoLoader.loadSync(fileURLToPath(new URL('./skill.proto', import.meta.url)), { keepCase: true });
   const server = new grpc.Server();
   server.addService(grpc.loadPackageDefinition(definition).axiom.skill.v1.SkillService.service, handlers(service));
   addBrowserControlService(server, service);
   const port = Number(env.SKILL_PORT || 50051);
-  await new Promise((resolve, reject) => server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(),
+  // In a pool slot the pool reaches the runtime through a tunnel to the
+  // slot's loopback; nothing else needs to.
+  const host = options.slotProxy ? '127.0.0.1' : '0.0.0.0';
+  await new Promise((resolve, reject) => server.bindAsync(`${host}:${port}`, grpc.ServerCredentials.createInsecure(),
     (error, bound) => error ? reject(error) : resolve(bound)));
   const shutdown = gracefulShutdown({ service, server });
   process.once('SIGTERM', shutdown);

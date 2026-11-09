@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readlink, rm, symlink, writeFile, readdir } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
-import { launchCamoufox, probeProxy, reachableProxy, tenantProxies } from './camoufox-browser.mjs';
+import { FIREFOX_PREFS, launchCamoufox, probeProxy, reachableProxy, slotProxy, tenantProxies } from './camoufox-browser.mjs';
 
 const proxyFor = (list, tenant = '42') => tenantProxies(list, tenant)[0];
 
@@ -25,7 +25,7 @@ function preparer(executablePath = '/opt/camoufox/camoufox', offset = 0) {
   } };
 }
 
-test('Camoufox launches the persistent profile on the volume with real audio and no Chromium flags', async () => {
+test('Camoufox launches the persistent profile with real audio and no Chromium flags', async () => {
   const { dir, cleanup } = await profileRoot();
   try {
     const { seen, prepareOptions } = preparer();
@@ -110,6 +110,58 @@ test('each tenant browses through its own stable proxy from the configured list'
       browserType: { launchPersistentContext: async () => ({}) } });
     assert.deepEqual(seen[0].proxy, proxyFor(POOL));
     assert.ok(!JSON.stringify(seen[0].env).includes('p:ss'), 'the list stays out of the browser environment');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('in a pool slot every launch uses exactly the slot proxy, never probes and ignores the configured list', async () => {
+  const { dir, cleanup } = await profileRoot();
+  try {
+    const { seen, prepareOptions } = preparer();
+    const probe = async () => { throw new Error('must not probe'); };
+    const browserType = { launchPersistentContext: async () => ({}) };
+    await launchCamoufox(dir, { proxies: POOL, tenant: '42', slotProxy: 'http://127.0.0.1:3128' }, { prepareOptions, probe, browserType });
+    await launchCamoufox(dir, { proxies: '', tenant: '7', slotProxy: 'http://127.0.0.1:3128' }, { prepareOptions, probe, browserType });
+    assert.deepEqual(seen.map(options => options.proxy), [{ server: 'http://127.0.0.1:3128' }, { server: 'http://127.0.0.1:3128' }]);
+    assert.ok(!JSON.stringify(seen).includes('p:ss'), 'the list never reaches the browser');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a slot proxy is a plain http address without credentials', () => {
+  assert.equal(slotProxy(undefined), undefined);
+  assert.equal(slotProxy(''), undefined);
+  assert.deepEqual(slotProxy('http://127.0.0.1:3128'), { server: 'http://127.0.0.1:3128' });
+  for (const value of ['https://127.0.0.1:3128', 'socks5://127.0.0.1:1080', 'http://u:p@127.0.0.1:3128', 'http://127.0.0.1:3128/x', '127.0.0.1:3128']) {
+    assert.throws(() => slotProxy(value), /slot proxy is invalid/, value);
+  }
+});
+
+test('Firefox runs with site isolation, loopback WebRTC, a bounded cache and localhost behind the proxy', async () => {
+  const { dir, cleanup } = await profileRoot();
+  try {
+    const { seen, prepareOptions } = preparer();
+    let launched;
+    await launchCamoufox(dir, { slotProxy: 'http://127.0.0.1:3128' }, { prepareOptions,
+      browserType: { launchPersistentContext: async (_profile, options) => { launched = options; return {}; } } });
+    const expected = {
+      'fission.autostart': true,
+      'fission.webContentIsolationStrategy': 1,
+      'media.peerconnection.ice.default_address_only': false,
+      'media.peerconnection.ice.loopback': true,
+      'browser.cache.disk.capacity': 262144,
+      'browser.cache.disk.smart_size.enabled': false,
+      'network.proxy.allow_hijacking_localhost': true,
+      'network.proxy.no_proxies_on': '',
+    };
+    for (const [name, value] of Object.entries(expected)) {
+      assert.equal(FIREFOX_PREFS[name], value, name);
+      assert.equal(seen[0].firefox_user_prefs[name], value, name);
+      assert.equal(launched.firefoxUserPrefs[name], value, name);
+    }
+    assert.equal(launched.acceptDownloads, false, 'downloads stay off');
   } finally {
     await cleanup();
   }

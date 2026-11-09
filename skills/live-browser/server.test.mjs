@@ -5,7 +5,7 @@ import { grpc, protoLoader } from '@axiom/live-browser';
 import { fileURLToPath } from 'node:url';
 import { schemas, validateInput } from './actions.mjs';
 import { CARD_SLOT, LOGIN_SLOTS } from './credentials.mjs';
-import { CONFIG_SCHEMA, gracefulShutdown, handlers, operatorConfig, SKILL_ID, SKILL_VERSION } from './server.mjs';
+import { CONFIG_SCHEMA, gracefulShutdown, handlers, operatorConfig, serviceOptions, SKILL_ID, SKILL_VERSION } from './server.mjs';
 
 const invoke = (handler, request) => new Promise((resolve, reject) => handler({ request },
   (error, result) => error ? reject(error) : resolve(result)));
@@ -115,18 +115,50 @@ test('skill and browser-control protocols load', () => {
   assert.ok(grpc.loadPackageDefinition(definition).axiom.skill.v1.SkillService.service.Execute);
 });
 
-test('the browser profile is declared as one persistent single-writer volume at the runtime profile root', async () => {
-  const { PROFILE_ROOT } = await import('@axiom/live-browser');
-  const storage = manifest.slice(manifest.indexOf('    storage:'), manifest.indexOf('  prompt:'));
-  assert.match(storage, /- name: browser-profile\n/);
-  assert.match(storage, /durability: persistent\n/);
-  assert.match(storage, /minimumCapacity: 10Gi\n/);
-  assert.match(storage, new RegExp(`mountPath: ${PROFILE_ROOT}\\n`));
-  assert.match(storage, /retention: retain\n/);
-  assert.match(storage, /writableGroup: 1000\n/);
-  assert.equal([...manifest.matchAll(/^      - name: /gm)].length, 1);
+test('2.0.0 needs no volume and its image is a browser pool pod running the slot server', () => {
+  assert.doesNotMatch(manifest, /^ {4}storage:/m, 'the pool restores and saves the profile; no per-tenant volume');
+  assert.doesNotMatch(manifest, /axiom-live-browser/);
   const dockerfile = readFileSync(new URL('./Dockerfile', import.meta.url), 'utf8');
-  assert.match(dockerfile, /ENTRYPOINT \["\/usr\/bin\/tini", "--", /, 'an init reaps orphaned browser processes');
+  assert.match(dockerfile, /^ARG SLOT_SERVER_IMAGE=localhost:5111\/axiomstudio\/openseal-chat-sandbox:dev$/m);
+  assert.match(dockerfile, /^FROM \$\{SLOT_SERVER_IMAGE\} AS slot$/m);
+  assert.match(dockerfile, /^COPY --from=slot \/usr\/local\/bin\/chat-sandbox \/usr\/local\/bin\/chat-sandbox$/m);
+  assert.match(dockerfile, /^ENTRYPOINT \["\/usr\/bin\/tini", "--", "\/usr\/local\/bin\/chat-sandbox"\]$/m);
+  assert.match(dockerfile, /^EXPOSE 8080$/m);
+  assert.doesNotMatch(dockerfile, /^USER /m, 'the slot server runs as root and drops each slot to its own user');
+  assert.doesNotMatch(dockerfile, /\/var\/lib\/axiom-live-browser/);
+  // Manifests go in before npm ci, sources after, so source edits keep the npm layer.
+  assert.ok(dockerfile.indexOf('&& npm ci') < dockerfile.indexOf('COPY skills/_lib/live-browser/*.mjs'));
+  assert.ok(dockerfile.indexOf('COPY --from=manifests') < dockerfile.indexOf('&& npm ci'));
+  const entrypoint = readFileSync(new URL('./entrypoint.sh', import.meta.url), 'utf8');
+  assert.match(entrypoint, /^export HOME=\/tmp\/home$/m);
+  assert.match(entrypoint, /XDG_RUNTIME_DIR:-\/tmp\/run/);
+  assert.match(entrypoint, /^pulseaudio --start/m);
+  assert.match(entrypoint, /^exec node \/opt\/skill\/live-browser\/server\.mjs$/m);
+});
+
+test('in a slot the runtime uses the slot proxy, the slot profile and the relayed Cortex services', async () => {
+  const { PROFILE_ROOT } = await import('@axiom/live-browser');
+  assert.equal(PROFILE_ROOT, '/tmp/profile');
+  assert.deepEqual(serviceOptions({
+    CORTEX_TENANT_ID: '42', LIVE_BROWSER_SLOT_PROXY: 'http://127.0.0.1:3128', LIVE_BROWSER_PROFILE_ROOT: '/tmp/profile',
+    AXIOM_SPEECH_API_URL: 'http://127.0.0.1:8082/rest/v1/llm-gateway/v1/',
+  }), { tenantID: '42', slotProxy: 'http://127.0.0.1:3128', profileRoot: '/tmp/profile', speechBaseURL: 'http://127.0.0.1:8082/rest/v1/llm-gateway/v1/' });
+  assert.deepEqual(serviceOptions({ CORTEX_TENANT_ID: '42' }), { tenantID: '42', profileRoot: PROFILE_ROOT });
+  assert.throws(() => serviceOptions({ LIVE_BROWSER_SLOT_PROXY: 'http://user:pass@proxy.example:8080' }), /slot proxy is invalid/);
+});
+
+test('the version is 2.0.0 in every place a release names it', () => {
+  assert.equal(SKILL_VERSION, '2.0.0');
+  assert.match(manifest, /^  version: 2\.0\.0$/m);
+  assert.match(manifest, /^    resolvedVersion: 2\.0\.0$/m);
+  assert.match(manifest, /^      package: axiomstudio\/skill-live-browser:2\.0\.0$/m);
+  assert.equal(JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version, SKILL_VERSION);
+  const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url)));
+  assert.equal(lock.version, SKILL_VERSION);
+  assert.equal(lock.packages[''].version, SKILL_VERSION);
+  const readme = readFileSync(new URL('./README.md', import.meta.url), 'utf8');
+  assert.ok(readme.includes(`-t axiomstudio/skill-live-browser:${SKILL_VERSION} .`));
+  assert.ok(readme.includes(`publish-k3d.sh axiomstudio/skill-live-browser:${SKILL_VERSION}`));
 });
 
 test('SIGTERM closes every browser before the server stops and the process exits', async () => {

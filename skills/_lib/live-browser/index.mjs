@@ -1,7 +1,8 @@
 // Shared live-browser runtime: Camoufox on a private Xvfb display, a human
 // take-over/hand-back lease, view-only and lease video, RFB desktop, host
 // authorization, Cortex browser-session registration, and page audio.
-export { launchCamoufox, camoufoxBrowser, clearStaleLocks, PROFILE_LOCK_FILES } from './camoufox-browser.mjs';
+export { launchCamoufox, camoufoxBrowser, clearStaleLocks, FIREFOX_PREFS, PROFILE_LOCK_FILES, slotProxy } from './camoufox-browser.mjs';
+export { guardPlaywrightNullResponse, isPlaywrightNullResponse } from './playwright-guard.mjs';
 export { createBrowserDisplay, openBrowserVideo, BROWSER_VIDEO_MIME, BROWSER_VIDEO_SIZE } from './browser-video.mjs';
 export { createBrowserDesktop } from './browser-desktop.mjs';
 export { openBrowserRFB } from './browser-rfb.mjs';
