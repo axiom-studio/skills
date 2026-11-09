@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 1.1.3
+  version: 2.0.0
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 1.1.3
+    resolvedVersion: 2.0.0
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,13 +23,13 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:1.1.3
+      package: axiomstudio/skill-live-browser:2.0.0
   config:
     scopes: [global, tenant]
     fields:
       - key: proxies
         label: Proxies
-        description: 'Proxies for page traffic, comma-separated: http://user:pass@host:port or host:port:user:pass. Each tenant keeps one. Empty connects directly.'
+        description: 'Proxies for page traffic, comma-separated: http://user:pass@host:port or host:port:user:pass. The browser pool chains each tenant through one of them, kept stable per tenant. Empty connects directly.'
         type: secret
         summary: true
   requirements:
@@ -37,16 +37,6 @@ definition:
     compute:
       requests: {cpu: 100m, memory: 512Mi}
       limits: {cpu: 2000m, memory: 4Gi}
-    # The tenant's real Camoufox profile (cookies, storage, IndexedDB, Cache
-    # Storage, service workers, history, permissions, saved logins). One
-    # writer: the runtime opens it in one browser at a time.
-    storage:
-      - name: browser-profile
-        durability: persistent
-        minimumCapacity: 10Gi
-        mountPath: /var/lib/axiom-live-browser
-        retention: retain
-        writableGroup: 1000
   prompt:
     userInvocable: true
     allowedTools:

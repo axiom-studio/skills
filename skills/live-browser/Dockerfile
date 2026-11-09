@@ -1,3 +1,10 @@
+# The image is a pod of Cortex's shared browser pool: Cortex's slot server
+# (chat-sandbox) runs as root under tini and starts the runtime in each slot
+# as that slot's user. The slot server comes from the chat sandbox image of
+# the same Cortex build.
+ARG SLOT_SERVER_IMAGE=localhost:5111/axiomstudio/openseal-chat-sandbox:dev
+FROM ${SLOT_SERVER_IMAGE} AS slot
+
 # Release bumps only change the "version" fields; blank them so the npm layer
 # below stays cached across releases. The real manifests are restored later.
 FROM node:22-bookworm-slim AS manifests
@@ -20,8 +27,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # package-lock.json; the check after npm ci enforces it.
 ARG CAMOUFOX_JS_VERSION=0.12.0
 ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
-COPY --from=axiomstudio/skill-live-browser:1.0.17@sha256:626e1bce0eeaaf6215134ba39999f21f5ce13e617efc8d2e4504b766346519a2 /opt/camoufox /opt/camoufox
-RUN node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=JSON.parse(readFileSync('/opt/camoufox/version.json')); if(v.version!=='156.0.1'||v.release!=='beta.36') throw new Error('Camoufox build changed; review and retest before updating the release pin');"
+# The browser always presents as Linux (os: 'linux' in camoufox-browser.mjs),
+# so the macOS- and Windows-only font sets and their fontconfig are dropped
+# (about 1.2 GB), and the GeoIP database too (geoip is off). Same layer as the
+# copy, so the removed files never reach the image.
+RUN --mount=type=bind,from=axiomstudio/skill-live-browser:1.0.17@sha256:626e1bce0eeaaf6215134ba39999f21f5ce13e617efc8d2e4504b766346519a2,source=/opt/camoufox,target=/mnt/camoufox \
+    cp -R --preserve=mode,timestamps /mnt/camoufox /opt/camoufox \
+    && node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=JSON.parse(readFileSync('/opt/camoufox/version.json')); const g=JSON.parse(readFileSync('/opt/camoufox/fonts/groups.json')); if(v.version!=='156.0.1'||v.release!=='beta.36') throw new Error('Camoufox build changed; review and retest before updating the release pin'); if(g.readBy.lin.join()!=='L,LM,LMW,LW') throw new Error('Camoufox Linux font groups changed');" \
+    && rm -rf /opt/camoufox/fonts/M /opt/camoufox/fonts/MW /opt/camoufox/fonts/W \
+        /opt/camoufox/fontconfig/macos /opt/camoufox/fontconfig/windows /opt/camoufox/GeoLite2-City.mmdb
 
 # The shared library is installed from its relative file: path, so it must sit
 # next to the skill exactly as in the repository (skills/_lib/live-browser).
@@ -34,23 +48,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends make g++ \
     && npm ci --omit=dev --include=optional \
     && IMPIT_VERBOSE=1 node -e "require('impit')" \
     && node -e "const v=require('camoufox-js/package.json').version; if (v!=='${CAMOUFOX_JS_VERSION}') throw new Error('camoufox-js '+v+' is locked; update CAMOUFOX_JS_VERSION to match')" \
-    && apt-get purge -y make g++ && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y --auto-remove make g++ \
+    && rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache /root/.node-gyp /tmp/* \
+        node_modules/better-sqlite3/deps node_modules/better-sqlite3/src \
+    && find node_modules/better-sqlite3/prebuilds -type f ! -name 'linux-x64.node' -delete
 # install-links=true copied the library into node_modules at npm ci time; add
 # its sources there (what runtime resolves) and to the repository-shaped path.
 COPY skills/_lib/live-browser/*.mjs skills/_lib/live-browser/*.proto /opt/skill/_lib/live-browser/
 COPY skills/_lib/live-browser/*.mjs skills/_lib/live-browser/*.proto ./node_modules/@axiom/live-browser/
 RUN rm -f /opt/skill/_lib/live-browser/*.test.mjs ./node_modules/@axiom/live-browser/*.test.mjs
 COPY skills/${SKILL_NAME}/package.json skills/${SKILL_NAME}/package-lock.json skills/${SKILL_NAME}/*.mjs skills/${SKILL_NAME}/*.proto skills/${SKILL_NAME}/entrypoint.sh ./
-RUN rm -f ./*.test.mjs && chmod 755 entrypoint.sh && chown -R node:node /opt/skill
-
-# The tenant's browser profile lives on the Skill's persistent volume
-# (requirements.storage in skill.yaml), mounted at /var/lib/axiom-live-browser
-# and group-writable for node (gid 1000). The directory here only backs runs
-# without the volume.
-RUN mkdir -p /var/lib/axiom-live-browser && chown node:node /var/lib/axiom-live-browser && chmod 700 /var/lib/axiom-live-browser
-USER node
+# Slot users (uid 20000+n) read and run everything under /opt/skill and
+# /opt/camoufox; only root writes them. The runtime keeps its profile and all
+# state in the slot's /tmp. Checked rather than chmod -R, which would copy
+# node_modules into another layer.
+RUN rm -f ./*.test.mjs && chmod 755 entrypoint.sh \
+    && bad=$(find /opt/skill /opt/camoufox \( ! -perm -o+r -o -perm /022 -o \( -type d ! -perm -o+x \) -o ! -user root \) -print -quit) \
+    && if [ -n "$bad" ]; then echo "not readable by slot users or writable by others: $bad" >&2; exit 1; fi
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-EXPOSE 50051
-# tini is PID 1: it forwards SIGTERM to the runtime (which closes Camoufox
-# cleanly) and reaps orphaned browser processes.
-ENTRYPOINT ["/usr/bin/tini", "--", "/opt/skill/live-browser/entrypoint.sh"]
+
+COPY --from=slot /usr/local/bin/chat-sandbox /usr/local/bin/chat-sandbox
+RUN mkdir -p /workspace
+WORKDIR /workspace
+EXPOSE 8080
+# The runtime the slot server starts in each slot: what release checks run to
+# verify the Skill's Health (scripts/lib/health.sh), as a slot user would.
+LABEL ai.axiom.skill.runtime.command=/opt/skill/live-browser/entrypoint.sh \
+      ai.axiom.skill.runtime.port=50051 \
+      ai.axiom.skill.runtime.user=20000
+# tini is PID 1 and reaps the slots' holders; each holder is PID 1 of its
+# slot and reaps orphaned browser processes there.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/chat-sandbox"]

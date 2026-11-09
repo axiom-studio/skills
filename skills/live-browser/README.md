@@ -24,7 +24,7 @@ For reading, searching and comparing pages use the Lightpanda browser Skill
 | `live-browser-scroll {sessionId, dx?, dy?}` | read | |
 | `live-browser-screenshot {sessionId, fullPage?}` | read | Refused (and snapshot screenshots withheld) while a filled card is on the page. |
 | `live-browser-request-handoff {sessionId, reason, summary}` | read | `reason`: payment, submit, login, personal_data, destructive, captcha, other. Returns `requiresHuman: true` with `challenges: ["manual_confirmation"]`. |
-| `live-browser-close {sessionId}` | read | Closes Camoufox (the profile is flushed to the volume), frees the browser for the next task and revokes the session. |
+| `live-browser-close {sessionId}` | read | Closes Camoufox (the profile is flushed, then saved by the browser pool), frees the browser for the next task and revokes the session. |
 | `live-browser-listen {sessionId, state: on\|off, speakerLabel?, displayName?, wakePhrases?, speakReplies?, transcriptionModel?, speechModel?, voice?}` | write | Axiom speech gateway; models default to the agent's catalog. |
 | `live-browser-speak {sessionId, text, speechModel?, voice?}` | write | Axiom speech gateway. |
 
@@ -104,23 +104,38 @@ there is no site-specific code.
 
 ## Host interface
 
+Version 2.0.0 runs only in Cortex's shared browser pool: pods of the image
+run Cortex's slot server (`chat-sandbox`) as root under `tini`, each pod has
+three slots, and each slot holds the browser of one owner (a person, or the
+Agent or Team when no person acts) of any tenant. The pool restores the
+owner's profile into the slot, then starts `entrypoint.sh` there as the
+slot's user, with `HOME=/tmp/home` and `XDG_RUNTIME_DIR=/tmp/run`. It is no
+longer deployed as a per-tenant runtime.
+
 - gRPC `axiom.skill.v1.SkillService` and `axiom.browser.v1.BrowserControlService`
-  (Control, Video, Desktop) on `SKILL_PORT` (50051).
+  (Control, Video, Desktop) on `SKILL_PORT` (50051), on the slot's loopback
+  (the pool reaches it through a slot tunnel).
 - `CORTEX_BROWSER_API_URL` (default
   `http://sentinel.axiomcd.svc.cluster.local/orchestrator/agent/browser/v1/`)
   for session registration, human-command authorization, handoff notices,
   conversation/transcript posts, speech grants and profile-command
   authorization. `AXIOM_SPEECH_API_URL` (default
   `http://axiomcloud.axiomcd.svc.cluster.local/rest/v1/llm-gateway/v1/`) for
-  transcription and speech. `CORTEX_TENANT_ID`: the tenant this runtime
-  serves (set by Cortex's Skill hosting); profile commands for any other
-  tenant are refused.
+  transcription and speech; in a slot both go through the slot's relay at
+  `127.0.0.1:8082`. `CORTEX_TENANT_ID`: the tenant of the slot's owner (set
+  by the pool); profile commands for any other tenant are refused.
+- `LIVE_BROWSER_SLOT_PROXY` (`http://127.0.0.1:3128` in a slot): when set,
+  every launch uses exactly this proxy, never probes, and ignores the
+  `proxies` config. The slot's proxy admits public addresses only and chains
+  to the tenant's upstream proxy, which the pool picks per lease.
 - Operator config `proxies` (secret, global with tenant overrides; set on the
   Skill's page in HelloSeal operator settings): the upstream proxies for page
   traffic, comma- or newline-separated, each a proxy URL
   (`http://user:pass@host:port`) or a provider list line
   (`host:port:user:pass`). It arrives in `ExecutionContext.config` with
-  `live-browser-start` and is used when the browser launches. Each tenant
+  `live-browser-start`. In the pool the runtime does not receive it: the pool
+  picks the tenant's entry the same way and chains the slot proxy to it.
+  Without a slot proxy it is used when the browser launches. Each tenant
   always prefers the same entry (rendezvous hash of the tenant id), so sites
   see one stable IP; changing the list only moves the tenants of the entries
   that were removed or added. When that proxy does not open a tunnel within 5s
@@ -135,15 +150,23 @@ there is no site-specific code.
 
 ## Browser profile
 
-The runtime is per tenant and keeps the tenant's one real Camoufox profile on
-its persistent volume (`browser-profile`, 10Gi, mounted at
-`/var/lib/axiom-live-browser`, override with `LIVE_BROWSER_PROFILE_ROOT`).
-The browser is launched with Playwright's persistent context on
-`<root>/camoufox`, so everything a normal browser keeps survives between
-sessions and pod restarts: first- and third-party cookies, localStorage,
-IndexedDB (including non-extractable CryptoKeys, as WhatsApp Web uses), Cache
-Storage, service workers, history, permissions, site settings and saved
-logins. Nothing is exported, uploaded or merged; there is no central copy.
+The runtime keeps its owner's one real Camoufox profile in the slot at
+`/tmp/profile` (`LIVE_BROWSER_PROFILE_ROOT`). The browser pool restores it
+there before the runtime starts and saves it, encrypted, to Cortex's object
+store after a sign-in, on checkpoints and when the browser closes (without
+`cache2`, `startupCache`, crash dumps or lock files). The browser is
+launched with Playwright's persistent context on `<root>/camoufox`, so
+everything a normal browser keeps survives between sessions: first- and
+third-party cookies, localStorage, IndexedDB (including non-extractable
+CryptoKeys, as WhatsApp Web uses), Cache Storage, service workers, history,
+permissions, site settings and saved logins. The disk cache is capped at
+256 MiB.
+
+- Isolation: Firefox site isolation is on (`fission.webContentIsolationStrategy`
+  1, which Camoufox ships off). Page traffic to `localhost` also goes to the
+  slot proxy, which refuses it, so pages never reach the runtime's ports.
+  WebRTC gathers loopback candidates and relays over TURN-over-TLS through
+  the proxy. Downloads stay off.
 
 - One browser per profile. Firefox opens a profile only once, and a live
   browser owns its display (live view and take control) and its page audio,
@@ -152,9 +175,11 @@ logins. Nothing is exported, uploaded or merged; there is no central copy.
   close. A new start in the same conversation reattaches to its browser.
 - Durability: closing a browser closes Camoufox, which flushes its SQLite
   files; the profile is released only after Firefox has exited. On SIGTERM
-  the runtime closes every browser before exiting (bounded to 45 s, inside
-  the pod's termination grace period). The image runs under `tini`, which
-  reaps orphaned browser processes.
+  the runtime closes every browser before exiting (bounded to 45 s); the
+  pool stops the runtime with a 15 s grace before it saves the profile.
+- A refused TURN-over-TLS channel makes playwright-core throw on a request
+  that finished without a response; that one error is logged as
+  `live_browser_playwright_null_response` and the runtime keeps running.
 - Stale `lock`/`.parentlock` files left by a crash or another pod are removed
   before launch (the runtime holds the profile exclusively).
 - The Camoufox fingerprint generated on first launch is kept in
@@ -177,5 +202,6 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:1.1.3 .
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:2.0.0 .
+skills/scripts/publish-k3d.sh axiomstudio/skill-live-browser:2.0.0   # local k3d only
 ```
