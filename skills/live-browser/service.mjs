@@ -56,8 +56,9 @@ function intentText(value) {
 // The agent's interactive browser. One live Camoufox per registered Cortex
 // browser session; at most one per (agent, conversation).
 //
-// The runtime is per tenant and keeps the tenant's single, real browser
-// profile on its persistent volume. Firefox opens a profile only once, and a
+// The runtime runs in a slot of the shared browser pool for one owner (a
+// person, or the umbrella when no person acts) and keeps that owner's single,
+// real browser profile. Firefox opens a profile only once, and a
 // live browser owns its whole display, page audio and take-control desktop,
 // so sessions are queued: one live browser at a time, a start from another
 // conversation waits (bounded) until it closes. Never log page content,
@@ -65,7 +66,7 @@ function intentText(value) {
 export class LiveBrowserService {
   #api; #authorize; #authorizeProfile; #deps; #sessions = new Map(); #options; #profile; #profileRequests = new Map();
 
-  constructor({ api, authorize, authorizeProfile, tenantID, deps = {}, profile = new PersistentBrowserProfile(), humanWaitMs = 120000,
+  constructor({ api, authorize, authorizeProfile, tenantID, slotProxy, deps = {}, profile = new PersistentBrowserProfile(), humanWaitMs = 120000,
     idleMs = 30 * MINUTE, maxLifetimeMs = 8 * 60 * MINUTE, replyWaitMs = 60 * MINUTE, extendMarginMs = 2 * MINUTE,
     leaseMs = 300000, profileWaitMs = PROFILE_WAIT_MS, closeTimeoutMs = 30000, fetchAPI = fetch, now = Date.now,
     paymentWatchMs = 45000, paymentPollMs = 1000,
@@ -75,7 +76,7 @@ export class LiveBrowserService {
     this.#authorize = authorize;
     this.#authorizeProfile = authorizeProfile;
     this.#profile = profile;
-    this.#options = { tenantID: tenantID === undefined || tenantID === '' ? undefined : String(tenantID), humanWaitMs, idleMs, maxLifetimeMs, replyWaitMs, extendMarginMs, leaseMs, profileWaitMs, closeTimeoutMs, fetchAPI, now, speechBaseURL,
+    this.#options = { tenantID: tenantID === undefined || tenantID === '' ? undefined : String(tenantID), slotProxy: slotProxy || undefined, humanWaitMs, idleMs, maxLifetimeMs, replyWaitMs, extendMarginMs, leaseMs, profileWaitMs, closeTimeoutMs, fetchAPI, now, speechBaseURL,
       paymentWatchMs, paymentPollMs };
     this.#deps = { launch: launchCamoufox, createDesktop: createBrowserDesktop, createAudioRoute,
       createAudio: options => new BrowserAudio(options), openVideo: openBrowserVideo, openRFB: openBrowserRFB, desktopInput: options => new BrowserDesktopInput(options), detectIntervention: detectBrowserIntervention,
@@ -181,11 +182,13 @@ export class LiveBrowserService {
       session.route = await this.#deps.createAudioRoute(session.id.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 24));
       // The persistent profile: everything from earlier sessions is there
       // before the first page loads.
-      // The operator's proxies arrive with the starting call; the tenant
-      // pins which one this browser uses.
+      // In a pool slot all page traffic goes through the slot's proxy, which
+      // the pool chains to the tenant's. Otherwise the operator's proxies
+      // arrive with the starting call and the tenant pins which one is used.
       session.launching = this.#deps.launch(this.#profile.root, { display: session.desktop.display,
         audio: { sink: session.route.sink, source: session.route.source },
-        proxies: config?.proxies ?? '', tenant: this.#options.tenantID ?? session.tenantID });
+        proxies: config?.proxies ?? '', tenant: this.#options.tenantID ?? session.tenantID,
+        ...(this.#options.slotProxy ? { slotProxy: this.#options.slotProxy } : {}) });
       session.context = await session.launching;
       if (session.closed) throw new Error('closed while starting');
       this.#profile.track(session.context);

@@ -16,7 +16,7 @@ const CONFIG_ENV = /^CAMOU_CONFIG_[0-9]+$/;
 export const PROFILE_LOCK_FILES = ['lock', '.parentlock', 'parent.lock'];
 
 // Only the exclusive profile lease holder may call this: no browser of this
-// runtime has the profile open, and the volume has a single writer pod.
+// runtime has the profile open, and the slot holds the only copy in use.
 export async function clearStaleLocks(browserDir) {
   for (const name of PROFILE_LOCK_FILES) await rm(join(browserDir, name), { force: true });
 }
@@ -110,6 +110,19 @@ export function probeProxy(proxy, { timeoutMs = PROXY_PROBE_TIMEOUT_MS } = {}) {
   });
 }
 
+// In the shared browser pool the slot's own egress proxy carries all page
+// traffic: the pool chains it to the tenant's proxy, so the runtime neither
+// sees the configured list nor probes anything.
+export function slotProxy(value) {
+  if (value === undefined || value === '') return undefined;
+  let url;
+  try { url = new URL(value); } catch { throw new Error('The slot proxy is invalid'); }
+  if (url.protocol !== 'http:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('The slot proxy is invalid');
+  }
+  return { server: value };
+}
+
 export async function reachableProxy(list, tenant, probe = probeProxy) {
   const proxies = tenantProxies(list, tenant);
   if (!proxies.length) return undefined;
@@ -117,17 +130,42 @@ export async function reachableProxy(list, tenant, probe = probeProxy) {
   throw new Error('No browser proxy is reachable');
 }
 
+// Preferences on top of Camoufox's own.
+export const FIREFOX_PREFS = Object.freeze({
+  'media.navigator.streams.fake': false,
+  'permissions.default.microphone': 1,
+  'permissions.default.camera': 2,
+  'media.autoplay.default': 0,
+  // Camoufox ships with site isolation off; browsers of several people share
+  // a pod, so every site gets its own content process.
+  'fission.autostart': true,
+  'fission.webContentIsolationStrategy': 1,
+  // The slot has only a loopback interface and reaches the internet through
+  // its proxy: without these WebRTC gathers no candidates, and meetings
+  // relay over TURN-over-TLS through the proxy.
+  'media.peerconnection.ice.default_address_only': false,
+  'media.peerconnection.ice.loopback': true,
+  // A bounded disk cache (KiB), so a profile stays small to save and restore.
+  'browser.cache.disk.capacity': 262144,
+  'browser.cache.disk.smart_size.enabled': false,
+  // Page traffic to localhost goes to the proxy too, which refuses it: pages
+  // never reach the runtime's own ports in the slot.
+  'network.proxy.allow_hijacking_localhost': true,
+  'network.proxy.no_proxies_on': '',
+});
+
 // Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio
 // routing (PULSE_SINK/PULSE_SOURCE) is per browser so a page never hears or
-// speaks into another browser's audio.
-export async function launchCamoufox(profileRoot, { display, audio, proxies, tenant } = {}, {
+// speaks into another browser's audio. With a slot proxy, every launch uses
+// exactly that proxy and the configured list is ignored.
+export async function launchCamoufox(profileRoot, { display, audio, proxies, tenant, slotProxy: fixedProxy } = {}, {
   prepareOptions = launchOptions, browserType = firefox, probe = probeProxy,
 } = {}) {
   if (!profileRoot || (display !== undefined && !/^:[0-9]{1,5}$/.test(display)) ||
     (audio !== undefined && (!SINK.test(audio?.sink ?? '') || !SINK.test(audio?.source ?? '')))) {
     throw new Error('Browser profile or display is unavailable');
   }
-  const proxy = await reachableProxy(proxies, tenant, probe);
+  const proxy = slotProxy(fixedProxy) ?? await reachableProxy(proxies, tenant, probe);
   const prepared = await prepareOptions({
     ...(proxy ? { proxy } : {}),
     os: 'linux', headless: !display, window: [1280, 800],
@@ -136,12 +174,7 @@ export async function launchCamoufox(profileRoot, { display, audio, proxies, ten
     exclude_addons: ['UBO'],
     env: { ...process.env, ...(display ? { DISPLAY: display, MOZ_ENABLE_WAYLAND: '0' } : {}),
       ...(audio ? { PULSE_SINK: audio.sink, PULSE_SOURCE: audio.source } : {}) },
-    firefox_user_prefs: {
-      'media.navigator.streams.fake': false,
-      'permissions.default.microphone': 1,
-      'permissions.default.camera': 2,
-      'media.autoplay.default': 0,
-    },
+    firefox_user_prefs: { ...FIREFOX_PREFS },
   });
   const browserDir = join(profileRoot, 'camoufox');
   await mkdir(browserDir, { recursive: true, mode: 0o700 });

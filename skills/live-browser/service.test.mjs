@@ -66,8 +66,9 @@ function fakePage() {
 }
 
 function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, leaseMs, noticeFails = false, launchGate, profileWaitMs, closeGate, authorizeProfile,
-  lifetime = {}, expiresInMs = 3600000, extendFails = false } = {}) {
+  lifetime = {}, expiresInMs = 3600000, extendFails = false, slotProxy } = {}) {
   const calls = [];
+  const launches = [];
   let sessions = 0, requests = 0;
   const conversation = { id: conversationId };
   const root = mkdtempSync(join(tmpdir(), 'live-browser-profile-'));
@@ -101,6 +102,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
     createAudioRoute: async id => ({ sink: `lb_${id}_capture`, source: `lb_${id}_source`, commands: {}, close: async () => calls.push(['route-close']) }),
     launch: async (dir, options) => {
       calls.push(['launch', dir, options.display, options.audio.sink]);
+      launches.push(options);
       await launchGate;
       const page = fakePage(); pages.push(page);
       const context = { pages: () => [page], newPage: async () => page,
@@ -125,7 +127,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
     assert.match(sessionGrant, /^grant-/);
     return { userID: 'human-1', tenantID: '7', agentID: agentId, requestID: `r-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command };
   };
-  const service = new LiveBrowserService({ api, authorize, deps, profile, humanWaitMs: 200, tenantID: '7', closeTimeoutMs: 50, paymentWatchMs: 40, paymentPollMs: 5,
+  const service = new LiveBrowserService({ api, authorize, deps, profile, humanWaitMs: 200, tenantID: '7', slotProxy, closeTimeoutMs: 50, paymentWatchMs: 40, paymentPollMs: 5,
     authorizeProfile: authorizeProfile ?? (async ({ command }) => ({ userID: 'human-1', tenantID: '7', agentID: agentId,
       requestID: `p-${++requests}`, expiresAt: new Date(Date.now() + 15000).toISOString(), command })),
     ...(leaseMs ? { leaseMs } : {}), ...(profileWaitMs ? { profileWaitMs } : {}), ...lifetime });
@@ -135,7 +137,7 @@ function harness({ agentId = 'agent-1', conversationId = 'conv-1', detect, lease
   const run = (action, input, runID = 'run-1', extra = {}) => service.execute(action, { runID, agentID: agentId, input, bindings: { ...bindings, ...extra } });
   const profileCommand = command => service.controlProfile({ agentID: agentId,
     authorization: { token: 'proof', commandJSON: JSON.stringify(command) }, command });
-  return { service, calls, pages, contexts, control, run, profile, root, conversation, profileCommand };
+  return { service, calls, launches, pages, contexts, control, run, profile, root, conversation, profileCommand };
 }
 
 test('start registers the session, launches on a private display and reports rich status', async () => {
@@ -154,6 +156,19 @@ test('start registers the session, launches on a private display and reports ric
   assert.equal(again.sessionId, 'b-1');
   assert.equal(h.calls.filter(call => call[0] === 'register').length, 1);
   await h.service.closeAll();
+});
+
+test('in a pool slot the browser launches on the slot proxy; elsewhere on the configured proxies', async () => {
+  for (const [slotProxy, expected] of [['http://127.0.0.1:3128', 'http://127.0.0.1:3128'], [undefined, undefined]]) {
+    const h = harness({ slotProxy });
+    await h.service.execute('live-browser-start', { runID: 'run-1', agentID: 'agent-1', input: { url: 'https://example.com/' },
+      bindings: { CORTEX_HOST_INVOCATIONS: JSON.stringify({ 'host:browser': 'invocation' }) }, config: { proxies: 'proxy.example:8080:u:p' } });
+    assert.equal(h.launches.length, 1);
+    assert.equal(h.launches[0].slotProxy, expected);
+    assert.equal(h.launches[0].proxies, 'proxy.example:8080:u:p', 'launch ignores the list when a slot proxy is set');
+    assert.equal(h.launches[0].tenant, '7');
+    await h.service.closeAll();
+  }
 });
 
 test('status and the live view work while the browser is still launching', async () => {
