@@ -1,8 +1,9 @@
 # The image is a pod of Cortex's shared browser pool: Cortex's slot server
 # (chat-sandbox) runs as root under tini and starts the runtime in each slot
 # as that slot's user. The slot server comes from the chat sandbox image of
-# the same Cortex build.
-ARG SLOT_SERVER_IMAGE=localhost:5111/axiomstudio/openseal-chat-sandbox:dev
+# the same Cortex build: the published chat sandbox image of a Cortex release,
+# pinned by digest. A local build can pass its own with --build-arg.
+ARG SLOT_SERVER_IMAGE=docker.io/axiomstudio/openseal-chat-sandbox:v2.3.79@sha256:4442c1a6376a783c33df5ffb63892a28c48ec0d5559971f5d4a7d92654422ef0
 FROM ${SLOT_SERVER_IMAGE} AS slot
 
 # Release bumps only change the "version" fields; blank them so the npm layer
