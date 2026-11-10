@@ -4,7 +4,7 @@ import { schemas, validateInput } from './actions.mjs';
 import { LiveBrowserService } from './service.mjs';
 
 export const SKILL_ID = 'skill-live-browser';
-export const SKILL_VERSION = '2.0.0';
+export const SKILL_VERSION = '2.0.1';
 
 // Operator config; must match skill.yaml's config section (server.test.mjs).
 export const CONFIG_SCHEMA = Object.freeze({

@@ -147,11 +147,11 @@ test('in a slot the runtime uses the slot proxy, the slot profile and the relaye
   assert.throws(() => serviceOptions({ LIVE_BROWSER_SLOT_PROXY: 'http://user:pass@proxy.example:8080' }), /slot proxy is invalid/);
 });
 
-test('the version is 2.0.0 in every place a release names it', () => {
-  assert.equal(SKILL_VERSION, '2.0.0');
-  assert.match(manifest, /^  version: 2\.0\.0$/m);
-  assert.match(manifest, /^    resolvedVersion: 2\.0\.0$/m);
-  assert.match(manifest, /^      package: axiomstudio\/skill-live-browser:2\.0\.0$/m);
+test('the version is 2.0.1 in every place a release names it', () => {
+  assert.equal(SKILL_VERSION, '2.0.1');
+  assert.match(manifest, /^  version: 2\.0\.1$/m);
+  assert.match(manifest, /^    resolvedVersion: 2\.0\.1$/m);
+  assert.match(manifest, /^      package: axiomstudio\/skill-live-browser:2\.0\.1$/m);
   assert.equal(JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version, SKILL_VERSION);
   const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url)));
   assert.equal(lock.version, SKILL_VERSION);
