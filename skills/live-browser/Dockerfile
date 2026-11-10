@@ -30,12 +30,15 @@ ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
 # The browser always presents as Linux (os: 'linux' in camoufox-browser.mjs),
 # so the macOS- and Windows-only font sets and their fontconfig are dropped
 # (about 1.2 GB), and the GeoIP database too (geoip is off). Same layer as the
-# copy, so the removed files never reach the image.
+# copy, so the removed files never reach the image. The published build ships
+# some files writable by everyone (addons/UBO); slot users of other tenants
+# share these files, so nobody but root may write them.
 RUN --mount=type=bind,from=axiomstudio/skill-live-browser:1.0.17@sha256:626e1bce0eeaaf6215134ba39999f21f5ce13e617efc8d2e4504b766346519a2,source=/opt/camoufox,target=/mnt/camoufox \
     cp -R --preserve=mode,timestamps /mnt/camoufox /opt/camoufox \
     && node --input-type=module -e "import {readFileSync} from 'node:fs'; const v=JSON.parse(readFileSync('/opt/camoufox/version.json')); const g=JSON.parse(readFileSync('/opt/camoufox/fonts/groups.json')); if(v.version!=='156.0.1'||v.release!=='beta.36') throw new Error('Camoufox build changed; review and retest before updating the release pin'); if(g.readBy.lin.join()!=='L,LM,LMW,LW') throw new Error('Camoufox Linux font groups changed');" \
     && rm -rf /opt/camoufox/fonts/M /opt/camoufox/fonts/MW /opt/camoufox/fonts/W \
-        /opt/camoufox/fontconfig/macos /opt/camoufox/fontconfig/windows /opt/camoufox/GeoLite2-City.mmdb
+        /opt/camoufox/fontconfig/macos /opt/camoufox/fontconfig/windows /opt/camoufox/GeoLite2-City.mmdb \
+    && chmod -R go-w /opt/camoufox
 
 # The shared library is installed from its relative file: path, so it must sit
 # next to the skill exactly as in the repository (skills/_lib/live-browser).
