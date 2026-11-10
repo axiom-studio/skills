@@ -61,9 +61,10 @@ COPY skills/${SKILL_NAME}/package.json skills/${SKILL_NAME}/package-lock.json sk
 # Slot users (uid 20000+n) read and run everything under /opt/skill and
 # /opt/camoufox; only root writes them. The runtime keeps its profile and all
 # state in the slot's /tmp. Checked rather than chmod -R, which would copy
-# node_modules into another layer.
+# node_modules into another layer. Symbolic links are skipped: their own
+# mode is always 0777 and means nothing, and their targets are checked.
 RUN rm -f ./*.test.mjs && chmod 755 entrypoint.sh \
-    && bad=$(find /opt/skill /opt/camoufox \( ! -perm -o+r -o -perm /022 -o \( -type d ! -perm -o+x \) -o ! -user root \) -print -quit) \
+    && bad=$(find /opt/skill /opt/camoufox ! -type l \( ! -perm -o+r -o -perm /022 -o \( -type d ! -perm -o+x \) -o ! -user root \) -print -quit) \
     && if [ -n "$bad" ]; then echo "not readable by slot users or writable by others: $bad" >&2; exit 1; fi
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
