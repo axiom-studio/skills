@@ -202,6 +202,6 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:2.0.0 .
-skills/scripts/publish-k3d.sh axiomstudio/skill-live-browser:2.0.0   # local k3d only
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:2.0.1 .
+skills/scripts/publish-k3d.sh axiomstudio/skill-live-browser:2.0.1   # local k3d only
 ```

@@ -3,7 +3,7 @@
 # as that slot's user. The slot server comes from the chat sandbox image of
 # the same Cortex build: the published chat sandbox image of a Cortex release,
 # pinned by digest. A local build can pass its own with --build-arg.
-ARG SLOT_SERVER_IMAGE=docker.io/axiomstudio/openseal-chat-sandbox:v2.3.79@sha256:4442c1a6376a783c33df5ffb63892a28c48ec0d5559971f5d4a7d92654422ef0
+ARG SLOT_SERVER_IMAGE=docker.io/axiomstudio/openseal-chat-sandbox:v2.3.80@sha256:8a9f0940006bf5650c91615403385061281521e31dfff787ba214d71ffd54ea5
 FROM ${SLOT_SERVER_IMAGE} AS slot
 
 # Release bumps only change the "version" fields; blank them so the npm layer
