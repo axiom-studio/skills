@@ -67,6 +67,7 @@ func newSlackSkillServer() (*grpc.SkillServer, error) {
 	server := grpc.NewSkillServer(identity.ID, identity.Version)
 	server.RegisterExecutorWithSchema("slack-send-message", &SlackSendMessageExecutor{}, SlackSendMessageSchema)
 	server.RegisterExecutorWithSchema("slack-read-messages", &SlackReadMessagesExecutor{}, SlackReadMessagesSchema)
+	server.RegisterExecutorWithSchema("slack-read-file", &SlackReadFileExecutor{}, SlackReadFileSchema)
 	server.RegisterExecutorWithSchema("slack-search-messages", &SlackSearchMessagesExecutor{}, SlackSearchMessagesSchema)
 	server.RegisterExecutorWithSchema("slack-channel-list", &SlackChannelListExecutor{}, SlackChannelListSchema)
 	server.RegisterExecutorWithSchema("slack-add-reaction", &SlackAddReactionExecutor{}, SlackAddReactionSchema)
@@ -107,18 +108,19 @@ type SlackChannel struct {
 }
 
 type SlackMessage struct {
-	Type            string   `json:"type"`
-	User            string   `json:"user"`
-	Text            string   `json:"text"`
-	Timestamp       string   `json:"ts"`
-	ThreadTs        string   `json:"thread_ts"`
-	ReplyCount      int      `json:"reply_count"`
-	ReplyUsers      []string `json:"reply_users"`
-	ReplyUsersCount int      `json:"reply_users_count"`
-	LatestReply     string   `json:"latest_reply"`
-	IsLocked        bool     `json:"is_locked"`
-	Team            string   `json:"team"`
-	BotID           string   `json:"bot_id"`
+	Type            string      `json:"type"`
+	User            string      `json:"user"`
+	Text            string      `json:"text"`
+	Timestamp       string      `json:"ts"`
+	ThreadTs        string      `json:"thread_ts"`
+	ReplyCount      int         `json:"reply_count"`
+	ReplyUsers      []string    `json:"reply_users"`
+	ReplyUsersCount int         `json:"reply_users_count"`
+	LatestReply     string      `json:"latest_reply"`
+	IsLocked        bool        `json:"is_locked"`
+	Team            string      `json:"team"`
+	BotID           string      `json:"bot_id"`
+	Files           []slackFile `json:"files"`
 }
 
 type SlackMessagesResponse struct {
@@ -287,7 +289,7 @@ func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.
 
 	messages := make([]map[string]interface{}, 0, len(result.Messages))
 	for _, msg := range result.Messages {
-		messages = append(messages, map[string]interface{}{
+		message := map[string]interface{}{
 			"type":            msg.Type,
 			"user":            msg.User,
 			"text":            msg.Text,
@@ -300,7 +302,11 @@ func (e *SlackReadMessagesExecutor) Execute(ctx context.Context, step *executor.
 			"replyUsersCount": msg.ReplyUsersCount,
 			"isLocked":        msg.IsLocked,
 			"isBot":           msg.BotID != "",
-		})
+		}
+		if files := normalizedSlackFiles(msg.Files); len(files) > 0 {
+			message["files"] = files
+		}
+		messages = append(messages, message)
 	}
 
 	return &executor.StepResult{

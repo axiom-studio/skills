@@ -38,6 +38,9 @@ type slackFile struct {
 	PrivateURL string                                 `json:"url_private_download"`
 	PreviewURL string                                 `json:"url_private"`
 	Shares     map[string]map[string][]slackFileShare `json:"shares"`
+	Channels   []string                               `json:"channels"`
+	Groups     []string                               `json:"groups"`
+	IMs        []string                               `json:"ims"`
 }
 type slackFileShare struct {
 	Timestamp       string `json:"ts"`

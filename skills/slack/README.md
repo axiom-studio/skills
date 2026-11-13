@@ -13,6 +13,7 @@ or product UI.
 
 - **slack-send-message** — Send messages to channels or threads
 - **slack-read-messages** — Read a page of channel history, or a specific thread
+- **slack-read-file** — Show the model a PNG, JPEG or WebP image shared in a channel
 - **slack-search-messages** — Search keywords in one page of channel or thread history
 - **slack-channel-list** — Search and page through authorized channels
 - **slack-add-reaction** — Add a reaction to a message
@@ -93,6 +94,17 @@ short-lived `action_token` from the initiating event; native private-channel and
 DM search requires user authorization. See the official
 [Conversations history reference](https://docs.slack.dev/reference/methods/conversations.history/)
 and [Real-time Search guide](https://docs.slack.dev/apis/web-api/real-time-search-api/).
+
+## Reading shared images
+
+`slack-read-messages` lists each message's files (`id`, `name`, `mediaType`,
+`sizeBytes`, at most eight). `slack-read-file` takes the channel and one of
+those file IDs and returns the image as `modelMedia`, which the host shows to
+the model and removes from the visible output. The file must be shared in that
+exact channel, so the host's channel authority also bounds which files can be
+read. PNG, JPEG and WebP up to 2 MiB are supplied; other files return
+`not_an_image`, GIFs `unsupported_image` and larger files `size_limit`, all
+without downloading. It needs the `files:read` bot scope.
 
 ## Conversation attachments
 
