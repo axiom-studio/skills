@@ -92,9 +92,8 @@ func TestSlackReadFileSuppliesSharedPNGToModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	media, _ := result.Output["modelMedia"].(map[string]interface{})
-	if result.Output["status"] != "supplied" || result.Output["channel"] != "C1" || media["mediaType"] != "image/png" ||
-		media["detail"] != "auto" || media["contentBase64"] != base64.StdEncoding.EncodeToString([]byte("\x89PNG")) {
+	if result.Output["status"] != "supplied" || result.Output["channel"] != "C1" ||
+		result.Output["image"] != "data:image/png;base64,"+base64.StdEncoding.EncodeToString([]byte("\x89PNG")) {
 		t.Fatalf("read file = %#v", result.Output)
 	}
 	if file := result.Output["file"].(conversationFile); file.ID != "F1" || file.SizeBytes != 4 {
@@ -124,7 +123,7 @@ func TestSlackReadFileDoesNotDownloadNonImages(t *testing.T) {
 	for mediaType, want := range map[string]string{"application/pdf": "not_an_image", "image/gif": "unsupported_image"} {
 		_, downloads := slackFileServer(t, sharedFile("F1", mediaType, 4, "C1"), "data")
 		result, err := readSlackFile(t, "C1", "F1")
-		if err != nil || result.Output["status"] != want || result.Output["modelMedia"] != nil || *downloads != 0 {
+		if err != nil || result.Output["status"] != want || result.Output["image"] != nil || *downloads != 0 {
 			t.Fatalf("%s: read = %#v, err = %v, downloads = %d", mediaType, result, err, *downloads)
 		}
 	}
@@ -141,7 +140,7 @@ func TestSlackReadFileMissingScopeAsksForFilesRead(t *testing.T) {
 func TestSlackReadFileReportsSizeLimitWithoutData(t *testing.T) {
 	_, downloads := slackFileServer(t, sharedFile("F1", "image/png", maximumSlackFileBytes+1, "C1"), "")
 	result, err := readSlackFile(t, "C1", "F1")
-	if err != nil || result.Output["status"] != "size_limit" || result.Output["modelMedia"] != nil || *downloads != 0 {
+	if err != nil || result.Output["status"] != "size_limit" || result.Output["image"] != nil || *downloads != 0 {
 		t.Fatalf("read = %#v, err = %v", result, err)
 	}
 }

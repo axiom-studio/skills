@@ -246,19 +246,10 @@ definition:
                                 type: integer
                         required: [id, name, sizeBytes]
                         type: object
-                    modelMedia:
-                        additionalProperties: false
-                        properties:
-                            contentBase64:
-                                type: string
-                            detail:
-                                const: auto
-                                type: string
-                            mediaType:
-                                enum: [image/jpeg, image/png, image/webp]
-                                type: string
-                        required: [mediaType, contentBase64, detail]
-                        type: object
+                    image:
+                        description: The image when status is supplied; the host keeps it as a file in the chat and shows it to you
+                        format: data-url
+                        type: string
                     status:
                         description: supplied = the image is attached for you to see; not_an_image, unsupported_image (GIF), size_limit (over 3 MiB) and unavailable mean it was not read
                         enum: [not_an_image, size_limit, supplied, unavailable, unsupported_image]

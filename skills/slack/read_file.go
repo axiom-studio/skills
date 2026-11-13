@@ -85,11 +85,10 @@ func (e *SlackReadFileExecutor) Execute(ctx context.Context, step *executor.Step
 		output["file"] = conversationFile{ID: fileID, Name: fileID, MediaType: "application/octet-stream"}
 	}
 	if status == "supplied" {
-		output["modelMedia"] = map[string]interface{}{
-			"mediaType":     strings.ToLower(file.MediaType),
-			"contentBase64": base64.StdEncoding.EncodeToString(data),
-			"detail":        "auto",
-		}
+		// A data URL keeps the image's own type. The host keeps it as a file
+		// in the chat (tool-output/<call>/) and shows that file to the model,
+		// the same way it reads every other chat image.
+		output["image"] = "data:" + strings.ToLower(file.MediaType) + ";base64," + base64.StdEncoding.EncodeToString(data)
 	}
 	return &executor.StepResult{Output: output}, nil
 }

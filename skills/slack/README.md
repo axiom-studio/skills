@@ -99,8 +99,9 @@ and [Real-time Search guide](https://docs.slack.dev/apis/web-api/real-time-searc
 
 `slack-read-messages` lists each message's files (`id`, `name`, `mediaType`,
 `sizeBytes`, at most eight). `slack-read-file` takes the channel and one of
-those file IDs and returns the image as `modelMedia`, which the host shows to
-the model and removes from the visible output. The file must be shared in that
+those file IDs and returns the image as a data URL in `image`, which the host
+keeps as a chat file (tool-output/<call>/) and shows to the model like any other
+chat image. The file must be shared in that
 exact channel, so the host's channel authority also bounds which files can be
 read. PNG, JPEG and WebP up to 3 MiB are supplied; other files return
 `not_an_image`, GIFs `unsupported_image` and larger files `size_limit`, all
