@@ -643,10 +643,10 @@ definition:
         conversations:
             protocolVersion: openseal.conversation.adapter/v1
             name: Slack conversations
-            description: Verify Slack Socket Mode events and deliver durable replies through Slack Web API.
+            description: Verify Slack Socket Mode events and card answers, and deliver durable replies through Slack Web API.
             provider: slack
             endpointModes: [channel, direct]
-            inboundEventTypes: [conversation.message.received]
+            inboundEventTypes: [conversation.card.interacted, conversation.message.received]
             features: [attachments, context_history, mentions, threads, typing, visuals]
             subjectEvidence:
                 - action: slack-read-messages
@@ -681,7 +681,7 @@ definition:
                 kind: plugin
                 ingressEndpoint: slack.conversation.ingress
                 deliveryEndpoint: slack.conversation.deliver
-                ingressCredentials: [slack_signing_secret]
+                ingressCredentials: [slack_bot_token, slack_signing_secret]
                 deliveryCredentials: [slack_bot_token]
     callbackAdapters:
         interactions:

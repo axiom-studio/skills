@@ -51,7 +51,9 @@ func TestSlackDeliveryPostsVisualBlocks(t *testing.T) {
 	blocks, _ := json.Marshal(posted["blocks"])
 	want := `[{"text":{"text":"Agent reply","type":"mrkdwn"},"type":"section"},` +
 		`{"text":{"emoji":true,"text":"Quarter review","type":"plain_text"},"type":"header"},` +
-		`{"text":{"text":"Next\n• Dig in","type":"mrkdwn"},"type":"section"}]`
+		`{"text":{"text":"Next","type":"mrkdwn"},"type":"section"},` +
+		`{"elements":[{"action_id":"openseal_card:1","text":{"emoji":true,"text":"Dig in","type":"plain_text"},"type":"button",` +
+		`"value":"{\"d\":\"endpoint\",\"a\":\"visual-1\",\"v\":2,\"c\":\"ch\",\"k\":\"chip\",\"e\":\"a\"}"}],"type":"actions"}]`
 	if string(blocks) != want || posted["text"] != "Agent reply\n\n*Quarter review*\nNext\n- Dig in" || posted["metadata"] == nil {
 		t.Fatalf("Slack post = %#v", posted)
 	}
@@ -84,7 +86,7 @@ func TestSlackFinishesAStreamedAnswerWithItsVisual(t *testing.T) {
 	output, err := adapter.delivery(context.Background(), config)
 
 	blocks, _ := updated["blocks"].([]interface{})
-	if err != nil || output["outcome"] != "delivered" || updated["ts"] != "1720000001.123" || len(blocks) != 3 || updated["metadata"] != nil {
+	if err != nil || output["outcome"] != "delivered" || updated["ts"] != "1720000001.123" || len(blocks) != 4 || updated["metadata"] != nil {
 		t.Fatalf("Slack update = %#v, %v", updated, err)
 	}
 }

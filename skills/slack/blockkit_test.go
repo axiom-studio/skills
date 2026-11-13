@@ -112,7 +112,7 @@ func TestBlockKitKeepsSlackLimits(t *testing.T) {
 		components = append(components, fmt.Sprintf(`{"id":"t%d","type":"text","text":"Part %d"}`, index, index))
 	}
 	visual := decodeTestVisual(t, `{"artifactId":"v","version":1,"fallbackText":"**Long**","surface":{"title":"`+strings.Repeat("T", 200)+`","components":[`+strings.Join(components, ",")+`]}}`)
-	blocks, text := slackVisualMessage(strings.Repeat("a", 3500)+"\n"+strings.Repeat("b", 10), []conversationVisual{visual})
+	blocks, text := slackVisualMessage(strings.Repeat("a", 3500)+"\n"+strings.Repeat("b", 10), []conversationVisual{visual}, "")
 	if len(blocks) != maxSlackBlocks || blocks[0]["type"] != "section" || blocks[1]["type"] != "section" ||
 		blocks[maxSlackBlocks-1]["elements"].([]slackBlock)[0]["text"] != slackFullCardNotice {
 		t.Fatalf("blocks = %d, last = %v", len(blocks), blocks[len(blocks)-1])
@@ -147,7 +147,7 @@ const testVisualJSON = `{"artifactId":"visual-1","version":2,"fallbackText":"**Q
 	`{"id":"ch","type":"choices","summary":"Next","choices":{"chips":[{"id":"a","label":"Dig in"}]}}]}}`
 
 func TestBlockKitMessageLeadsWithTheAnswer(t *testing.T) {
-	blocks, text := slackVisualMessage("Revenue **grew**.", []conversationVisual{decodeTestVisual(t, testVisualJSON)})
+	blocks, text := slackVisualMessage("Revenue **grew**.", []conversationVisual{decodeTestVisual(t, testVisualJSON)}, "")
 	want := `[{"text":{"text":"Revenue *grew*.","type":"mrkdwn"},"type":"section"},` +
 		`{"text":{"emoji":true,"text":"Quarter review","type":"plain_text"},"type":"header"},` +
 		`{"text":{"text":"Next\n• Dig in","type":"mrkdwn"},"type":"section"}]`

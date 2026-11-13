@@ -239,3 +239,32 @@ func TestConversationAdapterDeclaresVisuals(t *testing.T) {
 		t.Fatalf("features = %v, version = %s", got, manifest.Definition.Version)
 	}
 }
+
+// Card answers arrive through the conversation ingress, which opens a card
+// form's modal with the bot token.
+func TestConversationAdapterTakesCardAnswers(t *testing.T) {
+	data, err := os.ReadFile("skill.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Definition struct {
+			ConversationAdapters map[string]struct {
+				InboundEventTypes []string `yaml:"inboundEventTypes"`
+				Transport         struct {
+					IngressCredentials []string `yaml:"ingressCredentials"`
+				} `yaml:"transport"`
+			} `yaml:"conversationAdapters"`
+		} `yaml:"definition"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	adapter := manifest.Definition.ConversationAdapters["conversations"]
+	if want := []string{"conversation.card.interacted", "conversation.message.received"}; !reflect.DeepEqual(adapter.InboundEventTypes, want) {
+		t.Fatalf("inbound event types = %v, want %v", adapter.InboundEventTypes, want)
+	}
+	if want := []string{"slack_bot_token", "slack_signing_secret"}; !reflect.DeepEqual(adapter.Transport.IngressCredentials, want) {
+		t.Fatalf("ingress credentials = %v, want %v", adapter.Transport.IngressCredentials, want)
+	}
+}

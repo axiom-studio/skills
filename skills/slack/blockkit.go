@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -33,12 +34,14 @@ type slackBlock = map[string]interface{}
 // visuals as Block Kit blocks, and its top-level text: the answer and each
 // visual's fallback text, which Slack shows in notifications and screen
 // readers.
-func slackVisualMessage(answer string, visuals []conversationVisual) ([]slackBlock, string) {
+// Answerable components draw as buttons, selects and form buttons when
+// destination, the conversation endpoint that sends the message, is known.
+func slackVisualMessage(answer string, visuals []conversationVisual, destination string) ([]slackBlock, string) {
 	var blocks []slackBlock
 	for _, chunk := range splitSlackText(markdownToSlack(answer), maxSlackSectionText) {
 		blocks = append(blocks, sectionBlock(chunk))
 	}
-	renderer := &blockRenderer{}
+	renderer := &blockRenderer{destination: destination, now: time.Now()}
 	for _, visual := range visuals {
 		blocks = append(blocks, renderer.visual(visual)...)
 	}
@@ -65,13 +68,18 @@ func limitSlackBlocks(blocks []slackBlock) []slackBlock {
 }
 
 // blockRenderer draws the visuals of one message. Every component type has
-// one renderer method that returns its blocks. Interactive types (choices,
-// quiz, poll, actions, form, flashcards, explorer, draft) draw as static
-// text for now; making them interactive means returning actions or input
-// elements from their method, keyed by the visual being drawn (current)
-// and the component id.
+// one renderer method that returns its blocks. Choices, quizzes, polls,
+// respond actions and forms draw as elements people answer with
+// (blockkit_interactive.go); flashcards, explorers and drafts draw as text.
 type blockRenderer struct {
 	current conversationVisual
+	// destination is the endpoint card answers go back to; without it
+	// every component draws as text.
+	destination string
+	now         time.Time
+	// elements numbers the card elements so each action_id is unique in
+	// the message.
+	elements int
 	// tableShown records that the message already holds a table block;
 	// Slack allows one, so later tables draw as text.
 	tableShown bool

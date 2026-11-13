@@ -398,6 +398,13 @@ func forwardSlackSocketPayload(ctx context.Context, config slackSocketModeConfig
 }
 
 func slackSocketCallbackURL(payload json.RawMessage, routes map[string]string) (string, error) {
+	// A card answer goes to the conversation endpoint that sent the card.
+	if destination := slackSocketCardRoute(payload); destination != "" {
+		if callbackURL := strings.TrimSpace(routes["conversation_endpoint:"+destination]); callbackURL != "" {
+			return callbackURL, nil
+		}
+		return "", errors.New("card answer endpoint is unavailable")
+	}
 	var interaction struct {
 		Type    string `json:"type"`
 		Actions []struct {

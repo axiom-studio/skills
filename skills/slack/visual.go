@@ -17,6 +17,20 @@ type conversationVisual struct {
 	Surface    visualSurface `json:"surface"`
 	// FallbackText is the host's plain-markdown reading of the whole visual.
 	FallbackText string `json:"fallbackText"`
+	// Answers count what people answered on the card's answerable
+	// components, so a card refreshed after an answer shows them.
+	Answers []visualAnswers `json:"answers,omitempty"`
+}
+
+// visualAnswers counts each person's latest answer to one component: how
+// many people answered and how many chose each chip, action or option.
+type visualAnswers struct {
+	ComponentID string `json:"componentId"`
+	People      int    `json:"people"`
+	Chosen      []struct {
+		ID    string `json:"id"`
+		Count int    `json:"count"`
+	} `json:"chosen,omitempty"`
 }
 
 type visualSurface struct {
@@ -91,6 +105,7 @@ type visualRating struct {
 type visualLabeled struct {
 	ID     string `json:"id"`
 	Label  string `json:"label"`
+	Kind   string `json:"kind,omitempty"` // an action's kind
 	Title  string `json:"title"`
 	Detail string `json:"detail,omitempty"`
 	Group  string `json:"group,omitempty"`
@@ -237,17 +252,29 @@ type visualOptions struct {
 	Question string          `json:"question,omitempty"`
 	Chips    []visualLabeled `json:"chips,omitempty"`
 	Options  []visualLabeled `json:"options,omitempty"`
+	// AllowMultiple (quiz) and Multiple (poll) take several options.
+	AllowMultiple bool   `json:"allowMultiple,omitempty"`
+	Multiple      bool   `json:"multiple,omitempty"`
+	ClosesAt      string `json:"closesAt,omitempty"`
 }
 
 type visualForm struct {
-	Description string `json:"description,omitempty"`
-	Fields      []struct {
-		Label    string `json:"label"`
-		Required bool   `json:"required,omitempty"`
-		Options  []struct {
-			Label string `json:"label"`
-		} `json:"options,omitempty"`
-	} `json:"fields"`
+	Description string            `json:"description,omitempty"`
+	SubmitLabel string            `json:"submitLabel,omitempty"`
+	Fields      []visualFormField `json:"fields"`
+}
+
+type visualFormField struct {
+	ID       string   `json:"id"`
+	Type     string   `json:"type"`
+	Label    string   `json:"label"`
+	Required bool     `json:"required,omitempty"`
+	Min      *float64 `json:"min,omitempty"`
+	Max      *float64 `json:"max,omitempty"`
+	Options  []struct {
+		Label string `json:"label"`
+		Value string `json:"value"`
+	} `json:"options,omitempty"`
 }
 
 type visualFlashcards struct {

@@ -65,8 +65,10 @@ func (e *slackIngressExecutor) Execute(
 	step *executor.StepDefinition,
 	resolver executor.TemplateResolver,
 ) (*executor.StepResult, error) {
-	config := slackAdapterConfig(step.Config, resolver, slackSigningSecretKey)
-	defer clearSlackAdapterConfig(config, slackSigningSecretKey)
+	// The bot token opens a card's form modal, which Slack needs within
+	// three seconds of the click.
+	config := slackAdapterConfig(step.Config, resolver, slackSigningSecretKey, slackConnectionKey)
+	defer clearSlackAdapterConfig(config, slackSigningSecretKey, slackConnectionKey)
 	output, err := e.adapter.ingress(ctx, config)
 	if err != nil {
 		return nil, err
@@ -184,6 +186,7 @@ type normalizedConversationEvent struct {
 	ExternalThreadID       string                 `json:"externalThreadId,omitempty"`
 	ExternalMessageID      string                 `json:"externalMessageId,omitempty"`
 	ExternalParticipantID  string                 `json:"externalParticipantId,omitempty"`
+	ParticipantDisplayName string                 `json:"participantDisplayName,omitempty"`
 	ParticipantIsBot       bool                   `json:"participantIsBot,omitempty"`
 	Text                   string                 `json:"text,omitempty"`
 	MentionsEndpoint       bool                   `json:"mentionsEndpoint,omitempty"`
@@ -297,7 +300,7 @@ type slackApprovalValue struct {
 	OriginReview     bool      `json:"originReview,omitempty"`
 }
 
-func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{}) (map[string]interface{}, error) {
+func (a *slackAdapter) ingress(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
 	envelope, err := decodeAdapterEnvelope(config)
 	if err != nil || envelope.Request == nil ||
 		(envelope.Operation != "ingress" && envelope.Operation != "gateway_ingress") ||
@@ -316,7 +319,7 @@ func (a *slackAdapter) ingress(_ context.Context, config map[string]interface{})
 		}, nil
 	}
 	if strings.Contains(strings.ToLower(firstHeader(envelope.Request.Headers, "Content-Type")), "application/x-www-form-urlencoded") {
-		return normalizeSlackInteraction(envelope)
+		return a.normalizeSlackInteraction(ctx, envelope, config)
 	}
 	var payload slackEventsEnvelope
 	if err := json.Unmarshal(envelope.Request.Body, &payload); err != nil {
@@ -366,13 +369,26 @@ func isSlackWebReviewNavigation(payload slackInteraction) bool {
 	return payload.Type == "block_actions" && len(payload.Actions) == 1 && payload.Actions[0].ActionID == "openseal_review_web_open"
 }
 
-func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{}, error) {
+// normalizeSlackInteraction reads a verified interaction: an approval
+// decision, a card answer (normalizeSlackCardAction) or a submitted card
+// modal (normalizeSlackCardSubmission).
+func (a *slackAdapter) normalizeSlackInteraction(ctx context.Context, envelope *adapterEnvelope, config map[string]interface{}) (map[string]interface{}, error) {
 	form, err := url.ParseQuery(string(envelope.Request.Body))
 	if err != nil || strings.TrimSpace(form.Get("payload")) == "" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
+	raw := []byte(form.Get("payload"))
 	var payload slackInteraction
-	if json.Unmarshal([]byte(form.Get("payload")), &payload) != nil || payload.Type != "block_actions" || len(payload.Actions) != 1 {
+	if json.Unmarshal(raw, &payload) != nil {
+		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+	}
+	if payload.Type == "view_submission" && payload.View.CallbackID == slackCardFormCallback {
+		if envelope.Operation != "ingress" || envelope.Endpoint == nil {
+			return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
+		}
+		return normalizeSlackCardSubmission(envelope, payload, raw)
+	}
+	if payload.Type != "block_actions" || len(payload.Actions) != 1 {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
 	}
 	// The ingress signature was already verified. Navigation has no authority
@@ -389,6 +405,9 @@ func normalizeSlackInteraction(envelope *adapterEnvelope) (map[string]interface{
 		return map[string]interface{}{"statusCode": http.StatusOK, "events": []interface{}{}}, nil
 	}
 	action := payload.Actions[0]
+	if isSlackCardAction(action.ActionID) {
+		return a.normalizeSlackCardAction(ctx, envelope, config, payload, raw)
+	}
 	decision := strings.TrimPrefix(strings.TrimSpace(action.ActionID), "openseal_approval_")
 	if decision != "approve" && decision != "reject" && decision != "request_changes" {
 		return map[string]interface{}{"statusCode": http.StatusBadRequest}, nil
@@ -883,7 +902,7 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 	// An answer's visuals follow its text as blocks; the text stays as the
 	// notification and screen-reader fallback.
 	if _, carded := body["blocks"]; len(envelope.Visuals) > 0 && !carded {
-		body["blocks"], body["text"] = slackVisualMessage(envelope.Message.Content, envelope.Visuals)
+		body["blocks"], body["text"] = slackVisualMessage(envelope.Message.Content, envelope.Visuals, envelope.Endpoint.ID)
 	}
 	if envelope.Delivery.Operation == "message.update" {
 		providerMessageID, _ := envelope.Delivery.Parameters["providerMessageId"].(string)

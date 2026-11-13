@@ -141,10 +141,23 @@ visual in the delivery request's `visuals` field (artifact id and version, the
 surface without quiz answer keys, and its `fallbackText`) instead of leaving it
 out. The answer posts as Block Kit: its text first, then the visual's title as a
 header and each component as sections, fields, context, dividers and at most one
-`table` block per message. Interactive components (choices, quizzes, polls,
-buttons, forms, flashcards, explorers, drafts) show as static text for now, and
-images show their captions because chat images have no public URL. A streamed
-answer gains its visual when its message is finished with `chat.update`.
+`table` block per message. Images show their captions because chat images have
+no public URL. A streamed answer gains its visual when its message is finished
+with `chat.update`.
+
+Choices, quizzes, polls, respond buttons and forms can be answered in Slack.
+Up to five options are buttons and more are a select; a quiz or poll that takes
+several options, and a form, are a button that opens a modal (`views.open`,
+with the bot token the conversation ingress now receives). Each element's
+`action_id` starts with `openseal_card`; a button's value (or a select's
+`block_id` plus the option value) names the endpoint, the visual's artifact id
+and version and the component. Socket Mode routes a click or a submitted card
+modal to that endpoint's conversation ingress, which emits a
+`conversation.card.interacted` event; OpenSeal checks it against the stored
+visual, records it for the person and refreshes the card with `chat.update`,
+marking chosen options and counting answers. Approval, entity and edit
+buttons, closed polls, flashcards, explorers and drafts stay static text, and
+anything too long for Slack's value limits falls back to text.
 
 Messages stay within Slack's limits: 50 blocks (a cut card ends with "…see the
 full card in HelloSeal"), 3000 characters per section, 10 fields of 2000, 150 per
