@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const maximumSlackFileBytes = 2 << 20
+const maximumSlackFileBytes = 3 << 20
 
 type conversationFile struct {
 	ID        string `json:"id"`

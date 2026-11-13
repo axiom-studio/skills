@@ -102,7 +102,7 @@ and [Real-time Search guide](https://docs.slack.dev/apis/web-api/real-time-searc
 those file IDs and returns the image as `modelMedia`, which the host shows to
 the model and removes from the visible output. The file must be shared in that
 exact channel, so the host's channel authority also bounds which files can be
-read. PNG, JPEG and WebP up to 2 MiB are supplied; other files return
+read. PNG, JPEG and WebP up to 3 MiB are supplied; other files return
 `not_an_image`, GIFs `unsupported_image` and larger files `size_limit`, all
 without downloading. It needs the `files:read` bot scope.
 
@@ -123,8 +123,8 @@ requests or pretending that the agent read the file.
 The host supplies PNG/JPEG images to vision-capable models and extracts content
 from text/CSV/JSON, XLSX, PDF with a text layer, and DOCX files. Scanned PDFs need
 OCR; unsupported or oversized files are marked unreadable. Each message can have
-up to eight files with at most **2 MiB of file data in total** (the current gRPC
-transport budget). Extracted text has a separate bounded context budget.
+up to eight files with at most **3 MiB of file data in total** (the host
+Skill response budget). Extracted text has a separate bounded context budget.
 
 Canonical reply artifacts upload via `files.getUploadURLExternal`, a binary POST,
 and `files.completeUploadExternal` into the exact originating channel/thread.
