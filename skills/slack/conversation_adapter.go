@@ -120,6 +120,7 @@ func clearSlackAdapterConfig(config map[string]interface{}, credentials ...strin
 
 type adapterEnvelope struct {
 	Attachments []conversationFileContent    `json:"attachments,omitempty"`
+	Visuals     []conversationVisual         `json:"visuals,omitempty"`
 	Attachment  *conversationFile            `json:"attachment,omitempty"`
 	Operation   string                       `json:"operation"`
 	Endpoint    *conversationEndpoint        `json:"endpoint"`
@@ -878,6 +879,11 @@ func (a *slackAdapter) deliver(ctx context.Context, token string, envelope *adap
 			return failedDelivery("invalid_approval", "The approval card is invalid."), nil
 		}
 		body["blocks"] = blocks
+	}
+	// An answer's visuals follow its text as blocks; the text stays as the
+	// notification and screen-reader fallback.
+	if _, carded := body["blocks"]; len(envelope.Visuals) > 0 && !carded {
+		body["blocks"], body["text"] = slackVisualMessage(envelope.Message.Content, envelope.Visuals)
 	}
 	if envelope.Delivery.Operation == "message.update" {
 		providerMessageID, _ := envelope.Delivery.Parameters["providerMessageId"].(string)

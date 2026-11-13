@@ -133,3 +133,22 @@ The upload IDs are checkpointed before sharing; acknowledgement recovery checks
 those same IDs and the original thread before sending again. URLs, credentials
 and file bytes are never stored in outbox progress. Provider uploads are private
 and never use public-link sharing or the retired `files.upload` endpoint.
+
+## Answer visuals
+
+The conversations adapter advertises `visuals`, so the host sends an answer's
+visual in the delivery request's `visuals` field (artifact id and version, the
+surface without quiz answer keys, and its `fallbackText`) instead of leaving it
+out. The answer posts as Block Kit: its text first, then the visual's title as a
+header and each component as sections, fields, context, dividers and at most one
+`table` block per message. Interactive components (choices, quizzes, polls,
+buttons, forms, flashcards, explorers, drafts) show as static text for now, and
+images show their captions because chat images have no public URL. A streamed
+answer gains its visual when its message is finished with `chat.update`.
+
+Messages stay within Slack's limits: 50 blocks (a cut card ends with "…see the
+full card in HelloSeal"), 3000 characters per section, 10 fields of 2000, 150 per
+header and 100 table rows within 10,000 characters. The top-level `text` holds
+the answer and the fallback text for notifications. An answer that also carries
+files shares them with that text as the comment, since a file share cannot
+carry the blocks.

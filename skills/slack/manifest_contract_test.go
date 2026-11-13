@@ -215,3 +215,27 @@ func TestInteractionsAreSocketModeOnly(t *testing.T) {
 		t.Fatalf("Slack callbacks must use only the Socket Mode interactions adapter: %#v", manifest.Definition.CallbackAdapters)
 	}
 }
+
+// The host sends answer visuals only to an adapter that declares visuals;
+// the release that renders them is 2.5.0.
+func TestConversationAdapterDeclaresVisuals(t *testing.T) {
+	data, err := os.ReadFile("skill.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Definition struct {
+			Version              string `yaml:"version"`
+			ConversationAdapters map[string]struct {
+				Features []string `yaml:"features"`
+			} `yaml:"conversationAdapters"`
+		} `yaml:"definition"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"attachments", "context_history", "mentions", "threads", "typing", "visuals"}
+	if got := manifest.Definition.ConversationAdapters["conversations"].Features; !reflect.DeepEqual(got, want) || manifest.Definition.Version != "2.5.0" {
+		t.Fatalf("features = %v, version = %s", got, manifest.Definition.Version)
+	}
+}

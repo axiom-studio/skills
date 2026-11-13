@@ -326,7 +326,7 @@ func (a *slackAdapter) deliverFiles(ctx context.Context, token string, envelope 
 	for _, file := range checkpoint.Files {
 		files = append(files, map[string]string{"id": file.FileID, "title": file.Title})
 	}
-	raw, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/files.completeUploadExternal", nil, map[string]interface{}{"files": files, "channel_id": checkpoint.Channel, "thread_ts": checkpoint.Thread, "initial_comment": markdownToSlack(envelope.Message.Content)})
+	raw, status, retryAfter, err := a.slackJSON(ctx, token, http.MethodPost, "/files.completeUploadExternal", nil, map[string]interface{}{"files": files, "channel_id": checkpoint.Channel, "thread_ts": checkpoint.Thread, "initial_comment": fileMessageText(envelope)})
 	if status == http.StatusTooManyRequests {
 		result := fileRetry(checkpoint, "rate_limited")
 		if retryAfter > 0 {
@@ -356,4 +356,13 @@ func (a *slackAdapter) deliverFiles(ctx context.Context, token string, envelope 
 		return result, nil
 	}
 	return map[string]interface{}{"outcome": "delivered", "providerMessageId": "file:" + checkpoint.Files[0].FileID}, nil
+}
+
+// fileMessageText introduces shared files. A file share cannot carry the
+// visual's blocks, so a visual reads as its fallback text there.
+func fileMessageText(envelope *adapterEnvelope) string {
+	if len(envelope.Visuals) > 0 {
+		return slackVisualText(envelope.Message.Content, envelope.Visuals)
+	}
+	return markdownToSlack(envelope.Message.Content)
 }

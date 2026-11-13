@@ -647,7 +647,7 @@ definition:
             provider: slack
             endpointModes: [channel, direct]
             inboundEventTypes: [conversation.message.received]
-            features: [attachments, context_history, mentions, threads, typing]
+            features: [attachments, context_history, mentions, threads, typing, visuals]
             subjectEvidence:
                 - action: slack-read-messages
                   subjectPath: channel
@@ -718,7 +718,7 @@ definition:
         - id: oci
           kind: oci
           label: Slack Skill service image
-          package: axiomstudio/skill-slack:2.4.0
+          package: axiomstudio/skill-slack:2.5.0
     name: Slack Skill
     requirements:
         tenancy: shared
@@ -730,7 +730,7 @@ definition:
         publisher: Axiom Studio
         registry: https://github.com/axiom-studio/skills
         reference: skill-slack
-        resolvedVersion: 2.4.0
+        resolvedVersion: 2.5.0
     tags:
         - chat
         - messaging
@@ -739,7 +739,7 @@ definition:
     transport:
         endpoint: skill-slack
         kind: tool
-    version: 2.4.0
+    version: 2.5.0
 diagnostics:
     - code: forward_ported
       message: Forward-ported into the canonical OpenSeal Skill contract with conservative action policy.
