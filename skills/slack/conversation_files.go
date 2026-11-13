@@ -87,34 +87,58 @@ func (a *slackAdapter) readAttachment(ctx context.Context, token string, envelop
 		return nil, errors.New("Slack attachment was not in the verified event")
 	}
 	result := map[string]interface{}{"id": file.ID, "status": "unavailable"}
-	raw, status, _, err := a.slackJSON(ctx, token, http.MethodGet, "/files.info", url.Values{"file": {file.ID}}, nil)
+	provider, data, status, err := a.downloadFile(ctx, token, file.ID, nil)
+	if err != nil {
+		return nil, err
+	}
+	result["status"] = status
+	if status != "supplied" {
+		return result, nil
+	}
+	result["data"] = data
+	result["name"] = file.Name
+	result["mediaType"] = firstNonEmpty(provider.MediaType, file.MediaType, "application/octet-stream")
+	return result, nil
+}
+
+// downloadFile resolves a file with files.info and downloads its private URL
+// with the bot token, only from Slack file hosts. allow may reject the file
+// after lookup and before any download. Status is supplied, unavailable,
+// missing_scope or size_limit; data is set only when supplied.
+func (a *slackAdapter) downloadFile(ctx context.Context, token, fileID string, allow func(slackFile) error) (slackFile, []byte, string, error) {
+	raw, status, _, err := a.slackJSON(ctx, token, http.MethodGet, "/files.info", url.Values{"file": {fileID}}, nil)
 	if err != nil || status == 429 || status >= 500 {
-		return nil, errors.New("Slack file lookup temporarily unavailable")
+		return slackFile{}, nil, "", errors.New("Slack file lookup temporarily unavailable")
 	}
 	var response slackFileResponse
 	if json.Unmarshal(raw, &response) != nil {
-		return nil, errors.New("Slack file lookup invalid")
+		return slackFile{}, nil, "", errors.New("Slack file lookup invalid")
 	}
 	if !response.OK {
 		if response.Error == "missing_scope" {
-			result["status"] = "missing_scope"
+			return slackFile{}, nil, "missing_scope", nil
 		}
-		return result, nil
+		return slackFile{}, nil, "unavailable", nil
 	}
-	if response.File.ID != file.ID {
-		return nil, errors.New("Slack returned a different file")
+	file := response.File
+	if file.ID != fileID {
+		return slackFile{}, nil, "", errors.New("Slack returned a different file")
 	}
-	if response.File.Size > maximumSlackFileBytes {
-		result["status"] = "size_limit"
-		return result, nil
+	if allow != nil {
+		if err := allow(file); err != nil {
+			return file, nil, "", err
+		}
 	}
-	link := firstNonEmpty(response.File.PrivateURL, response.File.PreviewURL)
+	if file.Size > maximumSlackFileBytes {
+		return file, nil, "size_limit", nil
+	}
+	link := firstNonEmpty(file.PrivateURL, file.PreviewURL)
 	if !a.allowedFileURL(link) {
-		return result, nil
+		return file, nil, "unavailable", nil
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
-		return result, nil
+		return file, nil, "unavailable", nil
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	client := *a.client
@@ -127,31 +151,26 @@ func (a *slackAdapter) readAttachment(ctx context.Context, token string, envelop
 	}
 	download, err := client.Do(request)
 	if err != nil {
-		return nil, errors.New("Slack file download temporarily unavailable")
+		return file, nil, "", errors.New("Slack file download temporarily unavailable")
 	}
 	defer download.Body.Close()
 	if download.StatusCode == 429 || download.StatusCode >= 500 {
-		return nil, errors.New("Slack file download temporarily unavailable")
+		return file, nil, "", errors.New("Slack file download temporarily unavailable")
 	}
 	if download.StatusCode != http.StatusOK {
-		return result, nil
+		return file, nil, "unavailable", nil
 	}
 	data, err := io.ReadAll(io.LimitReader(download.Body, maximumSlackFileBytes+1))
 	if err != nil {
-		return nil, errors.New("Slack file download interrupted")
+		return file, nil, "", errors.New("Slack file download interrupted")
 	}
 	if len(data) > maximumSlackFileBytes {
-		result["status"] = "size_limit"
-		return result, nil
+		return file, nil, "size_limit", nil
 	}
 	if len(data) == 0 {
-		return result, nil
+		return file, nil, "unavailable", nil
 	}
-	result["status"] = "supplied"
-	result["data"] = data
-	result["name"] = file.Name
-	result["mediaType"] = firstNonEmpty(response.File.MediaType, file.MediaType, "application/octet-stream")
-	return result, nil
+	return file, data, "supplied", nil
 }
 func (a *slackAdapter) allowedFileURL(value string) bool {
 	parsed, err := url.Parse(value)
