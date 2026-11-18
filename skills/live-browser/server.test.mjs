@@ -20,6 +20,8 @@ test('the action catalog, identity and version match skill.yaml', () => {
   assert.match(manifest, /permissions: \[browser:session, network:http, 'host:browser:session', 'host:browser:audio'\]/);
   assert.equal([...manifest.matchAll(/'host:browser:/g)].length, 2, 'only start declares host permissions');
   assert.doesNotMatch(manifest, /host:browser:profile/);
+  // Anthropic refuses a tool whose input schema combines at the top level.
+  assert.doesNotMatch(manifest, /^        (oneOf|anyOf|allOf):/m);
   assert.doesNotMatch(manifest, /elevenlabs|risk: external|durationMinutes/);
   // Only sign-in and card fill declare (optional) vault credential slots.
   assert.equal([...manifest.matchAll(/^      credentials:$/gm)].length, 2);
@@ -147,11 +149,11 @@ test('in a slot the runtime uses the slot proxy, the slot profile and the relaye
   assert.throws(() => serviceOptions({ LIVE_BROWSER_SLOT_PROXY: 'http://user:pass@proxy.example:8080' }), /slot proxy is invalid/);
 });
 
-test('the version is 2.0.1 in every place a release names it', () => {
-  assert.equal(SKILL_VERSION, '2.0.1');
-  assert.match(manifest, /^  version: 2\.0\.1$/m);
-  assert.match(manifest, /^    resolvedVersion: 2\.0\.1$/m);
-  assert.match(manifest, /^      package: axiomstudio\/skill-live-browser:2\.0\.1$/m);
+test('the version is 2.0.2 in every place a release names it', () => {
+  assert.equal(SKILL_VERSION, '2.0.2');
+  assert.match(manifest, /^  version: 2\.0\.2$/m);
+  assert.match(manifest, /^    resolvedVersion: 2\.0\.2$/m);
+  assert.match(manifest, /^      package: axiomstudio\/skill-live-browser:2\.0\.2$/m);
   assert.equal(JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version, SKILL_VERSION);
   const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url)));
   assert.equal(lock.version, SKILL_VERSION);
