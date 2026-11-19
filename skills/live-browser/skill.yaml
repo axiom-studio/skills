@@ -12,7 +12,7 @@ definition:
     format: axiom.skill/v1
     publisher: Axiom Studio
     reference: skill-live-browser
-    resolvedVersion: 2.0.2
+    resolvedVersion: 2.0.3
     identity: https://github.com/axiom-studio/skills::skill-live-browser
     homepage: https://github.com/daijro/camoufox
     license: MIT
@@ -23,7 +23,7 @@ definition:
     - id: oci
       kind: oci
       label: Live browser service with Camoufox, live view and page audio
-      package: axiomstudio/skill-live-browser:2.0.2
+      package: axiomstudio/skill-live-browser:2.0.3
   config:
     scopes: [global, tenant]
     fields:
