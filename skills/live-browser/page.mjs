@@ -225,10 +225,13 @@ export function observationDigest(raw) {
 
 export class LivePage {
   #page;
+  #counter;
   generation = 0;
   #elements = new Map();
 
-  constructor(page) { this.#page = page; }
+  // counter is shared by the tabs of one browser, so a generation (and every
+  // reference sN:eM) names exactly one tab.
+  constructor(page, counter = { value: 0 }) { this.#page = page; this.#counter = counter; }
 
   get page() { return this.#page; }
 
@@ -253,7 +256,7 @@ export class LivePage {
   async snapshot({ includeScreenshot = false } = {}) {
     await this.settle();
     const raw = await this.#page.evaluate(`(${SNAPSHOT_JS})(${JSON.stringify({ elements: MAX_ELEMENTS, text: MAX_TEXT })})`);
-    this.generation++;
+    this.generation = ++this.#counter.value;
     this.#elements = new Map(raw.elements.map(element => [element.ref, element]));
     const elements = raw.elements.map(element => ({
       ref: `s${this.generation}:e${element.ref}`, role: String(element.role).slice(0, 64), name: element.name, context: element.context,

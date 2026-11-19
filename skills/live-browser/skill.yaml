@@ -53,6 +53,7 @@ definition:
       - live-browser-pay
       - live-browser-submit-payment-code
       - live-browser-request-handoff
+      - live-browser-close-tab
       - live-browser-close
       - live-browser-listen
       - live-browser-speak
@@ -61,6 +62,20 @@ definition:
       sign-in, booking, purchasing, posting) or when the user should watch.
       For plain reading, searching and comparing pages prefer the Lightpanda
       browser actions instead.
+      Work in parallel with tabs. To compare options (several dates, flights,
+      products or sites), open each in its own tab: call live-browser-navigate
+      with newTab: true once per option, all in the same step, then snapshot
+      every tab (tab set) in one step. All calls of one step run at the same
+      time, and actions in different tabs really run in parallel; actions in
+      the same tab still run in the order you gave. Put calls in one step
+      only when none needs another's result. Prefer a URL that already
+      encodes the search (for Google Flights:
+      https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20LHR%20on%202026-12-24%20through%202027-01-02)
+      over filling a form, and open the results directly. Every result names
+      its tab; references from a snapshot belong to that snapshot's tab.
+      Close tabs you are done with (live-browser-close-tab, at most 6 open).
+      Sign-in and payment act on the tab in front: the one you last navigated
+      or clicked in.
       Before browsing for a task with missing parameters, ask ONE concise
       question that covers everything missing (for a flight: dates, one-way or
       return, passengers, cabin), then browse.
@@ -183,6 +198,8 @@ definition:
           requiresHuman: {type: boolean}
           intervention: {type: object}
           message: {type: string}
+          tab: {type: string, description: 'The tab this action ran in.'}
+          openTabs: {type: array, items: {type: object, properties: {tab: {type: string}, url: {type: string}}}}
           reattached: {type: boolean, description: 'live-browser-start found this conversation''s browser already open and returned its current page without navigating.'}
       permissions: [browser:session, network:http, 'host:browser:session', 'host:browser:audio']
       idempotency: supported
@@ -192,13 +209,15 @@ definition:
       timeout: 240000000000
     live-browser-navigate:
       name: live-browser-navigate
-      description: Load an HTTP(S) URL in the live browser. Bot checks are handed to the user automatically.
+      description: Load an HTTP(S) URL in the live browser, in the tab in front, another open tab (tab) or a new tab (newTab, returns its tab). Several navigations in one step run at the same time when each uses its own tab. Bot checks are handed to the user automatically.
       inputSchema:
         type: object
         additionalProperties: false
         properties:
           sessionId: &session_id {type: string, minLength: 1}
           url: {type: string, pattern: '^https?://', maxLength: 8192}
+          tab: &tab {type: string, minLength: 1, maxLength: 16, description: 'The tab to act in (from an earlier result). Default: the tab in front.'}
+          newTab: {type: boolean, default: false, description: 'Open the URL in a new tab, so several pages load and can be read at the same time. Do not combine with tab.'}
           intent: &intent {type: string, minLength: 3, maxLength: 500, description: 'Short description of this step, shown to the user.'}
         required: [sessionId, url]
       outputSchema: *status_output
@@ -216,6 +235,7 @@ definition:
         additionalProperties: false
         properties:
           sessionId: *session_id
+          tab: *tab
           includeScreenshot: {type: boolean, default: false}
           intent: *intent
         required: [sessionId]
@@ -223,6 +243,7 @@ definition:
         type: object
         properties:
           sessionId: {type: string}
+          tab: {type: string}
           status: {type: string}
           generation: {type: integer, minimum: 1}
           observationDigest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
@@ -345,6 +366,7 @@ definition:
         additionalProperties: false
         properties:
           sessionId: *session_id
+          tab: *tab
           dx: {type: number, minimum: -10000, maximum: 10000, default: 0}
           dy: {type: number, minimum: -10000, maximum: 10000, default: 0}
         required: [sessionId]
@@ -363,6 +385,7 @@ definition:
         additionalProperties: false
         properties:
           sessionId: *session_id
+          tab: *tab
           fullPage: {type: boolean, default: false}
         required: [sessionId]
       permissions: [browser:observe]
@@ -611,6 +634,23 @@ definition:
       risk: read
       sideEffect: none
       timeout: 180000000000
+    live-browser-close-tab:
+      name: live-browser-close-tab
+      description: Close one tab of the live browser that you are done with. The last open tab cannot be closed; use live-browser-close for the browser. Write down what you need from the tab first. Returns the tabs still open.
+      inputSchema:
+        type: object
+        additionalProperties: false
+        properties:
+          sessionId: *session_id
+          tab: *tab
+        required: [sessionId, tab]
+      outputSchema: *status_output
+      permissions: [browser:session]
+      idempotency: supported
+      retry: {maxAttempts: 1}
+      risk: read
+      sideEffect: read
+      timeout: 60000000000
     live-browser-close:
       name: live-browser-close
       description: Close the live browser when the task is done, so other tasks can use it. Sign-ins and site data stay in the team's browser profile. First extract the facts the answer needs (names, prices, ratings, times, links) from the latest snapshot; page content is not kept after closing.

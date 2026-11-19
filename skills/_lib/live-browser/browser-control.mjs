@@ -14,6 +14,9 @@ export class BrowserControl {
   #state = 'automation';
   #lease;
   #tail = Promise.resolve();
+  // Automation lanes (one per browser tab) run beside each other; everything
+  // else (human input, pause, untagged automation) waits for all of them.
+  #lanes = new Map();
   #timer;
   #close;
   #now;
@@ -50,17 +53,29 @@ export class BrowserControl {
     }
   }
 
+  #idle() { return Promise.all([this.#tail, ...this.#lanes.values()]); }
+
   #queue(operation) {
-    const result = this.#tail.then(operation);
+    const result = this.#idle().then(operation);
+    this.#lanes.clear();
     this.#tail = result.catch(() => {});
     return result;
   }
 
-  automate(operation) {
-    return this.#queue(() => {
+  #lane(lane, operation) {
+    const result = Promise.all([this.#tail, this.#lanes.get(lane)]).then(operation);
+    this.#lanes.set(lane, result.catch(() => {}));
+    return result;
+  }
+
+  // lane: work in one lane is serialized; different lanes run concurrently.
+  // Without a lane the operation is exclusive.
+  automate(operation, lane) {
+    const guarded = () => {
       if (this.#state !== 'automation') throw new Error('Browser automation is paused');
       return operation();
-    });
+    };
+    return lane === undefined ? this.#queue(guarded) : this.#lane(lane, guarded);
   }
 
   // Resolves once no human holds or is acquiring control, or after timeoutMs.
@@ -94,7 +109,7 @@ export class BrowserControl {
     if (this.#state !== 'automation' && this.#state !== 'paused') throw new Error('Browser control is already reserved');
     // Reserve synchronously so no further automation can race the handoff.
     this.#set('transferring');
-    await this.#tail;
+    await this.#idle();
     if (this.#state !== 'transferring') throw new Error('Browser control is closed');
     this.#lease = { id: randomUUID(), userID: principal.userID, expiresAt: this.#now() + ttlMs };
     this.#set('human');
@@ -136,7 +151,7 @@ export class BrowserControl {
   async returnControl(principal, leaseID) {
     this.#checkLease(principal, leaseID);
     this.#set('transferring');
-    await this.#tail;
+    await this.#idle();
     if (this.#state !== 'transferring' || this.#now() >= this.#lease.expiresAt) {
       if (this.#onExpire === 'pause' && this.#state === 'transferring') this.#expire();
       else await this.close();

@@ -152,6 +152,11 @@ export const FIREFOX_PREFS = Object.freeze({
   // never reach the runtime's own ports in the slot.
   'network.proxy.allow_hijacking_localhost': true,
   'network.proxy.no_proxies_on': '',
+  // The agent works in several tabs at once and only one is in front: keep
+  // background tabs' timers at foreground speed so pages load and settle.
+  'dom.min_background_timeout_value': 4,
+  'dom.timeout.enable_budget_timer_throttling': false,
+  'dom.suspend_inactive.enabled': false,
 });
 
 // Launches Camoufox on the persistent profile <profileRoot>/camoufox. Audio

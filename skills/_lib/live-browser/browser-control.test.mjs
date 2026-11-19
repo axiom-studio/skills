@@ -125,3 +125,27 @@ test('settled waits for an explicit return and is bounded by its timeout', async
   await assert.rejects(new BrowserControl({ ...owner, close: async () => {} }).pause(), /cannot pause/);
   await control.close();
 });
+
+test('automation lanes run beside each other; a takeover waits for every lane', async () => {
+  const { control } = setup();
+  const gates = {};
+  const started = [];
+  const work = lane => control.automate(() => { started.push(lane); return new Promise(resolve => { gates[lane] = resolve; }); }, lane);
+  const a = work('t1');
+  const b = work('t2');
+  const a2 = control.automate(() => { started.push('t1 again'); return 'later'; }, 't1');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(started, ['t1', 't2'], 'different lanes start together; one lane is serialized');
+  let taken = false;
+  const takeover = control.takeOver(owner).then(lease => { taken = true; return lease; });
+  gates.t1();
+  await a;
+  assert.equal(await a2, 'later');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(taken, false, 'takeover waits for the lane still running');
+  gates.t2();
+  await b;
+  await takeover;
+  await assert.rejects(control.automate(() => assert.fail('agent acted during takeover'), 't3'), /paused/);
+  await control.close();
+});

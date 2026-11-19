@@ -9,6 +9,9 @@ import { checkoutPage, finalPayElement, orderSummary, PAY_BUTTON, SignIn } from 
 
 const HUMAN_ONLY = { kind: 'manual_confirmation' };
 const MINUTE = 60000;
+// Tabs one browser may hold at once (the agent opens them to work in parallel).
+export const MAX_TABS = 6;
+const REF_GENERATION = /^s([1-9][0-9]*):e[1-9][0-9]*$/;
 const REQUEST_CREDENTIAL = 'openseal.skills.request_credential';
 const ASK_CREDENTIAL = `Do not hand off and do not use request_setup (the live browser is built in and needs no setup). Call ${REQUEST_CREDENTIAL} ` +
   'with exactly the arguments in credentialRequest: the user saves it in their vault through an in-chat card and this work resumes when they do.';
@@ -191,9 +194,11 @@ export class LiveBrowserService {
       session.context = await session.launching;
       if (session.closed) throw new Error('closed while starting');
       this.#profile.track(session.context);
-      session.page = session.context.pages()[0] ?? await session.context.newPage();
-      session.live = new LivePage(session.page);
-      session.page.on?.('close', () => { void this.close(session); });
+      session.generations = { value: 0 };
+      session.tabs = new Map();
+      session.tabSeq = 0;
+      session.opening = 0;
+      this.#addTab(session, { id: this.#tabID(session) }, session.context.pages()[0] ?? await session.context.newPage());
       this.#arm(session);
     } catch {
       await this.close(session);
@@ -202,7 +207,7 @@ export class LiveBrowserService {
     return this.#act(session, input.intent ?? 'Open page', async live => {
       if (url) await live.navigate(url);
       return {};
-    }, { navigation: Boolean(url) });
+    }, { navigation: Boolean(url), exclusive: true });
   }
 
   // live-browser-start on this conversation's open browser: it never
@@ -216,28 +221,88 @@ export class LiveBrowserService {
       return { reattached: true, message: `Reattached to this conversation's open browser on ${current}` +
         (input.url ? '; the url was not opened. Use live-browser-navigate to go elsewhere.' : '.') +
         (pending ? ' A payment of this browser waits for the bank: its one-time code page is open, so call live-browser-submit-payment-code with the user\'s code (take a snapshot first if unsure); do not navigate.' : '') };
-    });
+    }, { exclusive: true });
+  }
+
+  #tabID(session) { return `t${++session.tabSeq}`; }
+
+  #addTab(session, tab, page) {
+    tab.page = page;
+    tab.live = new LivePage(page, session.generations);
+    session.tabs.set(tab.id, tab);
+    page.on?.('close', () => this.#tabClosed(session, tab));
+    if (!session.active) this.#activate(session, tab, false);
+    return tab;
+  }
+
+  // The active tab is the one in front: the user watches and takes control
+  // of it, and sign-in and payment act on it. Navigating or interacting in
+  // a tab brings it to front; reading (snapshot, screenshot, scroll) does not.
+  #activate(session, tab, front = true) {
+    const changed = session.active !== tab.id;
+    session.active = tab.id;
+    session.page = tab.page;
+    session.live = tab.live;
+    if (front && changed) void Promise.resolve(tab.page.bringToFront?.()).catch(() => {});
+  }
+
+  #tabClosed(session, tab) {
+    if (session.tabs.get(tab.id) !== tab) return;
+    session.tabs.delete(tab.id);
+    if (session.closing) return;
+    if (session.tabs.size === 0) { void this.close(session); return; }
+    if (session.active === tab.id) this.#activate(session, [...session.tabs.values()].at(-1));
+  }
+
+  #tab(session, id) {
+    if (id === undefined) return session.tabs.get(session.active);
+    const tab = session.tabs.get(id);
+    if (!tab) throw notActionable(`No open tab ${id}`, 'Use a tab from an earlier result, or open one with live-browser-navigate and newTab: true.');
+    return tab;
+  }
+
+  // The tab a snapshot reference (or coordinates' generation) belongs to.
+  #refTab(session, input) {
+    const generation = input.target !== undefined ? Number(REF_GENERATION.exec(String(input.target))?.[1]) : input.generation;
+    for (const tab of session.tabs.values()) if (tab.live.generation === generation) return tab.id;
+    return undefined;
   }
 
   // Runs one model action. Waits while a human holds control and then
-  // returns paused_by_user instead of acting.
-  async #act(session, intent, operation, { navigation = false } = {}) {
+  // returns paused_by_user instead of acting. Actions in different tabs run
+  // concurrently; actions in one tab, and exclusive ones (start, sign-in,
+  // payment, closing a tab), run one at a time.
+  async #act(session, intent, operation, { navigation = false, tab: tabID, newTab = false, exclusive = false, front = false } = {}) {
     const step = intentText(intent);
     this.#touch(session);
     if (session.handoff.status === 'human') return this.#paused(session);
     if (session.handoff.status === 'awaiting_user') return this.#awaiting(session);
+    let tab;
+    try {
+      if (newTab && session.tabs.size + session.opening >= MAX_TABS) {
+        throw notActionable(`At most ${MAX_TABS} tabs can be open`, 'Close a tab you are done with (live-browser-close-tab), or navigate an open tab instead.');
+      }
+      tab = newTab ? { id: this.#tabID(session) } : this.#tab(session, tabID);
+    } catch (error) {
+      if (error?.notActionable === true) return this.#notActionable(session, error);
+      throw error;
+    }
+    if (newTab) session.opening++;
     let result;
     try {
       session.busy = (session.busy ?? 0) + 1;
       result = await session.handoff.automate(async () => {
         if (step) session.step = step;
-        return operation(session.live);
-      });
+        if (newTab) this.#addTab(session, tab, await session.context.newPage());
+        if (front || newTab || exclusive) this.#activate(session, tab);
+        return operation(tab.live, tab);
+      }, exclusive ? undefined : tab.id);
     } catch (error) {
       if (error instanceof BrowserPausedError) return error.status === 'human' ? this.#paused(session) : this.#awaiting(session);
-      if (error?.notActionable === true) return this.#notActionable(session, error);
+      if (error?.notActionable === true) return this.#notActionable(session, error, tab);
       throw new Error(error?.expose === true ? error.message : 'The browser action failed');
     } finally {
+      if (newTab) session.opening--;
       session.busy--;
       this.#touch(session);
     }
@@ -247,21 +312,26 @@ export class LiveBrowserService {
     // hands off as its instructions say.
     let reason = handoffReason;
     if (!reason && (navigation || checkChallenges)) {
-      const found = await this.#deps.detectIntervention(session.page).catch(() => undefined);
+      const found = await this.#deps.detectIntervention(tab.page).catch(() => undefined);
       reason = found === 'challenge' ? 'captcha' : undefined;
     }
-    if (reason && session.handoff.status === 'automating') return { ...output, ...(await this.#handoff(session, reason, undefined, true)) };
-    return { sessionId: session.id, status: session.handoff.status, url: session.page.url(),
-      title: await session.page.title().catch(() => ''), ...output };
+    if (reason && session.handoff.status === 'automating') {
+      // The user takes control of the tab in front: show this one.
+      if (session.tabs.has(tab.id)) this.#activate(session, tab);
+      return { ...output, tab: tab.id, ...(await this.#handoff(session, reason, undefined, true)) };
+    }
+    return { sessionId: session.id, tab: tab.id, status: session.handoff.status, url: tab.page.url(),
+      title: await tab.page.title().catch(() => ''), ...output };
   }
 
   // An element the model targeted could not be acted on. Nothing was changed
   // in a way that needs undoing, so this is a successful result the model can
   // recover from, not an action failure (which ends a write action's run).
-  async #notActionable(session, error) {
-    return { sessionId: session.id, status: 'not_actionable', browserStatus: session.handoff.status,
+  async #notActionable(session, error, tab) {
+    const page = tab?.page ?? session.page;
+    return { sessionId: session.id, ...(tab?.page ? { tab: tab.id } : {}), status: 'not_actionable', browserStatus: session.handoff.status,
       reason: String(error.reason ?? error.message).slice(0, 200), hint: String(error.hint ?? 'Take a new snapshot and try another way.').slice(0, 300),
-      url: session.page.url(), title: await session.page.title().catch(() => ''), requiresHuman: false };
+      url: page.url(), title: await page.title().catch(() => ''), requiresHuman: false };
   }
 
   async #paused(session) {
@@ -308,7 +378,9 @@ export class LiveBrowserService {
       case 'live-browser-navigate':
         // Pages the agent opens are not where the payment led.
         if (session.payment) session.payment.navigated = true;
-        return this.#act(session, input.intent ?? 'Navigate', async live => live.navigate(input.url), { navigation: true });
+        if (input.newTab === true && input.tab !== undefined) throw new Error('Use either newTab or tab');
+        return this.#act(session, input.intent ?? 'Navigate', async live => live.navigate(input.url),
+          { navigation: true, tab: input.tab, newTab: input.newTab === true, front: true });
       case 'live-browser-snapshot':
         return this.#act(session, input.intent, async live => {
           const snapshot = await live.snapshot({ includeScreenshot: input.includeScreenshot === true });
@@ -324,30 +396,38 @@ export class LiveBrowserService {
           // Bank pages often say "security check": the code goes through chat.
           const handoffReason = !payment.paymentChallenge && snapshot.challenges.some(kind => kind !== 'mfa') ? 'captcha' : undefined;
           // Never show the model a screenshot of card details it filled.
-          const withheld = snapshot.modelMedia && this.#redacted(session);
+          const withheld = snapshot.modelMedia && this.#redacted(session, live.page);
           if (withheld) delete snapshot.modelMedia;
           // Whether the page asks for new card details. The host releases the
           // saved card to live-browser-fill-payment-card only right after a
           // snapshot that says so.
           const cardFields = (await new SignIn(live).cardForm().catch(() => undefined))?.entry === true;
           return { ...snapshot, ...payment, cardFields, requiresHuman: false, ...(withheld ? { screenshotWithheld: true } : {}), ...(handoffReason ? { handoffReason } : {}) };
-        });
+        }, { tab: input.tab });
       case 'live-browser-click':
         return this.#act(session, input.intent, async live => {
           await live.click(input, { guard: name => this.#payGuard(session, live, name) });
           return { done: true, checkChallenges: true };
-        });
+        }, { tab: this.#refTab(session, input), front: true });
       case 'live-browser-fill':
-        return this.#act(session, input.intent, async live => ({ ...(await live.fill(input)), done: true }));
+        return this.#act(session, input.intent, async live => ({ ...(await live.fill(input)), done: true }),
+          { tab: this.#refTab(session, input), front: true });
       case 'live-browser-select':
-        return this.#act(session, input.intent, async live => ({ ...(await live.select(input)), done: true, checkChallenges: true }));
+        return this.#act(session, input.intent, async live => ({ ...(await live.select(input)), done: true, checkChallenges: true }),
+          { tab: this.#refTab(session, input), front: true });
       case 'live-browser-scroll':
-        return this.#act(session, input.intent ?? 'Scroll', async live => { await live.scroll(input); return { done: true }; });
+        return this.#act(session, input.intent ?? 'Scroll', async live => { await live.scroll(input); return { done: true }; }, { tab: input.tab });
       case 'live-browser-screenshot':
         return this.#act(session, input.intent, async live => {
-          if (this.#redacted(session)) throw notActionable('Screenshots are off while card details are on this page', 'Use live-browser-snapshot instead.');
+          if (this.#redacted(session, live.page)) throw notActionable('Screenshots are off while card details are on this page', 'Use live-browser-snapshot instead.');
           return { modelMedia: await live.screenshot(input) };
-        });
+        }, { tab: input.tab });
+      case 'live-browser-close-tab':
+        return this.#act(session, 'Close tab', async (live, tab) => {
+          if (session.tabs.size < 2) throw notActionable('This is the only open tab', 'Use live-browser-close to close the browser.');
+          await tab.page.close();
+          return { closed: true, openTabs: [...session.tabs.values()].map(open => ({ tab: open.id, url: open.page.url() })) };
+        }, { tab: input.tab, exclusive: true });
       case 'live-browser-sign-in':
         return this.#signIn(session, input, bindings);
       case 'live-browser-fill-payment-card':
@@ -428,8 +508,8 @@ export class LiveBrowserService {
     if (extended.grant) session.grant = extended.grant;
   }
 
-  #redacted(session) {
-    return Boolean(session.redactURL) && session.page?.url() === session.redactURL;
+  #redacted(session, page = session.page) {
+    return Boolean(session.redactURL) && page?.url() === session.redactURL;
   }
 
   // Signs in with a saved website login bound to this action whose website
@@ -477,7 +557,7 @@ export class LiveBrowserService {
             ? 'The sign-in form is still shown, so the saved login may be wrong. Take a snapshot; if the site says the login is wrong, tell the user in chat and ask them to update that login in their vault.'
             : 'The saved login was submitted. Take a new snapshot to confirm you are signed in.' };
       }
-    });
+    }, { exclusive: true });
   }
 
   // Fills the saved payment card into the checkout's card fields (also in
@@ -524,7 +604,7 @@ export class LiveBrowserService {
       // Next comes the user's approval of live-browser-pay: keep the browser open.
       session.replyUntil = this.#options.now() + this.#options.replyWaitMs;
       return { ...base, status: 'card_filled', filled, message: 'The saved card was filled. Take a snapshot to check the order and any errors, then call live-browser-pay with the same amount and currency; the user approves the payment in chat before it is clicked.' };
-    });
+    }, { exclusive: true });
   }
 
   // A plain click never pays: on a checkout (or after a card was filled)
@@ -576,7 +656,7 @@ export class LiveBrowserService {
       // page and on the pages the payment led to, for a bounded time.
       session.payment = { origins: [origin], until: this.#options.now() + PAYMENT_CODE_MS };
       return this.#paymentResult(session, live, base, await this.#watchPayment(sign, baseline), false, baseline);
-    });
+    }, { exclusive: true });
   }
 
   // The user's one-time code for the payment's bank (3-D Secure) or wallet
@@ -594,7 +674,7 @@ export class LiveBrowserService {
       const baseline = await sign.submitPaymentCode(code, this.#paymentOrigins(payment, live));
       return this.#paymentResult(session, live, { origin: topOrigin(live.page.url()) ?? '', requiresHuman: false },
         await this.#watchPayment(sign, baseline), true, baseline);
-    });
+    }, { exclusive: true });
   }
 
   #watchPayment(sign, baseline) {

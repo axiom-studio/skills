@@ -4,6 +4,7 @@ const sessionId = { type: 'string', minLength: 1 };
 const url = { type: 'string', pattern: '^https?://', maxLength: 8192 };
 const intent = { type: 'string', minLength: 3, maxLength: 500 };
 const target = { type: 'string', pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$' };
+const tab = { type: 'string', minLength: 1, maxLength: 16 };
 const label = { type: 'string', minLength: 1, maxLength: 100 };
 // A decimal amount; a card charge is more than zero.
 const AMOUNT = '^(?:0|[1-9][0-9]{0,11})(?:\\.[0-9]{1,4})?$';
@@ -15,8 +16,8 @@ export const REASONS = ['payment', 'submit', 'login', 'personal_data', 'destruct
 
 export const schemas = Object.freeze({
   'live-browser-start': object({ url, intent }),
-  'live-browser-navigate': object({ sessionId, url, intent }, ['sessionId', 'url']),
-  'live-browser-snapshot': object({ sessionId, includeScreenshot: { type: 'boolean', default: false }, intent }, ['sessionId']),
+  'live-browser-navigate': object({ sessionId, url, tab, newTab: { type: 'boolean', default: false }, intent }, ['sessionId', 'url']),
+  'live-browser-snapshot': object({ sessionId, tab, includeScreenshot: { type: 'boolean', default: false }, intent }, ['sessionId']),
   'live-browser-click': {
     ...object({ sessionId, target, generation: { type: 'integer', minimum: 1 }, x: { type: 'number', minimum: 0, maximum: 10000 },
       y: { type: 'number', minimum: 0, maximum: 10000 }, intent }, ['sessionId', 'intent']),
@@ -24,9 +25,9 @@ export const schemas = Object.freeze({
   },
   'live-browser-fill': object({ sessionId, target, value: { type: 'string', maxLength: 20000 }, intent }, ['sessionId', 'target', 'value', 'intent']),
   'live-browser-select': object({ sessionId, target, value: { type: 'string', minLength: 1, maxLength: 1000 }, intent }, ['sessionId', 'target', 'value', 'intent']),
-  'live-browser-scroll': object({ sessionId, dx: { type: 'number', minimum: -10000, maximum: 10000, default: 0 },
+  'live-browser-scroll': object({ sessionId, tab, dx: { type: 'number', minimum: -10000, maximum: 10000, default: 0 },
     dy: { type: 'number', minimum: -10000, maximum: 10000, default: 0 } }, ['sessionId']),
-  'live-browser-screenshot': object({ sessionId, fullPage: { type: 'boolean', default: false } }, ['sessionId']),
+  'live-browser-screenshot': object({ sessionId, tab, fullPage: { type: 'boolean', default: false } }, ['sessionId']),
   'live-browser-request-handoff': object({ sessionId, reason: { type: 'string', enum: REASONS },
     summary: { type: 'string', minLength: 1, maxLength: 500 } }, ['sessionId', 'reason', 'summary']),
   'live-browser-sign-in': object({ sessionId, credential: { type: 'string', minLength: 1, maxLength: 200 },
@@ -40,6 +41,7 @@ export const schemas = Object.freeze({
   ['sessionId', 'amount', 'currency', 'merchant', 'intent']),
   'live-browser-submit-payment-code': object({ sessionId, oneTimeCode: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 -]{2,14}[A-Za-z0-9]$' }, intent },
     ['sessionId', 'oneTimeCode']),
+  'live-browser-close-tab': object({ sessionId, tab }, ['sessionId', 'tab']),
   'live-browser-close': object({ sessionId }, ['sessionId']),
   'live-browser-listen': object({ sessionId, state: { type: 'string', enum: ['on', 'off'] }, speakerLabel: label, displayName: label,
     wakePhrases: { type: 'array', maxItems: 8, items: label }, speakReplies: { type: 'boolean', default: true },

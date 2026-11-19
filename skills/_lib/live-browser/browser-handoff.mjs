@@ -76,8 +76,8 @@ export class BrowserHandoff {
 
   // Model actions. Automation is serialized with human input; a paused or
   // human-held browser rejects with BrowserPausedError and never acts.
-  async automate(operation) {
-    try { return await this.#control.automate(operation); }
+  async automate(operation, lane) {
+    try { return await this.#control.automate(operation, lane); }
     catch (error) {
       if (this.#control.state !== 'automation' && error?.message === 'Browser automation is paused') {
         throw new BrowserPausedError(this.status);
