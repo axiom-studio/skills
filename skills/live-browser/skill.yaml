@@ -2,7 +2,7 @@ apiVersion: openseal.dev/v1alpha1
 kind: SkillDefinition
 definition:
   id: skill-live-browser
-  version: 2.0.2
+  version: 2.0.3
   name: Live browser
   description: The agent's interactive Camoufox browser. The user watches it live in Seal Chat, can take control at any time, and is handed control before sensitive or irreversible steps. It can also listen to and speak in page audio, such as a video call.
   category: productivity
@@ -197,7 +197,7 @@ definition:
         type: object
         additionalProperties: false
         properties:
-          sessionId: &session_id {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$'}
+          sessionId: &session_id {type: string, minLength: 1}
           url: {type: string, pattern: '^https?://', maxLength: 8192}
           intent: &intent {type: string, minLength: 3, maxLength: 500, description: 'Short description of this step, shown to the user.'}
         required: [sessionId, url]

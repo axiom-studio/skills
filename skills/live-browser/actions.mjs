@@ -1,6 +1,6 @@
 // Model-facing input schemas. Keep in sync with skill.yaml (server.test.mjs
 // checks the action names and required fields).
-const sessionId = { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$' };
+const sessionId = { type: 'string', minLength: 1 };
 const url = { type: 'string', pattern: '^https?://', maxLength: 8192 };
 const intent = { type: 'string', minLength: 3, maxLength: 500 };
 const target = { type: 'string', pattern: '^s[1-9][0-9]*:e[1-9][0-9]*$' };

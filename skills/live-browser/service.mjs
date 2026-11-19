@@ -7,7 +7,6 @@ import { loginSite, matchingLogins, paymentCard, topOrigin, websiteLogins } from
 import { LivePage, notActionable } from './page.mjs';
 import { checkoutPage, finalPayElement, orderSummary, PAY_BUTTON, SignIn } from './sign-in.mjs';
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/;
 const HUMAN_ONLY = { kind: 'manual_confirmation' };
 const MINUTE = 60000;
 const REQUEST_CREDENTIAL = 'openseal.skills.request_credential';
@@ -38,8 +37,8 @@ function missingLogin(origin) {
   return { credentialRequest: credentialRequest('website_login', `Add your ${siteName(site)} login so I can sign in and continue`, site) };
 }
 
-function validID(value, name) {
-  if (typeof value !== 'string' || !ID.test(value)) throw new Error(`${name} is invalid`);
+function requiredID(value, name) {
+  if (typeof value !== 'string' || !value) throw new Error(`${name} is required`);
   return value;
 }
 
@@ -86,8 +85,8 @@ export class LiveBrowserService {
   get size() { return this.#sessions.size; }
 
   #owned(agentID, sessionID) {
-    const session = this.#sessions.get(validID(sessionID, 'sessionId'));
-    if (!session || session.agentID !== validID(agentID, 'agent ID') || session.closing) {
+    const session = this.#sessions.get(requiredID(sessionID, 'sessionId'));
+    if (!session || session.agentID !== requiredID(agentID, 'agent ID') || session.closing) {
       throw new Error('No live browser session with this sessionId; call live-browser-start');
     }
     return session;
@@ -116,8 +115,8 @@ export class LiveBrowserService {
   }
 
   async start({ runID, agentID, input, bindings, config }) {
-    agentID = validID(agentID, 'agent ID');
-    runID = validID(runID, 'run ID');
+    agentID = requiredID(agentID, 'agent ID');
+    runID = requiredID(runID, 'run ID');
     const url = input.url;
     for (const session of this.#sessions.values()) {
       if (session.agentID === agentID && session.runIDs.has(runID) && !session.closing) {
@@ -304,7 +303,7 @@ export class LiveBrowserService {
   async execute(action, { runID, agentID, input, bindings, config }) {
     if (action === 'live-browser-start') return this.start({ runID, agentID, input, bindings, config });
     const session = this.#owned(agentID, input.sessionId);
-    session.runIDs.add(validID(runID, 'run ID'));
+    session.runIDs.add(requiredID(runID, 'run ID'));
     switch (action) {
       case 'live-browser-navigate':
         // Pages the agent opens are not where the payment led.
@@ -676,12 +675,12 @@ export class LiveBrowserService {
   // Host-only: verifies a human proof for this exact command with Cortex.
   async #authorized({ agentID, sessionID, authorization, command }) {
     if (!command || typeof command !== 'object' || Array.isArray(command) || Buffer.byteLength(JSON.stringify(command)) > 32768) throw new Error();
-    const session = this.#sessions.get(validID(sessionID, 'session ID'));
-    if (!session || session.agentID !== validID(agentID, 'agent ID') || session.closing) throw new Error();
+    const session = this.#sessions.get(requiredID(sessionID, 'session ID'));
+    if (!session || session.agentID !== requiredID(agentID, 'agent ID') || session.closing) throw new Error();
     const principal = await this.#authorize({ authorization, command, tenantID: session.tenantID, agentID,
       sessionID: session.id, conversationID: session.conversationID, sessionGrant: session.grant });
     if (typeof principal?.userID !== 'string' || !principal.userID.trim() || principal.tenantID !== session.tenantID ||
-      principal.agentID !== agentID || typeof principal.requestID !== 'string' || !ID.test(principal.requestID) ||
+      principal.agentID !== agentID || typeof principal.requestID !== 'string' || !principal.requestID ||
       !(Date.parse(principal.expiresAt) > this.#options.now())) throw new Error();
     for (const [id, expiry] of session.requests) if (expiry <= this.#options.now()) session.requests.delete(id);
     if (session.requests.has(principal.requestID) || session.requests.size >= 256) throw new Error();
@@ -710,9 +709,9 @@ export class LiveBrowserService {
       if (!command || typeof command !== 'object' || Array.isArray(command) || Object.keys(command).length !== 1 ||
         !['profileStatus', 'forgetProfile'].includes(command.type) || !this.#authorizeProfile || !this.#options.tenantID) throw new Error();
       const principal = await this.#authorizeProfile({ authorization, command, tenantID: this.#options.tenantID });
-      if (principal?.tenantID !== this.#options.tenantID || principal.agentID !== validID(agentID, 'agent ID') ||
+      if (principal?.tenantID !== this.#options.tenantID || principal.agentID !== requiredID(agentID, 'agent ID') ||
         typeof principal.userID !== 'string' || !principal.userID.trim() || typeof principal.requestID !== 'string' ||
-        !ID.test(principal.requestID) || !(Date.parse(principal.expiresAt) > this.#options.now())) throw new Error();
+        !principal.requestID || !(Date.parse(principal.expiresAt) > this.#options.now())) throw new Error();
       for (const [id, expiry] of this.#profileRequests) if (expiry <= this.#options.now()) this.#profileRequests.delete(id);
       if (this.#profileRequests.has(principal.requestID) || this.#profileRequests.size >= 256) throw new Error();
       this.#profileRequests.set(principal.requestID, Date.parse(principal.expiresAt));
@@ -740,7 +739,7 @@ export class LiveBrowserService {
       const { command } = request;
       const watch = !desktop && command?.type === 'watch' && Object.keys(command).length === 1;
       if (!watch && (command?.type !== (desktop ? 'desktop' : 'video') || typeof command.leaseID !== 'string' ||
-        !ID.test(command.leaseID) || Object.keys(command).some(key => !['type', 'leaseID'].includes(key)))) throw new Error();
+        !command.leaseID || Object.keys(command).some(key => !['type', 'leaseID'].includes(key)))) throw new Error();
       const { session, principal } = await this.#authorized(request);
       const controller = new AbortController();
       let timer;
