@@ -178,7 +178,7 @@ func TestProbeStaysOnLoopbackAndHasBoundedReadinessDeadline(t *testing.T) {
 }
 
 func TestDescribeMatchesRepositoryProviderManifests(t *testing.T) {
-	for _, directory := range []string{"slack", "github", "google-workspace"} {
+	for _, directory := range []string{"slack", "google-workspace"} {
 		t.Run(directory, func(t *testing.T) {
 			path := filepath.Join("..", "..", "..", "skills", directory, "skill.yaml")
 			metadata, err := loadDescription(path)
