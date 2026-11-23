@@ -99,7 +99,7 @@ snapshots. Optional manifest slots:
 
 `no_matching_login`, `no_payment_card` and `spend_cap_exceeded` carry a
 `credentialRequest` with the exact arguments for
-`openseal.skills.request_credential` (`kind` `website_login` with the page
+`openseal.skills.request_credential` (`type` `http_basic_auth` with the page
 `website` origin, or `payment_card`, and a `reason`). The agent calls it so
 the user adds the login or card, or raises the cap, in their vault through an
 in-chat card, and the work resumes when they save it. The live browser is
@@ -217,6 +217,6 @@ dependencies resolve here). After editing `skills/_lib/live-browser`, run
 ```bash
 npm --prefix skills/_lib/live-browser ci && npm --prefix skills/_lib/live-browser test
 npm --prefix skills/live-browser ci && npm --prefix skills/live-browser test
-docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:2.1.0 .
-skills/scripts/publish-k3d.sh axiomstudio/skill-live-browser:2.1.0   # local k3d only
+docker build -f skills/live-browser/Dockerfile --build-arg SKILL_NAME=live-browser -t axiomstudio/skill-live-browser:2.2.0 .
+skills/scripts/publish-k3d.sh axiomstudio/skill-live-browser:2.2.0   # local k3d only
 ```

@@ -24,8 +24,9 @@ const NO_CARD_FIELDS = ['This page has no card fields',
 
 // The exact request_credential arguments for a missing login, card or cap,
 // so the model never has to construct them.
-function credentialRequest(kind, reason, website) {
-  return { action: REQUEST_CREDENTIAL, arguments: { kind, ...(website ? { website } : {}), reason } };
+// type is the vault credential type request_credential asks for.
+function credentialRequest(type, reason, website) {
+  return { action: REQUEST_CREDENTIAL, arguments: { type, ...(website ? { website } : {}), reason } };
 }
 
 function siteName(origin) {
@@ -37,7 +38,7 @@ function siteName(origin) {
 function missingLogin(origin) {
   const site = loginSite(origin);
   if (!site) return {};
-  return { credentialRequest: credentialRequest('website_login', `Add your ${siteName(site)} login so I can sign in and continue`, site) };
+  return { credentialRequest: credentialRequest('http_basic_auth', `Add your ${siteName(site)} login so I can sign in and continue`, site) };
 }
 
 function requiredID(value, name) {
