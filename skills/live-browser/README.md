@@ -99,7 +99,7 @@ snapshots. Optional manifest slots:
 
 `no_matching_login`, `no_payment_card` and `spend_cap_exceeded` carry a
 `credentialRequest` with the exact arguments for
-`openseal.skills.request_credential` (`kind` `website_login` with the page
+`openseal.skills.request_credential` (`type` `http_basic_auth` with the page
 `website` origin, or `payment_card`, and a `reason`). The agent calls it so
 the user adds the login or card, or raises the cap, in their vault through an
 in-chat card, and the work resumes when they save it. The live browser is

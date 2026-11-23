@@ -491,7 +491,7 @@ test('sign-in without a saved login for this exact site gives the exact in-chat 
   assert.match(none.message, /do not use request_setup/);
   assert.match(none.message, /openseal\.skills\.request_credential/);
   assert.deepEqual(none.credentialRequest, { action: 'openseal.skills.request_credential',
-    arguments: { kind: 'website_login', website: 'https://amazon.in', reason: 'Add your amazon.in login so I can sign in and continue' } });
+    arguments: { type: 'http_basic_auth', website: 'https://amazon.in', reason: 'Add your amazon.in login so I can sign in and continue' } });
   assert.match(none.message, /Do not hand off/);
   await h.run('live-browser-navigate', { sessionId: 'b-1', url: 'https://www.amazon.in.evil.example/ap/signin' });
   const lookalike = await h.run('live-browser-sign-in', { sessionId: 'b-1' }, 'run-1', amazonLogin);
@@ -575,10 +575,10 @@ test('the saved card: in-chat credential request when missing, spend cap and amo
   assert.equal(missing.status, 'no_payment_card');
   assert.match(missing.message, /openseal\.skills\.request_credential/);
   assert.equal(missing.credentialRequest.action, 'openseal.skills.request_credential');
-  assert.equal(missing.credentialRequest.arguments.kind, 'payment_card');
+  assert.equal(missing.credentialRequest.arguments.type, 'payment_card');
   const capped = await pay({ 'payment-card': JSON.stringify({ error: 'spend_cap_exceeded', remaining: '1000.00', cap: '5000', currency: 'INR' }) });
   assert.deepEqual([capped.status, capped.remaining, capped.cap, capped.capCurrency], ['spend_cap_exceeded', '1000.00', '5000', 'INR']);
-  assert.equal(capped.credentialRequest.arguments.kind, 'payment_card');
+  assert.equal(capped.credentialRequest.arguments.type, 'payment_card');
   assert.match(capped.credentialRequest.arguments.reason, /spend cap/);
   assert.match(capped.message, /After the cap is raised/);
   page.bodyText = 'Items: ₹4,000.00\nOrder Total: ₹4,910.00';

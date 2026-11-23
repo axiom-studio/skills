@@ -424,7 +424,7 @@ definition:
               arguments:
                 type: object
                 properties:
-                  kind: {type: string, enum: [website_login, payment_card]}
+                  type: {type: string, enum: [http_basic_auth, payment_card]}
                   website: {type: string}
                   reason: {type: string}
           url: {type: string}
@@ -498,7 +498,7 @@ definition:
               arguments:
                 type: object
                 properties:
-                  kind: {type: string, enum: [website_login, payment_card]}
+                  type: {type: string, enum: [http_basic_auth, payment_card]}
                   website: {type: string}
                   reason: {type: string}
           url: {type: string}
